@@ -44,6 +44,10 @@ library(tibble)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Model names live in the row names rather than a real column, and the table object silently discards row names, so they must be lifted out first.
+Use rownames_to_column("model"), then head(5) and select(model, mpg, cyl, hp), and finish by passing the result to gt().
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -81,6 +85,10 @@ ex_1_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+A row-label column behaves differently from an ordinary column and has to be declared as the table is created, not bolted on afterward.
+Pass rowname_col = "model" inside gt() after the usual rownames_to_column, head, and select steps.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -117,6 +125,10 @@ ex_1_2
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Prototype the data inline as a small table, then hand it to the constructor with the week column marked as the row label.
+Build it with tibble(week = ..., signups = ..., revenue_usd = ...) and call gt(..., rowname_col = "week").
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -158,6 +170,10 @@ ex_1_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+A title block stacks two text rows above the column labels and travels with the table object itself.
+Pipe ex_1_3 into tab_header(title = ..., subtitle = ...).
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -193,6 +209,10 @@ ex_2_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Display labels can differ from the underlying column names, so rename only what the reader sees and leave the data names untouched.
+Pipe ex_2_1 into cols_label(signups = "New Signups", revenue_usd = "Revenue (USD)").
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -231,6 +251,10 @@ ex_2_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A banner can sit above several adjacent columns to group them visually without altering the underlying data shape.
+Pipe ex_2_2 into tab_spanner(label = "This week", columns = c(signups, revenue_usd)).
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 ex_2_3
@@ -266,6 +290,10 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Column order and visibility are presentation choices you can change without touching the data behind the table.
+After gt(), chain cols_move(columns = revenue_usd, after = week) and cols_hide(columns = idx).
 
 ```r title="Your turn"
 ex_2_4 <- # your code here
@@ -308,6 +336,10 @@ ex_2_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Large numbers read better with thousands separators, and the change affects only the displayed text, not the stored value.
+Pipe ex_2_3 into fmt_number(columns = revenue_usd, decimals = 0, use_seps = TRUE).
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -344,6 +376,10 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A price column should carry a currency glyph and consistent decimals, applied as a display-time formatter.
+Build the tibble, call gt(..., rowname_col = "sku"), then fmt_currency(columns = price, currency = "USD").
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -382,6 +418,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Raw proportions between 0 and 1 should be shown as percentages, with the formatter handling the multiply-by-100.
+After gt(..., rowname_col = "channel"), apply fmt_percent(columns = cvr, decimals = 1).
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -424,6 +464,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A genuine date value can be shown in a human-friendly written style, but the column must already hold a date type, not a string.
+Coerce with as.Date(), build the table, then fmt_date(columns = release, date_style = "month_day_year").
+
 ```r title="Your turn"
 ex_3_4 <- # your code here
 ex_3_4
@@ -463,6 +507,10 @@ ex_3_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Styling is described as a pair: the visual change you want, and the region of the table it should land on.
+Pipe ex_3_1 into tab_style(style = cell_text(weight = "bold"), locations = cells_column_labels()).
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -497,6 +545,10 @@ ex_4_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A single cell can be singled out by a logical condition that picks the matching row, rather than a hard-coded position.
+Use tab_style with cell_fill(color = "#FFF59D") and cells_body(columns = revenue_usd, rows = revenue_usd == max(revenue_usd)).
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -537,6 +589,10 @@ ex_4_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+A numeric column can become a heatmap by mapping its range onto a colour gradient, one fill per cell.
+Pipe ex_4_2 into data_color(columns = signups, palette = c("white", "#1B9E77")).
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -572,6 +628,10 @@ ex_4_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Two-sided conditional formatting is built from two styling rules with opposite, non-overlapping conditions.
+Stack two tab_style calls using cell_text(color = ...) with cells_body(rows = pnl < 0) and cells_body(rows = pnl >= 0).
 
 ```r title="Your turn"
 ex_4_4 <- # your code here
@@ -620,6 +680,10 @@ ex_4_4
 
 **Difficulty:** Advanced
 
+[HINTS]
+A totals row aggregates the whole body and needs its own formatting pass, since column formats do not carry into it.
+Pipe ex_3_1 into grand_summary_rows(columns = c(signups, revenue_usd), fns = list(Total = ~sum(.)), fmt = ~ fmt_number(., decimals = 0, use_seps = TRUE)).
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -657,6 +721,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A footnote attaches to one specific location, and the table auto-numbers the marker for you.
+Pipe ex_5_1 into tab_footnote(footnote = "...", locations = cells_body(columns = revenue_usd, rows = 4)).
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 ex_5_2
@@ -693,6 +761,10 @@ ex_5_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A provenance line sits at the very bottom of the table, below any footnotes, and can carry light markdown styling.
+Pipe ex_5_2 into tab_source_note(source_note = md("**Source:** ...")).
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 ex_5_3
@@ -727,6 +799,10 @@ ex_5_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Per-group subtotals require the table to know which column defines the groups before any within-group aggregate can run.
+Call gt(..., rowname_col = "product", groupname_col = "region"), then summary_rows(groups = TRUE, columns = revenue, fns = list(Subtotal = ~sum(.)), fmt = ~ fmt_number(., decimals = 0, use_seps = TRUE)).
 
 ```r title="Your turn"
 ex_5_4 <- # your code here
@@ -773,6 +849,10 @@ ex_5_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+An existing column can be promoted into group banners so rows are presented under shared headings.
+After rownames_to_column and select(model, cyl, mpg, hp), call gt(rowname_col = "model", groupname_col = "cyl").
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -808,6 +888,10 @@ ex_6_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Groups appear in data order by default, but you can force an explicit display sequence of your choosing.
+Pipe ex_6_1 into row_group_order(groups = c("8", "6", "4")), passing the group labels as strings.
+
 ```r title="Your turn"
 ex_6_2 <- # your code here
 ex_6_2
@@ -840,6 +924,10 @@ ex_6_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Alignment can be set explicitly per column instead of relying on the type-based defaults.
+Chain cols_align(align = "right", columns = c(mpg, hp)) and cols_align(align = "center", columns = model).
 
 ```r title="Your turn"
 ex_6_3 <- # your code here
@@ -874,6 +962,10 @@ ex_6_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A finished table can be written to disk as a standalone file, with the export format inferred from the filename extension.
+Create a path with tempfile(fileext = ".html"), pass it to gtsave(filename = ...), and store that path in ex_6_4.
 
 ```r title="Your turn"
 ex_6_4 <- # your code here

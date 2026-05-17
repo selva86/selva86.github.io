@@ -42,6 +42,10 @@ library(purrr)
 
 **Difficulty:** Beginner
 
+[HINTS]
+You need a labelled group that holds two checks, each confirming a computed value matches a known answer.
+Wrap two `expect_equal()` calls inside a `test_that("square works on positives", { ... })` and assign the whole thing to `ex_1_1`.
+
 ```r title="Your turn"
 square <- function(x) x^2
 ex_1_1 <- # your code here
@@ -80,6 +84,10 @@ ex_1_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Numeric value alone is not enough here - the storage type is also part of what you are locking down.
+Use `expect_identical(years, 2020:2023)` together with `expect_type(years, "integer")` inside a `test_that()` block.
+
 ```r title="Your turn"
 years <- 2020:2023
 ex_1_2 <- # your code here
@@ -117,6 +125,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Order is not part of the contract, so you need a matcher that compares membership rather than position.
+Call `expect_setequal(levels, c("a", "b", "c"))` inside the `test_that()` block.
 
 ```r title="Your turn"
 levels <- c("c", "a", "b")
@@ -157,6 +169,10 @@ ex_1_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+You are asserting that one predicate result is affirmatively true and another is affirmatively false.
+Use `expect_true(is.numeric(3.14))` and `expect_false(is.numeric("3.14"))` inside a `test_that()` block.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -191,6 +207,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Check both how many slots the return value has and what those slots are called.
+Combine `expect_length(..., 3)` and `expect_named(..., c("mean", "sd", "n"))` on `summary_stats(1:10)`.
 
 ```r title="Your turn"
 summary_stats <- function(x) c(mean = mean(x), sd = sd(x), n = length(x))
@@ -229,6 +249,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Confirm both the advertised class label of the object and the storage kind underneath it.
+Pair `expect_s3_class(fit_lm(mtcars), "lm")` with `expect_type(fit_lm(mtcars), "list")`.
 
 ```r title="Your turn"
 fit_lm <- function(d) lm(mpg ~ wt, data = d)
@@ -270,6 +294,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want to prove the function aborts, and that its complaint mentions the right reason.
+Use `expect_error(check_positive(0), "must be positive")` so the second argument matches a fragment of the message.
+
 ```r title="Your turn"
 check_positive <- function(x) if (x <= 0) stop("x must be positive, got ", x) else x
 ex_3_1 <- # your code here
@@ -306,6 +334,10 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Here the function should not stop, but it should raise a signal that the test can detect.
+Call `expect_warning(old_api(), "deprecated")` inside the `test_that()` block.
 
 ```r title="Your turn"
 old_api <- function() { warning("old_api() is deprecated, use new_api()"); 1 }
@@ -346,6 +378,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Make the absence of any failure an explicit, named assertion rather than an unexamined side effect.
+Wrap the call in `expect_no_error(compute_var(returns))` inside the `test_that()` block.
 
 ```r title="Your turn"
 compute_var <- function(returns, p = 0.95) -quantile(returns, 1 - p, names = FALSE)
@@ -389,6 +425,10 @@ ex_3_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+Three related properties of one behaviour belong together under a single descriptive label.
+Inside one `test_that("normalize standardizes correctly", { ... })`, store `normalize(1:100)` and run three `expect_equal()` checks on its mean, sd, and length.
+
 ```r title="Your turn"
 normalize <- function(x) (x - mean(x)) / sd(x)
 ex_4_1 <- # your code here
@@ -429,6 +469,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Splitting the positive case and the negative case gives the report two independent pass or fail signals.
+Write two separate `test_that()` blocks - one with `expect_true(is_valid_email("a@b.co"))`, one with `expect_false(is_valid_email("nope"))` - and assign the second to `ex_4_2`.
 
 ```r title="Your turn"
 is_valid_email <- function(x) grepl("^[^@]+@[^@]+\\.[^@]+$", x)
@@ -473,6 +517,10 @@ ex_4_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Run the same expectation across a vector of inputs without repeating the assertion line by hand.
+Inside the `test_that()` block, use `purrr::walk(c(-5, -1.5, 0, 2.3, 100), function(x) expect_gte(abs(x), 0))`.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -508,6 +556,10 @@ ex_4_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Build the sample input right inside the test so the input and the expected outcome sit side by side.
+Inside the `test_that()` block, create a 3-row `data.frame()` with an `age` column, then `expect_equal(nrow(filter_adults(df)), 2)`.
 
 ```r title="Your turn"
 filter_adults <- function(d) d[d$age >= 18, ]
@@ -550,6 +602,10 @@ ex_5_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+The test writes a file, so it must run in a throwaway location that is cleaned up automatically.
+Call `withr::local_tempdir()` first inside the block, then `save_summary(mtcars, "out.csv")` and `expect_true(file.exists("out.csv"))`.
+
 ```r title="Your turn"
 save_summary <- function(df, path) write.csv(df, path, row.names = FALSE)
 ex_5_2 <- # your code here
@@ -589,6 +645,10 @@ ex_5_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Change a global setting for just the duration of the test so it does not leak into later tests.
+Call `withr::local_options(list(digits = 3))` inside the block, then `expect_equal(getOption("digits"), 3)`.
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 ex_5_3
@@ -626,6 +686,10 @@ ex_5_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The named pairs must match, but the order the keys appear in is not part of the contract.
+Use `expect_mapequal(prices, list(AAPL = 178.5, GOOG = 142.3, MSFT = 410.1))` inside the `test_that()` block.
+
 ```r title="Your turn"
 prices <- list(GOOG = 142.3, AAPL = 178.5, MSFT = 410.1)
 ex_6_1 <- # your code here
@@ -662,6 +726,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Build your own matcher on top of the primitive that every built-in matcher is itself built from.
+Define `expect_positive` to call `expect(object > 0, sprintf(...))` and return `invisible(object)`, then use it twice inside a `test_that()` block.
 
 ```r title="Your turn"
 expect_positive <- # define your custom expectation here

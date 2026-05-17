@@ -42,6 +42,9 @@ library(purrr)
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Splitting one string on spaces produces a list with a single element, so you must reach inside that list to recover a plain vector.
+Split with a `" "` pattern, then index `[[1]]` to unwrap the single result into a character vector.
 
 ```r title="Your turn"
 ex_1_1 <- # your code here
@@ -72,6 +75,9 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Normalisation is an ordered pipeline: change case first, then remove the noisy symbols, then break the text on whitespace.
+Chain `str_to_lower()`, `str_replace_all()` with a `[[:punct:]$]` class, and a split on `\\s+`, then `unlist()` the result.
 
 ```r title="Your turn"
 headline <- "Breaking: Apple's Q3 Revenue HITS $89.5B - Stock Soars!"
@@ -121,6 +127,9 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A one-row-per-token table is built by putting the split words into a list-column and then expanding that column.
+Build a tibble, `mutate()` a list-column from a lowercased split, then `unnest()` the word column.
 
 ```r title="Your turn"
 para <- "To be or not to be that is the question whether tis nobler in mind"
@@ -170,6 +179,9 @@ ex_1_3
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Once every word sits on its own row, a frequency table is a single aggregation step, after which you keep only the leading rows.
+After tokenising, use `count(word, sort = TRUE)` followed by `slice_head(n = 5)`.
 
 ```r title="Your turn"
 post <- "The fastest way to learn a language is to write a lot of code and read a lot of code from others. The library and the docs are friends to the developer."
@@ -226,6 +238,9 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Hapax words are simply the rows of a frequency table whose tally equals one; order them afterwards for a stable view.
+After `count(word)`, apply `filter(n == 1)` and then `arrange(word)`.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -266,6 +281,9 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Vocabulary richness here is just a ratio of the count of distinct words to the total number of words.
+Divide `n_distinct(tokens)` by `length(tokens)` after building the token vector.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -304,6 +322,9 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Each tweet may hold several matches, so the extraction returns nested results you must flatten before cleaning up.
+Use `str_extract_all()` with the pattern `#[[:alnum:]]+`, then `unlist()`, lowercase, `unique()`, and `sort()`.
 
 ```r title="Your turn"
 tweets <- c(
@@ -353,6 +374,9 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Turn each variable-length set of matches into its own rows, and a per-value tally then falls out directly.
+Extract with `str_extract_all()` and `@[\\w]+`, `unnest()` the result, lowercase it, then `count(handle, sort = TRUE)`.
 
 ```r title="Your turn"
 tweets2 <- c(
@@ -399,6 +423,9 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Match the local-at-domain-dot-tld shape, and bound the trailing letters so the pattern does not run into neighbouring words.
+Build a pattern such as `[A-Za-z0-9._+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,6}`, feed it to `str_extract_all()`, then flatten, dedupe, and sort.
 
 ```r title="Your turn"
 log <- c(
@@ -444,6 +471,9 @@ ex_3_3
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Capture the currency token first, then peel off the symbol and grouping commas before any number conversion can succeed.
+Match with `str_extract_all()` using `\\$[0-9,]+(?:\\.[0-9]+)?`, strip `[\\$,]` via `str_remove_all()`, then call `as.numeric()`.
 
 ```r title="Your turn"
 press <- c(
@@ -497,6 +527,9 @@ ex_3_4
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Dropping function words is a membership test against the stop list applied to the long token table.
+After tokenising, use `filter(!word %in% stop_words_mini)` and then `count(word, sort = TRUE)`.
 
 ```r title="Your turn"
 stop_words_mini <- c("the","to","a","and","of","is","are","from","others","fastest","way","language","library","developer","learn","friends")
@@ -540,6 +573,9 @@ ex_4_1
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A crude stemmer trims a trailing suffix; the catch is that the alternatives must be tried longest-first so the longest ending wins.
+Use `str_replace()` with an anchored alternation like `(ing|ed|es|ness|s)$` replaced by an empty string.
 
 ```r title="Your turn"
 words <- c("running","jumped","fishes","watches","data","tables","happiness")
@@ -576,6 +612,9 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Consecutive word pairs come from lining up the token vector against a copy of itself shifted by one position.
+Split the sentence into `toks`, then `paste()` together `toks[-length(toks)]` and `toks[-1]`.
 
 ```r title="Your turn"
 sent <- "the fastest way to learn a language is to write a lot of code"
@@ -618,6 +657,9 @@ ex_5_1
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Build the pairs one document at a time so none span a document boundary, split each pair to test both words, then re-aggregate.
+Apply the shift-and-`paste()` trick under `rowwise()`, `unnest()`, `separate()` into `w1`/`w2` with `remove = FALSE`, filter both words against the stop list, then `count()`.
 
 ```r title="Your turn"
 corpus <- c(
@@ -686,6 +728,9 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Three-word phrases come from zipping the token vector with two further shifted copies; the recurring ones survive a count filter.
+`paste()` together `toks[1:(n-2)]`, `toks[2:(n-1)]`, and `toks[3:n]`, then `count(trigram, sort = TRUE)` and `filter(n > 1)`.
 
 ```r title="Your turn"
 speech <- "we the people of this nation stand united we the people of this republic shall not waver the people of every state are bound together"
@@ -742,6 +787,9 @@ ex_5_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Term frequency is a raw per-document count rescaled by that same document's total word count.
+`count(doc_id, word)`, then `group_by(doc_id)` and `mutate(tf = freq / sum(freq))`.
 
 ```r title="Your turn"
 docs <- c(
@@ -802,6 +850,9 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Document frequency counts how many documents a term appears in, not how often, so collapse repeats within each document first.
+Apply `distinct(doc_id, word)` before `count(word)`, then `mutate(idf = log(N / df))` and `arrange(desc(idf))`.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here
@@ -854,6 +905,9 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Multiply the two component tables together, then take the single highest-scoring row within each document.
+`inner_join()` the tf and idf tables on `word`, `mutate(tf_idf = tf * idf)`, then `group_by(doc_id)` and `slice_max(tf_idf, n = 1)`.
 
 ```r title="Your turn"
 ex_6_3 <- # your code here
@@ -907,6 +961,9 @@ ex_6_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Score each token as positive, negative, or neutral by its lexicon membership, then sum those values within each review.
+Tokenise, assign polarity with `case_when()` against the `pos` and `neg` vectors, then `group_by(review_id)` and `summarise(score = sum(...))`.
 
 ```r title="Your turn"
 reviews <- c(
@@ -977,6 +1034,9 @@ ex_7_1
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A fair comparison across reviews divides the raw polarity sum by how many words the review contains.
+Inside `summarise()` compute `total = n()` alongside the polarity sum, then `mutate(intensity = score / total)` and `arrange(desc(intensity))`.
 
 ```r title="Your turn"
 ex_7_2 <- # your code here

@@ -48,6 +48,10 @@ library(patchwork)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Think of a plot as three pieces: the data, a mapping that says which column goes on which axis, and one layer that actually draws something.
+Open the plot with `ggplot(mpg, aes(x = displ, y = hwy))` and add `geom_point()` for the visible layer.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -81,6 +85,10 @@ ex_1_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The deciding question is whether the colour should respond to a data column or stay one fixed value for every point.
+Add `color = drv` inside `aes()` so the hue is driven by the data, not inside `geom_point()`.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -112,6 +120,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A time series needs a layer that connects observations in date order, and large y-values read better with thousands separators.
+Use `geom_line()` for the layer and `scale_y_continuous(labels = scales::comma)` for the formatted axis.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -146,6 +158,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Let the geom do the counting for you, reorder the category by how often each level appears, then turn the chart on its side.
+Map `forcats::fct_infreq(cut)` to x, add `geom_bar()`, and finish with `coord_flip()`.
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -183,6 +199,10 @@ ex_1_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+A count-per-interval chart needs you to decide how wide each interval should be rather than accept the default.
+Map `hwy` to x and use `geom_histogram(binwidth = 2)`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -215,6 +235,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Drop the missing values first, make the grouping variable categorical, then split the plot into one panel per group.
+Chain `tidyr::drop_na(Ozone)`, `factor(Month)`, `geom_density(fill = "steelblue", alpha = 0.5)`, and `facet_wrap(~ Month)`.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -253,6 +277,10 @@ ex_2_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A discrete grouping stored as a number must be made categorical before it can split into separate boxes.
+Wrap `cyl` in `factor()` for both the x mapping and the `fill` mapping, then add `geom_boxplot()`.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 ex_2_3
@@ -286,6 +314,10 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Two layers tell the story together, and the order you add them decides which one sits on top.
+Add `geom_violin()` first, then `geom_boxplot(width = 0.1, fill = "white")` so the narrow box overlays the violin.
 
 ```r title="Your turn"
 ex_2_4 <- # your code here
@@ -322,6 +354,10 @@ ex_2_4
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Every piece of plot text - the heading, the sub-heading, the axis names - is set through one single call.
+Add `labs(title = ..., subtitle = ..., x = ..., y = ...)` to the scatter.
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -362,6 +398,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Heavy overplotting calls for see-through points, and a money axis reads better with currency-formatted labels.
+Use `geom_point(alpha = 0.2)` and `scale_y_continuous(labels = scales::dollar)`.
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -394,6 +434,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Apply the overall look first, then make the fine-grained adjustment to the tick text - order matters here.
+Add `theme_minimal()` and then `theme(axis.text.x = element_text(angle = 45, hjust = 1))`.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -429,6 +473,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A numeric colour variable needs a continuous palette, and there is a colour-blind-safe one built in.
+Map `color = depth` and add `scale_color_viridis_c()`.
+
 ```r title="Your turn"
 ex_3_4 <- # your code here
 ex_3_4
@@ -463,6 +511,10 @@ ex_3_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+You can replace the automatic colours with your own, keyed so each category always maps to the same hue.
+Add `scale_color_manual(values = c("4" = "#1b9e77", "6" = "#d95f02", "8" = "#7570b3"))`.
 
 ```r title="Your turn"
 ex_3_5 <- # your code here
@@ -500,6 +552,10 @@ ex_3_5
 
 **Difficulty:** Beginner
 
+[HINTS]
+Split the plot into one small panel per category of a single variable, wrapped into a grid.
+Add `facet_wrap(~ class)` to the scatter.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -532,6 +588,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Splitting on two variables at once means a true rows-by-columns matrix of panels, not a wrapped strip.
+Add `facet_grid(drv ~ year)` so drivetrain forms the rows and year the columns.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -566,6 +626,10 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Build each chart as its own independent object first, then join the finished objects into a single row.
+Make `p1`, `p2`, `p3` separately and combine them with `p1 + p2 + p3`.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -603,6 +667,10 @@ ex_4_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+When panels differ wildly in absolute level, each one should get its own y-range so the shape of the trend stays readable.
+Filter to the five cities, build a `year + month / 12` time column, and facet with `facet_wrap(~ city, scales = "free_y")`.
 
 ```r title="Your turn"
 ex_4_4 <- # your code here
@@ -643,6 +711,10 @@ ex_4_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Add a second layer on top of the points that summarises the relationship with a fitted straight line and a confidence band.
+Add `geom_smooth(method = "lm", se = TRUE)`.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -675,6 +747,10 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The numbers you want printed are the bar heights, which are computed by the bar layer rather than present in the raw data.
+Add `geom_text(stat = "count", aes(label = after_stat(count)), vjust = -0.5)`.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -710,6 +786,10 @@ ex_5_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+You can put summary statistics directly on the plot without computing them in a separate step beforehand.
+Use two `stat_summary()` calls - one with `fun = mean, geom = "point"` and one with `fun.data = mean_se, geom = "errorbar"`.
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 ex_5_3
@@ -742,6 +822,10 @@ ex_5_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A fixed horizontal marker and a single piece of placed text both annotate the chart without depending on the data rows.
+Add `geom_hline(yintercept = 10000, color = "red", linetype = "dashed")` and `annotate("text", x = ..., y = 15500, label = ...)`.
 
 ```r title="Your turn"
 ex_5_4 <- # your code here
@@ -782,6 +866,10 @@ ex_5_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Pick the spare overall look first, then make one text element bold and add a source line at the bottom.
+Use `theme_classic()`, `theme(plot.title = element_text(face = "bold", size = 14))`, and `labs(caption = ...)`.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -819,6 +907,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Writing a plot to an image file is a single call where you state the file name, the dimensions, and the resolution.
+Call `ggsave(filename = "mpg_report.png", plot = ex_6_2, width = 1200, height = 800, units = "px", dpi = 300)`.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here
@@ -863,6 +955,10 @@ ex_6_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Three independent adjustments stack on the same plot - a compressed y-axis, money-formatted labels, and a chosen palette.
+Add `scale_y_log10(labels = scales::dollar)`, `scale_color_brewer(palette = "Set2")`, and `theme_minimal()`.
+
 ```r title="Your turn"
 ex_6_3 <- # your code here
 ex_6_3
@@ -897,6 +993,10 @@ ex_6_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Map the category to the vertical axis, sort it by frequency, label each bar tip, and pad the value axis so labels are not clipped.
+Use `aes(y = forcats::fct_infreq(class))`, `geom_text(stat = "count", aes(label = after_stat(count)), hjust = -0.2)`, and `scale_x_continuous(expand = expansion(mult = c(0, 0.1)))`.
 
 ```r title="Your turn"
 ex_6_4 <- # your code here

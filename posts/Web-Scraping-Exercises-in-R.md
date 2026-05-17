@@ -48,6 +48,9 @@ library(httr2)
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+A raw HTML string can be turned into a queryable document the same way a live web address would be.
+Pass `html_str` to `read_html()` and assign the returned document to `ex_1_1`.
 
 ```r title="Your turn"
 html_str <- '
@@ -110,6 +113,9 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+You want every matching list item returned as a set, not just the first one.
+Use the plural getter `html_elements()` with the CSS selector `"li.item"`.
 
 ```r title="Your turn"
 ex_1_2 <- ex_1_1 |>
@@ -151,6 +157,9 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+One getter returns a single node while its plural counterpart returns a node set; run each against the same card.
+Call `html_element(card, ".price")` for `singular` and `html_elements(card, ".price")` for `plural`.
 
 ```r title="Your turn"
 card_str <- '<div class="card"><span class="price">$19.99</span></div>'
@@ -202,6 +211,9 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+After selecting the heading nodes, extract their text with the getter that normalises whitespace and decodes entities like a browser.
+Chain `html_elements("h2")` into `html_text2()`.
 
 ```r title="Your turn"
 news_html <- read_html('
@@ -252,6 +264,9 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Scope the anchors to the footer navigation, then pull a single named attribute off each one.
+Select with `html_elements("nav.footer a")`, then read the link target with `html_attr("href")`.
 
 ```r title="Your turn"
 footer_html <- read_html('
@@ -306,6 +321,9 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Each relative link needs to be combined with a base address so it resolves to a complete location.
+Call `url_absolute()` with `ex_2_2` and `base = "https://r-statistics.co/shop/"`.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -344,6 +362,9 @@ ex_2_3
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+A well-formed table maps directly onto a rectangular data structure with no per-cell work.
+Select the `"table"` node, run `html_table()`, then pass the result to `as_tibble()`.
 
 ```r title="Your turn"
 sales_html <- read_html('
@@ -404,6 +425,9 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Fix the row count by isolating the repeating card first, then extract one scalar per column from each card.
+On `cards` use `html_element(".name")`, `html_element(".price")`, and `html_element(".stock")` piped through `html_text2()`; strip the dollar sign with `str_remove("\\$")` plus `as.numeric()`, and test the stock text against `"In stock"`.
 
 ```r title="Your turn"
 listings_html <- read_html('
@@ -495,6 +519,9 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A CSS combinator can match each value element that immediately follows its term element, so pairs stay aligned without index zipping.
+Select terms with `"dl.glossary > dt"` and definitions with `"dl.glossary > dt + dd"`, then run `html_text2()` on each set.
 
 ```r title="Your turn"
 gloss_html <- read_html('
@@ -558,6 +585,9 @@ ex_3_3
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Fill the form template's field first, then send it back through the same session so cookies and hidden fields travel with it.
+Set the field with `form |> html_form_set(q = "ggplot2")` and send it via `session_submit()`.
 
 ```r title="Your turn"
 sess <- session("https://hrbrmstr.github.io/rvest-test/")
@@ -606,6 +636,9 @@ ex_4_1
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Reuse the existing session for each page instead of opening a fresh connection per request.
+Map over the three page names, calling `session_jump_to(sess, p)` for each.
 
 ```r title="Your turn"
 sess <- session("https://r-statistics.co/index.html")
@@ -651,6 +684,9 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+The safest stop condition is the absence of a link, so the function must yield a missing value when nothing matches.
+Grab the node with `html_element(html, 'link[rel="next"]')`, branch on `is.na()`, and resolve its `href` with `url_absolute()`.
 
 ```r title="Your turn"
 page_html <- read_html('
@@ -707,6 +743,9 @@ ex_4_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A courteous scraper announces who it is and reads the site's crawl rules before fetching anything.
+Call `bow()` with `url`, a `user_agent` string containing `audit@example.com`, and a `delay`.
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -749,6 +788,9 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Wrap the request so transient server failures are re-attempted with growing pauses before it gives up.
+Build the request, add `req_user_agent()`, then `req_retry(max_tries = 3, backoff = \(i) 2 ^ i)` before `req_perform()`.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -790,6 +832,9 @@ ex_5_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Store fetched responses on disk so repeated runs read local copies instead of hitting the network.
+Add `req_cache(path = tempdir())` to the request chain before `req_perform()`.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -837,6 +882,9 @@ ex_5_3
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Write one function that handles a single page, then stack its results across every page into one table.
+Inside `scrape_page()` select `"li.row"` and extract the `.t` and `.p` columns, then combine the pages with `map_dfr()`.
 
 ```r title="Your turn"
 pages <- list(
@@ -907,6 +955,9 @@ ex_6_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Count how many rows violate each rule, then keep only the rules that were actually broken.
+Fill `n_bad` with `sum()` of each bad-row condition (and `nrow()` minus unique titles for duplicates), then `filter(n_bad > 0)`.
 
 ```r title="Your turn"
 checks <- tibble(

@@ -46,6 +46,10 @@ library(tidyr)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A scatter needs a data source plus which column goes on each axis; the chart type and how points are drawn are the two settings worth making explicit.
+Call plot_ly() with data = mtcars, x = ~hp, y = ~mpg, and set type = "scatter" with mode = "markers".
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -83,6 +87,10 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+The counts tibble is already built; you only need to draw one bar per category, and bars want a discrete x-axis.
+Pass cyl_counts to plot_ly() with type = "bar", and wrap the x mapping in factor(cyl) so the three groups stay categorical.
 
 ```r title="Your turn"
 cyl_counts <- mtcars |> count(cyl)
@@ -123,6 +131,10 @@ ex_1_2
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+A line chart is just a scatter where the points are joined rather than left as dots; the tibble with a real date column is ready to plot.
+Call plot_ly() on ap with x = ~date, y = ~passengers, type = "scatter" and mode = "lines".
 
 ```r title="Your turn"
 ap <- tibble(
@@ -172,6 +184,10 @@ ex_1_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+To split markers into a legend by group, map the grouping variable to an aesthetic and make sure it reads as discrete, not continuous.
+Add color = ~factor(gear) to a plot_ly() scatter of wt vs mpg; the factor() is what forces a discrete legend.
+
 ```r title="Your turn"
 ex_1_4 <- # your code here
 ex_1_4
@@ -213,6 +229,10 @@ ex_1_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Titles and axis labels are page-level styling, not part of the trace itself, so they go through a separate styling step chained onto the plot.
+Pipe into layout() and set title, plus xaxis = list(title = ...) and yaxis = list(title = ...).
+
 ```r title="Your turn"
 ex_2_1 <- plot_ly(mtcars, x = ~hp, y = ~mpg, type = "scatter", mode = "markers") |>
   # your code here
@@ -251,6 +271,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Overplotting is tamed by shrinking each point and letting overlaps stack visually into a density gradient, both of which are point-level settings.
+Add marker = list(size = 3, opacity = 0.3) to the existing plot_ly() call.
 
 ```r title="Your turn"
 ex_2_2 <- plot_ly(
@@ -298,6 +322,10 @@ ex_2_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A skewed quantity reads better when the axis spaces values by ratio rather than by absolute difference, which is a property of the axis itself.
+Pipe into layout() and set yaxis = list(type = "log").
+
 ```r title="Your turn"
 ex_2_3 <- plot_ly(diamonds, x = ~carat, y = ~price,
                   type = "scatter", mode = "markers",
@@ -335,6 +363,10 @@ ex_2_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Mapping a numeric column to colour produces a continuous colour bar; you steer the gradient by supplying the colour stops it interpolates between.
+Set color = ~depth and pass colors = c("#3b4cc0", "#f7f7f7", "#b40426") to plot_ly().
 
 ```r title="Your turn"
 ex_2_4 <- # your code here
@@ -378,6 +410,10 @@ ex_2_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The fitted predictions are already a separate tibble; you just need to draw them as a second layer on the same figure.
+Chain add_trace() with data = grid, mode = "lines", and a name so the legend labels it.
 
 ```r title="Your turn"
 fit <- lm(mpg ~ wt, data = mtcars)
@@ -425,6 +461,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Side-by-side bars come from splitting one bar series into one series per subgroup, and from telling plotly not to stack them.
+Map color = ~factor(am) on the bar plot, then set barmode = "group" inside layout().
+
 ```r title="Your turn"
 cyl_am <- mtcars |> count(cyl, am)
 
@@ -469,6 +509,10 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The four panels are already built as separate objects; they just need to be assembled into a grid with a stated row count.
+Combine p1, p2, p3, p4 with subplot() using nrows = 2.
 
 ```r title="Your turn"
 p1 <- plot_ly(mtcars, x = ~hp, y = ~mpg, type = "scatter", mode = "markers")
@@ -516,6 +560,10 @@ ex_3_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+Two panels in one row can be told to lock their vertical scales together so the same values line up across both.
+Combine h and b with subplot() using nrows = 1 and shareY = TRUE.
+
 ```r title="Your turn"
 h <- plot_ly(mtcars, y = ~mpg, type = "histogram", orientation = "h")
 b <- plot_ly(mtcars, y = ~mpg, type = "box", name = "mpg")
@@ -559,6 +607,10 @@ ex_3_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A custom tooltip is a formatted string with placeholders for each value joined by HTML line breaks; extra per-point text is supplied as its own aesthetic.
+Set text = ~car and a hovertemplate string using %{text}, %{x}, %{y} with <br> separators.
 
 ```r title="Your turn"
 mt <- mtcars |> rownames_to_column("car")
@@ -610,6 +662,10 @@ ex_4_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+An animation is just a chart where rows are bucketed by a key, with one drawn state shown per key value.
+Pass frame = ~year to plot_ly(), then tune playback speed with animation_opts().
+
 ```r title="Your turn"
 econ <- economics |>
   mutate(year = as.integer(format(date, "%Y")))
@@ -658,6 +714,10 @@ ex_4_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A zoom strip beneath a time series is unlocked by a single nested option on the horizontal axis.
+Pipe into layout() and add rangeslider = list(type = "date") inside the xaxis list.
+
 ```r title="Your turn"
 ex_4_3 <- plot_ly(economics, x = ~date, y = ~unemploy,
                   type = "scatter", mode = "lines") |>
@@ -697,6 +757,10 @@ ex_4_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A menu that swaps which trace shows works by patching each trace's visibility flags whenever a choice is clicked.
+Add an updatemenus list in layout() whose buttons use method = "update" with visible vectors.
 
 ```r title="Your turn"
 mt <- mtcars |> rownames_to_column("car") |> mutate(idx = row_number())
@@ -753,6 +817,10 @@ ex_4_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The ggplot2 figure is already complete; turning it interactive needs one wrapper call, not a rebuild.
+Pass the ggplot object g to ggplotly().
+
 ```r title="Your turn"
 g <- ggplot(mtcars, aes(factor(cyl), mpg)) +
   geom_boxplot(outlier.shape = NA) +
@@ -794,6 +862,10 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A rotatable three-axis plot needs a third coordinate alongside the usual two, plus a chart type that supports a z dimension.
+Use plot_ly() with type = "scatter3d", mode = "markers", x/y/z mappings, and color = ~factor(cyl).
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -839,6 +911,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A matrix of values renders directly as a coloured grid; pinning the scale symmetrically around zero keeps positive and negative cells readable.
+Pass z = cm to plot_ly() with type = "heatmap", a diverging colorscale, and zmin = -1, zmax = 1.
 
 ```r title="Your turn"
 cm <- cor(mtcars)
@@ -888,6 +964,10 @@ ex_5_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+This chart type needs four price series per period, and the OHLC tibble has already been assembled for you.
+Call plot_ly() on df with type = "candlestick", passing open, high, low, and close mappings.
 
 ```r title="Your turn"
 set.seed(1)

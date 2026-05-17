@@ -92,6 +92,10 @@ Note: `orders` deliberately contains two orphan rows (customer_id 7 and 9 do not
 
 **Difficulty:** Beginner
 
+[HINTS]
+Decide which table must keep every one of its rows even when the other side has no match, and put that table first.
+Use a mutating join that preserves all left-side rows, joining on `customer_id` via the `by` argument.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -131,6 +135,10 @@ ex_1_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+You first need a shared key column on the orders side, then a join that keeps only rows present in both tables.
+Add `product_id` with `mutate()`, then `inner_join()` the products table on `product_id`.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -169,6 +177,10 @@ ex_1_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want every key that appears in either table, so neither side should be allowed to drop rows.
+Use `full_join()` on `customer_id` to get the union of both keysets.
+
 ```r title="Your turn"
 ex_1_3 <- # your code here
 ex_1_3
@@ -204,6 +216,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+This time the orders table is the one that must survive in full, even though it sits on the right.
+Call `right_join()` from `customers` to `orders` on `customer_id` so every order row is kept.
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -242,6 +258,10 @@ ex_1_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want one row per customer carrying a bundled sub-table of their orders, not duplicated customer rows.
+Use `nest_join()` on `customer_id` to produce the `orders` list-column.
 
 ```r title="Your turn"
 ex_1_5 <- # your code here
@@ -282,6 +302,10 @@ ex_1_5
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want to filter customers down to those with a match, without pulling in any order columns.
+Use `semi_join()` of `customers` against `orders` on `customer_id`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -315,6 +339,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want to keep only the order rows that have no matching customer at all.
+Use `anti_join()` of `orders` against `customers` on `customer_id`.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -351,6 +379,10 @@ ex_2_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+First define what "recent" means as a separate set, then keep customers who are absent from it.
+Use `filter(order_date >= as.Date("2024-09-02"))` to build the recent set, then `anti_join()` on `customer_id`.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -394,6 +426,10 @@ ex_2_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+When the key columns are named differently on each side, the join needs to be told which name maps to which.
+Use `rename(id = customer_id)` on customers, then `inner_join()` with `by = c("customer_id" = "id")`.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -434,6 +470,10 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A row is only the same record when both key columns agree, so the match must use the pair together.
+Pass `by = c("region", "quarter")` to `left_join()`, then add `mutate(gap = actual - target)`.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -485,6 +525,10 @@ ex_3_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+This is the same composite-key match as before, just expressed with the modern unquoted key syntax.
+Pass `by = join_by(region, quarter)` to `inner_join()`, then add the same `mutate(gap = actual - target)`.
+
 ```r title="Your turn"
 ex_3_3 <- # your code here
 ex_3_3
@@ -525,6 +569,10 @@ ex_3_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Each order needs the same customer plus the single history version that was effective at its date.
+Combine an equality with a closest-match inequality: `join_by(customer_id, closest(order_date >= effective_date))` inside `inner_join()`.
 
 ```r title="Your turn"
 ex_3_4 <- # your code here
@@ -573,6 +621,10 @@ ex_3_4
 
 **Difficulty:** Advanced
 
+[HINTS]
+When both sides have duplicate keys the row count fans out, and dplyr expects you to declare that this is intentional.
+Pass `relationship = "many-to-many"` to `inner_join()` on `customer_id`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -615,6 +667,10 @@ ex_4_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Both tables share a non-key column name, so you need to control how the duplicates are labelled in the result.
+Pass `suffix = c("_feb", "_mar")` to `inner_join()` on `product_id`.
+
 ```r title="Your turn"
 ex_4_2 <- # your code here
 ex_4_2
@@ -648,6 +704,10 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+An unmatched row should make the pipeline fail loudly rather than silently disappear, and the failure must be captured.
+Pass `unmatched = "error"` to `inner_join()` and wrap the call in `tryCatch()` with an `error` handler returning `conditionMessage(e)`.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -690,6 +750,10 @@ ex_4_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Two missing key values should not be treated as equal, so the join must be told to exclude them.
+Pass `na_matches = "never"` to `left_join()` on `id`.
 
 ```r title="Your turn"
 ex_4_4 <- # your code here
@@ -735,6 +799,10 @@ ex_4_4
 
 **Difficulty:** Advanced
 
+[HINTS]
+Each order should match the one tier whose half-open range contains its amount, which is a comparison rather than an equality.
+Use `join_by(amount >= min_amount, amount < max_amount)` inside `inner_join()`.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -772,6 +840,10 @@ ex_5_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Each transaction needs exactly one rate: the most recent one dated on or before it.
+Use `join_by(closest(txn_date >= rate_date))` inside `inner_join()`.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -822,6 +894,10 @@ ex_5_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each signup should match the campaign whose start-to-end window it falls inside.
+Use `join_by(between(signup, starts, ends))` inside `inner_join()`.
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 ex_5_3
@@ -864,6 +940,10 @@ ex_5_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+Join the table to itself so each order can be paired with every earlier order from the same customer.
+Use `join_by(customer_id, order_date > order_date)` inside a self `inner_join()`, with `suffix = c("_curr", "_prev")`.
+
 ```r title="Your turn"
 ex_5_4 <- # your code here
 ex_5_4
@@ -903,6 +983,10 @@ ex_5_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Combine the two tables, total the amounts per customer, then keep only the highest three.
+Use `inner_join()` on `customer_id`, then `group_by(name, segment)`, `summarise(total_revenue = sum(amount))`, and `slice_max(total_revenue, n = 3)`.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -939,6 +1023,10 @@ ex_6_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Narrow to Pro customers, define what counts as recent activity, keep those without it, and order by signup.
+Use `filter(segment == "Pro")`, an `anti_join()` against the recent orders set, then `arrange(signup)`.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here
@@ -984,6 +1072,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Take the union of both keysets, then label each id by which side it actually came from.
+Add boolean flags before a `full_join()` on `customer_id`, then derive `status` with `case_when()`.
 
 ```r title="Your turn"
 ex_6_3 <- # your code here
@@ -1035,6 +1127,10 @@ ex_6_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Anchor on the orders table so the row count never changes, then layer each dimension on without dropping rows.
+Add `product_id` with `mutate()`, then chain `left_join()` calls for `customers`, `products`, and `returns`.
+
 ```r title="Your turn"
 ex_6_4 <- # your code here
 ex_6_4
@@ -1075,6 +1171,10 @@ ex_6_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Reduce orders to each customer's earliest date, attach it back so every customer stays visible, then take the gap.
+Use `semi_join()` then `summarise(first_order_date = min(order_date))`, `left_join()` back to customers, and `mutate()` the day difference.
 
 ```r title="Your turn"
 ex_6_5 <- # your code here

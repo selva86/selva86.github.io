@@ -51,6 +51,10 @@ library(tibble)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Think about which feature controls reader navigation and which lets readers expand or collapse code, and remember YAML nests with two spaces per level.
+Write a multi-line string with a `title:` line, then `output:` containing `html_document:` with `toc: true`, `toc_float: true`, and `code_folding: hide`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 cat(ex_1_1)
@@ -100,6 +104,10 @@ cat(ex_1_1)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A custom system font only takes effect under an engine that can load such fonts, so the engine choice and the font field belong together.
+Under `pdf_document:` set `latex_engine: xelatex`, `fontsize: 11pt`, `geometry: margin=1in`, and `mainfont: "TeX Gyre Termes"`.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 cat(ex_1_2)
@@ -146,6 +154,10 @@ cat(ex_1_2)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A single output block can list several deliverables, each one its own nested child with its own settings.
+Under `output:` nest `html_document:` with `toc_float: true`, `word_document:` with `reference_docx: corp_template.docx`, and `pdf_document:` with `latex_engine: xelatex`.
+
 ```r title="Your turn"
 ex_1_3 <- # your code here
 cat(ex_1_3)
@@ -190,6 +202,10 @@ cat(ex_1_3)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Three top-level fields wire up citations: where the references live, which style formats them, and whether each citation becomes a link.
+Set `bibliography: refs.bib`, `csl: csl/apa-7th.csl`, and `link-citations: true`.
+
 ```r title="Your turn"
 ex_1_4 <- # your code here
 cat(ex_1_4)
@@ -227,6 +243,10 @@ cat(ex_1_4)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Each parameter needs a default, and a date default has to be computed live rather than frozen as a literal string.
+Under `params:` give `region:` a `value: "EMEA"` and `cutoff_date:` a `value: !r Sys.Date()`.
 
 ```r title="Your turn"
 ex_1_5 <- # your code here
@@ -268,6 +288,10 @@ cat(ex_1_5)
 
 **Difficulty:** Beginner
 
+[HINTS]
+You want the source code invisible but its printed output and plots still shown, so pick the option that hides only the code, not the option that hides everything.
+Build the `{r exec-summary, ...}` header string with `echo=FALSE`, `message=FALSE`, and `warning=FALSE`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 cat(ex_2_1)
@@ -303,6 +327,10 @@ cat(ex_2_1)
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+One call in the setup chunk can change the defaults that every later chunk inherits.
+Save a string calling `knitr::opts_chunk$set()` with `message`, `warning`, `fig.width`, `fig.height`, and `fig.align` arguments.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -346,6 +374,10 @@ cat(ex_2_2)
 
 **Difficulty:** Advanced
 
+[HINTS]
+Caching on the code alone misses data changes, so the cache key has to also depend on the input file's current state.
+Compose the `{r fit-model, ...}` header with `cache=TRUE` and `cache.extra=file.info("sales.csv")$mtime`.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 cat(ex_2_3)
@@ -376,6 +408,10 @@ cat(ex_2_3)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Device size, raster resolution, the visible caption, and the screen-reader text are four separate chunk options.
+Set `fig.width=6`, `fig.height=3.5`, `dpi=150`, `fig.cap=`, and `fig.alt=` in the `{r mpg-wt, ...}` header.
+
 ```r title="Your turn"
 ex_2_4 <- # your code here
 cat(ex_2_4)
@@ -405,6 +441,10 @@ cat(ex_2_4)
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+A setup chunk runs only for its side effects, so suppress both the code and everything it emits with a single option.
+Save the string `{r setup, include=FALSE}`.
 
 ```r title="Your turn"
 ex_2_5 <- # your code here
@@ -437,6 +477,10 @@ cat(ex_2_5)
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+An inline expression keeps the sentence's number in sync with the data computed at render time.
+Embed `` `r nrow(mtcars)` `` inside the sentence string where the count should appear.
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -473,6 +517,10 @@ cat(ex_3_1)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A table-rendering call takes the data plus a caption and a column-alignment choice as extra arguments.
+Call `knitr::kable(head(mtcars), caption = "Top of mtcars", align = "r")`.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -514,6 +562,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Striping and grouped headers only apply to an HTML-format table, and a grouped header must account for the row-label column too.
+Build an HTML kable, then pipe through `kableExtra::kable_styling(bootstrap_options = "striped")` and `kableExtra::add_header_above(c(" " = 1, "Engine" = 4, "Performance" = 7))`.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -557,6 +609,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Per-column rounding needs one rounding value per column, while a thousand-separator is a formatting argument rather than a rounding one.
+Pass `digits` as a length-11 vector and `format.args = list(big.mark = ",")` to `knitr::kable(head(mtcars), ...)`.
+
 ```r title="Your turn"
 ex_3_4 <- # your code here
 ex_3_4
@@ -593,6 +649,10 @@ ex_3_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+To place plots side by side, knitr must hold their output until the chunk ends and know each plot's display width and how many fit per row.
+Compose `{r diag-plots, ...}` with `fig.show='hold'`, `out.width='50%'`, and `fig.ncol=2`.
 
 ```r title="Your turn"
 ex_3_5 <- # your code here
@@ -638,6 +698,10 @@ params <- list(region = "EMEA", cutoff_date = as.Date("2026-02-01"))
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The two parameters arrive as fields of a named list, and the date comparison only works because the cutoff is a real Date.
+Filter `sales` keeping rows where `region == params$region` and `sale_dt >= params$cutoff_date`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -671,6 +735,10 @@ ex_4_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Iterate the regions, render once per region into a region-named file, and keep each render isolated so one region's parameters do not leak into the next.
+Use `vapply()` over the regions calling `rmarkdown::render()` with `output_file`, `params`, and `envir = new.env()`, with template `character(1)`.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -712,6 +780,10 @@ ex_4_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Shared boilerplate lives in its own child file that the parent knits and captures as a string of rendered markdown.
+Call `knitr::knit_child("_disclaimer.Rmd", envir = environment(), quiet = TRUE)`.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 cat(ex_4_3)
@@ -748,6 +820,10 @@ cat(ex_4_3)
 
 **Difficulty:** Advanced
 
+[HINTS]
+Read the value from the environment at render time and supply a fallback so a missing variable does not silently empty the report.
+Pass `params = list(region = Sys.getenv("REPORT_REGION", unset = "EMEA"))` to `rmarkdown::render("report.Rmd", ...)`.
+
 ```r title="Your turn"
 ex_4_4 <- # your code here
 ex_4_4
@@ -781,6 +857,10 @@ ex_4_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Walk every row of the region-by-product grid, rendering one isolated report each into a file named after the combination.
+Use `purrr::pmap_chr()` over the `expand_grid()` result, calling `rmarkdown::render()` with `output_file`, `params`, and `envir = new.env()`.
 
 ```r title="Your turn"
 ex_4_5 <- # your code here
@@ -827,6 +907,10 @@ ex_4_5
 
 **Difficulty:** Intermediate
 
+[HINTS]
+An inline citation carries a page locator, and an empty section heading lets pandoc fill in the reference list on its own.
+Build a string containing `[@smith2020, p. 14]` and a `## References` heading separated by a `\n\n` break.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 cat(ex_5_1)
@@ -858,6 +942,10 @@ cat(ex_5_1)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Bookdown turns a chunk label into a numbered figure reference, and the figure-type prefix is part of that reference.
+Write the sentence string using `\@ref(fig:mpg-wt)`, escaping the backslash inside the R string.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -894,6 +982,10 @@ cat(ex_5_2)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+An attribute attached to the parent heading converts each child heading beneath it into a clickable tab.
+Compose a string with `## Model evaluation {.tabset}` followed by three `### ` subheadings joined by `\n\n`.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -939,6 +1031,10 @@ cat(ex_5_3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Quarto renames the output key, prefers dash-separated field names, and takes plain key-value pairs for parameters.
+Write YAML with `format:` containing `html:` carrying `toc: true`, `toc-location: left`, and `code-fold: true`, plus a `params:` block with `region: "EMEA"`.
 
 ```r title="Your turn"
 ex_5_4 <- # your code here
@@ -987,6 +1083,10 @@ cat(ex_5_4)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Each render needs a region-specific title that overrides the static YAML one, supplied at render time rather than baked into the source.
+Inside a `vapply()` loop call `rmarkdown::render()` with `output_options = list(pandoc_args = c("--metadata", paste0("title=Q1 KPI Review: ", r)))` alongside `output_file`, `params`, and `envir`.
 
 ```r title="Your turn"
 ex_5_5 <- # your code here

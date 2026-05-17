@@ -51,6 +51,9 @@ The dataset stable used across this hub: `iris`, `mtcars`, `ToothGrowth`, `Plant
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+A claimed population mean is something you supply from outside the data, never something you estimate from the sample itself.
+Feed the vector and the claimed value as `mu` to `t.test()`; the two-sided test is the default, so no `alternative` is needed.
 
 ```r title="Your turn"
 ex_1_1 <- # your code here
@@ -97,6 +100,9 @@ ex_1_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+When you have a directional prediction, the test should put all its attention on one tail instead of splitting it across both.
+Set `alternative = "greater"` in `t.test()` alongside `mu = 18`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -148,6 +154,9 @@ bolt_lengths <- c(10.02, 9.97, 10.05, 9.95, 10.01, 10.04,
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Compare the measured average against the engineering target without assuming which direction any drift would take.
+Call `t.test()` on `bolt_lengths` with `mu = 10` and leave `alternative` at its two-sided default.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -186,6 +195,9 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A test result is a named list, so the interval you want is just one element you can pull out directly.
+Index `$conf.int` off `ex_1_1` and wrap it in `as.numeric()` to strip the trailing attribute.
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -226,6 +238,9 @@ ex_1_4
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Trim the dataset down to just the two groups you want to compare before running any two-group test.
+Use `subset()` to keep the two species, `droplevels()` to clear the unused factor level, then `t.test(Petal.Length ~ Species, data = ...)`.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -274,6 +289,9 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+The only thing separating the two variants is whether the test is allowed to pool the two group variances into one.
+Run `t.test(len ~ supp, data = ToothGrowth)` twice, the second call adding `var.equal = TRUE`, and wrap both in a named `list()`.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -317,6 +335,9 @@ c(welch = ex_2_2$welch$p.value, student = ex_2_2$student$p.value)
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Keep only the control and treatment-one rows before comparing their means.
+Use `subset()` to filter `group` to `c("ctrl", "trt1")`, then `droplevels()`, then `t.test(weight ~ group, data = ...)`.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -373,6 +394,9 @@ unequal_df <- data.frame(grp, y)
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Lopsided group sizes need no special handling; the default two-sample test already corrects for them on its own.
+Call `t.test(y ~ grp, data = unequal_df)` and read the fractional `df` off the returned object.
 
 ```r title="Your turn"
 ex_2_4 <- # your code here
@@ -422,6 +446,9 @@ after  <- c(80, 73, 87, 67, 78, 82, 89, 69, 75, 86)
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Each subject contributes two readings that belong together, so the test should analyze the within-subject change, not two separate samples.
+Pass both vectors to `t.test()` with `paired = TRUE`.
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -468,6 +495,9 @@ ex_3_1
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Pairing only works once each chick sits on one row with its two time points side by side, and any chick missing either point must be dropped.
+Reshape with `pivot_wider()` keyed on `Chick`, `filter()` out the `NA` rows, then call `t.test(..., paired = TRUE)`.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -512,6 +542,9 @@ post <- c(135, 130, 144, 137, 132, 147, 140, 134)
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Run the identical numbers through a design that respects the within-patient link and one that ignores it entirely.
+Build a `list()` holding `t.test(pre, post, paired = TRUE)` and a plain `t.test(pre, post)`.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -556,6 +589,9 @@ sapply(ex_3_3, function(h) h$p.value)
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Check the distribution shape one group at a time before trusting any mean-based comparison.
+Call `shapiro.test()` on the `weight` values of each group and store the two results in a named `list()`.
 
 ```r title="Your turn"
 ex_4_1 <- # your code here
@@ -592,6 +628,9 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Before choosing between pooled and separate variances, test whether the two spreads are even comparable.
+Call `leveneTest(len ~ supp, data = ToothGrowth, center = "median")`.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -629,6 +668,9 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+When outliers make a mean-based test shaky, switch to a procedure that compares ranks rather than averages.
+Call `wilcox.test(mpg ~ am, data = mtcars)` using the formula interface.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -666,6 +708,9 @@ t.test(mpg ~ am, data = mtcars)$p.value
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A standardized effect size rescales the raw gap between means by the typical spread shared by the two groups.
+Build the pooled SD from each group's `var()` and sample size, then divide the difference in means by it.
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -708,6 +753,9 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Fix the expected effect, the alpha, and the power you want, and the only unknown left is how many subjects each arm needs.
+Call `pwr.t.test()` with `d`, `sig.level`, `power`, and `type = "two.sample"`, leaving `n` unspecified.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -750,6 +798,9 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+First measure the effect the study actually observed, then ask how likely a design that size was to detect it.
+Compute the observed Cohen's d from the pooled SD, then pass it plus `n = 30` to `pwr.t.test()` with `power` left out.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -795,6 +846,9 @@ bp_after  <- c(140, 138, 146, 134, 150, 144, 138, 148, 141, 145)
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Screen the within-subject differences for normality, not the raw before and after columns, which can each be non-normal on their own.
+Compute the difference vector, then build a `list()` of `shapiro.test()` on it, `t.test(..., paired = TRUE)`, and `mean()`.
 
 ```r title="Your turn"
 ex_6_1 <- # your code here
@@ -842,6 +896,9 @@ spend_trt  <- round(rgamma(250, shape = 2.2, scale = 25), 2)
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Report both the neutral two-tailed result and the directional one the marketing hypothesis actually predicted.
+Build a `list()` with `t.test(spend_trt, spend_ctrl)` and the same call plus `alternative = "greater"`.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here
@@ -876,6 +933,9 @@ sapply(ex_6_2, function(h) h$p.value)
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Pull the reporting pieces straight off the test object and stitch them into a single formatted line.
+Write a `function(h)` that reads `h$parameter`, `h$statistic`, `h$p.value`, and `h$conf.int`, then assembles them with `sprintf()`.
 
 ```r title="Your turn"
 ex_6_3 <- # your code here

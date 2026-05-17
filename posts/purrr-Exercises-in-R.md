@@ -43,6 +43,10 @@ library(broom)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Each integer must be raised to the power of two, and the answer should come back as a flat numeric vector rather than a list.
+Reach for the type-stable `map_dbl()` over `1:5` with a formula body like `~ .x^2`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -72,6 +76,10 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Each number must become a fixed-width text label with leading zeros, and the whole result should be one character vector.
+Use `map_chr()` over `1:8` with `sprintf("id_%03d", .x)` in the body.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -103,6 +111,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You need one row-count per list element, returned as a named integer vector that keeps the region labels.
+Use `map_int()` over `parts`, passing `nrow` as a bare function.
 
 ```r title="Your turn"
 parts <- list(north = mtcars[1:5, ], south = mtcars[6:20, ], west = mtcars[21:32, ])
@@ -138,6 +150,10 @@ ex_1_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+For each group you need a single TRUE/FALSE decision based on whether its average is above zero.
+Use `map_lgl()` over `groups` with a body like `~ mean(.x) > 0`.
+
 ```r title="Your turn"
 groups <- list(a = c(1, -2, 4), b = c(-3, -5), c = c(0, 1, 2))
 ex_1_4 <- # your code here
@@ -170,6 +186,10 @@ ex_1_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Each inner vector's leading value is the request ID, so you only need the first position of every entry.
+Use `map_int()` over `payloads` with the positional shorthand `1L` as the extractor.
 
 ```r title="Your turn"
 payloads <- list(c(101, 50, 1), c(102, 75, 2), c(103, 60, 1), c(104, 90, 3))
@@ -205,6 +225,10 @@ ex_1_5
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+A data frame iterates column by column, so drop the non-numeric column first and average each remaining one.
+Use `map_dbl()` over `iris[, 1:4]`, passing `mean` as the function.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -244,6 +268,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The three weekly tibbles share the same columns and just need to be stacked into one tall frame.
+Put them in a `list()` and pipe that into `list_rbind()`.
 
 ```r title="Your turn"
 w1 <- tibble(week = 1, sales = c(10, 12))
@@ -289,6 +317,10 @@ ex_2_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Two parallel vectors must be combined position by position into a single numeric result.
+Use `map2_dbl()` over `revenue` and `cost` with a body like `~ .x - .y`.
+
 ```r title="Your turn"
 revenue <- c(120, 150, 90, 210)
 cost    <- c(80, 100, 60, 150)
@@ -322,6 +354,10 @@ ex_2_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Each record is nested two levels deep, and you want the name buried inside its user entry.
+Use `map_chr()` with the list-of-keys form `list("user", "name")` as the extractor.
 
 ```r title="Your turn"
 resp <- list(
@@ -362,6 +398,10 @@ ex_2_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Each row of the tibble supplies several fields that must be woven into one formatted sentence.
+Use `pmap_chr()` over `jobs` with an anonymous function `\(name, runtime_min, status)` that calls `sprintf()`.
 
 ```r title="Your turn"
 jobs <- tibble(name = c("etl_daily", "report_weekly"),
@@ -408,6 +448,10 @@ ex_2_5
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The iteration runs purely for its printed side effect and must hand the original input back untouched.
+Use `walk()` over `steps` with a body like `~ cat(.x, "\n")`.
+
 ```r title="Your turn"
 steps <- c("loaded", "transformed", "validated")
 ex_3_1 <- # your code here
@@ -443,6 +487,10 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Each printed line needs both the element's name and its value, so a value-only iteration is not enough.
+Use `iwalk()` over `metrics`, referencing the value as `.x` and the name as `.y`.
 
 ```r title="Your turn"
 metrics <- c(latency = 120, errors = 3, throughput = 1500)
@@ -481,6 +529,10 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Each parameter row drives one reproducible draw, and the per-row tibbles must be stacked into a single frame.
+Use `pmap()` over `params` with `\(dose, n, seed)` calling `set.seed()` then `rnorm()`, and finish with `list_rbind()`.
 
 ```r title="Your turn"
 params <- tibble(dose = c(10, 25, 50), n = c(20, 20, 20), seed = c(1, 2, 3))
@@ -526,6 +578,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each label pairs a column's name with a summary of its values, so the iteration must expose both at once.
+Use `imap_chr()` over `iris[, 1:4]` with `.y` for the name and `round(mean(.x), 2)` for the value.
+
 ```r title="Your turn"
 ex_3_4 <- # your code here
 ex_3_4
@@ -556,6 +612,10 @@ ex_3_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The input is a list of records, but parallel iteration needs the data oriented as columns instead.
+Flip the shape with `transpose()` on `cfg` first, then call `pmap_dbl()` with `\(x, y) x^y`.
 
 ```r title="Your turn"
 cfg <- list(c(x = 2, y = 3), c(x = 5, y = 1), c(x = 4, y = 4))
@@ -594,6 +654,10 @@ ex_3_5
 
 **Difficulty:** Beginner
 
+[HINTS]
+Fold the sequence into a single running total by repeatedly applying the addition operator to an accumulator.
+Use `reduce()` over `1:10`, passing the backtick-quoted `` `+` `` operator as the function.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -630,6 +694,10 @@ identical(ex_4_1, sum(1:10))
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Three tables share a key and must be merged one after another into a single wide frame.
+Use `reduce()` over `list(bal, tx, kyc)` with `full_join` and `by = "account_id"`.
 
 ```r title="Your turn"
 bal <- tibble(account_id = 1:3, balance = c(100, 200, 300))
@@ -672,6 +740,10 @@ ex_4_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You need every intermediate running value, not just the final one, with output length matching the input.
+Use `accumulate()` over `prices`, passing `max` as the binary function.
+
 ```r title="Your turn"
 prices <- c(100, 102, 98, 105, 103, 110, 108)
 ex_4_3 <- # your code here
@@ -704,6 +776,10 @@ ex_4_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The fold needs an extra value at each step, with the first element seeding the accumulator before any weight applies.
+Use `reduce2()` over `vals` and `wts` with `\(acc, x, w) acc + w * x`.
 
 ```r title="Your turn"
 vals <- c(10, 20, 30, 40)
@@ -738,6 +814,10 @@ ex_4_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+An empty input has nothing to seed the fold, so supply a safe starting value of the right type.
+Call `reduce()` on `dfs` with `bind_rows` and `.init = tibble()`.
 
 ```r title="Your turn"
 safe_combine <- function(dfs) {
@@ -802,6 +882,10 @@ safe_combine(list(tibble(a = 1), tibble(a = 2)))
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Wrap the risky call so each element returns both an outcome slot and an error slot instead of halting the run.
+Wrap `log` with `safely()`, then `map()` over `vals`.
+
 ```r title="Your turn"
 vals <- c(2, 5, 0, -1, 10)
 ex_5_1 <- # your code here
@@ -838,6 +922,10 @@ str(ex_5_1, max.level = 2)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The parser may fail, and on failure you want a typed fallback value rather than an error or a separate error slot.
+Wrap `parse_int` with `possibly(otherwise = NA_integer_)`, then `map_int()` over the character vector.
 
 ```r title="Your turn"
 parse_int <- function(x) {
@@ -885,6 +973,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A list of result/error records needs to be flipped so all results sit together and all errors sit together.
+Apply `transpose()` to `raw`.
 
 ```r title="Your turn"
 raw <- list(
@@ -941,6 +1033,10 @@ str(ex_5_3, max.level = 2)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The mapped output has empty placeholder gaps for the failed entries that should simply be dropped.
+Apply `compact()` to `raw`.
+
 ```r title="Your turn"
 raw <- map(c(2, -1, 4, -2, 6), \(x) if (x > 0) sqrt(x) else NULL)
 ex_5_4 <- # your code here
@@ -986,6 +1082,10 @@ ex_5_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+You need to capture the warning text each call emits without letting those warnings interrupt the run.
+Wrap `log` with `quietly()`, then later pull the `"warnings"` slot from each result.
 
 ```r title="Your turn"
 quiet_log <- # your code here
@@ -1033,6 +1133,10 @@ ex_5_5
 
 **Difficulty:** Beginner
 
+[HINTS]
+Filter the columns down to only those whose values are numeric.
+Use `keep()` on `iris` with the predicate `is.numeric`.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 str(ex_6_1)
@@ -1072,6 +1176,10 @@ str(ex_6_1)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Drop any column for which every single value is missing, keeping the rest.
+Use `discard()` on `df` with a predicate like `~ all(is.na(.x))`.
 
 ```r title="Your turn"
 df <- tibble(id = 1:4, name = c("a","b","c","d"),
@@ -1114,6 +1222,10 @@ ex_6_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+One check asks whether the condition holds for all elements; the other asks whether it holds for at least one.
+Use `every()` with `~ all(.x > 0)` and `some()` with `~ length(unique(.x)) == 1`.
+
 ```r title="Your turn"
 groups <- list(c(1, 2, 3), c(-1, 0, 4), c(5, 5, 5))
 ex_6_3 <- # your code here
@@ -1150,6 +1262,10 @@ ex_6_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want the position of the first element that fails its check, with zero standing in for no failure.
+Use `detect_index()` on `checks` with a predicate like `~ !.x[["ok"]]`.
 
 ```r title="Your turn"
 checks <- list(c(ok = TRUE, n = 100), c(ok = TRUE, n = 50),
@@ -1192,6 +1308,10 @@ ex_6_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Each group needs its own fitted model and a tidied coefficient table, then everything flattened back into one frame.
+Inside `mutate()` use `map(data, ~ lm(mpg ~ wt, data = .x))` and `map(model, broom::tidy)`, then `unnest()` the tidied column.
 
 ```r title="Your turn"
 ex_6_5 <- mtcars |>

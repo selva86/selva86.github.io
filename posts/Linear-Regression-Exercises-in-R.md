@@ -54,6 +54,10 @@ library(tibble)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A linear regression in R is built from a formula that puts the response on the left of a tilde and the predictor on the right.
+Call `lm()` with the formula `mpg ~ wt` and a `data` argument pointing at `mtcars`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -89,6 +93,10 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+The fitted model already stores the intercept and slope; you just need the accessor that returns them as a named vector.
+Pass the `fit` object to `coef()` - no formula or data is needed a second time.
 
 ```r title="Your turn"
 fit <- lm(mpg ~ wt, data = mtcars)
@@ -127,6 +135,10 @@ ex_1_2
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+There is a tidy representation of any model's coefficient table that gives one row per term.
+Apply `tidy()` (from broom) to the fitted `fit` object.
 
 ```r title="Your turn"
 fit <- lm(mpg ~ wt + hp, data = mtcars)
@@ -169,6 +181,10 @@ ex_1_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+The goodness-of-fit numbers are not in the model object itself but in the object that summarises it.
+Take `summary(fit)` and read its `$r.squared` and `$sigma` slots into a `list()`.
+
 ```r title="Your turn"
 fit <- lm(mpg ~ wt, data = mtcars)
 ex_1_4 <- # your code here
@@ -206,6 +222,10 @@ ex_1_4
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+To score a new car you supply its predictor values as a one-row table whose column name matches the training data.
+Call `predict()` with `newdata = data.frame(wt = 3.2)`.
 
 ```r title="Your turn"
 fit <- lm(mpg ~ wt, data = mtcars)
@@ -245,6 +265,10 @@ ex_1_5
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A regression forced through the origin simply omits the constant term from the formula.
+Add `+ 0` (or `- 1`) to the `dist ~ speed` formula inside `lm()`.
+
 ```r title="Your turn"
 ex_1_6 <- # your code here
 ex_1_6
@@ -281,6 +305,10 @@ ex_1_6
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Take the in-sample predictions produced two different ways and reduce the gaps between them to a single worst-case number.
+Subtract `predict(fit)` from `fitted(fit)`, wrap that in `abs()`, and take `max()`.
+
 ```r title="Your turn"
 fit <- lm(mpg ~ wt, data = mtcars)
 ex_1_7 <- # your code here
@@ -313,6 +341,10 @@ ex_1_7
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A non-parametric interval comes from resampling the rows many times, refitting, and reading the spread of the slopes.
+Run `boot()` with `R = 1000`, then `boot.ci(type = "perc")` and pull the percentile endpoints from `$percent[4:5]`.
 
 ```r title="Your turn"
 set.seed(1)
@@ -358,6 +390,10 @@ ex_1_8
 
 **Difficulty:** Beginner
 
+[HINTS]
+Adding a second predictor to a regression means extending the right-hand side of the formula.
+Call `lm()` with the formula `mpg ~ wt + hp` and `data = mtcars`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -397,6 +433,10 @@ ex_2_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+To stop R treating a numeric column as a continuous slope, declare it categorical inside the formula.
+Wrap `cyl` in `factor()` within the `mpg ~ wt + ...` formula.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -440,6 +480,10 @@ ex_2_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+There is a formula shortcut that means "every other column in the data frame".
+Use `mpg ~ .` as the formula in `lm()` with `data = mtcars`.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 ex_2_3
@@ -481,6 +525,10 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Rather than retyping a formula, you can describe the change as a difference from an existing model.
+Call `update()` on `big` with `. ~ . - hp`.
 
 ```r title="Your turn"
 big <- lm(mpg ~ wt + hp + qsec, data = mtcars)
@@ -524,6 +572,10 @@ ex_2_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+One formula operator expands to both main effects plus the interaction term between them.
+Use `wt * hp` in the `lm()` formula instead of `wt + hp`.
+
 ```r title="Your turn"
 ex_2_5 <- # your code here
 ex_2_5
@@ -563,6 +615,10 @@ ex_2_5
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You can restrict a fit to certain rows without first building a filtered data frame.
+Pass `subset = am == 0` to `lm()` alongside `data = mtcars`.
 
 ```r title="Your turn"
 ex_2_6 <- # your code here
@@ -606,6 +662,10 @@ ex_2_6
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The baseline category of a factor can be reset so a different level becomes the reference.
+Wrap the factor as `relevel(factor(cyl), ref = "6")` inside the formula.
+
 ```r title="Your turn"
 ex_2_7 <- # your code here
 ex_2_7
@@ -648,6 +708,10 @@ ex_2_7
 
 **Difficulty:** Advanced
 
+[HINTS]
+Comparable coefficients require putting each predictor on a common, unit-free scale before fitting.
+Wrap each predictor in `scale()` within the `lm()` formula.
+
 ```r title="Your turn"
 ex_2_8 <- # your code here
 ex_2_8
@@ -687,6 +751,10 @@ ex_2_8
 
 **Difficulty:** Beginner
 
+[HINTS]
+The diagnostic plot is drawn from a fitted model, so the object you assign has to be that model.
+Assign `lm(mpg ~ wt + hp, data = mtcars)` to `ex_3_1` so `plot()` can use it.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 plot(ex_3_1, which = 1)
@@ -719,6 +787,10 @@ plot(ex_3_1, which = 1)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The Q-Q plot needs a fitted model of tree volume on its two size predictors.
+Assign `lm(Volume ~ Girth + Height, data = trees)` to `ex_3_2`.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -754,6 +826,10 @@ plot(ex_3_2, which = 2)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A normality test runs on the model's residuals, not on the model object itself.
+Pass `resid(fit)` to `shapiro.test()`.
 
 ```r title="Your turn"
 fit <- lm(mpg ~ wt + hp, data = mtcars)
@@ -794,6 +870,10 @@ ex_3_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+There is a formal test of whether residual variance stays constant across the predictors.
+Apply `bptest()` (from lmtest) directly to the fitted `fit`.
 
 ```r title="Your turn"
 fit <- lm(mpg ~ wt + hp, data = mtcars)
@@ -836,6 +916,10 @@ ex_3_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Autocorrelation is checked with a test that looks at whether consecutive residuals move together.
+Apply `dwtest()` (from lmtest) to the fitted `fit`.
+
 ```r title="Your turn"
 df <- data.frame(co2 = as.numeric(co2), t = as.numeric(time(co2)))
 fit <- lm(co2 ~ t, data = df)
@@ -876,6 +960,10 @@ ex_3_5
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Collinearity is quantified by how much each predictor's variance is inflated by the others.
+Pass the fitted `fit` to `car::vif()`.
+
 ```r title="Your turn"
 fit <- lm(mpg ~ wt + hp + disp, data = mtcars)
 ex_3_6 <- # your code here
@@ -909,6 +997,10 @@ ex_3_6
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Influence is one number per row; flag the rows above the threshold and keep their labels.
+Compute `cooks.distance(fit)`, subset to values above `4 / n`, and take `names()` of the result.
 
 ```r title="Your turn"
 fit <- lm(mpg ~ wt + hp, data = mtcars)
@@ -946,6 +1038,10 @@ ex_3_7
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Leverage is one number per row; you want the positions of those past the cutoff.
+Compute `hatvalues(fit)` and apply `which()` against the `2 * k / n` threshold.
+
 ```r title="Your turn"
 fit <- lm(Volume ~ Girth + Height, data = trees)
 n <- nrow(trees); k <- length(coef(fit))
@@ -981,6 +1077,10 @@ ex_3_8
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A principled outlier check tests the single most extreme residual with a multiple-comparison correction.
+Apply `car::outlierTest()` to the fitted `fit`.
 
 ```r title="Your turn"
 fit <- lm(mpg ~ wt + hp, data = mtcars)
@@ -1019,6 +1119,10 @@ ex_3_9
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+You need the coefficients of both fits laid out side by side, one row per term.
+Build a `tibble()` with `names(coef(ols))`, `coef(ols)`, and `coef(rb)` as its three columns.
 
 ```r title="Your turn"
 ols <- lm(mpg ~ wt + hp, data = mtcars)
@@ -1070,6 +1174,10 @@ ex_3_10
 
 **Difficulty:** Beginner
 
+[HINTS]
+A skewed response is often tamed by modelling it on a compressed scale rather than its raw values.
+Wrap `price` in `log()` on the left side of the `~ carat` formula.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -1104,6 +1212,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The optimal transform power is wherever the profile log-likelihood curve reaches its peak.
+Index `bc$x` by `which.max(bc$y)`.
 
 ```r title="Your turn"
 fit <- lm(Volume ~ Girth + Height, data = trees)
@@ -1143,6 +1255,10 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A squared term has to be protected so the formula parser reads it as arithmetic, not formula syntax.
+Add `I(wt^2)` as a term in the `mpg ~ wt` formula.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -1184,6 +1300,10 @@ ex_4_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+There is a formula term that builds uncorrelated polynomial columns up to a chosen degree.
+Use `poly(wt, 2)` as the term in the `lm()` formula.
+
 ```r title="Your turn"
 ex_4_4 <- # your code here
 ex_4_4
@@ -1223,6 +1343,10 @@ ex_4_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A threshold flag can be created directly inside the formula as a logical comparison.
+Add `I(carat >= 1)` as a term in the `log(price) ~ carat` formula.
 
 ```r title="Your turn"
 ex_4_5 <- # your code here
@@ -1264,6 +1388,10 @@ ex_4_5
 
 **Difficulty:** Intermediate
 
+[HINTS]
+With the centred columns already prepared, the fit is just an ordinary interaction model on them.
+Call `lm()` with `mpg ~ wt_c * hp_c` and `data = d`.
+
 ```r title="Your turn"
 d <- transform(mtcars, wt_c = wt - mean(wt), hp_c = hp - mean(hp))
 ex_4_6 <- # your code here
@@ -1301,6 +1429,10 @@ ex_4_6
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The standardised betas are every coefficient except the one for the constant term.
+Take `coef(fit)` and drop the first element with `[-1]`.
 
 ```r title="Your turn"
 d <- as.data.frame(scale(mtcars[, c("mpg", "wt", "hp", "qsec")]))
@@ -1344,6 +1476,10 @@ ex_4_7
 
 **Difficulty:** Advanced
 
+[HINTS]
+A flexible curved term can replace a polynomial by stitching together piecewise cubic pieces.
+Use `bs(Girth, df = 4)` as a term in the `Volume ~ ... + Height` formula.
+
 ```r title="Your turn"
 ex_4_8 <- # your code here
 ex_4_8
@@ -1383,6 +1519,10 @@ ex_4_8
 
 **Difficulty:** Beginner
 
+[HINTS]
+The penalised goodness-of-fit number lives in the object that summarises the model, not the model itself.
+Read the `$adj.r.squared` slot from `summary(fit)`.
+
 ```r title="Your turn"
 fit <- lm(mpg ~ wt + hp + qsec + drat, data = mtcars)
 ex_5_1 <- # your code here
@@ -1419,6 +1559,10 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You need each criterion computed for all three fits, arranged as a table with one row per model.
+Build a `tibble()` whose `aic` and `bic` columns call `AIC()` and `BIC()` on `m1`, `m2`, `m3`.
 
 ```r title="Your turn"
 m1 <- lm(mpg ~ wt, data = mtcars)
@@ -1471,6 +1615,10 @@ ex_5_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Two nested fits can be compared with a single formal test of whether the extra term matters.
+Pass `small` and `big` to `anova()`.
+
 ```r title="Your turn"
 small <- lm(mpg ~ wt + hp, data = mtcars)
 big   <- lm(mpg ~ wt + hp + qsec, data = mtcars)
@@ -1516,6 +1664,10 @@ ex_5_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Automated backward elimination drops one predictor at a time from the full model.
+Call `step()` on `full` with `direction = "backward"` (add `trace = 0` to keep it quiet).
+
 ```r title="Your turn"
 full <- lm(mpg ~ ., data = mtcars)
 ex_5_4 <- # your code here
@@ -1552,6 +1704,10 @@ ex_5_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+For each fold, train on the other folds, score the held-out one, then average those scores.
+Use `sapply(1:5, ...)` to get one RMSE per fold via `predict()` on the held-out rows, then `mean()` them.
 
 ```r title="Your turn"
 set.seed(42)
@@ -1596,6 +1752,10 @@ ex_5_5
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Fit on the training rows, then score the untouched test rows with two different error measures.
+After `predict()` on `test`, assemble `c(rmse = ..., mae = ...)` using `sqrt(mean(...^2))` and `mean(abs(...))`.
+
 ```r title="Your turn"
 set.seed(7)
 idx <- sample(seq_len(nrow(mtcars)), size = floor(0.8 * nrow(mtcars)))
@@ -1638,6 +1798,10 @@ ex_5_6
 
 **Difficulty:** Advanced
 
+[HINTS]
+The leave-one-out error sum can be obtained from the ordinary residuals and leverages, with no refitting.
+Sum the squared values of `resid(fit) / (1 - hatvalues(fit))`.
+
 ```r title="Your turn"
 fit <- lm(mpg ~ wt + hp, data = mtcars)
 ex_5_7 <- # your code here
@@ -1675,6 +1839,10 @@ ex_5_7
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Get a one-row fit summary for each model and stack them, tracking which row came from which model.
+Run each model through `glance()` with `lapply()`, then combine with `bind_rows(..., .id = "model")`.
 
 ```r title="Your turn"
 fits <- list(
@@ -1724,6 +1892,10 @@ ex_5_8
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A predicted mean can carry an uncertainty band around it when you ask the prediction call for one.
+Call `predict()` with `newdata = data.frame(wt = 3.2, hp = 110)` and `interval = "confidence"`.
+
 ```r title="Your turn"
 fit <- lm(mpg ~ wt + hp, data = mtcars)
 ex_6_1 <- # your code here
@@ -1761,6 +1933,10 @@ ex_6_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+An interval for a single future car is wider than one for the average; it is a different interval type.
+Re-run `predict()` with the same `newdata` but `interval = "prediction"`.
 
 ```r title="Your turn"
 fit <- lm(mpg ~ wt + hp, data = mtcars)
@@ -1804,6 +1980,10 @@ ex_6_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+There is a tidy function that returns the original rows joined with fitted values and diagnostics.
+Apply `augment()` (from broom) to the fitted `fit`.
+
 ```r title="Your turn"
 fit <- lm(mpg ~ wt + hp, data = mtcars)
 ex_6_3 <- # your code here
@@ -1840,6 +2020,10 @@ head(ex_6_3, 2)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Layer a scatter of the two variables with a fitted straight line and its shaded band.
+Build a `ggplot(mtcars, aes(wt, mpg))` with `geom_point()` and `geom_smooth(method = "lm")`.
 
 ```r title="Your turn"
 ex_6_4 <- # your code here
@@ -1879,6 +2063,10 @@ ex_6_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Since a smoother cannot show a multivariate fit, predict over your own grid and draw the line and band yourself.
+Run `predict(fit, newdata = grid, interval = "confidence")`, bind it to `grid`, then plot with `geom_line()` and `geom_ribbon()`.
 
 ```r title="Your turn"
 fit <- lm(mpg ~ wt + hp, data = mtcars)
@@ -1925,6 +2113,10 @@ ex_6_5
 
 **Difficulty:** Advanced
 
+[HINTS]
+Persisting a model means serialising it to a file and reading it back as a fresh object before scoring.
+Write `fit` with `saveRDS()` to `path`, read it back with `readRDS()`, then `predict()` on `mtcars[1, ]`.
+
 ```r title="Your turn"
 fit <- lm(mpg ~ wt + hp, data = mtcars)
 path <- tempfile(fileext = ".rds")
@@ -1968,6 +2160,10 @@ ex_6_6
 
 **Difficulty:** Advanced
 
+[HINTS]
+Robust standard errors swap the covariance matrix used to test coefficients, leaving the estimates alone.
+Pass `vcov = vcovHC(fit, type = "HC3")` to `coeftest()`.
+
 ```r title="Your turn"
 fit <- lm(log(price) ~ carat, data = diamonds)
 ex_6_7 <- # your code here
@@ -2006,6 +2202,10 @@ ex_6_7
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A bootstrap prediction interval resamples the data, refits, predicts the mean, and adds a residual draw each round.
+Use `replicate()` to repeat a resample-fit-predict step `B` times adding `rnorm(1, 0, summary(fit_b)$sigma)`, then take `quantile()` at 0.025 and 0.975.
 
 ```r title="Your turn"
 set.seed(99)

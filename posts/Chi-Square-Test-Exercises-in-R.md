@@ -42,6 +42,10 @@ library(tibble)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A fairness check weighs each face's observed count against what perfect equal chance would predict across all six faces.
+Call `chisq.test()` on the count vector and supply the `p =` argument with six equal probabilities.
+
 ```r title="Your turn"
 rolls <- c(15, 22, 18, 24, 19, 22)
 ex_1_1 <- # your code here
@@ -80,6 +84,10 @@ ex_1_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The expected proportions here are not equal, so the test needs the specific ratio you want to compare the counts against.
+Hand `chisq.test()` the counts plus a `p =` argument built by dividing the integer ratio `c(9, 3, 3, 1)` by its total so it sums to 1.
+
 ```r title="Your turn"
 peas <- c(315, 108, 101, 32)
 ex_1_2 <- # your code here
@@ -116,6 +124,10 @@ ex_1_2
 
 **Difficulty:** Beginner
 
+[HINTS]
+A fitted test object stores its statistic, degrees of freedom, and p-value as separate components you can pull out one at a time.
+Build the result with `c(chisq = ..., df = ..., p = ...)`, reading `ex_1_2$statistic`, `$parameter`, and `$p.value`, and strip stray names with `unname()`.
+
 ```r title="Your turn"
 ex_1_3 <- # your code here
 ex_1_3
@@ -151,6 +163,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Judge the store's three-category mix against the externally supplied national baseline rather than against equal shares.
+Run `chisq.test()` on the `sat` vector with `p = c(0.40, 0.40, 0.20)`.
 
 ```r title="Your turn"
 sat <- c(Very = 180, Some = 140, Not = 80)
@@ -191,6 +207,10 @@ ex_1_4
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+For a two-by-two table R nudges the statistic by default, but here you want the plain, unadjusted version.
+Call `chisq.test()` on `drug_tab` and set `correct = FALSE`.
 
 ```r title="Your turn"
 drug_tab <- matrix(c(30, 18, 20, 32), nrow = 2,
@@ -234,6 +254,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Once the four-way array has been collapsed to a single two-way table, an independence test reads it directly.
+Pass the collapsed `titanic_tab` straight to `chisq.test()` with no extra arguments.
+
 ```r title="Your turn"
 titanic_tab <- margin.table(Titanic, c(1, 4))
 ex_2_2 <- # your code here
@@ -272,6 +296,10 @@ ex_2_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Small expected counts on this sliced face will trigger a noisy approximation message you can quietly silence.
+Wrap the `chisq.test(high_face)` call inside `suppressWarnings()`.
 
 ```r title="Your turn"
 bin <- cut(warpbreaks$breaks, breaks = c(-Inf, 25, Inf),
@@ -317,6 +345,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+With the species-by-size table already built, the independence test needs nothing beyond the table itself.
+Hand `iris_tab` to `chisq.test()` directly.
+
 ```r title="Your turn"
 size <- cut(iris$Sepal.Length, breaks = c(-Inf, 5.5, 6.5, Inf),
             labels = c("short", "medium", "long"))
@@ -358,6 +390,10 @@ ex_2_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Effect size rescales the raw statistic by the sample size and the smaller table dimension so it lands between 0 and 1.
+Plug `ex_2_2$statistic` and `sum(ex_2_2$observed)` for `n` into `sqrt(chisq / (n * (min(4, 2) - 1)))`, then `round()` to 3 places.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -394,6 +430,10 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The fitted test already holds a matrix of per-cell deviations scaled to behave like z-scores under the null.
+Read `ex_2_2$stdres` and wrap it in `round(..., 2)`.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -433,6 +473,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Before trusting a test on a sparse table, look at the count each cell would hold if the variables were independent.
+Run `suppressWarnings(chisq.test(cyl_gear))`, pull its `$expected` component, and `round()` to 2 decimals.
 
 ```r title="Your turn"
 cyl_gear <- table(mtcars$cyl, mtcars$gear)
@@ -476,6 +520,10 @@ ex_3_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+Each cell's share of the total statistic is its squared gap between observed and expected, scaled by the expected value.
+Compute `(O - E)^2 / E` from `ex_2_2$observed` and `ex_2_2$expected`, then `round()` to 1 decimal.
+
 ```r title="Your turn"
 ex_3_4 <- # your code here
 ex_3_4
@@ -515,6 +563,10 @@ ex_3_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Run the same two-by-two test twice, once with the continuity adjustment on and once off, and collect both tail probabilities.
+Build a named vector calling `chisq.test()` with `correct = TRUE` and `correct = FALSE`, taking `$p.value` from each.
 
 ```r title="Your turn"
 drug_tab <- matrix(c(30, 18, 20, 32), nrow = 2,
@@ -562,6 +614,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+When cells are too sparse for the chi-square approximation, switch to a test that computes the probability exactly.
+Call `fisher.test()` on `pilot_tab`.
 
 ```r title="Your turn"
 pilot_tab <- matrix(c(5, 0, 1, 4), nrow = 2,
@@ -612,6 +668,10 @@ ex_4_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Instead of leaning on the reference distribution, resample many tables with the same margins to build the p-value empirically.
+Call `chisq.test()` on `cyl_gear` with `simulate.p.value = TRUE` and `B = 10000`.
+
 ```r title="Your turn"
 cyl_gear <- table(mtcars$cyl, mtcars$gear)
 set.seed(42)
@@ -652,6 +712,10 @@ ex_4_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Fit the test, then ask of every expected-count cell whether it clears the minimum-count threshold of 5.
+Run `suppressWarnings(chisq.test(audit_tab))` and compare its `$expected` component with `< 5`.
 
 ```r title="Your turn"
 audit_tab <- matrix(c(2, 5, 3, 8, 12, 6, 1, 4, 2), nrow = 3)
@@ -695,6 +759,10 @@ ex_4_4
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Long-format rows must be cross-tabulated into a two-way frequency layout before any test can run.
+Use `table()` on the `survey$region` and `survey$purchase` columns.
 
 ```r title="Your turn"
 survey <- tibble(
@@ -749,6 +817,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A homogeneity question uses the very same machinery as an independence test, so the table goes straight in.
+Pass `region_tab` to `chisq.test()` with no extra arguments.
+
 ```r title="Your turn"
 region_tab <- matrix(c(50, 30, 60, 45, 50, 70, 40, 55), nrow = 4,
                      dimnames = list(region   = c("N", "S", "E", "W"),
@@ -789,6 +861,10 @@ ex_5_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Localize the difference by testing every region pair, then shrink each result to account for running many tests at once.
+Enumerate pairs with `combn()`, test each two-by-two slice with `chisq.test()`, and feed the raw p-values to `p.adjust(method = "bonferroni")`.
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 ex_5_3
@@ -825,6 +901,10 @@ ex_5_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Assemble the statistic, its degrees of freedom, the p-value, and the effect size into one formatted reporting line.
+Use `sprintf("X^2(%d) = %.2f, p < .001, V = %.2f", df, stat, V)`, reading the values from `ex_2_2`.
 
 ```r title="Your turn"
 ex_5_4 <- # your code here

@@ -43,6 +43,10 @@ library(datasets)
 
 **Difficulty:** Beginner
 
+[HINTS]
+R has dedicated operators for the whole-number part of a division and for the leftover, kept separate from ordinary division.
+Use the `%/%` and `%%` operators, and build the result with `c()` using `name = value` pairs.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -80,6 +84,10 @@ ex_1_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+When you mix kinds in one vector, R settles on whichever single type can hold them all - check what that turns out to be.
+After building the mixed vector, wrap the storage and length results in `list(type = typeof(v), len = length(v))`.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -116,6 +124,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Inspect each value the same three ways, then stack the two inputs as rows of one table.
+Apply `typeof()`, `class()`, and `mode()` to each value and bind the rows with `rbind("1L" = ..., "1.0" = ...)`.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -158,6 +170,10 @@ ex_1_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+One approach counts down directly with a negative step; the other builds the sequence upward and then flips its order.
+Use `seq(from = 50, to = 1, by = -1)` and `rev(1:50)`, then pack both into `list(via_seq = ..., via_rev = ...)`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -197,6 +213,10 @@ identical(ex_2_1$via_seq, ex_2_1$via_rev)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The short vector gets reused to match the longer one; an inexact reuse raises a message you need to intercept rather than let abort.
+Capture the text with `withCallingHandlers()`, reading it via `conditionMessage()` and clearing it with `invokeRestart("muffleWarning")`.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -241,6 +261,10 @@ ex_2_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Arithmetic in R spreads a single scalar across an entire column, so the standardizing formula needs no index walking.
+Subtract `mean(mtcars$mpg)` from the column and divide by `sd(mtcars$mpg)` in one expression.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 ex_2_3
@@ -276,6 +300,10 @@ c(mean = mean(ex_2_3), sd = sd(ex_2_3))
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want the slot numbers where a condition holds, not the matching values themselves.
+Pass the combined condition `mtcars$mpg > 25 & mtcars$wt < 2` to `which()`.
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -314,6 +342,10 @@ rownames(mtcars)[ex_3_1]
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+One operator compares every position in step; the other weighs only the first element of each side and returns a single result.
+Compute `a & b` and `a && b` separately and store them as `list(elementwise = ..., shortcircuit = ...)`.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -354,6 +386,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A missing value affects whether a "does any" check and a "do all" check can commit to an answer, and the two react differently.
+Call `any()` and `all()` each twice, once plain and once with `na.rm = TRUE`, then name the four results in `c()`.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -401,6 +437,10 @@ ex_3_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+Positive positions pick what to keep; negative positions say what to leave out.
+Use `v[1:3]`, `v[-(1:3)]`, and `v[c(1, length(v))]` as the three elements of a `list()`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -441,6 +481,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Build a true/false flag per row so the selection stays correct even if rows are later reordered.
+Make a mask `mtcars$mpg >= 25 & mtcars$cyl == 4`, then index rows with `mtcars[mask, c("mpg", "cyl", "hp", "wt")]`.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -484,6 +528,10 @@ ex_4_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+One extractor keeps the wrapping container; the other reaches inside a slot and hands back the bare contents.
+Compare `lst["b"]` against `lst[["b"]]`, and record each one's `class()` in the result list.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -523,6 +571,10 @@ ex_4_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You need to glue tokens together with no spaces between them, while the quarter values spread across all four results.
+Use `paste0("report_", year, "Q", quarter, ".csv")`.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -558,6 +610,10 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+One helper counts how many characters each string has; another returns a slice of each string by position.
+Build a `data.frame()` with `nchar(s)` for the length column and `substr(s, 1, 3)` for the first-three column.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -600,6 +656,10 @@ ex_5_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Spell out the rank order yourself instead of accepting the alphabetical default, then clean up categories no row uses.
+Call `factor(resp, levels = c("low", "medium", "high"), ordered = TRUE)`, then `droplevels()` on the subset that excludes "medium".
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 ex_5_3
@@ -635,6 +695,10 @@ ex_5_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Give the rounding precision a fallback value so the function works whether or not the caller supplies it.
+Define `summarise_vec <- function(x, digits = 2)` and `round()` a named `c(n = , mean = , sd = , min = , max = )` vector.
 
 ```r title="Your turn"
 ex_6_1 <- # your code here
@@ -683,6 +747,10 @@ ex_6_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Scalar branching expects one condition at a time, so labeling a whole column needs a branch that walks elementwise.
+Use `ifelse(mtcars$mpg >= 25, "efficient", "thirsty")` for one element and a `for` loop over `seq_along()` for the other.
+
 ```r title="Your turn"
 ex_6_2 <- # your code here
 ex_6_2
@@ -726,6 +794,10 @@ identical(ex_6_2$vectorised, ex_6_2$looped)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Size the output container up front rather than growing it each pass, and compare against R's built-in running-sum helper.
+Preallocate with `numeric(length(x))`, fill it in a `for` loop over `seq_along(x)[-1]`, and compare to `cumsum(x)`.
 
 ```r title="Your turn"
 ex_6_3 <- # your code here

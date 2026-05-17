@@ -51,6 +51,10 @@ library(tibble)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A GAM lets one predictor bend freely instead of being forced into a straight line, so you only need a single smoothed predictor here.
+Call `gam()` with the formula `Ozone ~ s(Temp)` and `data = aq`.
+
 ```r title="Your turn"
 aq <- na.omit(airquality)
 ex_1_1 <- # your code here
@@ -101,6 +105,10 @@ ex_1_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+GAMs are additive, so a second predictor simply gets its own independent smooth term added on to the first.
+Pass the formula `Ozone ~ s(Temp) + s(Wind)` with `data = aq` to `gam()`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -153,6 +161,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A predictor whose effect is genuinely straight should be left unsmoothed so it spends no extra flexibility.
+Pass `Ozone ~ Solar.R + s(Temp)` to `gam()`, leaving `Solar.R` bare outside any smooth.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -208,6 +220,10 @@ summary(ex_1_3)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The basis dimension sets a ceiling on how wiggly a smooth can get, so shrinking it stiffens the fitted curve.
+Add the `k = 5` argument inside `s(Temp)` when calling `gam()`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -256,6 +272,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The criterion used to choose smoothness can be swapped for one that behaves more stably on small samples.
+Add `method = "REML"` to the `gam()` call for `Ozone ~ s(Temp) + s(Wind)`.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -303,6 +323,10 @@ ex_2_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The type of spline underlying each smooth can be changed to a cheaper one that scales better with large data.
+Set `bs = "cr"` inside each `s()` term and keep `method = "REML"`.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -356,6 +380,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A categorical predictor enters a GAM as parallel offsets, exactly as it would in ordinary linear regression.
+Use `gam()` with `mpg ~ s(wt) + factor(cyl)` and `method = "REML"`.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 summary(ex_3_1)
@@ -403,6 +431,10 @@ summary(ex_3_1)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+To let a curve's shape differ across groups, each group needs its own separate smooth rather than one shared one.
+Use `s(wt, by = cyl_f)` plus a parametric `cyl_f` term in the `gam()` formula.
 
 ```r title="Your turn"
 mt <- mtcars |> mutate(cyl_f = factor(cyl))
@@ -454,6 +486,10 @@ summary(ex_3_2)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Factor levels can be treated as draws from a distribution rather than as fixed, individually estimated effects.
+Add `s(Chick, bs = "re")` alongside `s(Time)` in the `gam()` call.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -508,6 +544,10 @@ summary(ex_3_3)
 
 **Difficulty:** Advanced
 
+[HINTS]
+When two predictors interact nonlinearly on different scales, you need a single two-dimensional surface that is invariant to rescaling.
+Build the model with `te(wt, hp)` as the sole term and `method = "REML"`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -556,6 +596,10 @@ ex_4_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Separating the main effects from a pure interaction lets you test whether the interaction is needed at all.
+Combine `s(wt) + s(hp) + ti(wt, hp)` in the `gam()` formula with `method = "REML"`.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -610,6 +654,10 @@ summary(ex_4_2)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A binary outcome needs a model whose response is bounded between 0 and 1, with each predictor still allowed to bend.
+Add `family = binomial` to the `gam()` call for `am ~ s(wt) + s(hp)`.
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -666,6 +714,10 @@ summary(ex_5_1)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Count outcomes call for a distribution defined on non-negative integers with a multiplicative mean.
+Pass `family = poisson` and smooth `s(as.numeric(tension), k = 3)` plus `wool` to `gam()`.
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 summary(ex_5_2)
@@ -721,6 +773,10 @@ summary(ex_5_2)
 
 **Difficulty:** Advanced
 
+[HINTS]
+Positive, right-skewed outcomes should use a distribution that respects the lower bound at zero and a long upper tail.
+Set `family = Gamma(link = "log")` in the `gam()` call for `Ozone ~ s(Temp) + s(Wind)`.
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 summary(ex_5_3)
@@ -772,6 +828,10 @@ summary(ex_5_3)
 
 **Difficulty:** Advanced
 
+[HINTS]
+When count variance far exceeds the mean, you need a distribution with an extra dispersion parameter to absorb it.
+Refit the warpbreaks model with `family = nb()` and `method = "REML"`.
+
 ```r title="Your turn"
 ex_5_4 <- # your code here
 summary(ex_5_4)
@@ -818,6 +878,10 @@ summary(ex_5_4)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A diagnostic can probe whether any smooth's basis was set too small to capture the real pattern in the residuals.
+Run `k.check()` on the fitted model and store the table it returns.
+
 ```r title="Your turn"
 fit <- gam(Ozone ~ s(Temp) + s(Wind), data = aq, method = "REML")
 ex_6_1 <- # your code here
@@ -858,6 +922,10 @@ ex_6_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Scoring new observations and drawing intervals requires both a fitted value and a measure of its uncertainty.
+Call `predict()` with `newdata` and `se.fit = TRUE`, then assemble the fit and standard error into a tibble.
 
 ```r title="Your turn"
 fit <- gam(Ozone ~ s(Temp) + s(Wind), data = aq, method = "REML")
@@ -910,6 +978,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Models of different complexity can be ranked by a score that rewards fit while penalizing extra parameters.
+Apply `AIC()` to each of the three fitted models and collect the values into a tibble.
 
 ```r title="Your turn"
 m_lm   <- lm(Ozone ~ Temp, data = aq)

@@ -47,6 +47,10 @@ library(dplyr)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A quarterly series needs both a starting calendar position and a count of periods per year - four for quarters.
+Call ts() with the integer vector, start = c(2018, 1), and frequency = 4.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -86,6 +90,10 @@ ex_1_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+Pulling a calendar range out of a series should keep the time index intact, unlike plain bracket indexing.
+Use window() with start = c(1955, 1) and end = c(1958, 12).
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -120,6 +128,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The date column is just a label; a monthly series only needs where it starts and how many observations fall in each year.
+Pass revenue_tbl$revenue to ts() with start = c(2023, 1) and frequency = 12.
 
 ```r title="Your turn"
 revenue_tbl <- tibble(
@@ -165,6 +177,10 @@ ex_1_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+Rolling quarterly values up to yearly totals means collapsing four observations into one.
+Call aggregate() on the series with FUN = sum; the default nfrequency = 1 gives annual output.
+
 ```r title="Your turn"
 ex_1_4 <- # your code here
 ex_1_4
@@ -207,6 +223,10 @@ ex_1_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+First reduce the monthly series to one value per year, then look at how that yearly figure shifts from year to year.
+Combine aggregate(co2, FUN = mean) with diff() applied to the result.
 
 ```r title="Your turn"
 ex_1_5 <- # your code here
@@ -256,6 +276,10 @@ ex_1_5
 
 **Difficulty:** Intermediate
 
+[HINTS]
+When the seasonal swing grows with the level, the components multiply rather than add.
+Call decompose() on AirPassengers with type = "multiplicative".
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 str(ex_2_1, max.level = 1)
@@ -300,6 +324,10 @@ str(ex_2_1, max.level = 1)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A robust seasonal-trend split lets you choose how much the seasonal shape may drift across years.
+Call stl() on nottem with s.window = "periodic".
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -339,6 +367,10 @@ ex_2_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+With a fixed seasonal pattern, the first full cycle of the seasonal component describes every year.
+Run stl() with s.window = "periodic", pull the "seasonal" column of $time.series, take the first 12, and name them with month.abb.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 ex_2_3
@@ -375,6 +407,10 @@ ex_2_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A log transform turns a multiplicative seasonal pattern into an additive one, which an additive split can fit more cleanly.
+Run stl() on both AirPassengers and log(AirPassengers), then take sd() of the "remainder" column of each.
 
 ```r title="Your turn"
 ex_2_4 <- # your code here
@@ -414,6 +450,10 @@ ex_2_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Under a multiplicative model, removing the seasonal effect means dividing it out rather than subtracting it.
+Run decompose() with type = "multiplicative" and divide AirPassengers by the $seasonal component.
+
 ```r title="Your turn"
 ex_2_5 <- # your code here
 head(ex_2_5)
@@ -452,6 +492,10 @@ head(ex_2_5)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Testing for a unit root checks whether a series wanders without returning to a stable level.
+Call adf.test() from tseries on Nile.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -489,6 +533,10 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Once the level and trend are stripped out, the same test should now reject the unit root.
+Apply diff() to Nile and pass the result straight to adf.test().
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -529,6 +577,10 @@ ex_3_2
 
 **Difficulty:** Beginner
 
+[HINTS]
+Autocorrelation measures how each observation relates to ones a fixed number of steps earlier.
+Call acf() on AirPassengers with lag.max = 24 and plot = FALSE.
+
 ```r title="Your turn"
 ex_3_3 <- # your code here
 ex_3_3
@@ -564,6 +616,10 @@ ex_3_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The partial version of autocorrelation isolates the direct link at each lag and cuts off after the AR order.
+Call pacf() on sim_ar2 with lag.max = 10 and plot = FALSE.
 
 ```r title="Your turn"
 set.seed(7)
@@ -609,6 +665,10 @@ ex_3_4
 
 **Difficulty:** Advanced
 
+[HINTS]
+Removing both an annual cycle and a slow drift takes two differencing steps, one seasonal and one regular.
+Nest diff() calls - the inner one with lag = 12, the outer one at the default lag 1.
+
 ```r title="Your turn"
 ex_3_5 <- # your code here
 mean(ex_3_5)
@@ -647,6 +707,10 @@ mean(ex_3_5)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The simplest smoothing forecast assumes no trend and no season, so every horizon gets the same point value.
+Call ses() on Nile with h = 10.
 
 ```r title="Your turn"
 ex_4_1 <- # your code here
@@ -691,6 +755,10 @@ ex_4_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Adding a trend equation to simple smoothing lets forecasts ramp linearly off the last estimated slope.
+Call holt() on JohnsonJohnson with h = 8.
+
 ```r title="Your turn"
 ex_4_2 <- # your code here
 ex_4_2
@@ -729,6 +797,10 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+When seasonal peaks scale with the level, the seasonal component should multiply the trend rather than add to it.
+Call hw() on AirPassengers with h = 24 and seasonal = "multiplicative".
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -773,6 +845,10 @@ ex_4_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+An automatic smoothing search picks the error, trend, and seasonal forms that minimise an information criterion.
+Call ets() on nottem with no model argument so it auto-selects the components.
+
 ```r title="Your turn"
 ex_4_4 <- # your code here
 ex_4_4
@@ -814,6 +890,10 @@ ex_4_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Damping the trend adds a parameter that flattens long-horizon forecasts, and an information criterion decides if it earns its keep.
+Fit ets() twice with model = "MAM", once damped = TRUE and once damped = FALSE, then compare the $aicc element.
 
 ```r title="Your turn"
 ex_4_5 <- # your code here
@@ -857,6 +937,10 @@ ex_4_5
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+An ARIMA fit needs the autoregressive, differencing, and moving-average orders specified up front.
+Call arima() on Nile with order = c(1, 1, 0).
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -905,6 +989,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+An automatic search across the seasonal ARIMA grid finds the orders that minimise AICc.
+Call auto.arima() on log(AirPassengers).
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 ex_5_2
@@ -949,6 +1037,10 @@ ex_5_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+A seasonal ARIMA carries a second set of orders for the yearly cycle alongside the regular ones.
+Call arima() on co2 with order = c(0, 1, 1) and seasonal = list(order = c(0, 1, 1), period = 12).
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 ex_5_3
@@ -989,6 +1081,10 @@ ex_5_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Confirming residuals are white noise means testing whether any autocorrelation remains across many lags at once.
+Call Box.test() on residuals(fit) with lag = 24 and type = "Ljung-Box".
 
 ```r title="Your turn"
 fit <- auto.arima(USAccDeaths)
@@ -1033,6 +1129,10 @@ ex_5_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A known intervention enters the model as an external predictor while the residuals keep their own time structure.
+Call auto.arima() on y with xreg = promo.
 
 ```r title="Your turn"
 set.seed(11)
@@ -1091,6 +1191,10 @@ ex_5_5
 
 **Difficulty:** Beginner
 
+[HINTS]
+A time series holdout reserves the most recent block, never random rows, so the model never sees the future.
+Call window() on AirPassengers with end = c(1958, 12).
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 tail(ex_6_1, 12)
@@ -1123,6 +1227,10 @@ tail(ex_6_1, 12)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Scoring a forecast against held-out data compares predicted values to the observations you withheld.
+Call accuracy() with the forecast object and test_set as its two arguments.
 
 ```r title="Your turn"
 test_set <- window(AirPassengers, start = c(1959, 1))
@@ -1162,6 +1270,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Picking between two models on the same holdout means scoring each forecast and reading off one comparable error figure.
+For each fit, call accuracy() on its forecast(h = 24) and pull the ["Test set", "RMSE"] cell, then combine into a named vector.
 
 ```r title="Your turn"
 test_set <- window(AirPassengers, start = c(1959, 1))
@@ -1205,6 +1317,10 @@ ex_6_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+A rolling-origin error walks the forecast origin forward one step at a time instead of using a single split.
+Call tsCV() on Nile with forecastfunction = arima110_f and h = 1.
+
 ```r title="Your turn"
 arima110_f <- function(y, h) forecast(Arima(y, order = c(1, 1, 0)), h = h)
 ex_6_4 <- # your code here
@@ -1242,6 +1358,10 @@ mean(ex_6_4^2, na.rm = TRUE)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A forecast object stores its point predictions and interval bounds separately, so a tidy table pulls each into its own column.
+Build a tibble() with seq.Date() for date and as.numeric() of fc$mean, fc$lower[, "80%"], fc$upper[, "80%"], and the 95% columns.
 
 ```r title="Your turn"
 fit <- auto.arima(AirPassengers)

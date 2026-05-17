@@ -43,6 +43,10 @@ library(ggplot2)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A one-sample test object already carries the interval as one of its components; you just need to reach into it rather than build anything.
+Run the test on the vector and extract its `$conf.int` element.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -76,6 +80,10 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+The default coverage is not the only option; the test takes an argument that controls how confident the interval should be.
+Pass `conf.level = 0.99` to `t.test()` and pull `$conf.int`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -111,6 +119,10 @@ ex_1_2
 
 **Difficulty:** Beginner
 
+[HINTS]
+Narrow the data down to just the subgroup of interest first, then run the same interval procedure on that slice.
+Subset `mtcars$mpg` to rows where `cyl == 6`, then take `t.test(...)$conf.int`.
+
 ```r title="Your turn"
 ex_1_3 <- # your code here
 ex_1_3
@@ -144,6 +156,10 @@ ex_1_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Move the skewed values onto a scale where the interval is valid, build the interval there, then map the endpoints back to the original scale.
+Apply `log()` to `disp` before `t.test()`, then `exp()` both ends of the resulting `$conf.int`.
+
 ```r title="Your turn"
 ex_1_4 <- # your code here
 ex_1_4
@@ -176,6 +192,10 @@ ex_1_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Rebuild the interval from its ingredients: the centre, the spread per observation, and a critical multiplier that depends on the sample size.
+Combine `mean()`, `sd()/sqrt(length())`, and `qt(0.975, df = n - 1)`, then add `c(-1, 1)` times the margin.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -212,6 +232,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+When the spread is treated as known, the critical multiplier comes from the normal curve, so degrees of freedom never enter.
+Use `qnorm(0.975)` for the critical value and `sigma / sqrt(n)` for the standard error, then add `c(-1, 1)` times the margin to the mean.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -247,6 +271,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Compute the margin two ways - once from the formula, once by halving the width the test reports - and store both in a named vector.
+Build the manual half-width with `qt()` and `sd()/sqrt(n)`, get the other from `diff(t.test(x)$conf.int) / 2`, and combine with `c(manual = ..., from_ttest = ...)`.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -287,6 +315,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Hand the test a grouping formula so it compares the two transmission groups, then read the interval for their difference.
+Call `t.test(mpg ~ am, data = mtcars)` and extract `$conf.int`.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -320,6 +352,10 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+When observations in the two groups correspond one-to-one, tell the test to work on the within-pair differences instead of the two groups separately.
+Filter to `dose == 1.0`, then pass the two `len` vectors to `t.test(..., paired = TRUE)$conf.int`.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -356,6 +392,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Tell the test to assume both groups share a common spread so it pools them rather than using the unequal-variance default.
+Add `var.equal = TRUE` to `t.test(mpg ~ am, data = mtcars)` and read `$conf.int`.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -397,6 +437,10 @@ diff(ex_3_3); diff(t.test(mpg ~ am, data = mtcars)$conf.int)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Reduce the data to a count of successes out of a total, then use the proportion test that returns a score-based interval, turning off the continuity adjustment.
+Pass the success count and `n` to `prop.test(x, n, correct = FALSE)` and extract `$conf.int`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -433,6 +477,10 @@ ex_4_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+For a tiny sample, reach for the test that inverts the exact binomial probabilities rather than relying on a normal approximation.
+Call `binom.test(3, 10)` and pull `$conf.int`.
+
 ```r title="Your turn"
 ex_4_2 <- # your code here
 ex_4_2
@@ -467,6 +515,10 @@ ex_4_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Feed the proportion test both groups' successes and totals at once so it returns a single interval for their difference.
+Pass `c(120, 150)` and `c(1000, 1000)` to `prop.test(..., correct = FALSE)` and read `$conf.int`.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -500,6 +552,10 @@ ex_4_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Resample the data many times with replacement, recompute the statistic each time, and read the central 95% range of those resampled values.
+Define a `function(d, i) median(d[i])`, run `boot(..., R = 2000)`, then `boot.ci(..., type = "perc")` and take `$percent[4:5]`.
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -536,6 +592,10 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Fit the model first, then ask for the plausible ranges of its slope estimates rather than computing them by hand.
+Build `lm(mpg ~ wt + hp, data = mtcars)`, then call `confint(fit, parm = c("wt", "hp"))`.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -578,6 +638,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Fit the line, build a grid of predictor values, and ask the model for the mean-response band at each grid point.
+Call `predict(fit, newdata = grid, interval = "confidence")` with `grid` built from `seq(1.5, 5.5, by = 0.5)`.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -628,6 +692,10 @@ ex_5_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The margin depends on sample size only through one over the square root of n, so evaluate that single expression across the given sizes.
+Compute `qnorm(0.975) / sqrt(n)` for the vector of `n` values and assemble the result with `tibble()`.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -665,6 +733,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Generate many samples, build an interval on each, and measure how often the interval brackets the true value.
+Use `replicate()` over `rnorm(n)` samples, test `ci[1] <= 0 & 0 <= ci[2]` for each `t.test()` interval, then take `mean()`.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here

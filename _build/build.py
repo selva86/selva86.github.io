@@ -190,11 +190,13 @@ def minify_assets(force=False):
         os.path.join(REPO_ROOT, 'www', 'toc.js'),
         os.path.join(REPO_ROOT, 'www', 'webr-init.js'),
         os.path.join(REPO_ROOT, 'www', 'engagement.js'),
+        os.path.join(REPO_ROOT, 'www', 'exercise-hub.js'),
     ]
     own_css = [
         os.path.join(REPO_ROOT, 'css', 'main.css'),
         os.path.join(REPO_ROOT, 'www', 'webr.css'),
         os.path.join(REPO_ROOT, 'www', 'engagement.css'),
+        os.path.join(REPO_ROOT, 'www', 'exercise-hub.css'),
         os.path.join(REPO_ROOT, 'www', 'highlight.css'),
     ]
 
@@ -261,6 +263,8 @@ def compute_asset_hrefs(final_paths):
         'editor-bundle.js': os.path.join(REPO_ROOT, 'www', EDITOR_BUNDLE_NAME),
         'engagement.css': final_paths.get('engagement.css', os.path.join(REPO_ROOT, 'www', 'engagement.css')),
         'engagement.js': final_paths.get('engagement.js', os.path.join(REPO_ROOT, 'www', 'engagement.js')),
+        'exercise-hub.css': final_paths.get('exercise-hub.css', os.path.join(REPO_ROOT, 'www', 'exercise-hub.css')),
+        'exercise-hub.js': final_paths.get('exercise-hub.js', os.path.join(REPO_ROOT, 'www', 'exercise-hub.js')),
         'highlight.css': final_paths.get('highlight.css', os.path.join(REPO_ROOT, 'www', 'highlight.css')),
         'bootstrap.min.css': os.path.join(REPO_ROOT, 'www', 'bootstrap.min.css'),
     }
@@ -897,6 +901,21 @@ def make_engagement_body_block(asset_hrefs):
     eng_js = asset_hrefs.get('engagement.js', 'www/engagement.js')
     return f'    <script src="{eng_js}"></script>'
 
+
+def make_exercise_hub_head_block(asset_hrefs):
+    css = asset_hrefs.get('exercise-hub.css', 'www/exercise-hub.css')
+    # The exercise title (.xh-ex-name) uses IBM Plex Serif 700 - already
+    # self-hosted AND preloaded by template.html, so nothing to add here.
+    return (
+        f'    <link rel="stylesheet" href="{css}" media="print" onload="this.media=\'all\'">\n'
+        f'    <noscript><link rel="stylesheet" href="{css}"></noscript>'
+    )
+
+
+def make_exercise_hub_body_block(asset_hrefs):
+    js = asset_hrefs.get('exercise-hub.js', 'www/exercise-hub.js')
+    return f'    <script src="{js}"></script>'
+
 DEFAULT_DESCRIPTION = "R Language Tutorials for Advanced Statistics"
 DEFAULT_KEYWORDS = "R, Tutorial, Machine learning, Statistics, Data Mining, Analytics, Data science, Linear Regression, Logistic Regression, Time series, Forecasting"
 
@@ -1315,14 +1334,25 @@ def build_post(
     sidebar_html = render_sidebar_html(sidebar_sections or [], slug)
     page_html = page_html.replace('{{SIDEBAR_HTML}}', sidebar_html)
 
+    # post_type drives the engagement layer. EVERY EX hub loads exercise-hub.js
+    # (which replaces engagement.js) - including webr:false static hubs, where
+    # the layer runs in grading-less mode (hints, progress, XP, no auto-grade).
+    # engagement.css loads on EX pages too - it styles the hub meta strip.
+    post_type = meta.get('post_type', '').strip()
+    _is_ex = post_type == 'EX'
     page_html = page_html.replace('{{WEBR_HEAD}}', make_webr_head_block(_hrefs) if webr else '')
     page_html = page_html.replace('{{WEBR_BODY}}', make_webr_body_block(_hrefs) if webr else '')
-    page_html = page_html.replace('{{ENGAGEMENT_HEAD}}', make_engagement_head_block(_hrefs) if webr else '')
-    page_html = page_html.replace('{{ENGAGEMENT_BODY}}', make_engagement_body_block(_hrefs) if webr else '')
+    page_html = page_html.replace('{{ENGAGEMENT_HEAD}}',
+                                  make_engagement_head_block(_hrefs) if (webr or _is_ex) else '')
+    page_html = page_html.replace('{{ENGAGEMENT_BODY}}',
+                                  make_engagement_body_block(_hrefs) if (webr and not _is_ex) else '')
+    page_html = page_html.replace('{{EXERCISE_HUB_HEAD}}',
+                                  make_exercise_hub_head_block(_hrefs) if _is_ex else '')
+    page_html = page_html.replace('{{EXERCISE_HUB_BODY}}',
+                                  make_exercise_hub_body_block(_hrefs) if _is_ex else '')
 
     # Certificate ribbon for EX posts only. Hub title is the page <h1>.
-    post_type = meta.get('post_type', '').strip()
-    if post_type == 'EX':
+    if _is_ex:
         # Hub topic name for the certificate label. Strip "Exercises" suffix from
         # sidebar_title/title so we don't get "X Exercises Certificate" redundancy.
         hub_short_raw = meta.get('sidebar_title') or title
@@ -1340,7 +1370,9 @@ def build_post(
             hub_slug = hub_short.lower().replace(' ', '-')
         topics = _extract_topic_chips(content, hub_slug=hub_slug)
         issuance_base = _issuance_baseline(hub_slug)
-        cert_top = make_cert_ribbon(hub_short, quiz_url)
+        # Top ribbon removed: it duplicates the full certificate block at the
+        # page bottom, and an assessment CTA before practising is premature.
+        cert_top = ''
         cert_bottom = make_cert_final(hub_short, quiz_url, hub_slug,
                                        topics=topics, issuance_base=issuance_base)
     else:

@@ -51,6 +51,10 @@ library(ggplot2)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Power, significance, effect size, and sample size form one locked system: fix any three and the fourth is determined.
+Convert the two proportions into Cohen's h with `ES.h(p1 = 0.05, p2 = 0.04)`, pass it as `h` along with `sig.level` and `power`, and leave the sample-size argument out.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -101,6 +105,10 @@ ex_1_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+A continuous-metric effect size is the mean difference rescaled into standard-deviation units.
+Give `pwr.t.test()` a `d` of `4 / 32`, set `sig.level` and `power`, and pass `type = "two.sample"`.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -145,6 +153,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+With sample size fixed, the unknown flips to effect size, which you then translate back into proportion units.
+Call `pwr.2p.test()` with `n`, `sig.level`, and `power` set, read `$h`, and invert the arcsine transform with `sin(asin(sqrt(0.04)) + h/2)^2`.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -193,6 +205,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Achieved power is what you compute when sample size is the input rather than the quantity being solved for.
+Iterate over the n grid with `sapply()`, calling `pwr.2p.test(h = ..., n = nn, sig.level = 0.05)$power` for each, and collect the results into a tibble with `mutate()`.
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -248,6 +264,10 @@ ex_1_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+Comparing two conversion rates means comparing two success counts against their two totals.
+Pass the conversions as `x = c(412, 478)` and the totals as `n = c(9800, 9750)` to `prop.test()`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -293,6 +313,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+An htest object prints nicely but is awkward to stack across many tests, so convert it into a single data row.
+Pipe the `prop.test()` result into `broom::tidy()` to get a one-row tibble.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -329,6 +353,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A contingency table tests whether the row classification and column classification are independent of each other.
+Pass the matrix `m` directly to `chisq.test()`.
 
 ```r title="Your turn"
 m <- matrix(
@@ -390,6 +418,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+When the two arms may have unequal variances, the standard two-sample mean comparison already accounts for that.
+Call `t.test(control, treatment)`, which applies the Welch correction by default unless you set `var.equal = TRUE`.
+
 ```r title="Your turn"
 set.seed(7)
 control   <- rnorm(1000, mean = 48, sd = 32)
@@ -440,6 +472,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+For heavily skewed data, compare the two distributions by rank rather than by their means.
+Pass the two vectors to `wilcox.test(control_lp, treatment_lp)`.
+
 ```r title="Your turn"
 set.seed(11)
 control_lp   <- rexp(2000, rate = 1 / 2.1)
@@ -480,6 +516,10 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Empirical power is simply the fraction of many repeated experiments that reach significance.
+Loop `n_sim` times generating `rexp()` samples per arm, store each `t.test(ctl, trt)$p.value`, then take `mean(pvals < 0.05)`.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -523,6 +563,10 @@ ex_3_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Every additional look is a fresh chance to cross the threshold, so repeated looks accumulate false positives.
+For each simulation, loop over the peek sizes running `prop.test()`, `break` at the first `p.value < 0.05`, and take the `mean()` of the early-stop flags.
 
 ```r title="Your turn"
 ex_4_1 <- # your code here
@@ -581,6 +625,10 @@ ex_4_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Splitting the error budget evenly across all planned looks keeps the family-wise rate near its target.
+Set `alpha_adj <- 0.05 / length(peeks)`, then in the simulation `break` at the first look where `p.value < alpha_adj`.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -642,6 +690,10 @@ ex_4_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Treat the effect observed so far as if it were the truth, then size the test that effect would actually require.
+Compute `ES.h()` on the observed treatment and control rates, feed it as `h` to `pwr.2p.test()` with `power = 0.80`, and subtract the current 5,000.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -687,6 +739,10 @@ ex_4_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+If only some assigned users finish, you must start with more than the number you need to end with.
+Divide the required completers by `(1 - dropout_rate)` to get the assignment-time count.
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -734,6 +790,10 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Testing several metrics at once inflates the chance of a spurious win, so the raw p-values need adjusting.
+Apply `p.adjust()` twice, once with `method = "bonferroni"` and once with `method = "BH"`, then `arrange()` by the raw p-value.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -785,6 +845,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A treatment effect that fades over time shows up as a trend in lift, not as a single static number.
+Bucket the 28 days into weeks, compute the weekly lift as `p_trt - p_ctl`, and fit `lm(weekly_lift ~ week_num)`.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -849,6 +913,10 @@ ex_5_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+A stakeholder summary collapses one test result into a flat row of rates, lifts, an interval, and a decision.
+Run `prop.test()` once, then assemble a one-row `tibble()`; its CI is for control minus treatment, so negate and swap the bounds, and set the verdict with `if_else()`.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -900,6 +968,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+An A/A check should surface no real difference, so any signal points to a randomiser or pipeline bug.
+Run `prop.test()` on the conversion totals and `chisq.test()` with `p = c(0.5, 0.5)` on the traffic split, then label each row with `if_else()`.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here

@@ -47,6 +47,10 @@ library(purrr)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A balanced fold vector recycles the fold IDs in order, then a random permutation decides which row lands in which fold.
+Build the ordered IDs with `rep(1:5, length.out = nrow(mtcars))` and shuffle them with `sample()` after calling `set.seed(1)`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -82,6 +86,10 @@ table(ex_1_1)
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+A holdout estimate fits the model on one chunk of rows and scores it on the rows it never saw during training.
+Get the training rows from `createDataPartition(mtcars$mpg, p = 0.7, list = FALSE)`, then `predict()` on the test set and take `sqrt(mean((actual - preds)^2))`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -119,6 +127,10 @@ round(ex_1_2, 3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Hold out one row at a time, refit on all the others, and accumulate that row's squared prediction error.
+Loop with `for (i in seq_len(n))`, fit on `mtcars[-i, ]`, predict `mtcars[i, , drop = FALSE]`, then take `mean()` of the stored squared errors.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -161,6 +173,10 @@ round(ex_1_3, 3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Root mean squared error is just the square root of mean squared error; lay both methods out side by side for comparison.
+Recompute the LOOCV loop, apply `sqrt()` to its MSE, then assemble a `tibble()` with `method` and `rmse` columns.
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -211,6 +227,10 @@ ex_1_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Train on every fold but one, predict the held-out fold, and pool all out-of-fold predictions before scoring once.
+Loop `for (k in 1:5)`, fit on `mtcars[folds != k, ]`, fill `preds[folds == k]`, then take `sqrt(mean((mtcars$mpg - preds)^2))`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -250,6 +270,10 @@ round(ex_2_1, 3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Wrap the single-pass fold loop in an outer loop so each repeat reshuffles the folds and records its own RMSE.
+Loop `for (rep in 1:10)`, call `set.seed(rep)` then rebuild `folds` with `sample()`, storing each `sqrt(mean(...))` into a length-10 vector.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -302,6 +326,10 @@ mean(ex_2_2)
 
 **Difficulty:** Advanced
 
+[HINTS]
+A stratified split keeps each class's share of rows constant across every fold rather than splitting rows blindly.
+Pass the outcome vector to `createFolds(iris$Species, k = 5, list = FALSE)` after calling `set.seed(2)`.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 table(fold = ex_2_3, species = iris$Species)
@@ -344,6 +372,10 @@ table(fold = ex_2_3, species = iris$Species)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+caret separates the resampling recipe from the model call, so you describe the folds once and hand them to the fit.
+Build the recipe with `trainControl(method = "cv", number = 10)` and pass it through the `trControl` argument.
 
 ```r title="Your turn"
 ctrl <- # your code here
@@ -390,6 +422,10 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Repeating the whole k-fold protocol several times stabilizes the score reported for each candidate hyperparameter.
+Build the recipe with `trainControl(method = "repeatedcv", number = 10, repeats = 5)`.
 
 ```r title="Your turn"
 ctrl <- # your code here
@@ -444,6 +480,10 @@ ex_3_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Monte Carlo CV draws many independent random train/test splits instead of partitioning rows into disjoint folds.
+Configure the recipe with `trainControl(method = "LGOCV", number = 25, p = 0.75)`.
+
 ```r title="Your turn"
 ctrl <- # your code here
 fit  <- train(mpg ~ wt + hp, data = mtcars, method = "lm", trControl = ctrl)
@@ -487,6 +527,10 @@ summary(ex_3_3)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+To get a ranking metric out of caret you must tell it to keep class probabilities and score folds with a two-class summary.
+Set `classProbs = TRUE` and `summaryFunction = twoClassSummary` inside `trainControl(method = "cv", number = 10)`.
 
 ```r title="Your turn"
 iris2 <- iris |>
@@ -552,6 +596,10 @@ ex_3_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+An rsample fold object stores splits, and each split exposes its training and held-out partitions as separate views.
+Create the object with `vfold_cv(mtcars, v = 10)`, then pull the held-out rows via `assessment(splits$splits[[1]])`.
+
 ```r title="Your turn"
 set.seed(21)
 splits <- vfold_cv(mtcars, v = 10)
@@ -597,6 +645,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Write one function that scores a single split, then apply it across every split in the resample object.
+Inside the function call `analysis()` and `assessment()` on the split, fit `lm()`, and return `sqrt(mean(...))`; drive it with `map_dbl()`.
 
 ```r title="Your turn"
 set.seed(23)
@@ -656,6 +708,10 @@ mean(ex_4_2)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+When rows cluster by an entity, every row of that entity must stay together in train or test to avoid leakage.
+Split with `group_vfold_cv(d, group = patient_id, v = 5)`, then count distinct patients per fold using `map_int()` over `assessment()`.
 
 ```r title="Your turn"
 set.seed(25)
@@ -725,6 +781,10 @@ ex_4_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+Time-series CV slides a forward-moving training window so the model is always tested on observations that come later.
+Read the window edges with `min()` and `max()` of `analysis(s)$month` across the splits, gathering them with `map_int()`.
+
 ```r title="Your turn"
 set.seed(31)
 ts_df <- tibble(
@@ -789,6 +849,10 @@ ex_5_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+An expanding window keeps every past observation and only grows, so the training start never moves off the first row.
+Build the same per-split range tibble, reading `min()`/`max()` of `analysis(s)$month` with `map_int()` over `ro2$splits`.
+
 ```r title="Your turn"
 ro2 <- rolling_origin(ts_df, initial = 24, assess = 12,
                       cumulative = TRUE, skip = 11)
@@ -843,6 +907,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+For each forecast window, fit on its training block and record actual versus predicted for every assessment row.
+Inside the `map_dfr()` callback pull `analysis()`/`assessment()`, fit `lm(sales ~ month)`, and return a `tibble()` with the predictions and `err`.
 
 ```r title="Your turn"
 set.seed(31)
@@ -921,6 +989,10 @@ head(ex_5_3, 6)
 
 **Difficulty:** Advanced
 
+[HINTS]
+A fair comparison scores every engine on the exact same folds, then keeps each one's best resampled error.
+Pull `min(...$results$RMSE)` from each fitted model and assemble a `tibble()` with `model` and `best_rmse` columns.
+
 ```r title="Your turn"
 ctrl <- trainControl(method = "cv", number = 10)
 
@@ -975,6 +1047,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The one-standard-error rule keeps the simplest model whose error sits within one standard error of the best score.
+Compute the threshold as `min(RMSE) + RMSESD / sqrt(50)` from `fit$results`, then take `max(k)` among the rows under it.
 
 ```r title="Your turn"
 set.seed(43)
@@ -1033,6 +1109,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Nested CV tunes inside each outer training partition and reports error only on the outer rows the tuner never touched.
+Inside `map_dfr()` over `outer$splits`, run `train()` with the inner control on `analysis()`, score `assessment()`, and read `fit$bestTune$k`.
 
 ```r title="Your turn"
 set.seed(51)

@@ -41,6 +41,10 @@ library(dplyr)
 
 **Difficulty:** Beginner
 
+[HINTS]
+R has a dedicated type for calendar dates that stores them internally as day counts, and these strings are already in the standard year-month-day order.
+Pass the character vector straight into `as.Date()`; the ISO layout `"%Y-%m-%d"` is the default, so no `format=` argument is needed.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -73,6 +77,10 @@ class(ex_1_1)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+When one column mixes several date layouts, you need a parser that tries a priority-ordered list of candidate layouts rather than assuming a single fixed one.
+Call `parse_date_time(raw, orders = ...)` and give `orders` a vector of codes like `"mdy"`, `"ymd"`, `"dmy"`; the first code that matches each element wins.
+
 ```r title="Your turn"
 raw <- c("Jan 5, 2024", "5/1/2024", "2024-01-05", "05-Jan-2024")
 ex_1_2 <- # your code here
@@ -104,6 +112,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A non-standard timestamp layout has to be described token by token, and a storage timestamp should be pinned to a fixed zone so results are reproducible across machines.
+Use `as.POSIXct(logs, format = "%d-%b-%Y %H:%M:%S", tz = "UTC")`, where `%b` matches the abbreviated month name.
 
 ```r title="Your turn"
 logs <- c("15-Jan-2024 14:30:45", "20-Feb-2024 09:05:00", "10-Mar-2024 23:59:59")
@@ -146,6 +158,10 @@ ex_1_3
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Date-component accessors operate directly on a date column, so you can derive several new columns in one pass without converting the column first.
+Inside a `transmute()`, call `year(date)`, `month(date)`, and `wday(date, label = TRUE, abbr = FALSE)` for the three columns.
 
 ```r title="Your turn"
 data(economics, package = "ggplot2")
@@ -195,6 +211,10 @@ head(ex_2_1, 4)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A fiscal quarter is just a bucket of three months, so map each month number to its quarter label and then tally how many rows fall in each bucket.
+Inside `mutate()`, use `case_when()` with tests like `month(date) %in% 4:6`, then pipe the result to `count(fiscal_quarter)`.
 
 ```r title="Your turn"
 data(economics, package = "ggplot2")
@@ -252,6 +272,10 @@ ex_2_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Start from a contiguous run of every single day in the year, then derive the descriptive columns from that one date column.
+Build the rows with `seq(ymd("2024-01-01"), ymd("2024-12-31"), by = "day")`, then add columns with `month(..., label = TRUE)`, `wday(..., label = TRUE)`, and `isoweek()`.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 head(ex_2_3, 3)
@@ -298,6 +322,10 @@ nrow(ex_2_3)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Whole-year age is the gap between two dates measured in years and then truncated downward, not days divided by 365.
+Divide `interval(dob, today)` by `years(1)`, wrap that in `trunc()`, and cast with `as.integer()`.
+
 ```r title="Your turn"
 dob   <- as.Date("1990-05-20")
 today <- as.Date("2026-05-12")
@@ -338,6 +366,10 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Day gaps and whole-month gaps need different tools, because a calendar month has no fixed number of days.
+In `mutate()`, get days from `as.numeric(end_date - start_date)` and months by integer-dividing `interval(start_date, end_date) %/% months(1)`.
 
 ```r title="Your turn"
 roster <- tibble(
@@ -390,6 +422,10 @@ ex_3_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Plain month addition fails on the 31st because the target month has no such day, so you need an operation that clamps to the last valid day instead.
+Use the `%m+%` operator together with `months(1)`: `month_ends %m+% months(1)`.
+
 ```r title="Your turn"
 month_ends <- ymd(c("2024-01-31", "2024-02-29", "2024-03-31", "2024-05-31"))
 ex_3_3 <- # your code here
@@ -423,6 +459,10 @@ ex_3_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The same instant in time can be displayed in any zone; here you want to change the displayed wall clock without moving the underlying moment.
+Call `with_tz(utc_stamps, tzone = "America/New_York")`.
 
 ```r title="Your turn"
 utc_stamps <- ymd_hms(c("2024-06-15 14:30:00", "2024-12-15 14:30:00"), tz = "UTC")
@@ -459,6 +499,10 @@ ex_4_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Read the clock offset just before and just after each transition; the awkward part is that the transition instant itself is either non-existent or ambiguous in local time.
+Parse the two transitions with `ymd_hms(..., tz = tz_ny)`, sample one hour before and one hour after, and read each offset with `format(t, "%z")`.
 
 ```r title="Your turn"
 tz_ny <- "America/New_York"
@@ -517,6 +561,10 @@ ex_4_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Group the rows by the calendar year each one falls in, then average the values within each group.
+Use `group_by(year = year(date))`, then `summarise(mean_unemploy = mean(unemploy))`, and finish with `arrange(year)`.
+
 ```r title="Your turn"
 data(economics, package = "ggplot2")
 ex_5_1 <- economics |>
@@ -567,6 +615,10 @@ head(ex_5_1, 3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Snapping every date down to the first day of its quarter turns the daily rows into a single quarterly grouping key.
+Use `floor_date(date, "quarter")` as the `group_by()` key, then `summarise(mean_close = mean(close))`.
 
 ```r title="Your turn"
 set.seed(1)
@@ -630,6 +682,10 @@ ex_5_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+A trailing average needs a fixed-width window that slides one row at a time, leaving the early rows empty until a full window exists.
+Write a helper that, for each index `i` from 12 onward, computes `mean(x[(i - 11):i])`, then attach it with `mutate()`.
+
 ```r title="Your turn"
 data(economics, package = "ggplot2")
 ex_5_3 <- economics |>
@@ -689,6 +745,10 @@ head(ex_5_3, 13)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Starting from a given day, step forward by one day and keep stepping as long as you land on a weekend.
+Add `days(1)`, then loop while `wday(d, week_start = 1) > 5`, advancing only the weekend entries each pass.
+
 ```r title="Your turn"
 filings <- ymd(c("2024-01-05", "2024-01-06", "2024-01-07", "2024-01-08"))
 next_business_day <- function(d) {
@@ -733,6 +793,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Two date ranges overlap when they share any common stretch of time; turning each range into a span object lets you test that directly.
+Build each span with `interval(start, end)`, then compare the pairs with `int_overlaps()`.
 
 ```r title="Your turn"
 bookings <- tibble(
@@ -792,6 +856,10 @@ ex_6_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+A running total that restarts each July is just a cumulative sum computed separately within each fiscal year.
+Map each month to its fiscal year with `if_else(month(d) >= 7, year(d) + 1, year(d))`, `group_by()` that, then apply `cumsum(sales)`.
+
 ```r title="Your turn"
 sales <- tibble(
   month_start = seq(ymd("2023-01-01"), ymd("2024-12-01"), by = "month"),
@@ -848,6 +916,10 @@ head(ex_6_3, 8)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A display string is built by describing the layout you want with date placeholder tokens.
+Use `format(holidays, "%b %d, %Y (%a)")`, where `%b` and `%a` give the abbreviated month and weekday.
 
 ```r title="Your turn"
 holidays <- ymd(c("2024-01-15", "2024-07-04", "2024-12-25"))

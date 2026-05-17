@@ -47,6 +47,10 @@ library(tibble)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A fitted model object hides its coefficient table inside the summary; you want it reshaped into a flat data frame with one row per term.
+Fit the model with `lm(mpg ~ wt, data = mtcars)`, then pass the fitted object straight to `tidy()`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -87,6 +91,10 @@ ex_1_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Confidence intervals are not part of the default coefficient table; an argument switches them on so lower and upper bounds become columns.
+Pass the `lm(mpg ~ wt + hp + cyl, ...)` fit to `tidy()` with `conf.int = TRUE`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -130,6 +138,10 @@ ex_1_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Logistic coefficients arrive on the log-odds scale; one flag rescales them into odds ratios a non-statistician can read.
+Build a 0/1 outcome, fit with `glm(..., family = binomial())`, then call `tidy(fit, exponentiate = TRUE)`.
+
 ```r title="Your turn"
 ex_1_3 <- # your code here
 ex_1_3
@@ -171,6 +183,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A hypothesis-test result is a list of loose components; tidying lifts estimate, statistic, and p-value into one rectangular row.
+Run `t.test(pre, post, paired = TRUE)` and pass the resulting object to `tidy()`.
 
 ```r title="Your turn"
 pre  <- c(78, 82, 75, 90, 85, 79, 88, 91, 77, 83)
@@ -215,6 +231,10 @@ ex_1_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+Model-level fit measures like R-squared and AIC live apart from the coefficient table; you want them collapsed into a single summary row.
+Fit `lm(mpg ~ wt + hp, data = mtcars)` and pass the fit to `glance()`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -251,6 +271,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A fitted GLM stores both its own deviance and the deviance of the intercept-only null; one summary call surfaces both at once.
+Fit `glm(y ~ x1 + x2, family = binomial())`, then call `glance()` on the fit.
 
 ```r title="Your turn"
 set.seed(42)
@@ -303,6 +327,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Each model produces an identically shaped one-row summary, so stacking those rows yields a single comparison table.
+Apply `glance()` to each fit, attach a label with `mutate(model = ...)`, and combine the rows with `bind_rows()`.
 
 ```r title="Your turn"
 fit_wt        <- lm(mpg ~ wt,             data = mtcars)
@@ -361,6 +389,10 @@ ex_2_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+Fitted values, residuals, and leverage diagnostics belong next to the original observations, one diagnostic column per row.
+Fit `lm(mpg ~ wt + hp, data = mtcars)` and pass the fit to `augment()`.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 head(ex_3_1, 3)
@@ -401,6 +433,10 @@ head(ex_3_1, 3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Scoring fresh observations means predicting on rows the model never saw, not on the training data it was fit to.
+Call `augment()` on the fit with `newdata = new_cars` and `se_fit = TRUE`.
 
 ```r title="Your turn"
 new_cars <- tibble::tibble(
@@ -455,6 +491,10 @@ ex_3_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+A clustering result returns bare assignments with no tie back to the source rows; you need them joined onto the original data.
+Pass the `kmeans` object and `mtcars` to `augment()` to get a `.cluster` column appended to each row.
+
 ```r title="Your turn"
 scaled <- scale(mtcars[, c("wt", "hp")])
 set.seed(1)
@@ -500,6 +540,10 @@ head(ex_3_3, 3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Influential observations are flagged by comparing a per-row diagnostic against a threshold that depends on the sample size.
+After `augment()`, use `filter(.cooksd > 4 / n)` and `arrange(desc(.cooksd))` on the result.
 
 ```r title="Your turn"
 fit <- lm(mpg ~ wt + hp, data = mtcars)
@@ -553,6 +597,10 @@ ex_3_4
 
 **Difficulty:** Advanced
 
+[HINTS]
+Fitting one model per group means each group's rows must travel together in their own cell before any model touches them.
+After `group_by(cyl)` and `nest()`, use `map()` to fit `lm(mpg ~ wt)` per group, `map()` again with `tidy`, then `unnest()`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -605,6 +653,10 @@ ex_4_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+Switching what you compute per group from coefficients to fit statistics leaves the grouping scaffold completely untouched.
+Reuse the `group_by()` plus `nest()` plus `map()` pipeline, but apply `glance` instead of `tidy` before `unnest()`.
+
 ```r title="Your turn"
 ex_4_2 <- # your code here
 ex_4_2
@@ -651,6 +703,10 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A long table of one slope per group becomes a one-row dashboard once the group identifier moves into the column headers.
+From the long tibble, `filter(term == "wt")` then reshape with `pivot_wider(names_from = cyl, values_from = estimate)`.
 
 ```r title="Your turn"
 long <- mtcars |>
@@ -711,6 +767,10 @@ ex_4_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A contingency-table test prints as a paragraph; tidying turns the same information into one row of named columns you can log.
+Run `chisq.test()` on the matrix and wrap the returned object in `tidy()`.
+
 ```r title="Your turn"
 mat <- matrix(
   c(120, 380,   # segment A: opens, no_opens
@@ -761,6 +821,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A rank-based paired test still produces a result object that collapses to a single fixed-column row when tidied.
+Run `wilcox.test(post, pre, paired = TRUE)` and pass the result to `tidy()`.
+
 ```r title="Your turn"
 pre  <- c(7, 8, 6, 9, 7, 8, 7, 9, 8)
 post <- c(5, 7, 4, 8, 6, 6, 5, 8, 7)
@@ -803,6 +867,10 @@ ex_5_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Running the same test on several variables and stacking the resulting rows gives one side-by-side significance table.
+Use `map_dfr()` over the variable names, building each formula with `as.formula()` and tidying every `t.test()`.
 
 ```r title="Your turn"
 two_species <- iris |> filter(Species %in% c("setosa","versicolor"))
@@ -859,6 +927,10 @@ ex_5_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Once the coefficient table is a flat data frame, rounding, CI strings, and significance stars are just ordinary column transformations.
+Start from `tidy(fit, conf.int = TRUE)`, then `mutate()` using `sprintf()` for the CI string and `case_when()` for the marker.
 
 ```r title="Your turn"
 fit <- lm(mpg ~ wt + hp + cyl, data = mtcars)
@@ -918,6 +990,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Reducing a model to a single headline number means isolating the two slopes and dividing one by the other.
+`tidy()` the fit, `filter()` to the two slope terms, reshape with `pivot_wider()`, then compute the ratio in `transmute()`.
 
 ```r title="Your turn"
 set.seed(7)
@@ -981,6 +1057,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Checking for residual bias across a category means the residuals must carry that category alongside them, then be summarised per group.
+`augment()` the fit, `left_join()` the `cyl` column on `.rownames`, then `group_by(cyl)` and `summarise()` the mean and sd of `.resid`.
 
 ```r title="Your turn"
 fit <- lm(mpg ~ wt + hp, data = mtcars)

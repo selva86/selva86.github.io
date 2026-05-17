@@ -51,6 +51,10 @@ library(microbenchmark)
 
 **Difficulty:** Beginner
 
+[HINTS]
+The machine reports a total core count, and you want that total alongside a worker count that holds one core back for the operating system.
+Get the total with `detectCores()`, then assemble a named integer vector with `c(total = ..., workers = ... - 1L)`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -92,6 +96,10 @@ ex_1_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+A data frame is a list of columns, so a parallel apply can walk every column and reduce each one to its average.
+Call `mclapply(mtcars, mean, mc.cores = 2)`.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -125,6 +133,10 @@ ex_1_2[1:2]
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Spin up workers, hand them a squaring job over six numbers, and guarantee they shut down even if the job errors.
+Inside a function, build the cluster with `makeCluster(2)`, guard teardown with `on.exit(stopCluster(cl))`, then `unlist(parLapply(cl, seq_len(n), function(x) x^2))`.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -160,6 +172,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+PSOCK workers start as empty sessions, so the variable and the package they need must both be shipped over before the compute call.
+Use `clusterExport(cl, "multiplier")` and `clusterEvalQ(cl, library(dplyr))`, then `parSapply(cl, 1:5, function(x) multiplier * x)`.
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -201,6 +217,10 @@ ex_1_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+A future only schedules work; nothing computes until you explicitly ask for the result.
+Set the plan with `plan(sequential)`, wrap the work in `future({ Sys.sleep(0.1); sqrt(144) })`, and resolve it with `value()`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -232,6 +252,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Pick a plan that behaves identically on every operating system, then run a parallel apply of the square root over eight integers.
+Set `plan(multisession, workers = 2)` and call `unlist(future_lapply(1:8, sqrt))`.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -265,6 +289,10 @@ future::plan(future::sequential)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Fork-based parallelism is faster but unavailable on some platforms, so probe support first and fall back when it is missing.
+Branch on `supportsMulticore()` between `plan(multicore, workers = 2)` and `plan(multisession, workers = 2)`, then read `class(plan())[1]`.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -301,6 +329,10 @@ future::plan(future::sequential)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Launch several jobs of differing length, pause briefly, then ask each one whether it has finished without waiting on the slow ones.
+Store the three `future({ Sys.sleep(...); ... })` calls in a list and poll each with `vapply(fs, resolved, logical(1))`.
 
 ```r title="Your turn"
 ex_2_4 <- # your code here
@@ -342,6 +374,10 @@ future::plan(future::sequential)
 
 **Difficulty:** Beginner
 
+[HINTS]
+You want the parallel counterpart of a typed map that guarantees a numeric vector as its output.
+Under `plan(multisession, workers = 2)`, call `future_map_dbl(1:6, function(x) x^2)`.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -378,6 +414,10 @@ future::plan(future::sequential)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Break the data into per-group chunks, summarise each chunk into a single row, and stack the rows into one table.
+Use `future_map_dfr(split(mtcars, mtcars$cyl), function(d) tibble(mean_mpg = mean(d$mpg), mean_hp = mean(d$hp)), .id = "cyl")`.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -420,6 +460,10 @@ future::plan(future::sequential)
 
 **Difficulty:** Advanced
 
+[HINTS]
+Parallel random draws are only reproducible when each iteration receives its own deterministic random stream.
+Pass `.options = furrr_options(seed = 123)` to `future_map()`, then reduce each draw with `vapply(draws, mean, numeric(1))`.
+
 ```r title="Your turn"
 ex_3_3 <- # your code here
 ex_3_3
@@ -456,6 +500,10 @@ future::plan(future::sequential)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Pair up two equal-length inputs row by row and multiply each pair in parallel.
+Build a `tibble(x = 1:4, y = c(10, 20, 30, 40))` and pass it to `future_pmap_dbl(args_df, function(x, y) x * y)`.
 
 ```r title="Your turn"
 ex_3_4 <- # your code here
@@ -497,6 +545,10 @@ future::plan(future::sequential)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Run the loop replacement in its sequential mode first, letting the default combiner collect the results into a list.
+Use `foreach(i = 1:5) %do% { i^2 }`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -530,6 +582,10 @@ ex_4_1[1:2]
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Register a parallel backend, then let the loop itself add the partial squares together as they return.
+After `registerDoParallel(makeCluster(2))`, run `foreach(i = 1:10, .combine = "+") %dopar% { i^2 }`.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -572,6 +628,10 @@ ex_4_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Plain parallel loops are not reproducible because worker hand-off timing varies, so you need an operator backed by a parallel-safe random stream.
+Replace `%dopar%` with `%dorng%` and set `.options.RNG = 42` inside `foreach(i = 1:5, .combine = rbind)`.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -613,6 +673,10 @@ ex_4_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+A bootstrap is many independent resamples, each summarised down to one statistic, so it parallelizes cleanly with a reproducible seed.
+Use `future_map_dbl(seq_len(1000), function(i) median(sample(mtcars$mpg, replace = TRUE)), .options = furrr_options(seed = 7))`.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 summary(ex_5_1)
@@ -649,6 +713,10 @@ future::plan(future::sequential)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Each cross-validation fold trains on its complement and scores on itself, and the folds never interact.
+Build folds with `split(sample(seq_len(nrow(mtcars))), rep(1:5, length.out = nrow(mtcars)))`, then map them with `future_map_dbl(folds, function(test_idx) { ... }, .options = furrr_options(seed = 1))` returning `mean((predict(fit, test) - test$mpg)^2)`.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -691,6 +759,10 @@ future::plan(future::sequential)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Estimate pi from the fraction of random points landing inside the unit circle, run several independent batches, and average them.
+Define a batch function returning `4 * mean(x^2 + y^2 <= 1)`, map it with `future_map_dbl(rep(1e5, 4), batch_pi, .options = furrr_options(seed = 99))`, then take the `mean()`.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -742,6 +814,10 @@ future::plan(future::sequential)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Bucket a continuous column into ranges, split the data by bucket, and summarise each bucket to one row in parallel.
+Use `cut(d$carat, breaks = c(0, 0.5, 1, 1.5, 2, 3, 6))`, then `future_map_dfr(split(d, d$carat_bin), function(chunk) tibble(median_price = median(chunk$price)), .id = "carat_bin")`.
+
 ```r title="Your turn"
 ex_5_4 <- # your code here
 ex_5_4
@@ -783,6 +859,10 @@ future::plan(future::sequential)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Each grid point fits an independent model and reports one score, so the sweep is just a parallel map over the grid of subset sizes.
+Map over `c(4, 6, 8)` with `future_map_dfr()`, subsetting `mtcars[, c(1, 2:(k + 1))]`, fitting `lm(mpg ~ ., data = sub)`, and returning `tibble(k = k, aic = AIC(fit))`.
 
 ```r title="Your turn"
 ex_5_5 <- # your code here
@@ -832,6 +912,10 @@ future::plan(future::sequential)
 
 **Difficulty:** Advanced
 
+[HINTS]
+You want a parallel job where one bad input is captured as an error rather than aborting the whole run.
+Wrap the worker with `purrr::safely()`, run it through `future_map(c(4, -1, 9, -2, 16), guarded_sqrt)`, and pull successes with `map(ex_6_1, "result")`.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 purrr::map(ex_6_1, "result")
@@ -876,6 +960,10 @@ future::plan(future::sequential)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Measure the wall time of the same heavy workload run serially versus across workers, then extract the typical times.
+Compare `lapply` and `future_lapply` inside `microbenchmark(..., times = 3)`, then `aggregate(time ~ expr, ..., FUN = median)` and divide by `1e6`.
+
 ```r title="Your turn"
 ex_6_2 <- # your code here
 ex_6_2
@@ -913,6 +1001,10 @@ future::plan(future::sequential)
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Background workers linger after a job unless you explicitly return the session to its non-parallel state.
+After the job, call `plan(sequential)` and capture `class(plan())[1]`.
 
 ```r title="Your turn"
 ex_6_3 <- # your code here

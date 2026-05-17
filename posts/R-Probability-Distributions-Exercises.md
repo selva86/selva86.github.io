@@ -41,6 +41,10 @@ set.seed(NULL)
 
 **Difficulty:** Beginner
 
+[HINTS]
+The bell curve has a height at every point; you want that height at one specific value, not an area or a probability.
+Call the density function with the value 72 and the `mean` and `sd` arguments.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -70,6 +74,10 @@ ex_1_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The probability of landing inside an interval is the area to the left of the upper limit minus the area to the left of the lower limit.
+Subtract one `pnorm()` call at 9.8 from another at 10.2, each with the same `mean` and `sd`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -102,6 +110,10 @@ ex_1_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You need the value below which 95% of the distribution sits - the inverse of a cumulative probability.
+Call `qnorm()` with 0.95 as the probability plus the `mean` and `sd` arguments.
+
 ```r title="Your turn"
 ex_1_3 <- # your code here
 ex_1_3
@@ -132,6 +144,10 @@ ex_1_3
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Random draws need their generator state pinned first so the same numbers come back on every run.
+Call `set.seed(123)`, then `rnorm(10)` with no mean or sd so it defaults to the standard normal.
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -167,6 +183,10 @@ ex_1_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+"Exactly k" successes is a single point on the probability mass function, not a cumulative range.
+Call `dbinom()` with 7, plus the `size` and `prob` arguments.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -197,6 +217,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+"No more than 3" is a cumulative probability that includes 3 and everything below it.
+Call `pbinom()` with 3 as the quantile, plus the `size` and `prob` arguments.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -226,6 +250,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+"At least 65" is a right-tail probability, and the tail bound is exclusive so it must sit one below 65.
+Call `pbinom()` with 64, the `size` and `prob` arguments, and `lower.tail = FALSE`.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -259,6 +287,10 @@ ex_2_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+"Exactly 8 events" is a single point on the count distribution, not a range.
+Call `dpois()` with 8 and the `lambda` rate argument.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -289,6 +321,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+"More than 15" is the right tail strictly above 15.
+Call `ppois()` with 15, the `lambda` argument, and `lower.tail = FALSE`.
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -318,6 +354,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A per-day rate must be converted to the same time window as the question before any probability makes sense.
+Multiply the daily rate by 30 to get `lambda`, then call `ppois()` with 2 and `lower.tail = FALSE` for "3 or more".
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -352,6 +392,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A two-sided test splits its significance level evenly into both tails, so the upper cutoff sits at the 0.975 quantile.
+Call `qt()` with 0.975 and `df = 24`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -381,6 +425,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A two-sided p-value is the tail area beyond the statistic, doubled, and using the negative absolute value keeps the sign from mattering.
+Call `pt()` on `-abs(2.31)` with `df = 18` and multiply the result by 2.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -413,6 +461,10 @@ ex_4_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+A chi-squared test puts the whole significance level in the upper tail, so the cutoff is the upper quantile.
+Call `qchisq()` with 0.95 and `df = 5`.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -442,6 +494,10 @@ ex_4_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+An F test is one-sided in the upper tail, so the p-value is the area above the observed statistic.
+Call `pf()` with 4.27, `df1 = 3`, `df2 = 32`, and `lower.tail = FALSE`.
 
 ```r title="Your turn"
 ex_4_4 <- # your code here
@@ -474,6 +530,10 @@ ex_4_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Draw a large sample from the distribution, then average it to estimate the mean.
+After `set.seed(42)`, wrap `rbeta()` (with `shape1` and `shape2`) inside `mean()`.
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -508,6 +568,10 @@ ex_5_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Repeat the experiment of drawing a small sample and taking its mean many thousands of times, collecting each mean.
+After `set.seed(7)`, use `replicate(5000, ...)` around `mean(rexp(30, rate = 1))`.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -547,6 +611,10 @@ sd(ex_5_2)
 
 **Difficulty:** Advanced
 
+[HINTS]
+Estimate a tail probability by the fraction of a large random sample that lands beyond the threshold, then place it next to the exact value.
+After `set.seed(99)`, build a named vector from `mean(x > 2)` and `pnorm(2, lower.tail = FALSE)`, where `x` comes from `rnorm(1e5)`.
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 ex_5_3
@@ -585,6 +653,10 @@ ex_5_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+"At least 48" is a right-tail probability whose exclusive bound sits one below 48.
+Call `pbinom()` with 47, the `size` and `prob` arguments, and `lower.tail = FALSE`.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -614,6 +686,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A confidence interval extends a fixed number of standard errors on each side of the sample estimate.
+Get the multiplier from `qnorm(0.975)`, compute the standard error, and build a length-2 vector of the estimate minus and plus `z * se`.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here
@@ -649,6 +725,10 @@ round(ex_6_2, 4)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The defect probability is the two pieces of area outside the spec band added together, not the area inside.
+Add `pnorm()` at the lower limit to `pnorm()` at the upper limit with `lower.tail = FALSE`.
 
 ```r title="Your turn"
 ex_6_3 <- # your code here

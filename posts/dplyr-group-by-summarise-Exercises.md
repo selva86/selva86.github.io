@@ -51,6 +51,9 @@ The first three exercises drill the bread-and-butter pattern: split the rows, th
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Splitting the rows into cylinder buckets and asking "how many landed in each" is the whole job here.
+Group by `cyl`, then inside `summarise()` use the `n()` helper to get the per-group row count.
 
 ```r title="Your turn"
 ex_1_1 <- # your code here
@@ -94,6 +97,9 @@ ex_1_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+You need one average per cylinder group, trimmed to a single decimal so it reads cleanly in an email.
+Group by `cyl`, then `summarise(avg_mpg = round(mean(mpg), 1))`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -139,6 +145,9 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Average the ozone readings within each month, but the column has gaps that will poison a plain average.
+Group by `Month`, then use `mean(Ozone, na.rm = TRUE)` wrapped in `round(..., 1)`.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -193,6 +202,9 @@ Real summaries usually slice by two or three variables at once. The shape of the
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+You want one bucket per cylinder-and-gear pairing, then an average inside each bucket.
+Pass both `cyl` and `gear` to `group_by()`, then `summarise(avg_hp = mean(hp))`.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -249,6 +261,9 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Slice the stones by two grade columns at once and find the typical price in each cell.
+Use `group_by(cut, color)`, then `summarise(med_price = median(price))`.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -298,6 +313,9 @@ ex_2_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Count and total the revenue in each cut-and-clarity cell, then order the report so the biggest cells rise to the top.
+Inside `group_by(cut, clarity)` compute `n()` and `sum(price)`, then chain `arrange(desc(total_price))`.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -350,6 +368,9 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Apply the same averaging to every numeric column at once instead of naming each one by hand.
+After grouping by `cyl`, use `summarise(across(where(is.numeric), mean))`.
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -393,6 +414,9 @@ ex_3_1
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Three statistics over three columns, all in one sweep, with tidy {column}_{stat} output names.
+Use `across(c(mpg, hp, wt), list(min = min, mean = mean, max = max))` inside `summarise()`.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -441,6 +465,9 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Average every reading column except the two date columns, skipping the missing values.
+Use `across(-c(Month, Day), \(x) mean(x, na.rm = TRUE))` inside `summarise()`.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -495,6 +522,9 @@ Missing values silently break aggregations: a single `NA` in a group turns `mean
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Run the per-month average without protecting against missing readings and watch which months break.
+Group by `Month` and `summarise(avg_solar = mean(Solar.R))` with no `na.rm` argument.
 
 ```r title="Your turn"
 ex_4_1 <- # your code here
@@ -542,6 +572,9 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+For each month, tally how many ozone values are absent alongside the total number of rows.
+Use `summarise(n_missing = sum(is.na(Ozone)), n_total = n())`.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -593,6 +626,9 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Fill the gaps with each column's typical value first, then average by month - two stages, not one.
+Use `mutate(across(c(Ozone, Solar.R), \(x) ifelse(is.na(x), median(x, na.rm = TRUE), x)))`, then group and take `mean()`.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -652,6 +688,9 @@ Counts and means are starting points; stakeholders usually want shares. These pr
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Count the stones per cut, then turn each count into its slice of the whole inventory.
+After `summarise(n = n(), .groups = "drop")`, add `mutate(pct = round(100 * n / sum(n), 1))`.
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -704,6 +743,9 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Each cylinder count's percentage should be measured against its own gear bucket, not the dataset total.
+Count per `(gear, cyl)` with `.groups = "drop_last"`, then `mutate(pct_within_gear = round(100 * n / sum(n), 2))`.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -757,6 +799,9 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Keep one row per day but attach a value that depends on the month's total - that is a within-group calculation, not a collapse.
+Drop missing rows, `group_by(Month)`, then `mutate(pct_of_month = round(100 * Ozone / sum(Ozone), 2))`.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -809,6 +854,9 @@ The final section drills lookups: given groups, which row inside each group wins
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+You want the entire winning row in each grade, not just its price - so a collapsing summary will not do.
+Use `group_by(cut)` then `slice_max(price, n = 1, with_ties = FALSE)`.
 
 ```r title="Your turn"
 ex_6_1 <- # your code here
@@ -861,6 +909,9 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+The car names live in row names and must become a real column before you can rank within each cylinder group.
+Call `tibble::rownames_to_column("model")`, group by `cyl`, then `slice_max(wt, n = 3, with_ties = FALSE)`.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here
@@ -909,6 +960,9 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Count the unique colors in each cut grade, then pile on the row count and a typical carat in the same pass.
+Use `summarise(n_colors = n_distinct(color), n_stones = n(), med_carat = median(carat))`.
 
 ```r title="Your turn"
 ex_6_3 <- # your code here

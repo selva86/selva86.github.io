@@ -42,6 +42,10 @@ library(tidyr)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Think about which component comes first in an ISO string and let a parser infer the rest from a clean year-month-day order.
+Pass the character vector straight into `ymd()` and assign the result to `ex_1_1`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -74,6 +78,10 @@ class(ex_1_1)
 
 **Difficulty:** Beginner
 
+[HINTS]
+US partners write the month before the day, so pick the parser whose component order matches that convention.
+Use `mdy()` on the three-string vector to get ISO-normalized Date objects.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -103,6 +111,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+When inputs arrive in several shapes, you need one parser that can try multiple layouts against each value.
+Call `parse_date_time()` with an `orders` vector such as `c("Ymd HMS", "mdy HM", "b d, Y I:M p")`.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -139,6 +151,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Coerce the column where it lives so its type flips from character to datetime without leaving the tibble.
+Inside `mutate()`, reassign `event_ts` with `ymd_hms()`.
 
 ```r title="Your turn"
 events <- tibble(
@@ -183,6 +199,10 @@ ex_1_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Excel counts days from a fixed baseline date, so the conversion needs that baseline supplied explicitly.
+Call `as_date()` with `origin = "1899-12-30"` on the serial vector.
+
 ```r title="Your turn"
 serial <- c(45298, 45299, 45300)
 ex_1_5 <- # your code here
@@ -221,6 +241,10 @@ ex_1_5
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Each calendar part has its own accessor that returns one number per row, and they all vectorize over a column.
+In `mutate()`, set `yr = year(dt)`, `mo = month(dt)`, and `dy = day(dt)`.
 
 ```r title="Your turn"
 dates_tbl <- tibble(dt = ymd(c("2024-01-15", "2024-06-30", "2024-12-31")))
@@ -266,6 +290,10 @@ ex_2_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+You need the weekday name rather than a number, and you also control which day the week begins on.
+Use `wday()` with `label = TRUE`, `abbr = TRUE`, and `week_start = 1`.
 
 ```r title="Your turn"
 txns <- tibble(txn_dt = ymd(c("2024-04-08", "2024-04-09", "2024-04-10", "2024-04-13", "2024-04-14")))
@@ -313,6 +341,10 @@ ex_2_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Week numbering near year boundaries follows a separate calendar, so pull both the week and the year that belongs to it.
+Add `iso_yr = isoyear(dt)` and `iso_wk = isoweek(dt)` inside `mutate()`.
+
 ```r title="Your turn"
 wk_tbl <- tibble(dt = ymd(c("2023-01-01", "2024-01-01", "2024-12-30", "2024-12-31")))
 ex_2_3 <- # your code here
@@ -358,6 +390,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Shifting where the year begins also moves where each quarter starts, so the function needs to know the first month.
+Call `quarter()` with `fiscal_start = 4`.
+
 ```r title="Your turn"
 fq <- tibble(dt = ymd(c("2024-04-15", "2024-07-20", "2024-10-05", "2025-02-28")))
 ex_2_4 <- # your code here
@@ -396,6 +432,10 @@ ex_2_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Some component accessors can be written to, not just read from, mutating the date in place.
+Copy the vector, then assign into `year(ex_2_5) <- year(ex_2_5) + 1`.
 
 ```r title="Your turn"
 dts <- ymd(c("2024-01-15", "2024-06-30", "2024-12-31"))
@@ -436,6 +476,10 @@ ex_2_5
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A fixed count of days and a calendar month are not the same length of time, so they land on different dates.
+Build a named list adding `days(30)` and `months(1)` to `start_dt`.
+
 ```r title="Your turn"
 start_dt <- ymd("2024-01-31")
 ex_3_1 <- # your code here
@@ -475,6 +519,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+There is an operator that clamps an invalid landing date back to the last real day of the target month.
+Use `%m+% months(1)` and `%m+% months(4)` on `start_dt`.
+
 ```r title="Your turn"
 start_dt <- ymd("2024-01-31")
 ex_3_2 <- # your code here
@@ -506,6 +554,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Dividing a span of time by a one-year unit yields a leap-year-correct fractional age you can then truncate.
+Compute `interval(birthdates, ref_dt) / years(1)`, then apply `floor()` and `as.integer()`.
 
 ```r title="Your turn"
 birthdates <- ymd(c("1991-08-12", "1985-02-03", "1997-06-15"))
@@ -542,6 +594,10 @@ ex_3_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+Build every day in the half-open range first, then keep only the ones that are not weekend days.
+Use `seq()` up to `end_dt - days(1)`, then `sum(wday(all_days, week_start = 1) <= 5)`.
+
 ```r title="Your turn"
 start_dt <- ymd("2024-04-01")
 end_dt   <- ymd("2024-04-15")
@@ -576,6 +632,10 @@ ex_3_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Force the elapsed time into a fixed-seconds representation so dividing it by one week is deterministic.
+Use `as.duration(t2 - t1) / dweeks(1)` and wrap it in `round(..., 3)`.
 
 ```r title="Your turn"
 t1 <- ymd_hms("2024-03-01 09:00:00")
@@ -613,6 +673,10 @@ ex_3_5
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You are testing membership of each date inside a single time span, which produces one logical per date.
+Apply the `%within%` operator: `event_dts %within% campaign`.
+
 ```r title="Your turn"
 event_dts <- ymd(c("2024-05-31", "2024-06-15", "2024-06-30"))
 campaign <- interval(ymd("2024-06-01"), ymd("2024-06-30"))
@@ -647,6 +711,10 @@ ex_4_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You need to know whether two spans share any moment in time, returning a single logical.
+Call `int_overlaps()` on `appt_a` and `appt_b`.
+
 ```r title="Your turn"
 appt_a <- interval(ymd_hms("2024-04-10 09:00:00"), ymd_hms("2024-04-10 10:30:00"))
 appt_b <- interval(ymd_hms("2024-04-10 10:00:00"), ymd_hms("2024-04-10 11:00:00"))
@@ -680,6 +748,10 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Find the shared span for each project, measure it in days, and treat any disjoint case as zero.
+Use `intersect(projects, target)`, divide by `days(1)`, then clamp with `pmax(0, ..., na.rm = TRUE)`.
 
 ```r title="Your turn"
 target <- interval(ymd("2024-04-01"), ymd("2024-04-30"))
@@ -728,6 +800,10 @@ ex_4_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Keep only the rows whose timestamp sits inside the given time span.
+Inside `filter()`, test `ts %within% win`.
 
 ```r title="Your turn"
 events <- tibble(
@@ -787,6 +863,10 @@ ex_4_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+Snap each date backward to the start of its month so every date in a month shares one key.
+In `mutate()`, set `cohort_month = floor_date(txn_dt, unit = "month")`.
+
 ```r title="Your turn"
 txns <- tibble(txn_dt = ymd(c("2024-03-04", "2024-03-22", "2024-03-31", "2024-04-01", "2024-04-15")))
 ex_5_1 <- # your code here
@@ -834,6 +914,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Round each date back to the most recent week start, where you decide which weekday opens the week.
+Use `floor_date()` with `unit = "week"` and `week_start = 1`.
+
 ```r title="Your turn"
 events <- tibble(event_dt = ymd(c("2024-04-08", "2024-04-10", "2024-04-14", "2024-04-15", "2024-04-21")))
 ex_5_2 <- # your code here
@@ -875,6 +959,10 @@ ex_5_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Snap each timestamp to its nearest fixed-size time bucket rather than always rounding one direction.
+Call `round_date()` with `unit = "15 minutes"`.
+
 ```r title="Your turn"
 ts <- ymd_hms(c("2024-04-10 08:57:12", "2024-04-10 09:14:50",
                 "2024-04-10 09:23:30", "2024-04-10 09:51:00",
@@ -914,6 +1002,10 @@ ex_5_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Keep the physical instant fixed and change only the clock the audience reads it on.
+Use `with_tz()` with `tzone = "America/New_York"`.
+
 ```r title="Your turn"
 utc_ts <- ymd_hms(c("2024-04-10 09:30:00", "2024-04-10 13:45:00", "2024-04-10 18:15:00"), tz = "UTC")
 ex_6_1 <- # your code here
@@ -949,6 +1041,10 @@ ex_6_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+One operation keeps the instant and moves the clock; the other keeps the clock and moves the instant.
+Build a named list with `with_tz(t0, tzone = "Asia/Kolkata")` and `force_tz(t0, tzone = "Asia/Kolkata")`.
 
 ```r title="Your turn"
 t0 <- ymd_hms("2024-04-10 09:00:00", tz = "UTC")
@@ -992,6 +1088,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+One unit means the same wall clock an hour earlier; the other means exactly 3600 seconds of real time earlier.
+Subtract `hours(1)` and `dhours(1)` from `local_ts` into a named list.
 
 ```r title="Your turn"
 local_ts <- ymd_hms("2024-03-10 03:30:00", tz = "America/New_York")
@@ -1041,6 +1141,10 @@ ex_6_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Aggregate to a monthly anchor first, then compare each month against the one immediately before it.
+Use `floor_date(txn_dt, "month")` for the key, `group_by()`/`summarise()` to total, then `lag()` for `mom_pct`.
 
 ```r title="Your turn"
 txns <- tibble(
@@ -1102,6 +1206,10 @@ ex_7_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+Build a complete spine of every day in range, then attach the sparse values onto it so gaps surface as missing.
+Use `seq()` from `min` to `max` by `"day"`, then `left_join()` the sparse tibble onto that spine.
+
 ```r title="Your turn"
 sparse <- tibble(
   dt      = ymd(c("2024-04-08", "2024-04-11", "2024-04-14")),
@@ -1153,6 +1261,10 @@ ex_7_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Classify each date by whether it falls Monday through Friday, then tally the two groups.
+Test `wday(event_dt, week_start = 1) <= 5` inside `if_else()`, then summarise with `count()`.
 
 ```r title="Your turn"
 oncall <- tibble(event_dt = ymd(c("2024-04-08", "2024-04-09", "2024-04-12", "2024-04-13", "2024-04-14", "2024-04-15")))

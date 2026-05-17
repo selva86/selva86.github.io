@@ -49,6 +49,10 @@ ex_1_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+Think about the operation that turns any data frame into a data.table, and the base helper that reports how many rows and columns a table has.
+Convert `airquality` with `as.data.table()`, then assign `dim()` of the result to `ex_1_1`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -85,6 +89,10 @@ ex_1_2
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Row names are not a real column until you tell the converter to carry them across.
+Pass `keep.rownames = "model"` to `as.data.table()` when converting `mtcars`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -125,6 +133,10 @@ $names
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+A single bracket call can return several summary pieces at once if you bundle them into one result.
+In `j` use `.N` for the row count, `ncol()` for the column count, and `names()` wrapped in `list()` for the names.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -169,6 +181,10 @@ head(ex_2_1, 2)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Row filtering happens in the first slot of the brackets, and both conditions must hold at the same time.
+Write `dt_cars[mpg > 20 & cyl == 4]`, using a single `&` for elementwise AND.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 nrow(ex_2_1)
@@ -204,6 +220,10 @@ head(ex_2_2, 3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Selecting columns the plain way can collapse the result to a vector; you need the form that keeps a table.
+In `j`, list the columns inside `.()`: `dt_air[, .(Wind, Temp, Month)]`.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -242,6 +262,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A missing-aware average belongs in the second slot, and a named result keeps the output a one-row table.
+Compute `mean(Ozone, na.rm = TRUE)` inside `.(mean_ozone = ...)`.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 ex_2_3
@@ -278,6 +302,10 @@ head(ex_2_4, 3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Returning new columns as a fresh table leaves the original untouched, unlike an in-place update.
+Use `dt_cars[, .(model, kpl = mpg * 0.425144)]` rather than the `:=` form.
 
 ```r title="Your turn"
 ex_2_4 <- # your code here
@@ -320,6 +348,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Produce one number per cylinder group, then put the groups in ascending order.
+Use `by = cyl` with `.(mean_hp = mean(hp))`, then chain `[order(cyl)]` (or use `keyby = cyl`).
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -356,6 +388,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Several per-group numbers can come out of one pass if each one gets its own name.
+In `j` set `n = .N`, `mean_wt = mean(wt)`, and `median_qsec = median(qsec)` with `keyby = cyl`.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -399,6 +435,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Counting rows per group needs no length calculation, and the biggest group should land on top.
+Use `.(n = .N)` with `by = cut`, then chain `[order(-n)]`.
+
 ```r title="Your turn"
 ex_3_3 <- # your code here
 ex_3_3
@@ -437,6 +477,10 @@ head(ex_3_4, 3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Grouping can span two columns at once; then you filter on the new column and sort it.
+Use `by = .(cut, color)` for `mean(price)`, then chain `[mean_price > 5000][order(-mean_price)]`.
 
 ```r title="Your turn"
 ex_3_4 <- # your code here
@@ -479,6 +523,10 @@ head(ex_4_1[, .(model, mpg, kpl)], 2)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+To make a new column stick to the table itself, you need the in-place update operator.
+Use `dt_cars[, kpl := mpg * 0.425144]`, then assign `dt_cars` to `ex_4_1`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 "kpl" %in% names(dt_cars)
@@ -516,6 +564,10 @@ ex_4_2[, .N, by = efficiency]
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Set a default label on every row first, then overwrite only the rows that meet the condition.
+Run `dt_cars[, efficiency := "low"]`, then `dt_cars[mpg > 25, efficiency := "high"]`.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -556,6 +608,10 @@ ncol(ex_4_3)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You can remove several columns from a table in a single in-place step by assigning nothing to them.
+Use `dt_cars[, c("kpl", "efficiency") := NULL]`.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ncol(ex_4_3)
@@ -593,6 +649,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each stage is its own set of brackets: narrow the rows, summarize per group, sort, then slice.
+Chain `dt_dia[carat > 1][, .(mean_price = mean(price)), by = cut][order(mean_price)][1:3]`.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -629,6 +689,10 @@ ex_5_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Apply the same summary across many columns at once, choosing which columns by their type.
+Use `lapply(.SD, mean)` in `j` with `.SDcols = is.numeric`.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -671,6 +735,10 @@ ex_5_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Pre-sort the whole table once, so within each group the first rows are already the top ones.
+Use `dt_dia[order(-price), head(.SD, 2), by = cut, .SDcols = c("carat", "price")]`.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -721,6 +789,10 @@ ex_6_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+Mark the shared column on both tables for fast lookup, then use a join that keeps only matched rows.
+Call `setkey()` on each table with `customer_id`, then join with `dt_orders[dt_customers, nomatch = NULL]`.
+
 ```r title="Your turn"
 dt_orders <- data.table(customer_id = c(1, 2, 3, 4), amount = c(100, 250, 175, 60))
 dt_customers <- data.table(customer_id = c(1, 2, 3), region = c("NA", "EU", "APAC"))
@@ -765,6 +837,10 @@ ex_6_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+A join can write a column from the lookup table straight into the left table in place.
+Use `dt_orders[dt_customers, region := i.region]`, where `i.` refers to the right-hand table.
+
 ```r title="Your turn"
 ex_6_2 <- # your code here
 ex_6_2
@@ -805,6 +881,10 @@ nrow(ex_6_3)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Stacking several measurement columns into one value column is the wide-to-long reshape.
+Call `melt()` with `id.vars = "Species"`, `measure.vars = c(...)`, `variable.name = "measurement"`, and `value.name = "value"`.
 
 ```r title="Your turn"
 ex_6_3 <- # your code here

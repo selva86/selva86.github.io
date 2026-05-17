@@ -43,6 +43,10 @@ library(dplyr)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Every element of the list has a type, and you want that type reported back for each one while keeping the list's names.
+Pass `class` as a value (no parentheses) to `sapply()` along with the list.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -73,6 +77,10 @@ ex_1_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The outer function should hand back another function that already remembers the prefix it was given.
+Inside `make_formatter`, return a `function(x)` that calls `paste0()` with `prefix` and `format(round(x, 2), nsmall = 2)`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -108,6 +116,10 @@ ex_1_2
 
 **Difficulty:** Beginner
 
+[HINTS]
+You need a short throwaway one-argument operation applied across each integer in the range.
+Combine `sapply()` over `1:6` with a `\(x)` lambda that computes `x^3`.
+
 ```r title="Your turn"
 ex_1_3 <- # your code here
 ex_1_3
@@ -141,6 +153,10 @@ ex_1_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+A data frame behaves like a list of columns, so applying one summary to each column yields a single number per column.
+Call `sapply()` on `mtcars` with `median`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -173,6 +189,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Several columns hold missing values, so the per-column maximum must be told to ignore them.
+Use `map_dbl()` over `airquality` with a `\(col)` lambda that calls `max(col, na.rm = TRUE)`.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -203,6 +223,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The two vectors must advance together, one pair at a time, producing one percent change per pair.
+Use `map2_dbl()` with a `\(b, a)` lambda computing `(a - b) / b * 100`.
 
 ```r title="Your turn"
 before <- c(100, 120, 80)
@@ -237,6 +261,10 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+More than two vectors move in parallel, so each step needs one element drawn from every vector at once.
+Pass `list(qty, unit_price, tax_rate)` to `pmap_dbl()` with a `\(q, p, t)` lambda.
 
 ```r title="Your turn"
 qty        <- c(2, 5, 1, 4)
@@ -277,6 +305,10 @@ ex_2_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Fold the three vectors down pairwise to the elements that survive in every one of them.
+Call `Reduce()` with `intersect` over `lst`.
+
 ```r title="Your turn"
 lst <- list(c(1,2,3,4,5), c(2,3,5,7,8), c(2,3,5,9))
 ex_3_1 <- # your code here
@@ -308,6 +340,10 @@ ex_3_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+You need every running compounded value along the way, not just the final one, and the series should start from a wealth of one.
+Use `accumulate()` over `r` with the binary function `\(acc, x) acc * (1 + x)` and `.init = 1`.
 
 ```r title="Your turn"
 r <- c(0.05, -0.02, 0.03, 0.01)
@@ -341,6 +377,10 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The fold must begin from the rightmost pair so the bracketing nests inward from the right.
+Call `Reduce()` with `"-"` over `c(10, 4, 2, 1)` and set `right = TRUE`.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -381,6 +421,10 @@ ex_3_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+Sift the mixed list and hold on only to the entries that are numbers, leaving it as a list.
+Use `keep()` with the predicate `is.numeric`.
+
 ```r title="Your turn"
 lst <- list(1, "two", 3, "four", 5)
 ex_4_1 <- # your code here
@@ -420,6 +464,10 @@ ex_4_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Throw away every name that is too short and keep the rest as a character vector.
+Use `discard()` with a predicate `\(x) nchar(x) < 5`.
+
 ```r title="Your turn"
 names <- c("spring", "ad", "summer-sale", "fy", "winter-promo")
 ex_4_2 <- # your code here
@@ -454,6 +502,10 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The returned function needs a private value that survives and updates between separate calls.
+Initialize `count <- 0`, then return a `function()` that does `count <<- count + 1` and returns `count`.
 
 ```r title="Your turn"
 make_counter <- function() {
@@ -500,6 +552,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The outer function should build and return a tailored function that already knows which exponent to use.
+Inside `power`, return `function(x) x^n`.
+
 ```r title="Your turn"
 power <- function(n) {
   # your code here
@@ -537,6 +593,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Plain recursion repeats the same subproblems, so keep a private store of already-computed results and check it before recomputing.
+Hold a `cache` vector in the closure, look it up first, recurse with `Recall()`, and write new results back with `<<-`.
 
 ```r title="Your turn"
 memo_fib <- function() {
@@ -584,6 +644,10 @@ ex_5_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Chain two steps - round first, then turn into text - into one reusable function.
+Use `compose()` with `as.character` and `\(x) round(x, 2)`, remembering the rightmost runs first.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -616,6 +680,10 @@ ex_6_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Pre-set one argument of an existing summary function so you never have to type it again.
+Use `partial()` on `mean` with `na.rm = TRUE`.
+
 ```r title="Your turn"
 mean_na <- # your code here
 ex_6_2 <- mean_na(c(1, 2, NA, 4, 5))
@@ -647,6 +715,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Peel the first element off on each call, add it to a running total, and stop when nothing is left.
+Add a base case `if (length(x) == 0) return(acc)`, then recurse with `rec_sum(x[-1], acc + x[1])`.
 
 ```r title="Your turn"
 rec_sum <- function(x, acc = 0) {

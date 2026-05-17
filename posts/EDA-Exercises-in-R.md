@@ -53,6 +53,10 @@ library(moments)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Think about which single call answers "how big, what types, what do the values look like" for an unfamiliar data frame in one pass.
+Wrap `str(mtcars)` in `capture.output()` so the printed report is stored as a character vector instead of returning NULL.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -89,6 +93,10 @@ cat(ex_1_1, sep = "\n")
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+You want to inspect both ends of the table at once so trailing oddities like footer rows do not slip past.
+Take `head(diamonds, 5)` and `tail(diamonds, 5)`, then combine the two frames with `bind_rows()`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -130,6 +138,10 @@ ex_1_2
 
 **Difficulty:** Beginner
 
+[HINTS]
+One call gives a per-column health check covering ranges, centre, and spread before you commit to a plot or model.
+Run `summary(mtcars)` inside `capture.output()` to keep the multi-line report as a character vector.
+
 ```r title="Your turn"
 ex_1_3 <- # your code here
 ex_1_3
@@ -168,6 +180,10 @@ cat(ex_1_3, sep = "\n")
 
 **Difficulty:** Beginner
 
+[HINTS]
+With many columns you want a view that prints one row per column rather than wrapping each one across the screen.
+Pass `glimpse(diamonds)` to `capture.output()` to store the column-oriented printout.
+
 ```r title="Your turn"
 ex_1_4 <- # your code here
 ex_1_4
@@ -201,6 +217,10 @@ cat(ex_1_4, sep = "\n")
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want a tally of how many columns share each storage type, not the type of each individual column.
+Apply a class-extracting function over every column with `sapply()`, keep `class(x)[1]`, then feed the result to `table()`.
+
 ```r title="Your turn"
 ex_1_5 <- # your code here
 ex_1_5
@@ -233,6 +253,10 @@ ex_1_5
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The goal is a tidy three-fact label, all of one type, that you can paste straight into a PR description.
+Combine `nrow()`, `ncol()`, and `format(object.size(diamonds), units = "Mb")` into a named vector, coercing each value to character.
 
 ```r title="Your turn"
 ex_1_6 <- # your code here
@@ -272,6 +296,10 @@ ex_1_6
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You need the column names split into two buckets according to whether each column is numeric or categorical.
+Use `select()` with `where(is.numeric)` and `where(is.factor)`, take `names()` of each, and wrap them in a named `list()`.
 
 ```r title="Your turn"
 ex_1_7 <- # your code here
@@ -316,6 +344,10 @@ ex_1_7
 
 **Difficulty:** Advanced
 
+[HINTS]
+Build a one-row-per-column summary describing each column's name, type, distinctness, missingness, and a sample value.
+Construct a `tibble()` whose columns come from `vapply()` calls over the data frame computing `class()`, `length(unique())`, `sum(is.na())`, and the first value.
+
 ```r title="Your turn"
 ex_1_8 <- # your code here
 ex_1_8
@@ -359,6 +391,10 @@ ex_1_8
 
 **Difficulty:** Beginner
 
+[HINTS]
+You want to see how a continuous variable spreads across its range, controlling the resolution of the bins yourself.
+Map `price` in `aes()` and add `geom_histogram(bins = 40)`, then layer `labs()` and `theme_minimal()`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -392,6 +428,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want the smooth shape of the distribution drawn on top of the binned bars, with both sharing the same vertical scale.
+Rescale the bars with `aes(y = after_stat(density))` and layer a `geom_density()` on the same plot.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -430,6 +470,10 @@ ex_2_2
 
 **Difficulty:** Beginner
 
+[HINTS]
+You need the three quartiles and the spread between the outer two, while ignoring the missing readings.
+Call `quantile()` at 0.25, 0.50, 0.75 and `IQR()`, all with `na.rm = TRUE`, and assemble a named numeric vector.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 ex_2_3
@@ -466,6 +510,10 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Comparing the centre measured two different ways tells you whether the column leans toward one tail.
+Compute `mean()`, `median()`, and `IQR()` of the column, then form the ratio `(mean - median) / IQR` inside a named vector.
 
 ```r title="Your turn"
 ex_2_4 <- # your code here
@@ -506,6 +554,10 @@ round(ex_2_4, 2)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want one row per numeric column holding its smallest value, quartiles, and largest value.
+Reshape `mtcars` with `pivot_longer()`, then `group_by(column)` and `summarise()` using `min()`, `quantile()`, `median()`, and `max()`.
 
 ```r title="Your turn"
 ex_2_5 <- # your code here
@@ -557,6 +609,10 @@ ex_2_5
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want each car placed on a 0-to-1 scale by how its horsepower compares to every other car.
+After `rownames_to_column("model")`, `mutate()` a `percent_rank(hp)` column, `arrange(desc(...))`, and take `head(5)`.
+
 ```r title="Your turn"
 ex_2_6 <- # your code here
 ex_2_6
@@ -596,6 +652,10 @@ ex_2_6
 
 **Difficulty:** Intermediate
 
+[HINTS]
+When a positive variable spans several orders of magnitude, rescaling it usually pulls the distribution closer to symmetric.
+Add a `log10(price)` column with `mutate()`, then plot it with `geom_histogram(bins = 40)`.
+
 ```r title="Your turn"
 ex_2_7 <- # your code here
 ex_2_7
@@ -632,6 +692,10 @@ ex_2_7
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+You want to confirm the distribution has two separate peaks and count how many values fall on each side of the dip.
+Use `sum()` on the logical conditions `eruptions < 3` and `eruptions >= 3` to build a named integer vector.
 
 ```r title="Your turn"
 ex_2_8 <- # your code here
@@ -679,6 +743,10 @@ ggplot(faithful, aes(eruptions)) +
 
 **Difficulty:** Beginner
 
+[HINTS]
+You want a frequency table of a categorical column with the busiest category listed first.
+Call `count()` on `cut` with `sort = TRUE`.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -718,6 +786,10 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+First make the pre-aggregated contingency table tidy, then work out the survived share within each class.
+Run `as.data.frame(Titanic)`, `group_by(Class)`, and `summarise()` the survived `Freq` divided by the class total.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -762,6 +834,10 @@ ex_3_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want the category labels reordered from most common to least common.
+Apply `fct_infreq()` to `manufacturer`, then `pull()` the column and read its `levels()`.
+
 ```r title="Your turn"
 ex_3_3 <- # your code here
 ex_3_3
@@ -804,6 +880,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want to keep only the busiest few categories and pool every other one into a single catch-all bucket.
+Use `fct_lump_n(manufacturer, n = 5)` inside `mutate()`, then `count(sort = TRUE)`.
+
 ```r title="Your turn"
 ex_3_4 <- # your code here
 ex_3_4
@@ -842,6 +922,10 @@ ex_3_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Build a two-way frequency table, then convert each row so its entries are conditional shares summing to one.
+Use `xtabs(Freq ~ Sex + Survived, ...)` on the tidied Titanic frame and pipe it into `prop.table(margin = 1)`.
+
 ```r title="Your turn"
 ex_3_5 <- # your code here
 ex_3_5
@@ -876,6 +960,10 @@ round(ex_3_5, 5)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want a horizontal bar chart with the longest bar at the top, the conventional reading order.
+Reorder `class` with `fct_rev(fct_infreq(...))`, draw `geom_bar()`, and add `coord_flip()`.
 
 ```r title="Your turn"
 ex_3_6 <- # your code here
@@ -914,6 +1002,10 @@ ex_3_6
 
 **Difficulty:** Advanced
 
+[HINTS]
+You want a single chart where each rectangle's area encodes the count of a cell across two categorical variables.
+Call `mosaicplot(~ Class + Survived, data = Titanic, color = ...)`, then assign a confirmation string to the variable.
+
 ```r title="Your turn"
 ex_3_7 <- # your code here
 ex_3_7
@@ -950,6 +1042,10 @@ ex_3_7
 
 **Difficulty:** Beginner
 
+[HINTS]
+Before analysis you need a per-column count of missing values, with the worst offenders listed first.
+Apply `colSums(is.na(airquality))` and wrap the result in `sort(decreasing = TRUE)`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -981,6 +1077,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want one chart that ranks every variable by its share of missing values.
+Call `gg_miss_var(airquality, show_pct = TRUE)` and layer `labs()` and `theme_minimal()` on top.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -1014,6 +1114,10 @@ ex_4_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want the percentage of rows that carry no missing value in any column at all.
+Take the `mean()` of `complete.cases(airquality)` and multiply by 100.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -1044,6 +1148,10 @@ ex_4_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Tukey's fences sit 1.5 spreads beyond each outer quartile; count how many readings fall past each fence.
+Compute `quantile()` Q1 and Q3 plus `IQR()`, derive the lower and upper bounds, and `sum()` the values beyond each.
 
 ```r title="Your turn"
 ex_4_4 <- # your code here
@@ -1089,6 +1197,10 @@ ex_4_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Restate each value as its distance from the centre measured in units of spread, then flag the extreme ones.
+In a `mutate()`, build a z column as `(hp - mean(hp)) / sd(hp)` and `filter(abs(z) > 2)`.
+
 ```r title="Your turn"
 ex_4_5 <- # your code here
 ex_4_5
@@ -1126,6 +1238,10 @@ ex_4_5
 
 **Difficulty:** Advanced
 
+[HINTS]
+Rather than dropping the extremes, clamp each tail value to the percentile cutoff at that end.
+Get the 5th and 95th `quantile()` cutoffs and clamp the column with `pmin()` and `pmax()`, then summarise min, mean, and max.
+
 ```r title="Your turn"
 ex_4_6 <- # your code here
 ex_4_6
@@ -1159,6 +1275,10 @@ round(ex_4_6, 2)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Measure how much the average shifts once the most extreme one percent of values is removed.
+Compute `mean()` before, then `mean()` of values at or below the 0.99 `quantile()` cutoff, and report the absolute and percent change.
 
 ```r title="Your turn"
 ex_4_7 <- # your code here
@@ -1200,6 +1320,10 @@ round(ex_4_7, 2)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Replace each missing reading with the column's typical central value, then confirm none remain.
+Compute `median(..., na.rm = TRUE)` and substitute it wherever `is.na()` is TRUE using `ifelse()`.
+
 ```r title="Your turn"
 ex_4_8 <- # your code here
 ex_4_8
@@ -1240,6 +1364,10 @@ ex_4_8
 
 **Difficulty:** Beginner
 
+[HINTS]
+Plot the two variables as points with a smooth trend line, encoding a third variable through point size.
+Set `aes(wt, mpg, size = hp)`, then add `geom_point()` and `geom_smooth(method = "loess", se = FALSE)`.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -1275,6 +1403,10 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Split one scatter relationship into small panels, one per category, after thinning the data for speed.
+Take a 5000-row sample, then `ggplot(aes(carat, price))` with `geom_point()` and `facet_wrap(~ cut)`.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -1316,6 +1448,10 @@ ex_5_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want the table of pairwise linear associations among all the numeric columns.
+Call `cor(mtcars)` and wrap it in `round(, 2)`.
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 ex_5_3
@@ -1350,6 +1486,10 @@ ex_5_3[1:4, 1:4]
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Reshape the square correlation table into long form so each pair becomes a row, then draw it as a coloured grid centred at zero.
+Use `pivot_longer()` on the correlation matrix, then `geom_tile(aes(fill = corr))` with `scale_fill_gradient2(midpoint = 0)`.
 
 ```r title="Your turn"
 ex_5_4 <- # your code here
@@ -1394,6 +1534,10 @@ ex_5_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want a single overview chart showing every pairwise relationship at once, coloured by group.
+Call `ggpairs(iris, columns = 1:4, aes(colour = Species))`.
+
 ```r title="Your turn"
 ex_5_5 <- # your code here
 ex_5_5
@@ -1425,6 +1569,10 @@ ex_5_5
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Compare the distribution of one numeric variable across a handful of discrete groups.
+Convert `cyl` to a factor first, then `ggplot(aes(cyl, mpg))` with `geom_boxplot()`.
 
 ```r title="Your turn"
 ex_5_6 <- # your code here
@@ -1465,6 +1613,10 @@ ex_5_6
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want the centre, the spread, and the count for each group collected in one tibble.
+Use `group_by(cyl)` then `summarise()` with `mean()`, `sd()`, and `n()`.
 
 ```r title="Your turn"
 ex_5_7 <- # your code here
@@ -1507,6 +1659,10 @@ ex_5_7
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Encode four variables in one scatter by mapping two of them to position and the other two to colour and size.
+Set `aes(carat, price, colour = cut, size = depth)` on a 5000-row sample and add `geom_point()`.
 
 ```r title="Your turn"
 ex_5_8 <- # your code here
@@ -1553,6 +1709,10 @@ ex_5_8
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Average the metrics within every combination of two grouping columns at once.
+Use `group_by(cyl, am)` then `summarise()` `mean(mpg)` and `mean(hp)`.
+
 ```r title="Your turn"
 ex_5_9 <- # your code here
 ex_5_9
@@ -1595,6 +1755,10 @@ ex_5_9
 
 **Difficulty:** Advanced
 
+[HINTS]
+Find which other column has the tightest linear association with the target, regardless of sign.
+Take the `mpg` column of `cor(mtcars)`, drop the self-pair, and `arrange(desc(abs(corr)))` before `head(1)`.
+
 ```r title="Your turn"
 ex_5_10 <- # your code here
 ex_5_10
@@ -1635,6 +1799,10 @@ ex_5_10
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want to compare a sample's quantiles against a normal reference line visually.
+Use `aes(sample = mpg)` together with `stat_qq()` and `stat_qq_line()`.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -1671,6 +1839,10 @@ ex_6_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Run a formal normality test and pull its two reported numbers into a named vector.
+Call `shapiro.test(mtcars$mpg)` and extract the `$statistic` and `$p.value` elements.
+
 ```r title="Your turn"
 ex_6_2 <- # your code here
 ex_6_2
@@ -1703,6 +1875,10 @@ ex_6_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Quantify the asymmetry on the raw column and again after a log rescale to show the tail shrinks.
+Call `skewness()` on `diamonds$price` and on `log10(diamonds$price)`, collecting both in a named vector.
 
 ```r title="Your turn"
 ex_6_3 <- # your code here
@@ -1738,6 +1914,10 @@ round(ex_6_3, 6)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Show the same variable's density on two scales side by side to make the case for transforming it.
+Build a long frame with `raw` and `log10` columns via `pivot_longer()`, then `geom_density()` plus `facet_wrap(~ scale, scales = "free")`.
 
 ```r title="Your turn"
 ex_6_4 <- # your code here
@@ -1782,6 +1962,10 @@ ex_6_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Recentre and rescale every numeric column so each ends up with mean zero and unit spread.
+Apply `scale()` to `mtcars`, convert the result back with `as.data.frame()`, then check each column's `mean` and `sd`.
 
 ```r title="Your turn"
 ex_6_5 <- # your code here
@@ -1831,6 +2015,10 @@ ex_6_5
 
 **Difficulty:** Beginner
 
+[HINTS]
+You want the fastest possible first-pass profile, grouped by column type with completeness and inline histograms.
+Wrap `skim(mtcars)` in `capture.output()` to store the printed report as a character vector.
+
 ```r title="Your turn"
 ex_7_1 <- # your code here
 ex_7_1
@@ -1865,6 +2053,10 @@ cat(head(ex_7_1, 20), sep = "\n")
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Generate a full HTML profiling report from a single call and keep the file path it writes to.
+Call `create_report()` on a 5000-row sample with explicit `output_file` and `output_dir`, then save the resulting path.
 
 ```r title="Your turn"
 ex_7_2 <- # your code here
@@ -1902,6 +2094,10 @@ ex_7_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Bundle three named EDA artefacts - a structure dump, group means, and a pair plot - into one container.
+Build a `list()` holding `capture.output(str(iris))`, a `group_by(Species)` summary, and a `ggpairs()` call.
 
 ```r title="Your turn"
 ex_7_3 <- # your code here
@@ -1946,6 +2142,10 @@ str(ex_7_3, max.level = 1)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Write one reusable function that returns a per-column profile tibble for any data frame you hand it.
+Inside the function build a `tibble()` from `vapply()` calls computing class, missing count, unique count, and numeric-only mean, min, and max.
 
 ```r title="Your turn"
 ex_7_4 <- # your code here

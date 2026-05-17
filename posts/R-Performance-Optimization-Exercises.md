@@ -45,6 +45,9 @@ library(ggplot2)
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Reach for the tool that runs each expression many times in a randomized order and reports timing statistics, rather than timing a single run.
+Pass two named expressions (the for-loop block and sum(1:1e5)) to microbenchmark() with times = 100.
 
 ```r title="Your turn"
 ex_1_1 <- # your code here
@@ -86,6 +89,9 @@ ex_1_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+You need a sampler that records where time is spent during a call and renders it as a flamegraph, not just a single timing number.
+Wrap the f(5000) call inside profvis({ ... }) and assign the returned widget to ex_1_2.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -124,6 +130,9 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Stable sub-microsecond comparisons need many more repetitions and a fixed display scale so the printed columns do not drift between runs.
+Pass unit = "us" and times = 500 to microbenchmark() alongside the seq_len and colon expressions.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -167,6 +176,9 @@ ex_1_3
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+You need disk-based stack sampling around the loop, plus an aggregator that separates time spent inside a function from time spent in its children.
+Bracket the loop with Rprof(tempfile()) and Rprof(NULL), then take the $by.self element of summaryRprof().
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -208,6 +220,9 @@ head(ex_1_4)
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Arithmetic operators in R already apply elementwise across an entire vector, so no explicit iteration is needed at all.
+Assign the expression x^2 directly to ex_2_1.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -245,6 +260,9 @@ length(ex_2_1)
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+There is a vectorized form of if/else that evaluates the condition once across the whole column and picks a value per element.
+Call ifelse() with the condition mtcars$mpg > 20 and the two outcome strings "efficient" and "thirsty".
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -280,6 +298,9 @@ table(ex_2_2)
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Contrast a vector built by repeated concatenation against one whose buffer is sized to its final length up front and written by index.
+Define grow() using c() in the loop and prealloc() using numeric(n), then pass both to microbenchmark() with times = 100.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -324,6 +345,9 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Swap the apply call for the type-checked sibling that asserts the shape of each per-column result instead of guessing it.
+Call vapply(mtcars, class, FUN.VALUE = character(1)).
 
 ```r title="Your turn"
 ex_2_4 <- # your code here
@@ -358,6 +382,9 @@ ex_2_4
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Measure the in-memory footprint of each of the three representations and collect the three numbers into one named vector.
+Apply object.size() to mtcars, as.matrix(mtcars), and as.list(mtcars), wrapping each in as.numeric() inside a named c().
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -396,6 +423,9 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+The same growth penalty that punishes concatenated vectors also punishes a list rebuilt on every iteration; size the spine once instead.
+Build app_grow() with c(result, list(x)) and app_prealloc() with vector("list", n), then benchmark both with microbenchmark() at times = 50.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -441,6 +471,9 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Whole-number values do not need the wider floating-point storage they were created with, so a narrower type halves the bytes.
+Coerce the vector with as.integer(), then subtract the as.numeric(object.size()) of the integer version from that of the double version.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -475,6 +508,9 @@ ex_3_3
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Wall-clock time hides allocation spikes; you want the heap high-water mark captured before and after the join.
+Call gc(reset = TRUE) before merge() and gc() again after, then difference the "Vcells", "max used (Mb)" cell of the two results.
 
 ```r title="Your turn"
 ex_3_4 <- # your code here
@@ -518,6 +554,9 @@ ex_3_4
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Group the table by the cut column, compute the mean inside the same bracket call that does the grouping, then sort the result.
+After as.data.table(), use dt[, .(mean_price = mean(price)), by = cut] and chain [order(-mean_price)].
 
 ```r title="Your turn"
 ex_4_1 <- # your code here
@@ -557,6 +596,9 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Put the two grouped-mean approaches side by side under a repeated-timing harness so the comparison is empirical, not assumed.
+Pass the group_by(cyl) %>% summarise() pipeline and the mt[, .(m = mean(mpg)), by = cyl] call to microbenchmark() with times = 200.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -598,6 +640,9 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Sorting and marking the lookup table once lets the join use a binary search instead of rebuilding a hash on every call.
+Apply setkey() to the keyed lookup (and make the unkeyed comparison fair with copy()), then benchmark both merge() calls with microbenchmark().
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -643,6 +688,9 @@ ex_4_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Adding a column by base assignment copies the whole table; the data.table idiom mutates it in place without rebuilding the object.
+Compare df$log_price <- log(df$price) against dt[, log_price := log(price)] under microbenchmark() with times = 100.
 
 ```r title="Your turn"
 ex_4_4 <- # your code here
@@ -694,6 +742,9 @@ ex_4_4
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+There is a one-line translation step that converts an R function body into VM byte-code before it ever runs.
+Build the compiled twin with compiler::cmpfun(f) and benchmark f against it with microbenchmark() at times = 200.
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -732,6 +783,9 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A result that depends only on inputs already in scope should be computed once and reused, not recomputed on every reference.
+In cached(), assign solve(crossprod(X)) to a local variable and reference that variable in both downstream uses.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -775,6 +829,9 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Replacing a repeated linear-scan membership test with a hash-backed routine changes the complexity class, not just the constant factor.
+Benchmark the %in%-against-growing-seen loop against unique(x) using microbenchmark() with times = 10.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -822,6 +879,9 @@ ex_5_3
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Subtract the query from every reference row in one shot, then sum the squared differences per row, and the loop disappears.
+Broadcast the query with rep(q, each = nrow(X)), then apply sqrt(rowSums((X - ...)^2)).
 
 ```r title="Your turn"
 ex_5_4 <- # your code here

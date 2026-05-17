@@ -47,6 +47,10 @@ library(scales)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Splitting one chart into a small panel per category is exactly what faceting is for - decide which column defines the panels.
+Add a facet layer keyed on the `class` column to a `geom_point()` plot of `hwy` versus `displ`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -86,6 +90,10 @@ ex_1_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+The default near-square panel arrangement can be overridden so every panel lands in one horizontal strip.
+Pass `ncol = 7` to `facet_wrap()` so all seven class panels sit in a single row.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -123,6 +131,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+One distribution chart per category can be flowed into a grid whose column count you fix yourself.
+Build a `geom_histogram()` of `price` and facet by `cut` with `ncol = 3`.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -165,6 +177,10 @@ ex_1_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+When two variables both matter, arrange them as a rigid rows-by-columns matrix rather than a flowing wrap.
+Use `facet_grid(drv ~ cyl)` with the row variable before the tilde and the column variable after.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -203,6 +219,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A matrix layout can split on a single axis only, with the other axis carrying no faceting variable at all.
+Use `facet_grid(drv ~ .)` where the dot placeholder stands in for the missing column variable.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -240,6 +260,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A 35-cell matrix only stays readable if the points and text shrink to match the crowded layout.
+Use `facet_grid(cut ~ color)` and tune `geom_point()` with a tiny `size`, low `alpha`, plus a reduced `base_size`.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -282,6 +306,10 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+When panels differ widely in range, a shared axis wastes vertical space - each panel can hold its own range instead.
+Add `scales = "free_y"` to the `facet_wrap(~ class)` layer.
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -332,6 +360,10 @@ metrics <- tibble(
 
 **Difficulty:** Advanced
 
+[HINTS]
+Metrics in incompatible units need fully independent axes per panel, and the wide table must first be reshaped so one column names the panel.
+Reshape with `pivot_longer()`, then facet the result with `scales = "free"` inside `facet_wrap()`.
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -372,6 +404,10 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Freeing the x range alone leaves panels equal width - the panel width itself can also be made proportional to the data it holds.
+Combine `scales = "free_x"` with `space = "free_x"` inside `facet_grid(~ cut)`.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -416,6 +452,10 @@ ex_3_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Panel strip text can be remapped to friendlier labels without changing the underlying data values.
+Build a named vector mapping each code to a polished label and pass it via `labeller = as_labeller(...)` to `facet_wrap()`.
 
 ```r title="Your turn"
 ex_4_1 <- # your code here
@@ -465,6 +505,10 @@ ex_4_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+Strip text can include the variable name alongside its value so each panel explains which split it belongs to.
+Pass `labeller = label_both` to `facet_grid(drv ~ cyl)`.
+
 ```r title="Your turn"
 ex_4_2 <- # your code here
 ex_4_2
@@ -512,6 +556,10 @@ power_grid <- tibble(
 
 **Difficulty:** Advanced
 
+[HINTS]
+Strip text can be run through R's math-rendering parser so labels display actual symbols instead of raw strings.
+Facet on `alpha_level` with `labeller = label_parsed`, using plotmath strings such as `"alpha == 0.05"`.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -554,6 +602,10 @@ ex_4_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+A grid can gain spreadsheet-style total panels that aggregate across every row and every column.
+Set `margins = TRUE` on the `facet_grid(drv ~ cyl)` layer.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -591,6 +643,10 @@ ex_5_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+To show each panel against the whole dataset, draw the full data once with the facet column removed so it repeats identically in every panel.
+Call `geom_point()` twice - the first with `data = transform(mpg, class = NULL)` for the grey backdrop, the second with the normal data on top.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -643,6 +699,10 @@ revenue <- tibble(
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The panel label strip does not have to sit on top - it can be relocated to a different edge of each panel.
+Pass `strip.position = "bottom"` to `facet_wrap()` and pair it with `theme(strip.placement = "outside")`.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here

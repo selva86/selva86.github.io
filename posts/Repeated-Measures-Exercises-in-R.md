@@ -53,6 +53,10 @@ library(lmerTest)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Long format means one row per measurement, so every subject-and-session pairing gets its own row; keep both the grouping and the condition columns as categorical, not numbers.
+Inside tibble(), use rep(1:8, each = 3) for subject and rep(c("T1","T2","T3"), times = 8) for time, wrapping both in factor() and passing levels = c("T1","T2","T3") to fix the session order.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -108,6 +112,10 @@ ex_1_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The repeated structure needs the model to know which observations come from the same person, so variability can be split into a between-subject part and a within-subject part.
+Call aov() with the formula score ~ time + Error(subject/time) and data = ex_1_1.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 summary(ex_1_2)
@@ -145,6 +153,10 @@ summary(ex_1_2)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The model summary is a list keyed by error stratum, and the within-subject stratum holds the table that carries the time effect.
+Index summary(ex_1_2) by "Error: subject:time", take its first list element, then pull row 1 of the "F value" and "Pr(>F)" columns into c(F = ..., p = ...).
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -189,6 +201,10 @@ ex_1_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Reshaping long to wide turns the single condition column into one measurement column per condition, leaving one row per subject.
+Pipe ex_1_1 into pivot_wider() with names_from = time and values_from = score.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -228,6 +244,10 @@ ex_2_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+Sphericity is tested on a multivariate intercept-only model whose response is the whole bundle of repeated measurements treated together.
+Fit lm(cbind(T1, T2, T3) ~ 1, data = ex_2_1), then pass that model to mauchly.test() with X = ~ 1.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -262,6 +282,10 @@ ex_2_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Epsilon comes from the within-subject covariance matrix after the grand mean is projected away, and it then rescales the degrees of freedom downward.
+Build the covariance with cov(), double-center it with (diag(k) - J) where J = matrix(1, k, k) / k, form eps from the traces, then feed df1 * eps and df2 * eps into pf(..., lower.tail = FALSE).
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -320,6 +344,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A mixed design pins each subject to exactly one level of the between-subjects factor while every subject still cycles through all within-subjects levels.
+In tibble(), use factor(rep(1:20, each = 3)) for subject and factor(rep(c("placebo","drug"), each = 30)) for group, passing levels = on each factor.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -371,6 +399,10 @@ ex_3_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+Crossing the two factors as fixed effects plus a repeated-measure error term lets the model test the between factor, the within factor, and their interaction each in the correct stratum.
+Call aov() with the formula score ~ group * time + Error(subject/time) and data = ex_3_1.
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 summary(ex_3_2)
@@ -411,6 +443,10 @@ summary(ex_3_2)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The interaction term lives in the within-subject stratum's table, and it is safer to reach it by name than to guess its row position.
+Take summary(ex_3_2)[["Error: subject:time"]][[1]] and select the "F value" entry where rownames(...) == "group:time", naming the result F.
+
 ```r title="Your turn"
 ex_3_3 <- # your code here
 ex_3_3
@@ -445,6 +481,10 @@ ex_3_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Partial eta squared is the effect's sum of squares divided by itself plus its within-subject error sum of squares.
+Pull the "Sum Sq" column from the "Error: subject:time" table, take rows 1 and 2, and compute ss_time / (ss_time + ss_err).
 
 ```r title="Your turn"
 ex_4_1 <- # your code here
@@ -487,6 +527,10 @@ ex_4_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Following up a significant within-subject effect means comparing each pair of levels while respecting that the same subjects appear in every level.
+Use pairwise.t.test() on ex_1_1$score and ex_1_1$time with paired = TRUE and p.adjust.method = "bonferroni".
+
 ```r title="Your turn"
 ex_4_2 <- # your code here
 ex_4_2
@@ -526,6 +570,10 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+This repeated-measures effect size standardizes the average change score by the spread of those change scores across subjects.
+Compute diffs <- ex_2_1$T3 - ex_2_1$T1, then divide mean(diffs) by sd(diffs).
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -571,6 +619,10 @@ ex_4_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The classical repeated measures fit is equivalent to a model with a fixed condition effect plus one random intercept per subject.
+Call lmer() with the formula score ~ time + (1 | subject) and data = ex_1_1.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -613,6 +665,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The mixed model carries two variances, one for stable between-subject differences and one for leftover within-subject noise, and you need both on the response scale.
+Run VarCorr(ex_5_1), then square attr(vc$subject, "stddev") and attr(vc, "sc") into c(subject = ..., residual = ...).
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 ex_5_2
@@ -647,6 +703,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+With the test-augmenting package loaded, the standard analysis-of-variance call on the mixed fit returns an F-test with approximated denominator degrees of freedom.
+Call anova() on ex_5_1, making sure lmerTest is loaded so the Satterthwaite table is returned.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -684,6 +744,10 @@ ex_5_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Each subject needs its own thin trajectory, with a separate aggregated overlay drawn on top by re-grouping the data into a single series.
+Build a ggplot with aes(group = subject) plus geom_line(), then add stat_summary(aes(group = 1), fun = mean, geom = "line") for the mean overlay.
 
 ```r title="Your turn"
 ex_6_1 <- # your code here
@@ -726,6 +790,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Assemble one tidy row by pulling every reported quantity straight from the model object rather than transcribing numbers from the printed summary.
+Pull Df, "F value", and "Pr(>F)" from the "Error: subject:time" table and combine them in tibble() alongside the partial eta squared from ex_4_1.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here

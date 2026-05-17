@@ -40,6 +40,10 @@ library(tibble)
 
 **Difficulty:** Beginner
 
+[HINTS]
+There are two ways to point at the same element: by the slot it occupies, or by the label attached to it.
+Pass a vector of names like c("science", "history") inside [] to pick by name.
+
 ```r title="Your turn"
 scores <- c(math = 88, science = 92, english = 79, history = 95, art = 84)
 
@@ -80,6 +84,10 @@ ex_1_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+A comparison produces a TRUE/FALSE mask the same length as the vector, and the bracket keeps only the TRUE spots.
+Put the condition scores > 85 inside [], and use a leading minus like scores[-3] to drop a position.
+
 ```r title="Your turn"
 scores <- c(math = 88, science = 92, english = 79, history = 95, art = 84)
 
@@ -119,6 +127,10 @@ scores[-3]
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You can place a selection on the left side of the arrow, not just the right, to overwrite chosen elements in place.
+Index with a condition on the left: readings[readings < 0] <- NA.
+
 ```r title="Your turn"
 readings <- c(12.4, -1.0, 8.7, -3.2, 0.5, 15.6, 22.1, -0.1)
 
@@ -155,6 +167,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+First mark which elements match, then convert those marks into the numbers that say where they sit.
+Wrap the membership test ids %in% c("C103", "C107") inside which().
 
 ```r title="Your turn"
 ids <- c("C100", "C101", "C102", "C103", "C104",
@@ -193,6 +209,10 @@ ex_1_4
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+One level of brackets hands back a smaller container of the same kind; doubling them reaches inside and pulls out the bare contents.
+Use prefs[["theme"]] for the bare value and prefs["theme"] for the one-element sub-list.
 
 ```r title="Your turn"
 prefs <- list(theme = "dark", font_size = 14, autosave = TRUE)
@@ -233,6 +253,10 @@ ex_2_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+There is a shorthand operator that grabs a single named field directly, without quotes or brackets.
+Write prefs$font_size, then check it against prefs[["font_size"]] with identical().
+
 ```r title="Your turn"
 prefs <- list(theme = "dark", font_size = 14, autosave = TRUE)
 
@@ -270,6 +294,10 @@ identical(prefs$font_size, prefs[["font_size"]])
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A single selector can describe a whole path downward, taking one step per element you list.
+Pass the path vector c("metrics", "monthly", 3) to [[ ]].
 
 ```r title="Your turn"
 report <- list(
@@ -318,6 +346,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+One operator quietly guesses at near-miss names, while the other demands the spelling match exactly.
+Use the exact-match form config[["item"]], which returns NULL when no key matches.
+
 ```r title="Your turn"
 config <- list(items = c("a", "b", "c"), threshold = 0.5)
 
@@ -360,6 +392,10 @@ ex_2_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A data frame is built from a set of columns, so several different selectors all reach the same one.
+Save mtcars$mpg, then compare it with identical() against mtcars[["mpg"]] and mtcars[, "mpg"].
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -406,6 +442,10 @@ identical(ex_3_1, mtcars[, "mpg"])
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The space inside the brackets has two slots: the first picks rows, the second picks columns.
+Use a condition for rows and a name vector for columns: mtcars[mtcars$cyl == 6, c("cyl", "mpg", "hp")].
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -447,6 +487,10 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Asking for a single column can quietly flatten the result unless you tell R to keep its rectangular shape.
+Add the drop = FALSE argument: iris[, 1, drop = FALSE].
 
 ```r title="Your turn"
 identical(iris[, 1], iris[[1]])
@@ -493,6 +537,10 @@ class(ex_3_3)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Two separate conditions can be fused into one mask that is TRUE only where both hold at once.
+Combine them with & like mtcars$wt > 5 & mtcars$mpg < 15, then pass that mask as the row index.
+
 ```r title="Your turn"
 heavy_thirsty <- # your code here
 ex_3_4 <- # your code here
@@ -531,6 +579,10 @@ ex_3_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A matrix needs two coordinates, and leaving one of them blank means "all of that dimension".
+Use m[2, 3] for the single cell and m[2, ] for the whole second row.
 
 ```r title="Your turn"
 m <- matrix(
@@ -589,6 +641,10 @@ m[2, ]
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Selecting a single column shrinks that dimension away unless you explicitly ask R not to.
+Add the drop = FALSE argument: m[, 2, drop = FALSE].
+
 ```r title="Your turn"
 m[, 2]                  # collapses to vector
 
@@ -635,6 +691,10 @@ dim(ex_4_2)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Compare one column against a threshold to get a TRUE/FALSE mask aligned with the rows, then index with it.
+Build m[, "North"] > 150 and pass it as the row index in m[mask, ].
+
 ```r title="Your turn"
 north_mask <- # your code here
 ex_4_3 <- # your code here
@@ -668,6 +728,10 @@ ex_4_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A table of coordinate pairs can name a scattered set of cells all at once.
+Build a matrix with ncol = 2 holding the (row, col) pairs, then pass it to m[idx] with no comma inside the brackets.
 
 ```r title="Your turn"
 idx <- # your code here
@@ -707,6 +771,10 @@ ex_4_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A path through nested lists can be written either one step at a time or packed into a single selector.
+Pass the path vector c("database", "replicas", 2) to [[ ]].
 
 ```r title="Your turn"
 cfg <- list(
@@ -772,6 +840,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A single assignment can target several named slots at once and reuse one value across all of them.
+Select with a name vector on the left: record[c("ssn", "email", "phone")] <- "REDACTED".
+
 ```r title="Your turn"
 record <- list(
   name  = "Alex Kim",
@@ -819,6 +891,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Writing "nothing" into a slot removes that slot entirely rather than leaving it empty.
+Assign with the double-bracket form: record[["ssn"]] <- NULL.
 
 ```r title="Your turn"
 record <- list(
@@ -869,6 +945,10 @@ names(ex_5_3)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The main diagonal is exactly the set of cells whose row number equals their column number.
+Index the matrix with the logical mask row(mm) == col(mm).
 
 ```r title="Your turn"
 mm <- matrix(1:25, nrow = 5)

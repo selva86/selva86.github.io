@@ -45,6 +45,10 @@ library(tidyr)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Every string has a size you can measure - you want one count for each fruit name in the vector.
+Call the length-measuring function on the whole `fruit` vector; it returns one integer per element.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -81,6 +85,10 @@ ex_1_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+You want a fixed-width slice taken from the start of each name, not the whole string.
+Use `str_sub()` with `start = 1` and `end = 3` on the `fruit` vector.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 head(ex_1_2, 27)
@@ -113,6 +121,10 @@ head(ex_1_2, 27)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Short symbols need extra filler characters added to one side until they all reach the same length.
+Use `str_pad()` with `width = 5`, `side = "left"` and `pad = "0"`.
+
 ```r title="Your turn"
 tickers <- c("A", "BAC", "GE", "MSFT", "GOOGL")
 ex_1_3 <- # your code here
@@ -144,6 +156,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Clean up the stray spacing first, then fix the capitalisation - two passes in that order.
+Pipe `raw_names` through `str_squish()` and then `str_to_title()`.
 
 ```r title="Your turn"
 raw_names <- c("alice JOHNSON", "   bob  smith ", "CARLA   diaz", "  devon KHAN")
@@ -185,6 +201,10 @@ ex_1_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+You need a yes/no answer for each name about whether a small piece of text appears somewhere inside it.
+Use `str_detect()` with the pattern `"ap"` on the `fruit` vector.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 sum(ex_2_1); fruit[ex_2_1]
@@ -222,6 +242,10 @@ fruit[ex_2_1]
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Keep only the entries whose tail matches a given suffix; an end-anchor in the pattern enforces "tail".
+Use `str_subset()` on `words` with the anchored pattern `"ing$"`.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 length(ex_2_2); head(ex_2_2, 10)
@@ -254,6 +278,10 @@ head(ex_2_2, 10)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Two separate conditions - one about the start, one about the end - both have to hold before you keep a URL.
+Combine `str_starts(urls, "https")` and `str_ends(urls, "\\.com")` with `&`, then subset `urls`.
 
 ```r title="Your turn"
 urls <- c(
@@ -300,6 +328,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You need a tally of how many characters from a given set occur in each sentence.
+Use `str_count()` with the character class `"[aeiouAEIOU]"` on `six`.
+
 ```r title="Your turn"
 six <- sentences[1:6]
 ex_2_4 <- # your code here
@@ -335,6 +367,10 @@ ex_2_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want the index numbers of the matches, not a true/false vector.
+Use `str_which()` with the start-anchored pattern `"^bl"` on `fruit`.
+
 ```r title="Your turn"
 ex_2_5 <- # your code here
 ex_2_5; fruit[ex_2_5]
@@ -369,6 +405,10 @@ fruit[ex_2_5]
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Grab only the first numeric chunk out of each mixed identifier and let the rest fall away.
+Use `str_extract()` with the pattern `"\\d+"` on `orders`.
+
 ```r title="Your turn"
 orders <- c("ORD-2419-A", "ORD-1788-B", "REF-55-Z", "ORD-NOID-X", "INV-9001-Q")
 ex_3_1 <- # your code here
@@ -401,6 +441,10 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Each tweet may hold several tags or none, so you need every match per string and then a flat, de-duplicated set.
+Use `str_extract_all()` with `"#\\w+"`, then `unlist()` and `unique()` the result.
 
 ```r title="Your turn"
 tweets <- c(
@@ -456,6 +500,10 @@ ex_3_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Describe the comma-separated layout with two parenthesised pieces so each part comes back separately.
+Use `str_match()` with a pattern like `"^([^,]+),\\s+(.+)$"`, then build a tibble from match columns 2 and 3.
+
 ```r title="Your turn"
 people <- tibble(full = c("Johnson, Alice", "Smith, Bob",
                           "Diaz, Carla", "Khan, Devon"))
@@ -497,6 +545,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Pull out the numeric-looking text, drop the thousands separator, then turn the result into a real number.
+Use `str_extract()` with `"[0-9,]+(?:\\.[0-9]+)?"`, then `str_remove_all()` the comma before casting.
+
 ```r title="Your turn"
 amounts <- c("USD 1,234.50", "EUR 25.00", "GBP 12,000", "JPY 7.25", "no amount")
 ex_3_4 <- # your code here
@@ -532,6 +584,10 @@ ex_3_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Capture everything that comes after the @ sign without including the @ itself in the result.
+Use `str_extract()` with a lookbehind pattern such as `"(?<=@)[^@]+$"`.
 
 ```r title="Your turn"
 emails <- c("alice@example.com", "bob@acme.co.uk",
@@ -573,6 +629,10 @@ ex_3_5
 
 **Difficulty:** Beginner
 
+[HINTS]
+Only the very first space in each name should change; any later spaces stay as they are.
+Use `str_replace()` (the single-match form) with `" "` and `"_"` on `fruit`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 head(ex_4_1, 8)
@@ -608,6 +668,10 @@ head(ex_4_1, 8)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Every numeric character in the text column has to become a placeholder - all occurrences, not just the first.
+Inside `mutate()`, use `str_replace_all()` with the pattern `"\\d"` and replacement `"X"` on the `complaint` column.
 
 ```r title="Your turn"
 df <- tibble(id = 1:3,
@@ -656,6 +720,10 @@ ex_4_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Drop every punctuation mark from each headline while leaving letters and spaces untouched.
+Use `str_remove_all()` with the POSIX class `"[[:punct:]]"` on `headlines`.
+
 ```r title="Your turn"
 headlines <- c(
   "Markets rally on rate-cut hopes!",
@@ -701,6 +769,10 @@ ex_4_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+Capture the three date parts, then reassemble them in a new order inside the replacement text.
+Use `str_replace()` with `"^(\\d{2})/(\\d{2})/(\\d{4})$"` and a replacement of `"\\3-\\2-\\1"`.
+
 ```r title="Your turn"
 dates <- c("12/05/2026", "31/12/2025", "09/01/2024", "04/07/2023")
 ex_4_4 <- # your code here
@@ -732,6 +804,10 @@ ex_4_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A lookup of old-to-new values can be handed straight to the replacer as a named set of patterns.
+Pass an anchored named vector (keys like `"^en$"`) as the `pattern` argument of `str_replace_all()`.
 
 ```r title="Your turn"
 codes <- c("en", "de", "fr", "es", "en")
@@ -774,6 +850,10 @@ ex_4_5
 
 **Difficulty:** Beginner
 
+[HINTS]
+Break each name at the space and arrange the pieces as a rectangular grid of rows and columns.
+Use `str_split()` with `" "` and `simplify = TRUE` on `clean_names`.
+
 ```r title="Your turn"
 clean_names <- c("Alice Johnson", "Bob Smith", "Carla Diaz", "Devon Khan")
 ex_5_1 <- # your code here
@@ -810,6 +890,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Glue all but the last item with commas, then attach the final item with a different connector word.
+Use `str_c()` with `collapse = ", "` for the head items, then another `str_c()` to add `", and "` plus the last item.
+
 ```r title="Your turn"
 items <- c("apples", "bananas", "cherries", "dates")
 ex_5_2 <- # your code here
@@ -845,6 +929,10 @@ ex_5_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Drop column values straight into a sentence template, producing one finished line per row.
+Use `str_glue_data()` on `customers` with `{name}`, `{orders}` and `{total}` placeholders.
 
 ```r title="Your turn"
 customers <- tibble(
@@ -893,6 +981,10 @@ ex_5_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Tidy the spacing and the casing first, then break each line into its individual tags.
+Pipe through `str_squish()`, `str_to_lower()`, then `str_split()` on `",\\s*"`.
+
 ```r title="Your turn"
 tags_raw <- c("  Rstats, DPLYR,  Data Viz ",
               "REGEX,stringr,   cleanup")
@@ -939,6 +1031,10 @@ ex_5_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+One column holds three fields joined by a delimiter; you want them broken out into three named columns.
+Use `separate_wider_delim()` with `delim = " | "` and `names = c("street", "city", "postcode")`.
+
 ```r title="Your turn"
 addr <- tibble(raw = c("12 Main St | Boston | 02118",
                        "9 Elm Ave | Chicago | 60611",
@@ -984,6 +1080,10 @@ ex_5_5
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Test each candidate against one anchored description of what a valid address must look like end to end.
+Use `str_detect()` with an anchored pattern like `"^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,10}$"`.
 
 ```r title="Your turn"
 candidates <- c("alice@example.com",
@@ -1033,6 +1133,10 @@ ex_6_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+Describe the fixed layout of a log line with three parenthesised pieces, then lift each piece into its own column.
+Use `str_match()` with three capture groups, then assemble a tibble from match columns 2, 3 and 4.
+
 ```r title="Your turn"
 log <- c("2026-05-12 09:14:01 [INFO] Job started",
          "2026-05-12 09:14:09 [WARN] Retrying connection",
@@ -1078,6 +1182,10 @@ ex_6_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Lowercase the text, collapse every run of unwanted characters into a single hyphen, then tidy the ends.
+Chain `str_to_lower()`, `str_replace_all("[^a-z0-9]+", "-")` and `str_remove_all()` for the boundary hyphens.
 
 ```r title="Your turn"
 titles <- c("Introducing stringr 1.5.0!",
@@ -1128,6 +1236,10 @@ ex_6_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Split each URL at the first slash after the host, keeping both halves of the result.
+Use `str_match()` with a pattern like `"^https?://([^/]+)(/.*)?$"` and read match columns 2 and 3.
 
 ```r title="Your turn"
 urls_df <- tibble(url = c(

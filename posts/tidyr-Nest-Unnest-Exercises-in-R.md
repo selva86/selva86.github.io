@@ -49,6 +49,10 @@ library(ggplot2)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Think of each cylinder group's rows as one bundle you can keep in a single cell of the table.
+Use `nest()` with `data = -cyl` so every column except `cyl` is sent into the list-column.
+
 ```r title="Your turn"
 ex_1_1 <- as_tibble(mtcars) |>
   # your code here
@@ -96,6 +100,10 @@ ex_1_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Bundle the leftover columns per group first, then count how many rows landed inside each bundle.
+Pair `nest(data = -c(manufacturer, class))` with a `mutate()` that calls `map_int(data, nrow)`.
+
 ```r title="Your turn"
 ex_1_2 <- mpg |>
   # your code here
@@ -140,6 +148,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Build the outer grouping first, then split each outer bundle again by the inner key.
+After nesting by `Diet`, add `by_chick` with `map(data, ~ nest(.x, chick_data = -Chick))`.
 
 ```r title="Your turn"
 ex_1_3 <- as_tibble(ChickWeight) |>
@@ -190,6 +202,10 @@ ex_1_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+You want to undo the bundling so every original row sits flat in the table again.
+Call `unnest()` on the `data` column.
+
 ```r title="Your turn"
 ex_2_1 <- ex_1_1 |>
   # your code here
@@ -235,6 +251,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Each respondent's vector of tags should be spread so one tag occupies one row.
+Use `unnest_longer()` on the `tags` column.
 
 ```r title="Your turn"
 survey <- tibble(
@@ -292,6 +312,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The named fields inside each profile list should become their own columns.
+Use `unnest_wider()` on the `profile` column.
 
 ```r title="Your turn"
 users <- tibble(
@@ -356,6 +380,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Reach into each group's bundled table and reduce its mileage values to a single number.
+Inside `mutate()`, use `map_dbl(data, ~ mean(.x$mpg))` so the column stays a plain double.
+
 ```r title="Your turn"
 ex_3_1 <- ex_1_1 |>
   # your code here
@@ -398,6 +426,10 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Each group's bundled table can be fed to a regression, and the fitted object rides along in a new cell.
+In `mutate()`, use `map(data, ~ lm(mpg ~ wt, data = .x))` to store one fit per row.
 
 ```r title="Your turn"
 ex_3_2 <- ex_1_1 |>
@@ -442,6 +474,10 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Turn each fitted model into its one-row scorecard, then flatten those scorecards into a plain table.
+Map `broom::glance()` over the `model` column, then `select(cyl, glance)` and `unnest()` it.
 
 ```r title="Your turn"
 ex_3_3 <- ex_3_2 |>
@@ -491,6 +527,10 @@ ex_3_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+Each model carries a small table of one row per coefficient that you want stacked under its group.
+Map `broom::tidy()` over the `model` column, keep `cyl`, and `unnest()` the result.
+
 ```r title="Your turn"
 ex_3_4 <- ex_3_2 |>
   # your code here
@@ -537,6 +577,10 @@ ex_3_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Fit each competing formula into its own cell, then score each fit with one number alongside it.
+In one `mutate()`, build `m1`/`m2`/`m3` with `map(data, ~ lm(...))` and `aic1`/`aic2`/`aic3` with `map_dbl(m1, AIC)`.
 
 ```r title="Your turn"
 ex_4_1 <- ex_1_1 |>
@@ -592,6 +636,10 @@ ex_4_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+Ask each model for its per-observation table of fitted values and residuals, then flatten it.
+Map `broom::augment()` over `model`, `unnest()` it, and `select()` the columns you need.
+
 ```r title="Your turn"
 ex_4_2 <- ex_3_2 |>
   # your code here
@@ -642,6 +690,10 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+For each model, build a tiny table that pairs the reference weights with their predictions so the two stay aligned through flattening.
+Map over `model` returning `tibble(wt = ref_grid$wt, .pred = predict(.x, newdata = ref_grid))`, then `unnest()`.
 
 ```r title="Your turn"
 ref_grid <- tibble(wt = c(2.5, 3.0, 3.5))
@@ -700,6 +752,10 @@ ex_4_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+The three score columns should stack into one value column labelled by which spec produced them, sorted best-first within each group.
+Use `pivot_longer(starts_with("aic"), names_to = "spec", values_to = "aic", names_prefix = "aic")`, then `arrange(aic, .by_group = TRUE)`.
+
 ```r title="Your turn"
 ex_4_4 <- ex_4_1 |>
   # your code here
@@ -751,6 +807,10 @@ ex_4_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Every field stored inside a record should be lifted up to become a column of its own.
+Use `unnest_wider()` on the `record` column.
 
 ```r title="Your turn"
 api_rows <- tibble(
@@ -810,6 +870,10 @@ ex_5_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+You want only two buried fields pulled up to the top while the rest of the record stays packed away.
+Use `hoist()` on `record` with index paths like `c("meta", "region")` for each target column.
 
 ```r title="Your turn"
 api_rows2 <- tibble(
@@ -874,6 +938,10 @@ ex_5_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Collapse the repeating columns per customer into cells holding plain vectors rather than whole tables.
+Use `chop()` on `c(order_amount, order_date)`.
+
 ```r title="Your turn"
 orders <- tibble(
   customer_id  = c("A","A","A","B","B","C"),
@@ -931,6 +999,10 @@ ex_6_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Group and bundle in a single step that also makes every later step run one row at a time.
+Use `nest_by(cyl)`, then `mutate(model = list(lm(mpg ~ wt, data = data)))`.
 
 ```r title="Your turn"
 ex_6_2 <- as_tibble(mtcars) |>

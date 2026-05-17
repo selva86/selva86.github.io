@@ -50,6 +50,10 @@ library(ggplot2)   # supplies the `economics` and `diamonds` datasets used below
 
 **Difficulty:** Beginner
 
+[HINTS]
+A fitted model already knows both the predictions it made and how far each one missed; you only need to pull those two pieces out side by side.
+Fit with lm(mpg ~ wt, data = mtcars), then collect fitted() and residuals() into a data.frame with columns named fitted and resid.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 head(ex_1_1)
@@ -90,6 +94,10 @@ head(ex_1_1)
 
 **Difficulty:** Beginner
 
+[HINTS]
+The first standard diagnostic panel reveals whether the residual cloud has any systematic shape as predictions change.
+Store the lm(mpg ~ wt, data = mtcars) object in ex_1_2; the which = 1 argument selects the residuals-vs-fitted panel.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 plot(ex_1_2, which = 1)
@@ -123,6 +131,10 @@ plot(ex_1_2, which = 1)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+When residuals bend, the fix is to give the model a term that is itself allowed to bend.
+Build the model as lm(mpg ~ disp + I(disp^2), data = mtcars); the I() wrapper keeps the squared term literal.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -165,6 +177,10 @@ coef(summary(ex_1_3))["I(disp^2)", ]
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A single omnibus curvature test can flag nonlinearity even when no individual predictor looks guilty on its own.
+Store the lm(mpg ~ wt + hp + disp, data = mtcars) fit in ex_1_4; car::residualPlots() prints the per-predictor and Tukey tests.
+
 ```r title="Your turn"
 ex_1_4 <- # your code here
 car::residualPlots(ex_1_4)
@@ -202,6 +218,10 @@ car::residualPlots(ex_1_4)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+To judge whether a predictor's functional form is wrong, you need its marginal effect with every other predictor partialled out.
+Reuse the three-predictor lm(mpg ~ wt + hp + disp, data = mtcars) fit as ex_1_5; car::crPlots() draws one panel per predictor.
+
 ```r title="Your turn"
 ex_1_5 <- # your code here
 car::crPlots(ex_1_5)
@@ -237,6 +257,10 @@ car::crPlots(ex_1_5)
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Comparing residuals to a normal curve is fairer once each one is rescaled onto a common, comparable spread.
+Fit the Sepal.Length ~ Sepal.Width + Petal.Length model, then store rstandard(fit) in ex_2_1 for qqnorm to plot.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -277,6 +301,10 @@ qqline(ex_2_1, col = "red", lwd = 2)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A formal hypothesis test can confirm or overturn what the Q-Q plot only suggested about normality.
+Refit the iris model and pass residuals(fit) to shapiro.test(), keeping the returned htest object in ex_2_2.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -314,6 +342,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Leave-one-out residuals give an honest extremity score because each point is judged by a model that never saw it.
+Compute MASS::studres(fit) on the mpg ~ wt + hp model, find rows with which(abs(...) > 2), and collect them with columns car and stud_resid.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -359,6 +391,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A dedicated panel shows whether the spread of residuals holds steady as the predictions grow larger.
+Assign lm(price ~ carat, data = d) to ex_3_1; the which = 3 argument selects the Scale-Location panel.
+
 ```r title="Your turn"
 set.seed(42)
 d <- diamonds[sample(nrow(diamonds), 2000), ]
@@ -398,6 +434,10 @@ plot(ex_3_1, which = 3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A formal test turns the fanning pattern you saw into a clear yes-or-no verdict on constant variance.
+Pass the fitted price ~ carat model to lmtest::bptest() and store the htest result in ex_3_2.
 
 ```r title="Your turn"
 set.seed(42)
@@ -441,6 +481,10 @@ ex_3_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+One score test asks specifically whether residual variance scales with the conditional mean of the model.
+Fit lm(mpg ~ wt + hp + disp, data = mtcars), then run car::ncvTest() on it into ex_3_3.
+
 ```r title="Your turn"
 ex_3_3 <- # your code here
 ex_3_3
@@ -479,6 +523,10 @@ ex_3_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+When variance is not constant, the coefficients can stay but the standard errors must be rebuilt to remain trustworthy.
+Call lmtest::coeftest() on the fit, passing vcov. = sandwich::vcovHC(fit, type = "HC3").
 
 ```r title="Your turn"
 set.seed(42)
@@ -525,6 +573,10 @@ ex_3_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each predictor's standard error can be inflated by how well the remaining predictors explain it.
+Fit the five-predictor mtcars model and pass it to car::vif(), storing the numeric vector in ex_4_1.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -570,6 +622,10 @@ names(ex_4_1)[ex_4_1 > 5]
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The reciprocal of the inflation factor, paired with the raw pairwise correlations, together tell the collinearity story.
+Compute 1 / car::vif(fit) and cor() on the predictor columns, then bundle both into a list with elements tolerance and cor_matrix.
+
 ```r title="Your turn"
 ex_4_2 <- # your code here
 ex_4_2$tolerance
@@ -605,6 +661,10 @@ ex_4_2$tolerance
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+How close the design matrix is to singular can be summarized by one ratio, and dropping the worst offender should shrink it.
+Refit lm() without disp into ex_4_3, then check kappa(model.matrix(ex_4_3), exact = TRUE).
 
 ```r title="Your turn"
 fit_full <- lm(mpg ~ cyl + disp + hp + wt + drat, data = mtcars)
@@ -649,6 +709,10 @@ car::vif(ex_4_3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+One scalar per row captures how much every fitted value would shift if that single row were removed.
+Compute cooks.distance(fit), compare it against 4 / nobs(fit), and build a data.frame with columns car and cooks_d.
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -696,6 +760,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Some rows sit far out in predictor space and largely dictate their own fitted value regardless of the response.
+Compute hatvalues(fit), flag rows above 2 * (p + 1) / nobs(fit), and store them with columns car and leverage.
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 ex_5_2
@@ -740,6 +808,10 @@ ex_5_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Instead of one overall influence number, you can ask which single coefficient a row tugs hardest.
+Compute dfbetas(fit), use which.max(abs(db[, "wt"])) to locate the row, and save a one-row data.frame with car and dfbeta_wt.
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 ex_5_3
@@ -782,6 +854,10 @@ ex_5_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+Residual extremity, leverage, and overall influence can all be read together from a single bubble chart.
+Fit lm(mpg ~ wt + hp + disp, data = mtcars), pass it to car::influencePlot(), and keep the returned summary table in ex_5_4.
+
 ```r title="Your turn"
 ex_5_4 <- # your code here
 ex_5_4
@@ -819,6 +895,10 @@ ex_5_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The real test of influence is whether your conclusions survive once the flagged rows are removed.
+Subset mtcars to rows where cooks.distance() <= 4 / nobs(), refit, and compare coef() of both fits in a data.frame.
 
 ```r title="Your turn"
 ex_5_5 <- # your code here
@@ -869,6 +949,10 @@ ex_5_5
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Time-ordered residuals can echo their own recent past, a dependence a constant-mean model ignores entirely.
+Fit lm(unemploy ~ pop + psavert, data = ggplot2::economics) and pass it to car::durbinWatsonTest().
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -905,6 +989,10 @@ ex_6_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Feeding powers of the model's own predictions back in can expose nonlinearity the linear form missed.
+Run lmtest::resettest(fit, power = 2:3, type = "fitted") on the mpg ~ wt + hp model.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here
@@ -944,6 +1032,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+If the middle of the sample fits much better than the edges, linearity is breaking down in the tails.
+Call lmtest::raintest(fit, fraction = 0.5, order.by = ~ fitted(fit)) on the mpg ~ wt + hp model.
 
 ```r title="Your turn"
 ex_6_3 <- # your code here
@@ -987,6 +1079,10 @@ ex_6_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+One page of stacked diagnostic panels lets you reject several failure modes at a single glance.
+Just assign lm(mpg ~ wt + hp + qsec, data = mtcars) to ex_7_1; the par(mfrow) grid and plot calls are already written.
 
 ```r title="Your turn"
 ex_7_1 <- # your code here
@@ -1033,6 +1129,10 @@ par(mfrow = c(1, 1))
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+When variance grows with the mean, moving both sides of the model onto a log scale often settles it.
+After confirming the problem, fit lm(log(price) ~ log(carat), data = d) into ex_7_2 and re-run lmtest::bptest().
 
 ```r title="Your turn"
 set.seed(7)

@@ -16,9 +16,9 @@ fr_parent: "R-Debugging.html"
 
 <h1>R Debugging Exercises: 18 Real-World Practice Problems</h1>
 
-<p class="lead">Eighteen scenario-based debugging exercises grouped into six themed sections covering traceback, browser stepping, debug instrumentation, tryCatch, <a class="auto-link" href="R-Conditions-System.html" title="R Conditions System: message(), warning(), stop() & Custom Conditions">withCallingHandlers</a>, custom conditions, restarts, and post-mortem inspection. Every problem ships with an expected result so you can verify your fix, and solutions are hidden behind reveal toggles so you actually try first.</p>
+<p class="lead">Eighteen scenario-based debugging exercises grouped into six themed sections covering traceback, browser stepping, debug instrumentation, tryCatch, withCallingHandlers, custom conditions, restarts, and post-mortem inspection. Every problem ships with an expected result so you can verify your fix, and solutions are hidden behind reveal toggles so you actually try first.</p>
 
-<div class="engagement-header" data-difficulty="Mixed" data-time="40" data-exercises="18" data-xp="270"></div>
+<div class="engagement-header" data-difficulty="Mixed" data-time="45" data-exercises="18" data-xp="270"></div>
 
 <pre><code class="language-r"># All exercises run in vanilla base R. No external packages are required.
 # The utils package (auto-loaded) provides capture.output(), traceback(), debug(), trace().
@@ -26,15 +26,20 @@ library(utils)</code></pre>
 
 <h2>Section 1. Locating the bug with traceback and sys.calls (3 problems)</h2>
 
-<h3>Exercise 1.1: Use traceback to find which sapply iteration broke</h3>
+<section class="exercise" data-exercise-id="R-Debugging-Exercises-ex-1-1" data-grade-mode="output-compare" data-difficulty="beginner">
 
-<p><strong>Task:</strong> A junior analyst's pipeline calls <code>add_one()</code> over a list of items, but one element is the string <code>&quot;three&quot;</code> instead of a number, so <code>sapply(items, add_one)</code> crashes inside the helper. Reproduce the failure, mentally walk the <code>traceback()</code> output to confirm <code>add_one</code> is the failing frame, then rewrite the helper to coerce non-numeric values to <code>NA</code> and save the resulting length-4 vector to <code>ex_1_1</code>.</p>
+<h3 class="exercise-title">Exercise 1.1: Use traceback to find which sapply iteration broke</h3>
 
+<p class="exercise-task"><strong>Task:</strong> A junior analyst's pipeline calls <code>add_one()</code> over a list of items, but one element is the string <code>&quot;three&quot;</code> instead of a number, so <code>sapply(items, add_one)</code> crashes inside the helper. Reproduce the failure, mentally walk the <code>traceback()</code> output to confirm <code>add_one</code> is the failing frame, then rewrite the helper to coerce non-numeric values to <code>NA</code> and save the resulting length-4 vector to <code>ex_1_1</code>.</p>
+
+<div class="exercise-expected">
 <p><strong>Expected result:</strong></p>
-
 <pre><code>#&gt; [1]  2  3 NA  5</code></pre>
+</div>
 
 <p><strong>Difficulty:</strong> Beginner</p>
+
+<div class="exercise-hints" hidden><p>One element of the list is text rather than a number, so the helper must detect that case per element and substitute a missing value instead of letting the addition blow up.</p><p>Inside add_one(), coerce x with as.numeric() wrapped in suppressWarnings(), test the result with <a class="auto-link" href="R-Special-Values.html" title="R's Four Special Values: NA, NULL, NaN, Inf — What Each One Actually Means">is.na()</a>, and return NA_real_ when it fails.</p></div>
 
 <pre><code class="language-r">items &lt;- list(1, 2, &quot;three&quot;, 4)
 add_one &lt;- function(x) x + 1
@@ -42,7 +47,7 @@ add_one &lt;- function(x) x + 1
 ex_1_1 &lt;- # your code here
 ex_1_1</code></pre>
 
-<details>
+<details class="exercise-solution">
 <summary>Click to reveal solution</summary>
 
 <pre><code class="language-r">items &lt;- list(1, 2, &quot;three&quot;, 4)
@@ -56,20 +61,27 @@ ex_1_1 &lt;- sapply(items, add_one)
 ex_1_1
 #&gt; [1]  2  3 NA  5</code></pre>
 
-<p><strong>Explanation:</strong> Without coercion, <code>&quot;three&quot; + 1</code> raises "<a class="auto-link" href="R-Error-Non-Numeric.html" title="R Error: non-numeric argument to binary operator — Type Mismatch Fix">non-numeric argument to binary operator</a>" and <code>traceback()</code> shows the call chain <code>sapply &gt; FUN &gt; add_one &gt; +</code>. The fix is to coerce inside the helper and short-circuit on <code>NA</code>. <code>suppressWarnings()</code> silences the expected "<a class="auto-link" href="R-Type-Coercion.html" title="R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters">NAs introduced by coercion</a>" message because it is now the documented contract of the function.</p>
+<p class="exercise-explanation"><strong>Explanation:</strong> Without coercion, <code>&quot;three&quot; + 1</code> raises "<a class="auto-link" href="R-Error-Non-Numeric.html" title="R Error: non-numeric argument to binary operator — Type Mismatch Fix">non-numeric argument to binary operator</a>" and <code>traceback()</code> shows the call chain <code>sapply &gt; FUN &gt; add_one &gt; +</code>. The fix is to coerce inside the helper and short-circuit on <code>NA</code>. <code>suppressWarnings()</code> silences the expected "<a class="auto-link" href="R-Type-Coercion.html" title="R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters">NAs introduced by coercion</a>" message because it is now the documented contract of the function.</p>
 
 </details>
 
-<h3>Exercise 1.2: Pinpoint the failing helper in a 3-level call chain</h3>
+</section>
 
-<p><strong>Task:</strong> A reporting function <code>report()</code> calls <code>summarise_weighted()</code> which calls <code>wmean()</code>, and the bottom helper divides by <code>sum(w)</code> where <code>w</code> happens to be all zeros, producing <code>NaN</code> rather than a real number. Reproduce the bug, identify the lowest non-<a class="auto-link" href="R-Namespaces.html" title="R Namespaces: How Packages Export Functions & Prevent Conflicts">namespace</a> frame in the call chain, fix <code>wmean()</code> so that a zero-sum-of-weights returns <code>NA_real_</code> with a warning, then save the corrected weighted mean for <code>x = 1:5, w = c(0,0,0,0,0)</code> to <code>ex_1_2</code>.</p>
+<section class="exercise" data-exercise-id="R-Debugging-Exercises-ex-1-2" data-grade-mode="output-compare" data-difficulty="intermediate">
 
+<h3 class="exercise-title">Exercise 1.2: Pinpoint the failing helper in a 3-level call chain</h3>
+
+<p class="exercise-task"><strong>Task:</strong> A reporting function <code>report()</code> calls <code>summarise_weighted()</code> which calls <code>wmean()</code>, and the bottom helper divides by <code>sum(w)</code> where <code>w</code> happens to be all zeros, producing <code>NaN</code> rather than a real number. Reproduce the bug, identify the lowest non-<a class="auto-link" href="R-Namespaces.html" title="R Namespaces: How Packages Export Functions & Prevent Conflicts">namespace</a> frame in the call chain, fix <code>wmean()</code> so that a zero-sum-of-weights returns <code>NA_real_</code> with a warning, then save the corrected weighted mean for <code>x = 1:5, w = c(0,0,0,0,0)</code> to <code>ex_1_2</code>.</p>
+
+<div class="exercise-expected">
 <p><strong>Expected result:</strong></p>
-
 <pre><code>#&gt; # weighted mean with zero-sum weights:
 #&gt; [1] NA</code></pre>
+</div>
 
 <p><strong>Difficulty:</strong> Intermediate</p>
+
+<div class="exercise-hints" hidden><p>The lowest helper is where the division actually happens, so the guard against an all-zero denominator belongs there, not in the outer report wrapper.</p><p>In wmean(), compute sum(w) once, and if it equals 0 emit a warning() and return(NA_real_); call the chain through suppressWarnings().</p></div>
 
 <pre><code class="language-r">wmean &lt;- function(x, w) sum(x * w) / sum(w)
 summarise_weighted &lt;- function(x, w) wmean(x, w)
@@ -78,7 +90,7 @@ report &lt;- function(x, w) summarise_weighted(x, w)
 ex_1_2 &lt;- # your code here
 ex_1_2</code></pre>
 
-<details>
+<details class="exercise-solution">
 <summary>Click to reveal solution</summary>
 
 <pre><code class="language-r">wmean &lt;- function(x, w) {
@@ -97,19 +109,26 @@ ex_1_2 &lt;- suppressWarnings(report(1:5, c(0, 0, 0, 0, 0)))
 ex_1_2
 #&gt; [1] NA</code></pre>
 
-<p><strong>Explanation:</strong> When the wrapped error reaches the top, <code>traceback()</code> shows <code>report &gt; summarise_weighted &gt; wmean &gt; /</code> so the bug is in <code>wmean</code>. Defensive guards belong in the lowest helper where the math actually happens, not in the outer report function. Returning <code>NA_real_</code> with a warning keeps downstream code typed and observable rather than silently producing <code>NaN</code>.</p>
+<p class="exercise-explanation"><strong>Explanation:</strong> When the wrapped error reaches the top, <code>traceback()</code> shows <code>report &gt; summarise_weighted &gt; wmean &gt; /</code> so the bug is in <code>wmean</code>. Defensive guards belong in the lowest helper where the math actually happens, not in the outer report function. Returning <code>NA_real_</code> with a warning keeps downstream code typed and observable rather than silently producing <code>NaN</code>.</p>
 
 </details>
 
-<h3>Exercise 1.3: Capture the call stack inside a tryCatch handler</h3>
+</section>
 
-<p><strong>Task:</strong> Sometimes you cannot rerun a failing job interactively, so you want the function itself to log the call stack when it crashes. Wrap the buggy call <code>log(c(1, -2, 3))</code> (which warns but does not error) inside an explicit <code>tryCatch</code> that on a deliberate <code>stop()</code> inside the body captures <code>sys.calls()</code> as a character vector. Trigger an error via <code>stop(&quot;synthetic error&quot;)</code> after the <code>log()</code> call, capture the calls in the error handler, and save the deparsed call vector to <code>ex_1_3</code>.</p>
+<section class="exercise" data-exercise-id="R-Debugging-Exercises-ex-1-3" data-grade-mode="self-check" data-difficulty="intermediate">
 
+<h3 class="exercise-title">Exercise 1.3: Capture the call stack inside a tryCatch handler</h3>
+
+<p class="exercise-task"><strong>Task:</strong> Sometimes you cannot rerun a failing job interactively, so you want the function itself to log the call stack when it crashes. Wrap the buggy call <code>log(c(1, -2, 3))</code> (which warns but does not error) inside an explicit <code>tryCatch</code> that on a deliberate <code>stop()</code> inside the body captures <code>sys.calls()</code> as a character vector. Trigger an error via <code>stop(&quot;synthetic error&quot;)</code> after the <code>log()</code> call, capture the calls in the error handler, and save the deparsed call vector to <code>ex_1_3</code>.</p>
+
+<div class="exercise-expected">
 <p><strong>Expected result:</strong></p>
-
 <pre><code>#&gt; [1] &quot;tryCatch(...)&quot;          &quot;doTryCatch(...)&quot;        &quot;stop(\&quot;synthetic error\&quot;)&quot;</code></pre>
+</div>
 
 <p><strong>Difficulty:</strong> Intermediate</p>
+
+<div class="exercise-hints" hidden><p>The error handler runs while the failing call chain is still active, so that is the moment to snapshot the stack and turn each frame into readable text.</p><p>In the error handler, call sys.calls(), deparse each entry with vapply() and deparse(), and keep the last three frames with tail().</p></div>
 
 <pre><code class="language-r">ex_1_3 &lt;- tryCatch({
   log(c(1, -2, 3))
@@ -119,7 +138,7 @@ ex_1_2
 })
 ex_1_3</code></pre>
 
-<details>
+<details class="exercise-solution">
 <summary>Click to reveal solution</summary>
 
 <pre><code class="language-r">ex_1_3 &lt;- tryCatch({
@@ -132,21 +151,28 @@ ex_1_3</code></pre>
 ex_1_3
 #&gt; [1] &quot;tryCatch(...)&quot;          &quot;doTryCatch(...)&quot;        &quot;stop(\&quot;synthetic error\&quot;)&quot;</code></pre>
 
-<p><strong>Explanation:</strong> <code>sys.calls()</code> returns the active call stack at the moment it runs (inside the handler, after <code>stop()</code> triggers it). <code>deparse()</code> turns each call into source text, and <code>tail()</code> keeps only the three deepest frames so the log is concise. This is the programmatic equivalent of <code>traceback()</code> for crash reporting in non-interactive jobs.</p>
+<p class="exercise-explanation"><strong>Explanation:</strong> <code>sys.calls()</code> returns the active call stack at the moment it runs (inside the handler, after <code>stop()</code> triggers it). <code>deparse()</code> turns each call into source text, and <code>tail()</code> keeps only the three deepest frames so the log is concise. This is the programmatic equivalent of <code>traceback()</code> for crash reporting in non-interactive jobs.</p>
 
 </details>
 
+</section>
+
 <h2>Section 2. Interactive stepping with browser and breakpoints (3 problems)</h2>
 
-<h3>Exercise 2.1: Place browser to verify a running total</h3>
+<section class="exercise" data-exercise-id="R-Debugging-Exercises-ex-2-1" data-grade-mode="output-compare" data-difficulty="beginner">
 
-<p><strong>Task:</strong> A trainee wrote a <code>running_sum()</code> function that should return the cumulative total of a numeric vector, but the result is always the last element because the accumulator is reset inside the loop. Decide where to insert <code>browser()</code> to see the wrong reset (between the assignment and the addition), then rewrite the loop so the accumulator persists across iterations and save the cumulative vector for <code>1:5</code> to <code>ex_2_1</code>.</p>
+<h3 class="exercise-title">Exercise 2.1: Place browser to verify a running total</h3>
 
+<p class="exercise-task"><strong>Task:</strong> A trainee wrote a <code>running_sum()</code> function that should return the cumulative total of a numeric vector, but the result is always the last element because the accumulator is reset inside the loop. Decide where to insert <code>browser()</code> to see the wrong reset (between the assignment and the addition), then rewrite the loop so the accumulator persists across iterations and save the cumulative vector for <code>1:5</code> to <code>ex_2_1</code>.</p>
+
+<div class="exercise-expected">
 <p><strong>Expected result:</strong></p>
-
 <pre><code>#&gt; [1]  1  3  6 10 15</code></pre>
+</div>
 
 <p><strong>Difficulty:</strong> Beginner</p>
+
+<div class="exercise-hints" hidden><p>The accumulator is re-created on every pass through the loop, so it never remembers what came before; it needs to live where it survives all iterations.</p><p>Move the acc <- 0 initialization above the for loop so each iteration adds onto the previous running total.</p></div>
 
 <pre><code class="language-r">running_sum_bad &lt;- function(x) {
   out &lt;- numeric(length(x))
@@ -161,7 +187,7 @@ ex_1_3
 ex_2_1 &lt;- # your code here
 ex_2_1</code></pre>
 
-<details>
+<details class="exercise-solution">
 <summary>Click to reveal solution</summary>
 
 <pre><code class="language-r">running_sum &lt;- function(x) {
@@ -178,20 +204,27 @@ ex_2_1 &lt;- running_sum(1:5)
 ex_2_1
 #&gt; [1]  1  3  6 10 15</code></pre>
 
-<p><strong>Explanation:</strong> Inserting <code>browser()</code> right after <code>acc &lt;- 0</code> would show <code>acc</code> is always 0 at that point, which is the smoking gun. The fix is to lift the accumulator out of the loop body so it survives across iterations. <code>cumsum()</code> is the idiomatic one-liner in production, but writing the loop forces you to internalise the scoping issue.</p>
+<p class="exercise-explanation"><strong>Explanation:</strong> Inserting <code>browser()</code> right after <code>acc &lt;- 0</code> would show <code>acc</code> is always 0 at that point, which is the smoking gun. The fix is to lift the accumulator out of the loop body so it survives across iterations. <code>cumsum()</code> is the idiomatic one-liner in production, but writing the loop forces you to internalise the scoping issue.</p>
 
 </details>
 
-<h3>Exercise 2.2: Use browser to find a name conflict in argument forwarding</h3>
+</section>
 
-<p><strong>Task:</strong> A plotting wrapper <code>quick_hist()</code> forwards <code>...</code> to <code>hist()</code> but the wrapper also defines its own local variable named <code>breaks</code>, so a caller passing <code>breaks = 10</code> sees the wrapper's value win instead of theirs. Mentally place <code>browser()</code> at the top of the wrapper to inspect <code>list(...)</code> versus the local <code>breaks</code>, then refactor so the user's <code>breaks</code> wins. Verify by counting how many bins the histogram of <code>mtcars$mpg</code> produces with <code>breaks = 10</code> and save that bin count to <code>ex_2_2</code>.</p>
+<section class="exercise" data-exercise-id="R-Debugging-Exercises-ex-2-2" data-grade-mode="self-check" data-difficulty="intermediate">
 
+<h3 class="exercise-title">Exercise 2.2: Use browser to find a name conflict in argument forwarding</h3>
+
+<p class="exercise-task"><strong>Task:</strong> A plotting wrapper <code>quick_hist()</code> forwards <code>...</code> to <code>hist()</code> but the wrapper also defines its own local variable named <code>breaks</code>, so a caller passing <code>breaks = 10</code> sees the wrapper's value win instead of theirs. Mentally place <code>browser()</code> at the top of the wrapper to inspect <code>list(...)</code> versus the local <code>breaks</code>, then refactor so the user's <code>breaks</code> wins. Verify by counting how many bins the histogram of <code>mtcars$mpg</code> produces with <code>breaks = 10</code> and save that bin count to <code>ex_2_2</code>.</p>
+
+<div class="exercise-expected">
 <p><strong>Expected result:</strong></p>
-
 <pre><code>#&gt; # bin count after user-supplied breaks wins:
 #&gt; [1] 10</code></pre>
+</div>
 
 <p><strong>Difficulty:</strong> Intermediate</p>
+
+<div class="exercise-hints" hidden><p>The wrapper hard-codes its own value for the same name the caller is trying to pass, so the user's choice never reaches the inner call.</p><p>Make breaks a formal argument of quick_hist() with a default, pass it explicitly to hist(), and read the bin count from length(h$counts).</p></div>
 
 <pre><code class="language-r">quick_hist_bad &lt;- function(x, ...) {
   breaks &lt;- 5                       # bug: shadows any user-supplied breaks
@@ -201,7 +234,7 @@ ex_2_1
 ex_2_2 &lt;- # your code here
 ex_2_2</code></pre>
 
-<details>
+<details class="exercise-solution">
 <summary>Click to reveal solution</summary>
 
 <pre><code class="language-r">quick_hist &lt;- function(x, breaks = 5, ...) {
@@ -213,19 +246,26 @@ ex_2_2 &lt;- length(h$counts)
 ex_2_2
 #&gt; [1] 10</code></pre>
 
-<p><strong>Explanation:</strong> The conflict is that <code>breaks</code> is set inside the function body AND passed through <code>...</code>, so <code>hist()</code> receives the argument twice and errors, or worse, silently picks one. Promoting <code>breaks</code> to a formal argument with a default lets the user override it cleanly. <code>browser()</code> at the top would have revealed <code>list(...)$breaks</code> was 10 while the local <code>breaks</code> was 5 - the visual mismatch is the diagnostic signal.</p>
+<p class="exercise-explanation"><strong>Explanation:</strong> The conflict is that <code>breaks</code> is set inside the function body AND passed through <code>...</code>, so <code>hist()</code> receives the argument twice and errors, or worse, silently picks one. Promoting <code>breaks</code> to a formal argument with a default lets the user override it cleanly. <code>browser()</code> at the top would have revealed <code>list(...)$breaks</code> was 10 while the local <code>breaks</code> was 5 - the visual mismatch is the diagnostic signal.</p>
 
 </details>
 
-<h3>Exercise 2.3: Use trace at a specific expression to inspect intermediates</h3>
+</section>
 
-<p><strong>Task:</strong> A rolling-mean function <code>rmean()</code> is producing slightly wrong values for a 3-element window and you suspect the off-by-one is in the index range. Without modifying the source, use <code>trace(rmean, quote(print(idx)), at = 3)</code> to print the index vector at the third top-level expression of the body. Run <code>rmean(c(2,4,6,8,10), k = 3)</code>, capture the printed indices with <code>capture.output()</code>, untrace, and save the captured character vector (length 3, one per iteration) to <code>ex_2_3</code>.</p>
+<section class="exercise" data-exercise-id="R-Debugging-Exercises-ex-2-3" data-grade-mode="output-compare" data-difficulty="advanced">
 
+<h3 class="exercise-title">Exercise 2.3: Use trace at a specific expression to inspect intermediates</h3>
+
+<p class="exercise-task"><strong>Task:</strong> A rolling-mean function <code>rmean()</code> is producing slightly wrong values for a 3-element window and you suspect the off-by-one is in the index range. Without modifying the source, use <code>trace(rmean, quote(print(idx)), at = 3)</code> to print the index vector at the third top-level expression of the body. Run <code>rmean(c(2,4,6,8,10), k = 3)</code>, capture the printed indices with <code>capture.output()</code>, untrace, and save the captured character vector (length 3, one per iteration) to <code>ex_2_3</code>.</p>
+
+<div class="exercise-expected">
 <p><strong>Expected result:</strong></p>
-
 <pre><code>#&gt; [1] &quot;[1] 1 2 3&quot; &quot;[1] 2 3 4&quot; &quot;[1] 3 4 5&quot;</code></pre>
+</div>
 
 <p><strong>Difficulty:</strong> Advanced</p>
+
+<div class="exercise-hints" hidden><p>You want to watch a loop's intermediate index value without editing the source, then make sure the instrumentation is removed afterward.</p><p>Use trace() with quote(print(idx)) and an at position inside the loop body, capture the run with capture.output(), then untrace().</p></div>
 
 <pre><code class="language-r">rmean &lt;- function(x, k) {
   n   &lt;- length(x)
@@ -240,7 +280,7 @@ ex_2_2
 ex_2_3 &lt;- # your code here
 ex_2_3</code></pre>
 
-<details>
+<details class="exercise-solution">
 <summary>Click to reveal solution</summary>
 
 <pre><code class="language-r">rmean &lt;- function(x, k) {
@@ -261,21 +301,28 @@ ex_2_3 &lt;- captured
 ex_2_3
 #&gt; [1] &quot;[1] 1 2 3&quot; &quot;[1] 2 3 4&quot; &quot;[1] 3 4 5&quot;</code></pre>
 
-<p><strong>Explanation:</strong> <code>at = list(c(3, 4))</code> reaches into the third top-level statement (the <code>for</code> loop) and inserts the tracer immediately before the fourth nested statement (the <code>mean()</code> assignment), so <code>idx</code> is visible. <code>capture.output()</code> redirects printing to a character vector for verification, and <code>untrace()</code> removes the instrumentation so subsequent calls run unmodified.</p>
+<p class="exercise-explanation"><strong>Explanation:</strong> <code>at = list(c(3, 4))</code> reaches into the third top-level statement (the <code>for</code> loop) and inserts the tracer immediately before the fourth nested statement (the <code>mean()</code> assignment), so <code>idx</code> is visible. <code>capture.output()</code> redirects printing to a character vector for verification, and <code>untrace()</code> removes the instrumentation so subsequent calls run unmodified.</p>
 
 </details>
 
+</section>
+
 <h2>Section 3. debug, debugonce, and trace instrumentation (3 problems)</h2>
 
-<h3>Exercise 3.1: Fix a closure that captured the wrong free variable</h3>
+<section class="exercise" data-exercise-id="R-Debugging-Exercises-ex-3-1" data-grade-mode="output-compare" data-difficulty="beginner">
 
-<p><strong>Task:</strong> A code reviewer notices that <code>make_adder()</code> always adds the LAST value of <code>n</code> in a <code>for</code> loop because the <a class="auto-link" href="R-Closures.html" title="R Closures: Functions That Remember Their Defining Environment">closure</a> captures by reference, not by value. After conceptually running <code>debugonce(adders[[1]])</code> to confirm <code>n</code> resolves to 3 inside both closures, rewrite <code>make_adder()</code> to force the captured value at definition time, build a list of adders for <code>n = 1:3</code>, apply each to 10, and save the resulting vector to <code>ex_3_1</code>.</p>
+<h3 class="exercise-title">Exercise 3.1: Fix a closure that captured the wrong free variable</h3>
 
+<p class="exercise-task"><strong>Task:</strong> A code reviewer notices that <code>make_adder()</code> always adds the LAST value of <code>n</code> in a <code>for</code> loop because the <a class="auto-link" href="R-Closures.html" title="R Closures: Functions That Remember Their Defining Environment">closure</a> captures by reference, not by value. After conceptually running <code>debugonce(adders[[1]])</code> to confirm <code>n</code> resolves to 3 inside both closures, rewrite <code>make_adder()</code> to force the captured value at definition time, build a list of adders for <code>n = 1:3</code>, apply each to 10, and save the resulting vector to <code>ex_3_1</code>.</p>
+
+<div class="exercise-expected">
 <p><strong>Expected result:</strong></p>
-
 <pre><code>#&gt; [1] 11 12 13</code></pre>
+</div>
 
 <p><strong>Difficulty:</strong> Beginner</p>
+
+<div class="exercise-hints" hidden><p>All the closures share one loop variable, so they all see its final value; each closure needs its own private copy fixed at definition time.</p><p>Wrap the per-iteration assignment in local() (or build the list with <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Map()</a>) so each function binds its own number.</p></div>
 
 <pre><code class="language-r">make_adder_bad &lt;- function() {
   out &lt;- list()
@@ -288,7 +335,7 @@ ex_2_3
 ex_3_1 &lt;- # your code here
 ex_3_1</code></pre>
 
-<details>
+<details class="exercise-solution">
 <summary>Click to reveal solution</summary>
 
 <pre><code class="language-r">make_adder &lt;- function() {
@@ -307,19 +354,26 @@ ex_3_1 &lt;- sapply(adders, function(f) f(10))
 ex_3_1
 #&gt; [1] 11 12 13</code></pre>
 
-<p><strong>Explanation:</strong> Stepping with <code>debugonce()</code> inside <code>adders[[1]]</code> shows the body is <code>x + n</code> and <code>n</code> evaluates to 3 because it was the loop's final value when the closure was eventually called. Wrapping the assignment in <code>local()</code> (or using <code>Map(function(n) function(x) x + n, 1:3)</code>) forces R to bind <code>nn</code> per iteration, so each closure remembers its own number.</p>
+<p class="exercise-explanation"><strong>Explanation:</strong> Stepping with <code>debugonce()</code> inside <code>adders[[1]]</code> shows the body is <code>x + n</code> and <code>n</code> evaluates to 3 because it was the loop's final value when the closure was eventually called. Wrapping the assignment in <code>local()</code> (or using <code>Map(function(n) function(x) x + n, 1:3)</code>) forces R to bind <code>nn</code> per iteration, so each closure remembers its own number.</p>
 
 </details>
 
-<h3>Exercise 3.2: Insert a tracer that records the value at a chosen expression</h3>
+</section>
 
-<p><strong>Task:</strong> A statistician wants to confirm that <code>winsorize()</code> is clipping at the correct quantile thresholds without editing the source. Use <code>trace(winsorize, quote(message(&quot;lo=&quot;, lo, &quot; hi=&quot;, hi)), at = 3)</code> to inject a message at the third statement (the assignment of <code>out</code>), call <code>winsorize(c(1, 2, 5, 10, 100), p = 0.2)</code>, capture the message via <code>capture.output(type = &quot;message&quot;)</code>, untrace, and save the captured character string to <code>ex_3_2</code>.</p>
+<section class="exercise" data-exercise-id="R-Debugging-Exercises-ex-3-2" data-grade-mode="output-compare" data-difficulty="advanced">
 
+<h3 class="exercise-title">Exercise 3.2: Insert a tracer that records the value at a chosen expression</h3>
+
+<p class="exercise-task"><strong>Task:</strong> A statistician wants to confirm that <code>winsorize()</code> is clipping at the correct quantile thresholds without editing the source. Use <code>trace(winsorize, quote(message(&quot;lo=&quot;, lo, &quot; hi=&quot;, hi)), at = 3)</code> to inject a message at the third statement (the assignment of <code>out</code>), call <code>winsorize(c(1, 2, 5, 10, 100), p = 0.2)</code>, capture the message via <code>capture.output(type = &quot;message&quot;)</code>, untrace, and save the captured character string to <code>ex_3_2</code>.</p>
+
+<div class="exercise-expected">
 <p><strong>Expected result:</strong></p>
-
 <pre><code>#&gt; [1] &quot;lo=1.8 hi=82&quot;</code></pre>
+</div>
 
 <p><strong>Difficulty:</strong> Advanced</p>
+
+<div class="exercise-hints" hidden><p>You want to confirm the clipping thresholds at the point where both are already computed, without editing the function body.</p><p>Inject a trace() of quote(message("lo=", lo, " hi=", hi)) at the right at position, then capture with capture.output(type = "message") and untrace().</p></div>
 
 <pre><code class="language-r">winsorize &lt;- function(x, p = 0.05) {
   lo  &lt;- quantile(x, p,     names = FALSE)
@@ -331,7 +385,7 @@ ex_3_1
 ex_3_2 &lt;- # your code here
 ex_3_2</code></pre>
 
-<details>
+<details class="exercise-solution">
 <summary>Click to reveal solution</summary>
 
 <pre><code class="language-r">winsorize &lt;- function(x, p = 0.05) {
@@ -352,26 +406,33 @@ ex_3_2 &lt;- msg[grepl(&quot;^lo=&quot;, msg)]
 ex_3_2
 #&gt; [1] &quot;lo=1.8 hi=82&quot;</code></pre>
 
-<p><strong>Explanation:</strong> <code>at = 3</code> places the tracer just before the third top-level expression, so by the time it fires both <code>lo</code> and <code>hi</code> are already bound. <code>message()</code> writes to <code>stderr</code>, which is why <code>capture.output(type = &quot;message&quot;)</code> is the right capture mode. Filtering with <code>grepl()</code> drops the trace banner so only the data line survives.</p>
+<p class="exercise-explanation"><strong>Explanation:</strong> <code>at = 3</code> places the tracer just before the third top-level expression, so by the time it fires both <code>lo</code> and <code>hi</code> are already bound. <code>message()</code> writes to <code>stderr</code>, which is why <code>capture.output(type = &quot;message&quot;)</code> is the right capture mode. Filtering with <code>grepl()</code> drops the trace banner so only the data line survives.</p>
 
 </details>
 
-<h3>Exercise 3.3: Manage the trace/untrace lifecycle cleanly</h3>
+</section>
 
-<p><strong>Task:</strong> Instrumentation that you forget to remove will leak into every subsequent call, so a disciplined workflow always pairs <code>trace()</code> with <code>untrace()</code>. Trace <code>nchar</code> so that each call also messages its argument, call <code>nchar(&quot;hello&quot;)</code>, untrace, then verify the trace is gone by inspecting <code>body(nchar)</code> for the injected <code>message(</code> call (it should not appear after untrace). Save the boolean confirming that the body is clean to <code>ex_3_3</code>.</p>
+<section class="exercise" data-exercise-id="R-Debugging-Exercises-ex-3-3" data-grade-mode="output-compare" data-difficulty="advanced">
 
+<h3 class="exercise-title">Exercise 3.3: Manage the trace/untrace lifecycle cleanly</h3>
+
+<p class="exercise-task"><strong>Task:</strong> Instrumentation that you forget to remove will leak into every subsequent call, so a disciplined workflow always pairs <code>trace()</code> with <code>untrace()</code>. Trace <code>nchar</code> so that each call also messages its argument, call <code>nchar(&quot;hello&quot;)</code>, untrace, then verify the trace is gone by inspecting <code>body(nchar)</code> for the injected <code>message(</code> call (it should not appear after untrace). Save the boolean confirming that the body is clean to <code>ex_3_3</code>.</p>
+
+<div class="exercise-expected">
 <p><strong>Expected result:</strong></p>
-
 <pre><code>#&gt; [1] TRUE</code></pre>
+</div>
 
 <p><strong>Difficulty:</strong> Advanced</p>
+
+<div class="exercise-hints" hidden><p>Instrumentation left in place leaks into later calls, so the discipline is to pair adding it with removing it and then proving it is gone.</p><p>After calling the traced function, run untrace(), then inspect body(nchar) via deparse() and <a class="auto-link" href="base-grep-grepl-in-R.html" title="grep() and grepl() in R: Search Strings With Patterns">grepl()</a> to confirm the injected expression is absent.</p></div>
 
 <pre><code class="language-r">suppressMessages(trace(nchar, quote(message(&quot;arg=&quot;, type)), at = 1))
 # call nchar, then untrace
 ex_3_3 &lt;- # your code here
 ex_3_3</code></pre>
 
-<details>
+<details class="exercise-solution">
 <summary>Click to reveal solution</summary>
 
 <pre><code class="language-r">suppressMessages(trace(nchar, quote(message(&quot;arg=&quot;, type)), at = 1))
@@ -383,21 +444,28 @@ ex_3_3 &lt;- !grepl(&quot;arg=&quot;, body_text, fixed = TRUE)
 ex_3_3
 #&gt; [1] TRUE</code></pre>
 
-<p><strong>Explanation:</strong> When <code>trace()</code> is active, <code>body(nchar)</code> shows the injected expression inline; <code>untrace()</code> restores the original body. Checking <code>grepl(&quot;arg=&quot;, body_text)</code> after untrace gives a deterministic boolean signal you can assert in tests, so a test suite catches accidentally-left-on instrumentation before it ships.</p>
+<p class="exercise-explanation"><strong>Explanation:</strong> When <code>trace()</code> is active, <code>body(nchar)</code> shows the injected expression inline; <code>untrace()</code> restores the original body. Checking <code>grepl(&quot;arg=&quot;, body_text)</code> after untrace gives a deterministic boolean signal you can assert in tests, so a test suite catches accidentally-left-on instrumentation before it ships.</p>
 
 </details>
 
+</section>
+
 <h2>Section 4. Catching errors with tryCatch (3 problems)</h2>
 
-<h3>Exercise 4.1: Make a parser resilient via tryCatch around each element</h3>
+<section class="exercise" data-exercise-id="R-Debugging-Exercises-ex-4-1" data-grade-mode="output-compare" data-difficulty="intermediate">
 
-<p><strong>Task:</strong> An ingestion job receives a character vector of supposedly-numeric strings, but one row contains <code>&quot;bad&quot;</code>. Without tryCatch the whole <code>sapply(as.numeric, ...)</code> succeeds with a warning but loses the bad row's identity, and a stricter helper that uses <code>stop()</code> halts the batch. Wrap the conversion in <code>tryCatch</code> per element so a bad value returns <code>NA_real_</code>, run it over <code>c(&quot;1.5&quot;, &quot;2.7&quot;, &quot;bad&quot;, &quot;4.0&quot;)</code>, and save the length-4 numeric vector to <code>ex_4_1</code>.</p>
+<h3 class="exercise-title">Exercise 4.1: Make a parser resilient via tryCatch around each element</h3>
 
+<p class="exercise-task"><strong>Task:</strong> An ingestion job receives a character vector of supposedly-numeric strings, but one row contains <code>&quot;bad&quot;</code>. Without tryCatch the whole <code>sapply(as.numeric, ...)</code> succeeds with a warning but loses the bad row's identity, and a stricter helper that uses <code>stop()</code> halts the batch. Wrap the conversion in <code>tryCatch</code> per element so a bad value returns <code>NA_real_</code>, run it over <code>c(&quot;1.5&quot;, &quot;2.7&quot;, &quot;bad&quot;, &quot;4.0&quot;)</code>, and save the length-4 numeric vector to <code>ex_4_1</code>.</p>
+
+<div class="exercise-expected">
 <p><strong>Expected result:</strong></p>
-
 <pre><code>#&gt; [1] 1.5 2.7  NA 4.0</code></pre>
+</div>
 
 <p><strong>Difficulty:</strong> Intermediate</p>
+
+<div class="exercise-hints" hidden><p>One bad row should not abort the whole batch, so each element must be converted in isolation with its own safety net.</p><p>Wrap strict_parse(s) in tryCatch() with error = function(e) NA_real_ and apply it per element with vapply() returning numeric(1).</p></div>
 
 <pre><code class="language-r">strict_parse &lt;- function(s) {
   out &lt;- as.numeric(s)
@@ -409,7 +477,7 @@ inputs &lt;- c(&quot;1.5&quot;, &quot;2.7&quot;, &quot;bad&quot;, &quot;4.0&quot
 ex_4_1 &lt;- # your code here
 ex_4_1</code></pre>
 
-<details>
+<details class="exercise-solution">
 <summary>Click to reveal solution</summary>
 
 <pre><code class="language-r">strict_parse &lt;- function(s) {
@@ -428,23 +496,30 @@ ex_4_1 &lt;- suppressWarnings(
 ex_4_1
 #&gt; [1] 1.5 2.7  NA 4.0</code></pre>
 
-<p><strong>Explanation:</strong> Per-element <code>tryCatch</code> isolates each failure so one bad row cannot kill the batch. <code>vapply()</code> with <code>numeric(1)</code> enforces a numeric scalar per call, so the result is type-stable even if every row errors. The pattern generalises to any partial-success workflow: ingestion, scraping, API calls, model refits.</p>
+<p class="exercise-explanation"><strong>Explanation:</strong> Per-element <code>tryCatch</code> isolates each failure so one bad row cannot kill the batch. <code>vapply()</code> with <code>numeric(1)</code> enforces a numeric scalar per call, so the result is type-stable even if every row errors. The pattern generalises to any partial-success workflow: ingestion, scraping, API calls, model refits.</p>
 
 </details>
 
-<h3>Exercise 4.2: Branch on error versus warning in tryCatch</h3>
+</section>
 
-<p><strong>Task:</strong> Some code paths produce warnings (e.g. <code>as.numeric(&quot;x&quot;)</code> returns NA with a warning) while others produce errors (e.g. <code>stop(&quot;boom&quot;)</code>). Build a <code>classify()</code> helper that wraps an expression in <code>tryCatch</code> with both <code>error =</code> and <code>warning =</code> arms, returning a named two-element list <code>list(kind, message)</code> distinguishing the two cases. Apply it to <code>stop(&quot;boom&quot;)</code> and save the resulting list to <code>ex_4_2</code>.</p>
+<section class="exercise" data-exercise-id="R-Debugging-Exercises-ex-4-2" data-grade-mode="output-compare" data-difficulty="intermediate">
 
+<h3 class="exercise-title">Exercise 4.2: Branch on error versus warning in tryCatch</h3>
+
+<p class="exercise-task"><strong>Task:</strong> Some code paths produce warnings (e.g. <code>as.numeric(&quot;x&quot;)</code> returns NA with a warning) while others produce errors (e.g. <code>stop(&quot;boom&quot;)</code>). Build a <code>classify()</code> helper that wraps an expression in <code>tryCatch</code> with both <code>error =</code> and <code>warning =</code> arms, returning a named two-element list <code>list(kind, message)</code> distinguishing the two cases. Apply it to <code>stop(&quot;boom&quot;)</code> and save the resulting list to <code>ex_4_2</code>.</p>
+
+<div class="exercise-expected">
 <p><strong>Expected result:</strong></p>
-
 <pre><code>#&gt; $kind
 #&gt; [1] &quot;error&quot;
 #&gt;
 #&gt; $message
 #&gt; [1] &quot;boom&quot;</code></pre>
+</div>
 
 <p><strong>Difficulty:</strong> Intermediate</p>
+
+<div class="exercise-hints" hidden><p>Errors and warnings are different kinds of conditions, and the helper should report which one occurred rather than collapsing them together.</p><p>Give tryCatch() separate warning = and error = arms, extract text with conditionMessage(), and return a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a>(kind, message).</p></div>
 
 <pre><code class="language-r">classify &lt;- function(expr) {
   # tryCatch with separate error= and warning= arms
@@ -452,7 +527,7 @@ ex_4_1
 ex_4_2 &lt;- # your code here
 ex_4_2</code></pre>
 
-<details>
+<details class="exercise-solution">
 <summary>Click to reveal solution</summary>
 
 <pre><code class="language-r">classify &lt;- function(expr) {
@@ -471,19 +546,26 @@ ex_4_2
 #&gt; $message
 #&gt; [1] &quot;boom&quot;</code></pre>
 
-<p><strong>Explanation:</strong> <code>tryCatch</code> evaluates each handler in the order written, so listing <code>warning =</code> before <code>error =</code> is fine because R picks the one matching the actual condition class. <code>conditionMessage()</code> extracts the human-readable text. Note that <code>tryCatch</code> HALTS execution on a warning if you attach a handler to it; if you want the expression to continue after warnings, use <code>withCallingHandlers</code> (see Section 5).</p>
+<p class="exercise-explanation"><strong>Explanation:</strong> <code>tryCatch</code> evaluates each handler in the order written, so listing <code>warning =</code> before <code>error =</code> is fine because R picks the one matching the actual condition class. <code>conditionMessage()</code> extracts the human-readable text. Note that <code>tryCatch</code> HALTS execution on a warning if you attach a handler to it; if you want the expression to continue after warnings, use <code>withCallingHandlers</code> (see Section 5).</p>
 
 </details>
 
-<h3>Exercise 4.3: Use finally to guarantee cleanup</h3>
+</section>
 
-<p><strong>Task:</strong> A function opens a temporary file connection, writes a row, and must always close the connection even if a subsequent calculation throws. Use <code>tryCatch</code> with a <code>finally =</code> arm that closes the connection regardless of outcome. After a deliberate <code>stop(&quot;simulated failure&quot;)</code> inside the body, verify that the connection is no longer open by checking <code>isOpen(con)</code> was reset before propagating, and save the boolean confirming cleanup happened to <code>ex_4_3</code>.</p>
+<section class="exercise" data-exercise-id="R-Debugging-Exercises-ex-4-3" data-grade-mode="output-compare" data-difficulty="intermediate">
 
+<h3 class="exercise-title">Exercise 4.3: Use finally to guarantee cleanup</h3>
+
+<p class="exercise-task"><strong>Task:</strong> A function opens a temporary file connection, writes a row, and must always close the connection even if a subsequent calculation throws. Use <code>tryCatch</code> with a <code>finally =</code> arm that closes the connection regardless of outcome. After a deliberate <code>stop(&quot;simulated failure&quot;)</code> inside the body, verify that the connection is no longer open by checking <code>isOpen(con)</code> was reset before propagating, and save the boolean confirming cleanup happened to <code>ex_4_3</code>.</p>
+
+<div class="exercise-expected">
 <p><strong>Expected result:</strong></p>
-
 <pre><code>#&gt; [1] TRUE</code></pre>
+</div>
 
 <p><strong>Difficulty:</strong> Intermediate</p>
+
+<div class="exercise-hints" hidden><p>The cleanup step must run no matter how the body exits, so it belongs in the one arm that always executes.</p><p>Add a finally = arm to tryCatch() that calls close(con) and flips the outer flag with <<-; confirm with isOpen().</p></div>
 
 <pre><code class="language-r">tmp &lt;- tempfile()
 con &lt;- file(tmp, open = &quot;w&quot;)
@@ -492,7 +574,7 @@ closed_ok &lt;- FALSE
 ex_4_3 &lt;- # your code here
 ex_4_3</code></pre>
 
-<details>
+<details class="exercise-solution">
 <summary>Click to reveal solution</summary>
 
 <pre><code class="language-r">tmp &lt;- tempfile()
@@ -512,28 +594,35 @@ ex_4_3 &lt;- closed_ok &amp;&amp; !isOpen(con, rw = &quot;&quot;)
 ex_4_3
 #&gt; [1] TRUE</code></pre>
 
-<p><strong>Explanation:</strong> The <code>finally =</code> arm runs whether the body succeeded, threw, or was caught, which makes it the right hook for resource cleanup like closing connections, removing temp files, or releasing locks. Using <code>&lt;&lt;-</code> lets the finally block flip the outer-scope <code>closed_ok</code> flag. <code>isOpen(con, rw = &quot;&quot;)</code> then confirms the underlying file descriptor really is closed.</p>
+<p class="exercise-explanation"><strong>Explanation:</strong> The <code>finally =</code> arm runs whether the body succeeded, threw, or was caught, which makes it the right hook for resource cleanup like closing connections, removing temp files, or releasing locks. Using <code>&lt;&lt;-</code> lets the finally block flip the outer-scope <code>closed_ok</code> flag. <code>isOpen(con, rw = &quot;&quot;)</code> then confirms the underlying file descriptor really is closed.</p>
 
 </details>
 
+</section>
+
 <h2>Section 5. withCallingHandlers, conditions, and restarts (3 problems)</h2>
 
-<h3>Exercise 5.1: Collect every warning without halting the computation</h3>
+<section class="exercise" data-exercise-id="R-Debugging-Exercises-ex-5-1" data-grade-mode="output-compare" data-difficulty="advanced">
 
-<p><strong>Task:</strong> A model-fitting loop produces several <code>glm</code> warnings that you want to log without aborting. Wrap a call to <code>sapply(c(1, -2, 3, -4), log)</code> in <code>withCallingHandlers</code> whose <code>warning =</code> handler appends <code>conditionMessage(w)</code> to a growing list and then invokes the <code>muffleWarning</code> restart so the body keeps running. After the call, save the captured warning messages (a character vector of length 2, one per negative input) to <code>ex_5_1</code>.</p>
+<h3 class="exercise-title">Exercise 5.1: Collect every warning without halting the computation</h3>
 
+<p class="exercise-task"><strong>Task:</strong> A model-fitting loop produces several <code>glm</code> warnings that you want to log without aborting. Wrap a call to <code>sapply(c(1, -2, 3, -4), log)</code> in <code>withCallingHandlers</code> whose <code>warning =</code> handler appends <code>conditionMessage(w)</code> to a growing list and then invokes the <code>muffleWarning</code> restart so the body keeps running. After the call, save the captured warning messages (a character vector of length 2, one per negative input) to <code>ex_5_1</code>.</p>
+
+<div class="exercise-expected">
 <p><strong>Expected result:</strong></p>
-
 <pre><code>#&gt; [1] &quot;NaNs produced&quot; &quot;NaNs produced&quot;</code></pre>
+</div>
 
 <p><strong>Difficulty:</strong> Advanced</p>
+
+<div class="exercise-hints" hidden><p>You want every warning logged but the computation to keep running, which means the handler must record the message and then hand control back to the signalling code.</p><p>Use <a class="auto-link" href="R-Conditions-System.html" title="R Conditions System: message(), warning(), stop() & Custom Conditions">withCallingHandlers()</a> with a warning = handler that appends conditionMessage(w) via <<- and then calls invokeRestart("muffleWarning").</p></div>
 
 <pre><code class="language-r">warnings_log &lt;- character()
 # withCallingHandlers around sapply(log) with invokeRestart(&quot;muffleWarning&quot;)
 ex_5_1 &lt;- # your code here
 ex_5_1</code></pre>
 
-<details>
+<details class="exercise-solution">
 <summary>Click to reveal solution</summary>
 
 <pre><code class="language-r">warnings_log &lt;- character()
@@ -550,19 +639,26 @@ ex_5_1 &lt;- warnings_log
 ex_5_1
 #&gt; [1] &quot;NaNs produced&quot; &quot;NaNs produced&quot;</code></pre>
 
-<p><strong>Explanation:</strong> Unlike <code>tryCatch</code>, <code>withCallingHandlers</code> returns control to the signalling code after the handler runs, which is exactly what you want for warnings. Calling <code>invokeRestart(&quot;muffleWarning&quot;)</code> consumes the warning so it is not also printed to the console. The <code>&lt;&lt;-</code> operator updates the closure-scope log so the collected messages survive after the call returns.</p>
+<p class="exercise-explanation"><strong>Explanation:</strong> Unlike <code>tryCatch</code>, <code>withCallingHandlers</code> returns control to the signalling code after the handler runs, which is exactly what you want for warnings. Calling <code>invokeRestart(&quot;muffleWarning&quot;)</code> consumes the warning so it is not also printed to the console. The <code>&lt;&lt;-</code> operator updates the closure-scope log so the collected messages survive after the call returns.</p>
 
 </details>
 
-<h3>Exercise 5.2: Define and catch a domain-specific custom condition</h3>
+</section>
 
-<p><strong>Task:</strong> A data-quality job wants to distinguish ordinary errors from a specific failure mode "row contains a negative price", which downstream code should retry rather than halt the batch on. Define a custom condition class <code>data_quality_error</code> (extending <code>error</code> and <code>condition</code>), raise it via <code>stop()</code> with a structured payload, and catch ONLY that class in <code>tryCatch</code>, returning the message. Save the captured message string to <code>ex_5_2</code>.</p>
+<section class="exercise" data-exercise-id="R-Debugging-Exercises-ex-5-2" data-grade-mode="output-compare" data-difficulty="advanced">
 
+<h3 class="exercise-title">Exercise 5.2: Define and catch a domain-specific custom condition</h3>
+
+<p class="exercise-task"><strong>Task:</strong> A data-quality job wants to distinguish ordinary errors from a specific failure mode "row contains a negative price", which downstream code should retry rather than halt the batch on. Define a custom condition class <code>data_quality_error</code> (extending <code>error</code> and <code>condition</code>), raise it via <code>stop()</code> with a structured payload, and catch ONLY that class in <code>tryCatch</code>, returning the message. Save the captured message string to <code>ex_5_2</code>.</p>
+
+<div class="exercise-expected">
 <p><strong>Expected result:</strong></p>
-
 <pre><code>#&gt; [1] &quot;negative price detected: -5&quot;</code></pre>
+</div>
 
 <p><strong>Difficulty:</strong> Advanced</p>
+
+<div class="exercise-hints" hidden><p>A specific failure mode should be distinguishable from ordinary bugs, so it needs its own labelled condition that handlers can target precisely.</p><p>Build the condition with <a class="auto-link" href="R-Attributes.html" title="R Attributes: The Hidden Metadata That Makes R Objects Behave Differently">structure()</a> giving a class vector that starts with data_quality_error, raise it via stop(), and catch it with a data_quality_error = arm in tryCatch().</p></div>
 
 <pre><code class="language-r">make_dq_error &lt;- function(msg, price) {
   # build a condition with classes c(&quot;data_quality_error&quot;, &quot;error&quot;, &quot;condition&quot;)
@@ -575,7 +671,7 @@ check_price &lt;- function(p) {
 ex_5_2 &lt;- # your code here
 ex_5_2</code></pre>
 
-<details>
+<details class="exercise-solution">
 <summary>Click to reveal solution</summary>
 
 <pre><code class="language-r">make_dq_error &lt;- function(msg, price) {
@@ -597,20 +693,27 @@ ex_5_2 &lt;- tryCatch(
 ex_5_2
 #&gt; [1] &quot;negative price detected: -5&quot;</code></pre>
 
-<p><strong>Explanation:</strong> Custom classes let <code>tryCatch</code> dispatch on the SPECIFIC condition, leaving genuine bugs (like a typo) to propagate as unhandled errors. The class vector order matters: <code>data_quality_error</code> must come before <code>error</code> so handlers can target it. Storing <code>price</code> on the condition object lets a retry handler decide what to do without re-parsing the message.</p>
+<p class="exercise-explanation"><strong>Explanation:</strong> Custom classes let <code>tryCatch</code> dispatch on the SPECIFIC condition, leaving genuine bugs (like a typo) to propagate as unhandled errors. The class vector order matters: <code>data_quality_error</code> must come before <code>error</code> so handlers can target it. Storing <code>price</code> on the condition object lets a retry handler decide what to do without re-parsing the message.</p>
 
 </details>
 
-<h3>Exercise 5.3: Install a restart and invoke it from a handler</h3>
+</section>
 
-<p><strong>Task:</strong> A helper <code>safe_log()</code> signals a <code>negative_input</code> condition when given a non-positive number, and the calling code installs a <code>use_default</code> restart that returns <code>0</code> instead. Wire <code>withRestarts()</code> inside <code>safe_log()</code> to expose the restart, signal the condition with <code>withCallingHandlers</code> outside, have the handler call <code>invokeRestart(&quot;use_default&quot;)</code>, and save the returned value for <code>safe_log(-1)</code> to <code>ex_5_3</code>.</p>
+<section class="exercise" data-exercise-id="R-Debugging-Exercises-ex-5-3" data-grade-mode="output-compare" data-difficulty="advanced">
 
+<h3 class="exercise-title">Exercise 5.3: Install a restart and invoke it from a handler</h3>
+
+<p class="exercise-task"><strong>Task:</strong> A helper <code>safe_log()</code> signals a <code>negative_input</code> condition when given a non-positive number, and the calling code installs a <code>use_default</code> restart that returns <code>0</code> instead. Wire <code>withRestarts()</code> inside <code>safe_log()</code> to expose the restart, signal the condition with <code>withCallingHandlers</code> outside, have the handler call <code>invokeRestart(&quot;use_default&quot;)</code>, and save the returned value for <code>safe_log(-1)</code> to <code>ex_5_3</code>.</p>
+
+<div class="exercise-expected">
 <p><strong>Expected result:</strong></p>
-
 <pre><code>#&gt; # default returned via the use_default restart:
 #&gt; [1] 0</code></pre>
+</div>
 
 <p><strong>Difficulty:</strong> Advanced</p>
+
+<div class="exercise-hints" hidden><p>The helper should advertise a recovery option without deciding to use it; the caller picks the policy from its own handler.</p><p>Expose the recovery path with withRestarts() inside safe_log(), then call it under withCallingHandlers() whose handler runs invokeRestart("use_default").</p></div>
 
 <pre><code class="language-r">safe_log &lt;- function(x) {
   withRestarts({
@@ -628,7 +731,7 @@ ex_5_2
 ex_5_3 &lt;- # your code here
 ex_5_3</code></pre>
 
-<details>
+<details class="exercise-solution">
 <summary>Click to reveal solution</summary>
 
 <pre><code class="language-r">safe_log &lt;- function(x) {
@@ -651,21 +754,28 @@ ex_5_3 &lt;- withCallingHandlers(
 ex_5_3
 #&gt; [1] 0</code></pre>
 
-<p><strong>Explanation:</strong> Restarts decouple WHO knows how to recover from WHO knows the policy. <code>safe_log()</code> exposes "I can return a default" without choosing it; the caller decides at the handler. If no handler invokes the restart, the body's <code>stop()</code> fires and the user sees a real error. This is the same machinery <code>readline()</code> uses for "abort" versus "retry" at the R prompt.</p>
+<p class="exercise-explanation"><strong>Explanation:</strong> Restarts decouple WHO knows how to recover from WHO knows the policy. <code>safe_log()</code> exposes "I can return a default" without choosing it; the caller decides at the handler. If no handler invokes the restart, the body's <code>stop()</code> fires and the user sees a real error. This is the same machinery <code>readline()</code> uses for "abort" versus "retry" at the R prompt.</p>
 
 </details>
 
+</section>
+
 <h2>Section 6. Defensive coding and post-mortem inspection (3 problems)</h2>
 
-<h3>Exercise 6.1: Validate inputs with stopifnot and capture the message</h3>
+<section class="exercise" data-exercise-id="R-Debugging-Exercises-ex-6-1" data-grade-mode="output-compare" data-difficulty="intermediate">
 
-<p><strong>Task:</strong> A finance helper computes the log return of two prices but blows up cryptically when given a negative or zero denominator. Add <code>stopifnot(is.numeric(p1), is.numeric(p0), p0 &gt; 0)</code> at the top so bad input fails fast with a readable message, then wrap a call to <code>log_return(100, -5)</code> in <code>tryCatch</code> to capture the error message as a character string and save it to <code>ex_6_1</code>.</p>
+<h3 class="exercise-title">Exercise 6.1: Validate inputs with stopifnot and capture the message</h3>
 
+<p class="exercise-task"><strong>Task:</strong> A finance helper computes the log return of two prices but blows up cryptically when given a negative or zero denominator. Add <code>stopifnot(is.numeric(p1), is.numeric(p0), p0 &gt; 0)</code> at the top so bad input fails fast with a readable message, then wrap a call to <code>log_return(100, -5)</code> in <code>tryCatch</code> to capture the error message as a character string and save it to <code>ex_6_1</code>.</p>
+
+<div class="exercise-expected">
 <p><strong>Expected result:</strong></p>
-
 <pre><code>#&gt; [1] &quot;p0 &gt; 0 is not TRUE&quot;</code></pre>
+</div>
 
 <p><strong>Difficulty:</strong> Intermediate</p>
+
+<div class="exercise-hints" hidden><p>Bad input should fail immediately with a readable reason instead of producing a cryptic downstream error.</p><p>Add a stopifnot() line asserting the numeric types and p0 > 0, then capture the failure with tryCatch() and conditionMessage().</p></div>
 
 <pre><code class="language-r">log_return &lt;- function(p1, p0) {
   # add stopifnot guards
@@ -674,7 +784,7 @@ ex_5_3
 ex_6_1 &lt;- # your code here
 ex_6_1</code></pre>
 
-<details>
+<details class="exercise-solution">
 <summary>Click to reveal solution</summary>
 
 <pre><code class="language-r">log_return &lt;- function(p1, p0) {
@@ -689,20 +799,27 @@ ex_6_1 &lt;- tryCatch(
 ex_6_1
 #&gt; [1] &quot;p0 &gt; 0 is not TRUE&quot;</code></pre>
 
-<p><strong>Explanation:</strong> <code>stopifnot()</code> is the lightest defensive-programming idiom in base R: it evaluates each expression and stops with the literal text of the first one that returns <code>FALSE</code>. The auto-generated message ("p0 > 0 is not TRUE") is informative enough for most internal helpers. For user-facing APIs, prefer <code>stop(&quot;p0 must be positive, got &quot;, p0)</code> with a hand-crafted message.</p>
+<p class="exercise-explanation"><strong>Explanation:</strong> <code>stopifnot()</code> is the lightest defensive-programming idiom in base R: it evaluates each expression and stops with the literal text of the first one that returns <code>FALSE</code>. The auto-generated message ("p0 > 0 is not TRUE") is informative enough for most internal helpers. For user-facing APIs, prefer <code>stop(&quot;p0 must be positive, got &quot;, p0)</code> with a hand-crafted message.</p>
 
 </details>
 
-<h3>Exercise 6.2: Replicate recover-style post-mortem with sys.frames</h3>
+</section>
 
-<p><strong>Task:</strong> Interactive <code>options(error = recover)</code> is great at the console but useless in scheduled jobs, so you want a programmatic equivalent that captures the deepest frame's local variables on failure. Inside a <code>tryCatch</code> error handler around a function that allocates a local <code>n &lt;- 42</code> then errors, walk <code>sys.frames()</code> to find the deepest frame and extract <code>n</code> from it via <code>get0()</code>. Save the captured value of <code>n</code> to <code>ex_6_2</code>.</p>
+<section class="exercise" data-exercise-id="R-Debugging-Exercises-ex-6-2" data-grade-mode="output-compare" data-difficulty="intermediate">
 
+<h3 class="exercise-title">Exercise 6.2: Replicate recover-style post-mortem with sys.frames</h3>
+
+<p class="exercise-task"><strong>Task:</strong> Interactive <code>options(error = recover)</code> is great at the console but useless in scheduled jobs, so you want a programmatic equivalent that captures the deepest frame's local variables on failure. Inside a <code>tryCatch</code> error handler around a function that allocates a local <code>n &lt;- 42</code> then errors, walk <code>sys.frames()</code> to find the deepest frame and extract <code>n</code> from it via <code>get0()</code>. Save the captured value of <code>n</code> to <code>ex_6_2</code>.</p>
+
+<div class="exercise-expected">
 <p><strong>Expected result:</strong></p>
-
 <pre><code>#&gt; # value of local 'n' captured from the deepest frame:
 #&gt; [1] 42</code></pre>
+</div>
 
 <p><strong>Difficulty:</strong> Intermediate</p>
+
+<div class="exercise-hints" hidden><p>To inspect a failed call's locals you must look while its frames still exist, walking from the deepest one outward.</p><p>Inside a withCallingHandlers() error handler, iterate rev(sys.frames()) and pull the variable with get0("n", envir = fr, inherits = FALSE).</p></div>
 
 <pre><code class="language-r">deep_call &lt;- function() {
   n &lt;- 42
@@ -712,7 +829,7 @@ ex_6_1
 ex_6_2 &lt;- # your code here
 ex_6_2</code></pre>
 
-<details>
+<details class="exercise-solution">
 <summary>Click to reveal solution</summary>
 
 <pre><code class="language-r">deep_call &lt;- function() {
@@ -739,19 +856,26 @@ ex_6_2 &lt;- captured_n
 ex_6_2
 #&gt; [1] 42</code></pre>
 
-<p><strong>Explanation:</strong> Walking frames from deepest outward (<code>rev(sys.frames())</code>) and asking each one for <code>n</code> via <code>get0(..., inherits = FALSE)</code> mimics what <code>recover()</code> does interactively: peek at the locals at the moment of failure. Doing the inspection inside a <code>withCallingHandlers</code> handler (instead of <code>tryCatch</code>) is critical because the frames still exist; once <code>tryCatch</code> unwinds, the frames are gone.</p>
+<p class="exercise-explanation"><strong>Explanation:</strong> Walking frames from deepest outward (<code>rev(sys.frames())</code>) and asking each one for <code>n</code> via <code>get0(..., inherits = FALSE)</code> mimics what <code>recover()</code> does interactively: peek at the locals at the moment of failure. Doing the inspection inside a <code>withCallingHandlers</code> handler (instead of <code>tryCatch</code>) is critical because the frames still exist; once <code>tryCatch</code> unwinds, the frames are gone.</p>
 
 </details>
 
-<h3>Exercise 6.3: Build a chained error with parent context</h3>
+</section>
 
-<p><strong>Task:</strong> A pipeline catches a low-level error from a parser and wants to rethrow it with added high-level context ("failed during row 7") while preserving the original cause, similar to the <code>rlang::abort(parent = )</code> pattern but in pure base R. Build a chained condition with a <code>parent</code> slot, walk the chain to assemble the full message vector (outer first, then inner), and save the two-element character vector to <code>ex_6_3</code>.</p>
+<section class="exercise" data-exercise-id="R-Debugging-Exercises-ex-6-3" data-grade-mode="output-compare" data-difficulty="advanced">
 
+<h3 class="exercise-title">Exercise 6.3: Build a chained error with parent context</h3>
+
+<p class="exercise-task"><strong>Task:</strong> A pipeline catches a low-level error from a parser and wants to rethrow it with added high-level context ("failed during row 7") while preserving the original cause, similar to the <code>rlang::abort(parent = )</code> pattern but in pure base R. Build a chained condition with a <code>parent</code> slot, walk the chain to assemble the full message vector (outer first, then inner), and save the two-element character vector to <code>ex_6_3</code>.</p>
+
+<div class="exercise-expected">
 <p><strong>Expected result:</strong></p>
-
 <pre><code>#&gt; [1] &quot;failed during row 7&quot;        &quot;not numeric: bad&quot;</code></pre>
+</div>
 
 <p><strong>Difficulty:</strong> Advanced</p>
+
+<div class="exercise-hints" hidden><p>Rethrowing should add context without discarding the original cause, so the new error must carry a link back to the one that triggered it.</p><p>Build the outer condition with structure() including a parent slot holding e, raise it with stop(), and walk the parent links collecting each conditionMessage().</p></div>
 
 <pre><code class="language-r">parse_value &lt;- function(s) {
   v &lt;- suppressWarnings(as.numeric(s))
@@ -770,7 +894,7 @@ walk_chain &lt;- function(cond) {
 ex_6_3 &lt;- # your code here
 ex_6_3</code></pre>
 
-<details>
+<details class="exercise-solution">
 <summary>Click to reveal solution</summary>
 
 <pre><code class="language-r">parse_value &lt;- function(s) {
@@ -811,9 +935,11 @@ ex_6_3 &lt;- walk_chain(caught)
 ex_6_3
 #&gt; [1] &quot;failed during row 7&quot;        &quot;not numeric: bad&quot;</code></pre>
 
-<p><strong>Explanation:</strong> Storing the inner condition in a <code>parent</code> slot of a new condition object preserves the full causal chain, which is invaluable when an error surfaces three layers above where it actually happened. <code>walk_chain()</code> then unfolds the linked list into a flat character vector for logging. Modern packages like <code>rlang</code> and <code>cli</code> formalise this pattern, but the base-R machinery has been here all along: a condition is just a list, so you can attach anything you need to it.</p>
+<p class="exercise-explanation"><strong>Explanation:</strong> Storing the inner condition in a <code>parent</code> slot of a new condition object preserves the full causal chain, which is invaluable when an error surfaces three layers above where it actually happened. <code>walk_chain()</code> then unfolds the linked list into a flat character vector for logging. Modern packages like <code>rlang</code> and <code>cli</code> formalise this pattern, but the base-R machinery has been here all along: a condition is just a list, so you can attach anything you need to it.</p>
 
 </details>
+
+</section>
 
 <h2>What to do next</h2>
 

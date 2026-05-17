@@ -42,6 +42,10 @@ library(tibble)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A single threshold splits the score into two possible outcomes, and the comparison itself decides which one you get.
+Use `if (score >= 60) ... else ...` as an expression and assign its value straight into `ex_1_1`.
+
 ```r title="Your turn"
 score <- 72
 ex_1_1 <- # your code here
@@ -73,6 +77,10 @@ ex_1_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Test the strictest cutoff first so each later branch can assume the higher ones already failed.
+Chain `if (score >= 90) "A" else if (score >= 80) "B" ...` and finish with a bare `else "F"`.
 
 ```r title="Your turn"
 grade <- function(score) {
@@ -113,6 +121,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The transaction is risky if either condition alone holds, so a single combined test is enough.
+Return `amount > 5000 || !(country %in% allowed)` with the `allowed` set defined inside the function.
 
 ```r title="Your turn"
 flag_txn <- function(amount, country) {
@@ -156,6 +168,10 @@ ex_1_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+One call should map the whole numeric column to labels without visiting rows one at a time.
+Pass the logical test `mtcars$mpg >= 20` as the first argument to `ifelse()`, with "efficient" and "thirsty" as the yes/no values.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 head(ex_2_1, 18)
@@ -191,6 +207,10 @@ head(ex_2_1, 18)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Order the bands from cheapest upward so each later clause inherits the lower bound for free.
+Inside `mutate()`, call `case_when()` with `price < 1000 ~ "budget"`, `price < 5000 ~ "mid"`, and a `TRUE ~ "premium"` catch-all.
 
 ```r title="Your turn"
 ex_2_2 <- diamonds |>
@@ -236,6 +256,10 @@ count(ex_2_2, tier)
 
 **Difficulty:** Advanced
 
+[HINTS]
+Decide what a missing reading should become before any numeric band is considered.
+Make `is.na(Ozone) ~ NA_character_` the first clause of `case_when()`, then add the `< 50` and `< 100` bands.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 table(ex_2_3, useNA = "always")
@@ -275,6 +299,10 @@ table(ex_2_3, useNA = "always")
 
 **Difficulty:** Beginner
 
+[HINTS]
+Write each result into a slot that already exists rather than extending the container as you go.
+Inside the loop, assign `ex_3_1[i] <- i^2` using the loop index `i`.
+
 ```r title="Your turn"
 ex_3_1 <- numeric(5)
 for (i in seq_len(5)) {
@@ -313,6 +341,10 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Each pass handles one column and drops its average into the matching named slot.
+Use `mtcars[[j]]` to pull column `j` as a vector, then assign `mean(...)` of it to `ex_3_2[j]`.
 
 ```r title="Your turn"
 ex_3_2 <- numeric(ncol(mtcars))
@@ -360,6 +392,10 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Process one subject at a time: find their rows and accumulate within that group only, untouched rows keeping their order.
+Use `which(ex_3_3$subject_id == s)` to get the row indices, then write `cumsum()` of their doses back to those positions.
 
 ```r title="Your turn"
 dosing <- tibble(
@@ -412,6 +448,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each pass both changes the value being tested and records that a pass happened.
+In the loop body do `x <- x * 2` and `ex_4_1 <- ex_4_1 + 1`.
+
 ```r title="Your turn"
 x <- 1
 ex_4_1 <- 0
@@ -452,6 +492,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Advance the running total one day at a time and bail out the instant it sinks past the threshold.
+Increment `day`, add `rets[day]` to `cum_ret`, and when `cum_ret < -0.10` set `ex_4_2 <- day` then `break`.
 
 ```r title="Your turn"
 set.seed(7)
@@ -506,6 +550,10 @@ ex_4_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Some values are skipped before they ever touch the total, and the loop ends as soon as the total is high enough.
+Use `if (i %% 3 == 0) next` to skip, accumulate into `total`, and `break` once `total > 200` after storing the result list.
+
 ```r title="Your turn"
 total <- 0
 ex_4_3 <- list(total = NA_real_, index = NA_integer_)
@@ -558,6 +606,10 @@ ex_4_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+A fixed set of codes maps cleanly onto a lookup table, with a fallback for anything unrecognised.
+Call `switch(code, INFO = 1L, WARN = 2L, ERROR = 3L, FATAL = 4L, NA_integer_)`.
+
 ```r title="Your turn"
 severity_level <- function(code) {
   # your code here
@@ -600,6 +652,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The name picks which summary to compute, and an unknown name should fail loudly rather than return nothing.
+Use `switch(fn_name, mean = mean(x), median = median(x), ...)` with `stop(...)` as the default branch.
+
 ```r title="Your turn"
 summarise_by <- function(x, fn_name) {
   # your code here
@@ -641,6 +697,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The conversion code picks one formula from a closed menu of known transformations.
+Use `switch(code, c_to_f = value * 9 / 5 + 32, ...)` with `stop(...)` for an unrecognised code.
 
 ```r title="Your turn"
 convert <- function(value, code) {
@@ -686,6 +746,10 @@ ex_5_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Chain the checks cheapest-and-safest first so a bad input is rejected before any risky comparison runs.
+Combine `length(x) == 1`, `is.numeric(x)`, `!is.na(x)`, and `x > 0` with `&&`.
+
 ```r title="Your turn"
 is_positive_number <- function(x) {
   # your code here
@@ -721,6 +785,10 @@ ex_6_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Two separate routes lead to a flag, and the cheap amount test should gate the costlier list lookup.
+Return `(amount > 10000 && country %in% high_risk) || amount > 50000`.
 
 ```r title="Your turn"
 is_suspicious <- function(amount, country) {
@@ -761,6 +829,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Reject the unusable inputs up front, before any averaging is attempted.
+Guard with `if (is.null(x) || all(is.na(x))) return(NA_real_)`, then fall through to `mean(x, na.rm = TRUE)`.
 
 ```r title="Your turn"
 safe_mean <- function(x) {

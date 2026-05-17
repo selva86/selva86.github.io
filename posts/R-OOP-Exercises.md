@@ -45,6 +45,10 @@ ex_1_1$scores
 
 **Difficulty:** Beginner
 
+[HINTS]
+An S3 object is just an ordinary R value with a class label attached; validate the score range before you label it.
+Build the list and set the class in one step with structure(..., class = "survey"), use stopifnot() for the 0-to-10 check, and Sys.Date() for the creation date.
+
 ```r title="Your turn"
 survey <- function(scores) {
   # your code here
@@ -91,6 +95,10 @@ ex_1_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A method named after its generic and class is found automatically; yours only has to emit a single summary line.
+Format the line with sprintf() fed by length() and mean(), write it out with cat(), and end by returning invisible(x).
+
 ```r title="Your turn"
 print.survey <- function(x, ...) {
   # your code here
@@ -132,6 +140,10 @@ ex_1_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A subclass print method should add only its own piece, then hand control to the parent so the base format is reused rather than rewritten.
+Give the instance the class vector c("secure_audit_log", "audit_log"), cat() the [SECURE] line, then call NextMethod() to reach the base method.
 
 ```r title="Your turn"
 audit_log <- function(events) {
@@ -203,6 +215,10 @@ ex_1_4
 
 **Difficulty:** Advanced
 
+[HINTS]
+One method can serve a whole family of operators because R tells the method which symbol triggered the call.
+In Ops.money(), reject the operands unless inherits(e2, "money") holds and the currencies match, then apply get(.Generic) to the two amounts.
+
 ```r title="Your turn"
 money <- function(amount, currency) {
   # your code here
@@ -265,6 +281,10 @@ ex_1_5
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Keep the rendering logic apart from the printing logic so other callers can reuse the renderer, and let the comparison method accept only the operators you want.
+Have format.temperature() return sprintf("%.1f C", ...), make print call cat(format(x)), and gate Ops.temperature() on .Generic %in% c("<", ">", "==", ...).
 
 ```r title="Your turn"
 temperature <- function(celsius) {
@@ -350,6 +370,10 @@ ex_2_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+An S4 class needs an explicit definition that names every slot and its type before any instance can exist.
+Pass representation(name = "character", salary = "numeric", start_date = "Date") to setClass(), then build the instance with new(), wrapping the date in as.Date().
+
 ```r title="Your turn"
 setClass("Employee",
   representation(
@@ -409,6 +433,10 @@ ex_2_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A validity check runs on every construction and must either describe a problem in words or signal that everything is fine.
+Inside setValidity("Patient", ...), return() a message string when age is negative or systolic_bp falls outside 60 to 250, and return TRUE otherwise.
+
 ```r title="Your turn"
 setClass("Patient",
   representation(age = "numeric", systolic_bp = "numeric")
@@ -465,6 +493,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+S4 dispatch needs the function name registered first and a concrete implementation attached to the class second.
+In the setMethod("annual_cost", "Employee", ...) body, read the salary through the @ accessor and multiply it by 1.30.
+
 ```r title="Your turn"
 setGeneric("annual_cost",
   function(x) standardGeneric("annual_cost")
@@ -511,6 +543,10 @@ ex_2_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A subclass method can call the parent's version of the same generic and then reshape the result it gets back.
+Use callNextMethod() to get Employee's loaded cost, divide the 1.30 back out, reapply 1.50, and add x@reports * 5000.
 
 ```r title="Your turn"
 setClass("Manager",
@@ -576,6 +612,10 @@ ex_3_1$n
 
 **Difficulty:** Beginner
 
+[HINTS]
+An R6 object changes itself in place, so a method updates a field rather than returning a new object.
+Declare n = 0 in the public list and write increment to do self$n <- self$n + 1, returning invisible(self).
+
 ```r title="Your turn"
 Counter <- R6Class("Counter",
   public = list(
@@ -628,6 +668,10 @@ ex_3_2$current()
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+State that callers must not touch directly belongs behind a boundary that only the object's own methods can reach.
+Set private$balance in initialize, adjust it inside deposit and withdraw, and make withdraw stop() when the amount exceeds the balance.
 
 ```r title="Your turn"
 Account <- R6Class("Account",
@@ -694,6 +738,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A derived value can look like a plain field to callers while actually running code on every read.
+Define bmi in the active list, reject writes by testing missing(value), and return self$weight_kg / (self$height_m^2).
+
 ```r title="Your turn"
 Body <- R6Class("Body",
   public = list(
@@ -759,6 +807,10 @@ ex_3_4
 
 **Difficulty:** Advanced
 
+[HINTS]
+Plain assignment of an R6 object shares a single instance, so decoupling two names needs an explicit copy.
+Call a$clone() to make b an independent object, then read b$n into ex_3_4.
+
 ```r title="Your turn"
 a <- Counter$new()
 a$increment()
@@ -803,6 +855,10 @@ print(ex_4_1)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Give the string-building and the screen-printing separate methods so each one has a single job.
+Make format.fraction() return sprintf("%d/%d", x$num, x$den) and have print.fraction() send that through cat() with a trailing newline.
 
 ```r title="Your turn"
 fraction <- function(num, den) {
@@ -860,6 +916,10 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A single operator method can let one symbol through and turn every other one away with a uniform error.
+In Ops.vec2(), call stop("unsupported") unless .Generic equals "+", then return a vec2() of the elementwise sums.
 
 ```r title="Your turn"
 vec2 <- function(x, y) {
@@ -921,6 +981,10 @@ ex_4_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The subsetting bracket is itself a generic, so a class can define what indexing into it should mean.
+Define `[.ts_simple` to index both the time and value vectors by i and rebuild a ts_simple() so the result keeps the same class.
 
 ```r title="Your turn"
 ts_simple <- function(time, value) {
@@ -988,6 +1052,10 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+When an operation should alter a structure rather than hand back a fresh copy, reference semantics fit better than value semantics.
+Give the R6 Stack an items list, append in push via self$items[[length(self$items) + 1]] <- x, and have size return length(self$items).
 
 ```r title="Your turn"
 Stack <- R6Class("Stack",
@@ -1063,6 +1131,10 @@ class(ex_5_2@engine)[1]
 
 **Difficulty:** Intermediate
 
+[HINTS]
+An S4 slot can hold an object from another class system once that system's class is made known to S4.
+Call setOldClass("R6"), declare the engine slot with type "R6" in setClass(), and pass Cache$new() to new().
+
 ```r title="Your turn"
 Cache <- R6Class("Cache",
   public = list(
@@ -1131,6 +1203,10 @@ convert(ex_5_3, 100, "EUR")
 
 **Difficulty:** Beginner
 
+[HINTS]
+For a pure, immutable value type, reach for the lightest object system, the one with no class registry or constructor ceremony.
+Build the object with structure(..., class = "rates"), declare the generic with UseMethod("convert"), and write convert.rates() to multiply the amount by the looked-up rate.
+
 ```r title="Your turn"
 rates <- function(base, conversions) {
   # your code here
@@ -1182,6 +1258,10 @@ ex_5_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Run the same trivial call many times under each system and record only the wall-clock time it takes.
+Wrap each loop in system.time(), pull out the "elapsed" element, and combine the three timings with setNames(c(...), c("s3", "s4", "r6")).
 
 ```r title="Your turn"
 N <- 100000

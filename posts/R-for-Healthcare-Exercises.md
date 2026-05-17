@@ -44,6 +44,10 @@ library(lme4)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Point prevalence is just the share of patients carrying the flag, so you need an average over a 0/1 column.
+Call mean() on the registry$hypertension vector.
+
 ```r title="Your turn"
 registry <- tibble::tibble(
   patient_id   = sprintf("P%04d", 1:12),
@@ -84,6 +88,10 @@ ex_1_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Total the events and the total follow-up time separately, then divide one by the other before scaling.
+Use sum() on became_diabetic and on years_followed, then compute events / person_years * 1000.
 
 ```r title="Your turn"
 cohort <- tibble::tibble(
@@ -127,6 +135,10 @@ ex_1_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Compute a death rate within each age band, reweight those band rates by the standard-population shares, and total them.
+Join the two tibbles on age_band, mutate() a band rate of deaths / person_years weighted by std_share, then sum() and scale by 100000.
 
 ```r title="Your turn"
 county_a <- tibble::tibble(
@@ -185,6 +197,10 @@ ex_1_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+Each metric is a ratio of correct calls to the count of subjects who are truly positive or truly negative.
+Build a named vector with c(sens = TP / (TP + FN), spec = TN / (TN + FP)).
+
 ```r title="Your turn"
 TP <- 88; FN <- 12; TN <- 720; FP <- 80
 ex_2_1 <- # your code here
@@ -222,6 +238,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Translate the probability statement directly into one arithmetic expression with the values you are given.
+Plug sens, spec, and prev into (sens * prev) / (sens * prev + (1 - spec) * (1 - prev)).
+
 ```r title="Your turn"
 sens <- 0.92; spec <- 0.96; prev <- 0.005
 ex_2_2 <- # your code here
@@ -254,6 +274,10 @@ ex_2_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Try every distinct score as a candidate threshold, score each one by how well it separates the two groups, and keep the best.
+Sweep the sorted unique scores with vapply(), compute sens + spec - 1 at each cut, and pick the cut at which.max().
 
 ```r title="Your turn"
 biomarker <- tibble::tibble(
@@ -307,6 +331,10 @@ ex_2_3
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+You only need to count how many diagnosis codes begin with a given run of characters.
+Wrap startsWith(encounters$icd10, "E11") in sum().
 
 ```r title="Your turn"
 encounters <- tibble::tibble(
@@ -364,6 +392,10 @@ ex_3_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+Collapse each patient's many encounter rows into a single row that asks whether any code ever matched.
+Use group_by(patient_id) then summarise() with any(startsWith(icd10, ...)) wrapped in as.integer() for each flag.
+
 ```r title="Your turn"
 ex_3_2 <- # your code here using the encounters tibble from 3.1
 ex_3_2
@@ -416,6 +448,10 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Reduce the long encounter table to one row per patient, producing several summary measures in a single pass.
+Use group_by(patient_id) then summarise() with n(), min(encounter_date), max(encounter_date), and sum(los_days).
 
 ```r title="Your turn"
 enc_dash <- tibble::tibble(
@@ -485,6 +521,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The score is a weighted sum of the risk-factor columns, with prior stroke counted double.
+Add the column with mutate(chads2 = chf + htn + age_75 + diabetes + 2 * stroke_prior).
+
 ```r title="Your turn"
 af_patients <- tibble::tibble(
   patient_id   = sprintf("P%02d", 1:5),
@@ -548,6 +588,10 @@ ex_4_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Turn each of the three threshold comparisons into a 0/1 value, add them, then flag totals of 2 or more.
+Inside mutate(), sum as.integer(rr >= 22), as.integer(gcs < 15), and as.integer(sbp <= 100), then test the result >= 2.
+
 ```r title="Your turn"
 ed_vitals <- tibble::tibble(
   patient_id = sprintf("P%02d", 1:6),
@@ -610,6 +654,10 @@ ex_4_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Apply the given formula row-wise, but first clamp every lab value up to a floor of 1.0 so no logarithm goes negative.
+Inside mutate(), wrap round() around the coefficient sum and pass each lab through pmax(x, 1) before log().
+
 ```r title="Your turn"
 meld_labs <- tibble::tibble(
   patient_id = sprintf("P%02d", 1:5),
@@ -671,6 +719,10 @@ ex_4_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Fit a single survival curve to the whole cohort, with no grouping covariate on the right-hand side.
+Call survfit(Surv(time, status) ~ 1, data = lung).
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -710,6 +762,10 @@ ex_5_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Run a non-parametric test that compares the survival experience of the two sex groups.
+Call survdiff(Surv(time, status) ~ sex, data = lung).
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -758,6 +814,10 @@ ex_5_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Fit a regression that estimates each covariate's effect on the mortality hazard without modeling the baseline hazard itself.
+Call coxph(Surv(time, status) ~ age + sex + ph.ecog, data = lung).
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 ex_5_3
@@ -798,6 +858,10 @@ ex_5_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+One number comes straight from the fitted object's summary table; the other needs the curve evaluated at a specific day.
+Pull summary(ex_5_1)$table["median"] and summary(ex_5_1, times = 365)$surv, then assemble them into a named vector.
 
 ```r title="Your turn"
 ex_5_4 <- # your code here using ex_5_1 from exercise 5.1
@@ -843,6 +907,10 @@ ex_5_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Fit a separate straight-line trend for each patient and keep only the slope coefficient.
+Use group_by(patient_id) then summarise() with coef(lm(a1c ~ months_since_baseline)) indexed at the slope term.
 
 ```r title="Your turn"
 a1c_panel <- tibble::tibble(
@@ -913,6 +981,10 @@ ex_6_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+Keep only the rows where at least one of the physiologic range checks fails.
+Use filter() with the six range conditions joined by the OR operator |.
+
 ```r title="Your turn"
 vitals_qc <- tibble::tibble(
   patient_id = sprintf("P%02d", 1:6),
@@ -965,6 +1037,10 @@ ex_6_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+For each patient, find the earliest follow-up date and the index date, then take the gap between them in days.
+Use group_by(patient_id) then summarise(), subtracting min(visit_date[visit_type == "index"]) from the followup minimum and wrapping it in as.numeric().
 
 ```r title="Your turn"
 followup <- tibble::tibble(
@@ -1039,6 +1115,10 @@ ex_6_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Fit a model with one shared population-level slope but a separate baseline level for each subject.
+Call lmer(Reaction ~ Days + (1 | Subject), data = sleepstudy).
 
 ```r title="Your turn"
 ex_6_4 <- # your code here using sleepstudy from lme4

@@ -45,6 +45,10 @@ library(scales)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Because the point colour should change with the data, it belongs in the mapping layer rather than being a fixed style applied to every point.
+Add `colour = class` inside `aes()`, alongside `x = displ` and `y = hwy`, then draw the points.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -79,6 +83,10 @@ ex_1_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+The interior of each bar is coloured by its fill, and because the split is driven by a variable it has to live in the mapping.
+Put `fill = trans` inside `aes()` next to `x = drv`, and let `geom_bar()` count the rows.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -112,6 +120,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+One aesthetic varies with the data while the other is a single fixed value, so the two cannot sit in the same place.
+Map `fill = cut` inside `aes()`, but pass `colour = "white"` and `bins = 30` as plain arguments to `geom_histogram()`.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -149,6 +161,10 @@ ex_1_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Letting the area of each point carry a variable is itself a data mapping, just like colour is.
+Map `size = cyl` inside `aes()` along with the x and y variables, then draw with `geom_point()`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -183,6 +199,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The marker drawn for each point can encode a discrete category, exactly the way colour can.
+Map `shape = drv` inside `aes()` and render the layer with `geom_point()`.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -216,6 +236,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Transparency here is a single fixed style applied to every point, not something that changes from row to row.
+Pass `alpha = 0.1` as an argument to `geom_point()`, outside `aes()`, leaving only x and y mapped.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -252,6 +276,10 @@ ex_2_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+A single fixed colour is a style setting, not a data mapping, so it has to move out of the mapping layer.
+Remove `colour` from `aes()` and pass `colour = "steelblue"` to `geom_point()` instead.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -287,6 +315,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Only the aesthetic that varies with the data belongs in the mapping; the other two are fixed values handed straight to the layer.
+Keep `fill = class` inside `aes()`, and pass `colour = "black"` and `width = 0.7` to `geom_bar()`.
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -320,6 +352,10 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+You can compute a per-row value right inside the mapping, then tell the plot to treat those computed values as literal colours.
+Put `ifelse(cyl >= 6, "red", "grey50")` inside `aes(colour = ...)` and add `scale_colour_identity()` to the plot.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -359,6 +395,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each variable that drives a visual property gets its own entry in the mapping, while the readability tweak is a fixed style.
+Map `colour = class` and `size = cyl` inside `aes()`, and pass `alpha = 0.7` to `geom_point()`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -392,6 +432,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Every line style here is a fixed value, and the reference line is a separate layer drawn on top of the data line.
+Style `geom_line()` with `colour` and `linetype`, then add `geom_hline(yintercept = mean(economics$unemploy))` with its own `colour` and `linetype`.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -438,6 +482,10 @@ sales_df <- data.frame(
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Pointing two visual properties at the same variable makes the groups doubly distinguishable and merges their guides into one.
+Inside `aes()`, set `colour = region`, `linetype = region`, and `group = region`, then draw the series with `geom_line()`.
 
 ```r title="Your turn"
 sales_df <- data.frame(
@@ -493,6 +541,10 @@ ex_4_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A continuous variable mapped to colour produces a smooth gradient, and the palette behind that gradient can be swapped for an accessible one.
+Map `colour = depth` inside `aes()` and add `scale_colour_viridis_c()` to replace the default palette.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -529,6 +581,10 @@ ex_5_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+You can override the colour for just a few categories while leaving every other category on its default colour.
+Build a named vector from `scales::hue_pal()`, overwrite the chosen entries, and pass it to `scale_fill_manual(values = ...)`.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -571,6 +627,10 @@ ex_5_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Both the span of bubble sizes and which values appear in the legend can be tuned independently of the underlying data.
+Map `size = cty` inside `aes()` and add `scale_size_continuous(range = c(2, 12), breaks = c(15, 25, 35))`.
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 ex_5_3
@@ -609,6 +669,10 @@ ex_5_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Muting every category except one works by computing a per-row colour and then taking those colour strings literally.
+Use `ifelse(class == "suv", "red", "grey70")` inside `aes(colour = ...)`, add `scale_colour_identity()`, and pass `alpha = 0.8` to `geom_point()`.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -644,6 +708,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The order of a factor's levels controls legend order and stacking order together, so reordering the levels reorders the chart.
+Reset the levels with `factor(cut, levels = c("Ideal", "Premium", "Very Good", "Good", "Fair"))` before mapping `fill = cut` on a `geom_bar()`.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here
@@ -682,6 +750,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A polished chart layers one data mapping together with a couple of fixed styles, a custom palette, and a theme.
+Map `colour = cut` inside `aes()`, pass `alpha = 0.3` and `size = 0.7` to `geom_point()`, then add `scale_colour_viridis_d()` and `theme_bw()`.
 
 ```r title="Your turn"
 ex_6_3 <- # your code here

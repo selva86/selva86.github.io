@@ -46,6 +46,10 @@ data(diamonds)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A single random partition can leave rare quality grades absent from one half; you want each grade represented in both halves in roughly its original proportion.
+Reach for `initial_split()` with `prop = 0.75` and a `strata` argument set to the `cut` column.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -85,6 +89,10 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+You need a reusable resampling plan in which every row serves as a held-out assessment point exactly once.
+Use `vfold_cv()` on `mtcars` with the `v` argument set to 10.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -128,6 +136,10 @@ ex_1_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want repeated draws taken with replacement while keeping the three classes balanced inside each analysis set.
+Call `bootstraps()` with `times = 25` and a `strata` argument pointing at `Species`.
+
 ```r title="Your turn"
 ex_1_3 <- # your code here
 ex_1_3
@@ -166,6 +178,10 @@ ex_1_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Time ordering must be respected so that no future observation leaks backward into a training window.
+Use `rolling_origin()` with `initial = 120`, `assess = 12`, and `cumulative = FALSE` for a fixed-width moving window.
 
 ```r title="Your turn"
 ts_df <- tibble(t = 1:144, y = 100 + 0.5 * (1:144) + rnorm(144, 0, 5))
@@ -209,6 +225,10 @@ ex_1_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+Start by declaring which column is the outcome and which are predictors, then chain the two standardisation operations onto that plan.
+Begin with `recipe(price ~ ., data = diamonds)` and add `step_center()` and `step_scale()` over `all_numeric_predictors()`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -245,6 +265,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Take the existing centred-and-scaled plan and append one more operation that turns the ordered factors into numeric indicator columns.
+Add `step_dummy()` on `all_nominal_predictors()` with `one_hot = FALSE` after the centring and scaling steps.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -280,6 +304,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Fill the missing cells before standardising, otherwise the scaler computes a centre on a column that still has holes.
+Use `step_impute_knn()` with `neighbors = 5`, then `step_normalize()`, both over `all_numeric_predictors()`.
 
 ```r title="Your turn"
 sales <- tibble(
@@ -325,6 +353,10 @@ ex_2_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Collapse the thinly populated factor levels into a single bucket before expanding the factor into indicator columns.
+Apply `step_other()` with `threshold = 0.05` to `campaign`, then `step_dummy()` on the same column.
 
 ```r title="Your turn"
 set.seed(11)
@@ -374,6 +406,10 @@ ex_2_4
 
 **Difficulty:** Advanced
 
+[HINTS]
+Standardise first so no single column dominates, then build the pairwise products, then compress the widened matrix into a few components.
+Chain `step_normalize()`, `step_interact(terms = ~ disp:hp + disp:wt + hp:wt)`, and `step_pca(num_comp = 3)`.
+
 ```r title="Your turn"
 ex_2_5 <- # your code here
 ex_2_5
@@ -410,6 +446,10 @@ ex_2_5
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Declare the kind of model you want as a standalone spec that holds no data, separately from the routine that will fit it.
+Use `linear_reg()` piped into `set_engine("lm")`.
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -450,6 +490,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Leave the regularization strength and the L1/L2 balance unspecified so a later search can fill them in.
+Call `linear_reg(penalty = tune(), mixture = tune())` and `set_engine("glmnet")`.
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -488,6 +532,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want a baseline binary classifier defined as a spec, with both its task and its fitting routine stated explicitly.
+Pipe `logistic_reg()` into `set_engine("glm")` and `set_mode("classification")`.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -529,6 +577,10 @@ ex_3_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Fix the ensemble size but leave the per-split sampling and the node-size floor open for a cross-validated search.
+Use `rand_forest(mtry = tune(), min_n = tune(), trees = 500)` with `set_engine("ranger")` and `set_mode("classification")`.
 
 ```r title="Your turn"
 ex_3_4 <- # your code here
@@ -581,6 +633,10 @@ ex_3_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Bundle the preprocessing plan and the model spec into one container so they cannot drift apart in review.
+Start with `workflow()`, then `add_recipe(ex_2_1)` and `add_model(ex_3_1)`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -620,6 +676,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Fit on the training rows only, then drill into the bundle to reach the inner fitted model and turn its coefficients into a tidy table.
+Call `fit()` on `training(mt_split)`, then pipe the result through `extract_fit_parsnip()` and `tidy()`.
 
 ```r title="Your turn"
 set.seed(101)
@@ -661,6 +721,10 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want every pairing of one preprocessor with several models laid out as rows so they can be compared in one pass.
+Use `workflow_set()` with a `preproc` list holding the recipe and a `models` list holding both specs.
 
 ```r title="Your turn"
 mt <- mtcars |> mutate(am = factor(am))
@@ -711,6 +775,10 @@ ex_4_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The closing move refits on the training half and scores the held-out half in a single call against the original split object.
+Call `last_fit()`, passing the workflow and `split = ex_1_1_small`.
 
 ```r title="Your turn"
 set.seed(303)
@@ -764,6 +832,10 @@ ex_4_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You need an evenly spaced Cartesian set of candidate values across the two regularization controls.
+Use `grid_regular()` with `penalty()` and `mixture()` and `levels = 5`.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -798,6 +870,10 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Fit the workflow once per fold-and-candidate combination, then average the scores across folds into one row per setting.
+Call `tune_grid()` with `resamples`, `grid = ex_5_1`, and `metrics = metric_set(rmse, mae)`, then pass the result to `collect_metrics()`.
 
 ```r title="Your turn"
 wf_enet <- workflow() |> add_recipe(ex_2_2) |> add_model(ex_3_2)
@@ -850,6 +926,10 @@ ex_5_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Pick the winning hyperparameter row by the chosen metric, then stamp those values into the workflow's open placeholders.
+The output of `select_best()` (with `metric = "rmse"`) feeds into `finalize_workflow()`.
+
 ```r title="Your turn"
 best <- select_best(tuned, metric = "rmse")
 ex_5_3 <- # your code here
@@ -889,6 +969,10 @@ ex_5_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Instead of an exhaustive grid, let a surrogate model propose where to sample next, starting from a few seed points.
+Use `tune_bayes()` with `initial = 5`, `iter = 10`, and `metrics = metric_set(rmse)`.
 
 ```r title="Your turn"
 ex_5_4 <- # your code here
@@ -933,6 +1017,10 @@ ex_5_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Bundle the two regression scores into one reusable scorer, then apply that scorer to the prediction tibble.
+Build `metric_set(rmse, rsq)` and call the resulting function with `truth = price` and `estimate = .pred`.
 
 ```r title="Your turn"
 set.seed(505)
@@ -979,6 +1067,10 @@ ex_6_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+One scorer should cover both the hard-class metrics and the probability-based one so the same call works everywhere.
+Build `metric_set(accuracy, sensitivity, roc_auc)` and pass `truth = churn`, `estimate = .pred_class`, and the `.pred_yes` column.
 
 ```r title="Your turn"
 set.seed(606)
@@ -1033,6 +1125,10 @@ ex_6_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+First build the threshold-by-threshold sensitivity and specificity table, then hand it to the generic plotting method.
+Pipe `roc_curve()` (with `truth = churn` and the `.pred_yes` column) into `autoplot()`.
+
 ```r title="Your turn"
 ex_6_3 <- # your code here
 ex_6_3
@@ -1066,6 +1162,10 @@ ex_6_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Build the cross-tabulation object, expand it into its full panel of metrics, and keep only the chance-adjusted agreement row.
+Use `conf_mat()`, then `summary()`, then `filter()` to the `.metric == "kap"` row.
 
 ```r title="Your turn"
 set.seed(707)

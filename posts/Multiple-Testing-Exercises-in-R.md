@@ -45,6 +45,10 @@ library(ggplot2)
 
 **Difficulty:** Beginner
 
+[HINTS]
+The Bonferroni rule scales every raw p-value by the total number of tests, then keeps the result a valid probability by never letting it exceed 1.
+Use `length()` to get the count of tests `m`, then `pmin(pvec * m, 1)` to multiply and cap elementwise.
+
 ```r title="Your turn"
 pvec <- c(0.001, 0.01, 0.04, 0.20, 0.50)
 ex_1_1 <- # your code here
@@ -82,6 +86,10 @@ identical(ex_1_1, p.adjust(pvec, "bonferroni"))
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Holm ranks the p-values from smallest to largest, applies a shrinking multiplier as the rank grows, and forbids a later rank from looking more significant than an earlier one.
+Sort with `order()`, scale the sorted values by `m - seq_along(sorted) + 1`, cap with `pmin(..., 1)`, then enforce monotonicity with `cummax()` before restoring the original order.
 
 ```r title="Your turn"
 pvec <- c(0.001, 0.01, 0.04, 0.20, 0.50)
@@ -124,6 +132,10 @@ identical(ex_1_2, p.adjust(pvec, "holm"))
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+BH scales each ranked p-value by the number of tests divided by its rank, a gentler factor than Bonferroni's, then enforces a non-decreasing adjusted sequence.
+After sorting, multiply by `m / seq_along(sorted)`, cap with `pmin()`, and make it monotonic with `rev(cummin(rev(...)))` before reordering.
 
 ```r title="Your turn"
 pvec <- c(0.001, 0.01, 0.04, 0.20, 0.50)
@@ -172,6 +184,10 @@ identical(ex_1_3, p.adjust(pvec, "BH"))
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A single call can run every group-versus-group t-test at once and apply a family-wise correction across the whole set.
+Call `pairwise.t.test()` on `PlantGrowth$weight` and `PlantGrowth$group` with `p.adjust.method = "bonferroni"`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -215,6 +231,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The same all-pairs t-test routine accepts different multiplicity corrections; a step-down one lets more pairs survive than the simplest cap.
+Call `pairwise.t.test()` on `iris$Sepal.Width` by `iris$Species` with `p.adjust.method = "holm"`.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -264,6 +284,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Run both corrections on the same raw vector and lay raw, family-wise-capped, and step-down values side by side to compare rejection counts.
+Build a `data.frame()` whose columns are `raw`, `p.adjust(pvec, "bonferroni")`, and `p.adjust(pvec, "holm")`.
 
 ```r title="Your turn"
 pvec <- c(0.001, 0.008, 0.012, 0.030, 0.045, 0.10, 0.30, 0.50)
@@ -319,6 +343,10 @@ c(bonf = sum(ex_2_3$bonferroni < 0.05),
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Adjust all the p-values once for the false discovery rate, then count how many clear each threshold you care about.
+Apply `p.adjust(pvals, "BH")`, then use `sum(adj < t)` for each threshold inside a named `c()`.
+
 ```r title="Your turn"
 set.seed(7)
 pvals <- c(runif(50, 0, 0.01), runif(450, 0, 1))
@@ -360,6 +388,10 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+When tests may be correlated, a more conservative false-discovery correction trades some discoveries for validity under unknown dependence.
+Compare `sum(p.adjust(pvals, "BH") < 0.05)` against `sum(p.adjust(pvals, "BY") < 0.05)` inside a named vector.
 
 ```r title="Your turn"
 set.seed(7)
@@ -405,6 +437,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Every correction method can be applied to the same raw vector and stacked into one table to expose the conservativeness ranking.
+Loop the method names through `p.adjust()` with `sapply()`, wrap each in `round(..., 4)`, and assemble with `data.frame()`.
 
 ```r title="Your turn"
 pvec <- c(0.0005, 0.005, 0.015, 0.03, 0.06, 0.10, 0.25, 0.50, 0.80, 0.95)
@@ -454,6 +490,10 @@ head(ex_3_3)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Narrow the data to the final time point first, then run every diet-versus-diet comparison with a family-wise correction.
+On the filtered `cw21`, call `pairwise.t.test()` on `weight` by `Diet` with `p.adjust.method = "bonferroni"`.
+
 ```r title="Your turn"
 cw21 <- subset(ChickWeight, Time == 21)
 ex_4_1 <- # your code here
@@ -501,6 +541,10 @@ ex_4_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A rank-based pairwise comparison sidesteps the normality assumption while still accepting the same multiplicity corrections.
+Call `pairwise.wilcox.test()` on `iris$Petal.Length` by `iris$Species` with `p.adjust.method = "holm"` and `exact = FALSE`.
+
 ```r title="Your turn"
 ex_4_2 <- # your code here
 ex_4_2
@@ -544,6 +588,10 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Compare the ANOVA-specific all-pairs procedure against a generic correction by lining up their adjusted p-values in matching pair order.
+Pull `TukeyHSD(fit)$group[, "p adj"]` and the `$p.value` matrix from `pairwise.t.test(..., "bonferroni")`, then combine them with `data.frame()`.
 
 ```r title="Your turn"
 fit <- aov(weight ~ group, data = PlantGrowth)
@@ -599,6 +647,10 @@ ex_4_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+Under the null nothing is real, so every rejection is a false positive; count them before and after a family-wise correction.
+Use `sum(pvals < 0.05)` and `sum(p.adjust(pvals, "bonferroni") < 0.05)` inside a named `c()`.
+
 ```r title="Your turn"
 set.seed(11)
 pvals <- replicate(1000, {
@@ -642,6 +694,10 @@ ex_5_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+With a known truth vector you can split the discoveries into true and false ones and measure the realized false-discovery share.
+Form `discov <- p.adjust(pvals, "BH") < 0.05`, then take `sum(discov)`, `sum(discov & truth)`, and `mean(!truth[discov])`.
 
 ```r title="Your turn"
 set.seed(13)
@@ -702,6 +758,10 @@ ex_5_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+A volcano-style hit needs both statistical significance from the adjusted p-value and a large enough effect size.
+Build a `tibble()` with a `padj` column from `p.adjust(pvalue, "BH")` and an `is_hit` column testing `padj < 0.05 & abs(log2fc) > 1`.
+
 ```r title="Your turn"
 set.seed(17)
 log2fc <- rnorm(500, sd = 0.7)
@@ -756,6 +816,10 @@ sum(ex_5_3$is_hit)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Running the planted-signal experiment many times and averaging the false-discovery proportions reveals each method's long-run behavior.
+Call `replicate(200, one_iter())`, then average across runs with `rowMeans()` wrapped in `round()`.
 
 ```r title="Your turn"
 set.seed(19)
@@ -819,6 +883,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Sweep the effect size across a grid and record how many discoveries each correction yields at every strength.
+Apply `sim_one` over `seq(0.2, 1.2, by = 0.2)` with `sapply()`, transpose with `t()`, and bind into a `data.frame()`.
 
 ```r title="Your turn"
 set.seed(23)
@@ -885,6 +953,10 @@ ex_6_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Each coefficient in a multi-predictor model is its own test, so the p-values from the fit summary deserve a multiplicity correction.
+Pull `summary(fit)$coefficients[, "Pr(>|t|)"]`, build a `tibble()` with `p.adjust()` columns for each method, and add `keep` via `mutate()`.
 
 ```r title="Your turn"
 fit <- lm(mpg ~ cyl + disp + hp + drat + wt + qsec, data = mtcars)

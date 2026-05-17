@@ -43,6 +43,10 @@ library(tidyr)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Think about which single discrete column splits the data into the categories you want one panel for.
+Add facet_wrap() with a one-sided formula ~ class to the scatter.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -75,6 +79,10 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+You need to pin how many rows the panel grid uses and let the other dimension fill in automatically.
+Pass nrow = 2 to facet_wrap(~ class).
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -109,6 +117,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Each panel should be allowed to rescale its vertical axis on its own while the horizontal axis stays shared.
+Set the scales argument of facet_wrap() to "free_y".
 
 ```r title="Your turn"
 big_5 <- txhousing |>
@@ -149,6 +161,10 @@ ex_1_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want only the displayed panel text to change, not the underlying data column.
+Pass a labeller built with as_labeller() to facet_wrap(); the wrapped function can paste "TX" onto each value.
+
 ```r title="Your turn"
 ex_1_4 <- # your code here
 ex_1_4
@@ -186,6 +202,10 @@ ex_1_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Two discrete variables define a strict rows-by-columns matrix of panels here.
+Use facet_grid() with a two-sided formula drv ~ cyl.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -218,6 +238,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want panels stacked vertically with no second faceting dimension on the columns.
+Use facet_grid() with the . placeholder on the column side: drv ~ .
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -253,6 +277,10 @@ ex_2_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+The figure should include extra panels that roll the data up across each faceting dimension.
+Add margins = TRUE to facet_grid(drv ~ cyl).
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 ex_2_3
@@ -285,6 +313,10 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Each row of the grid should be allowed its own vertical range while sharing the horizontal one.
+Use facet_grid(Diet ~ .) with scales = "free_y".
 
 ```r title="Your turn"
 ex_2_4 <- # your code here
@@ -325,6 +357,10 @@ ex_2_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Panel heights should track how many categories each panel contains so bar thickness stays constant across panels.
+Combine scales = "free_y" with space = "free_y" inside facet_grid(manufacturer ~ .).
 
 ```r title="Your turn"
 mfr_counts <- mpg |>
@@ -368,6 +404,10 @@ ex_3_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+You need an invisible reference value forced into every panel so the lower bound lands at zero without capping the top.
+Add a geom_blank() layer fed a small data frame carrying weight = 0 for each Diet, alongside facet_wrap(~ Diet, scales = "free_y").
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -408,6 +448,10 @@ ex_3_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Panel order follows the factor-level order of the faceting column, so re-level that column before plotting.
+Inside mutate(), wrap class with reorder(class, -hwy, FUN = median), then facet_wrap() as usual.
+
 ```r title="Your turn"
 ex_3_3 <- # your code here
 ex_3_3
@@ -447,6 +491,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The strip rectangle and the strip text are separate theme pieces you can target independently.
+In theme(), set strip.background with element_rect(fill = ...) and strip.text with element_text(colour, face, size).
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -483,6 +531,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Long labels need to break across lines once they exceed a character budget.
+Pass labeller = label_wrap_gen(width = 18) to facet_wrap().
 
 ```r title="Your turn"
 diamonds_long <- diamonds |>
@@ -542,6 +594,10 @@ ex_4_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each strip should announce the variable name as well as its level.
+Pass labeller = label_both to facet_grid(drv ~ cyl).
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -574,6 +630,10 @@ ex_4_3
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+The strips need to move from above each panel to below it.
+Set strip.position = "bottom" in facet_wrap(~ class).
 
 ```r title="Your turn"
 ex_4_4 <- # your code here
@@ -611,6 +671,10 @@ ex_4_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Small multiples need one row per (date, metric) pair, so reshape the data from wide to long first.
+Use pivot_longer(-date, ...) to stack the columns, then facet_wrap(~ metric, scales = "free_y").
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -646,6 +710,10 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Facets need a discrete column, so the continuous carat must first be cut into equal-sized groups.
+Create a bin column with ntile(carat, 4) inside mutate(), then facet_wrap() on it.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -684,6 +752,10 @@ ex_5_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+The grey backdrop comes from a copy of the data with no faceting column, so it repeats unfiltered in every panel.
+Add a geom_point() layer whose data drops the class column (colour = "grey80") beneath the normal points, then facet_wrap(~ class).
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 ex_5_3
@@ -719,6 +791,10 @@ ex_5_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Each label comes from a separate summary table that must carry the faceting column so ggplot routes it to the right panel.
+Build a per-class summary with group_by() and summarise(), then add geom_text() with x = -Inf, y = Inf and inherit.aes = FALSE.
 
 ```r title="Your turn"
 ex_5_4 <- # your code here
@@ -762,6 +838,10 @@ ex_5_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Two variables can jointly define the row dimension of a grid layout.
+Use facet_grid(rows = vars(drv, year), cols = vars(cyl)).
 
 ```r title="Your turn"
 ex_5_5 <- # your code here

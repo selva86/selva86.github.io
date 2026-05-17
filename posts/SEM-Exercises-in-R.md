@@ -56,6 +56,9 @@ The two datasets used throughout are bundled with `lavaan` itself: `PoliticalDem
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+A path model is just a set of regression equations stacked together, where one outcome becomes the predictor of the next.
+Write a model string with `y1 ~ x1` and `y5 ~ y1`, then pass it to `sem()` with `data = PoliticalDemocracy`.
 
 ```r title="Your turn"
 ex_1_1 <- # your code here
@@ -104,6 +107,9 @@ summary(ex_1_1)
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+A latent factor has no column in the data; you define it by listing the observed indicators that reflect it.
+Build a model string using the `=~` operator (`visual =~ x1 + x2 + x3`) and fit it with `cfa()`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -142,6 +148,9 @@ summary(ex_1_2)
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Two indicators sharing a cause beyond the factor need their leftover association estimated rather than assumed to be zero.
+Add an `x1 ~~ x3` line to the Exercise 1.2 model, refit with `cfa()`, and check the new row in `parameterEstimates()`.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -188,6 +197,9 @@ parameterEstimates(ex_1_3)
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Each factor gets its own line listing its three indicators, and the factors are left free to correlate.
+Write three `=~` lines (visual, textual, speed), fit with `cfa()`, and read the Test User Model block from `summary(..., fit.measures = TRUE)`.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -234,6 +246,9 @@ summary(ex_2_1, fit.measures = TRUE)
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Keep only the rows that describe how indicators load on factors, and read the column where every variable sits on a common scale.
+Call `parameterEstimates()` with `standardized = TRUE`, subset to `op == "=~"`, and select the `std.all` column.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -272,6 +287,9 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+You want the standardized associations between the factors themselves, not the indicator loadings.
+Run `standardizedSolution()` and keep `op == "~~"` rows where both `lhs` and `rhs` are latent factor names and differ.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -310,6 +328,9 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Global fit rests on a small set of named indices rather than on the chi-square alone.
+Pass the vector `c("cfi", "tli", "rmsea", "srmr")` to `fitMeasures()` and wrap the result in `round(..., 3)`.
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -346,6 +367,9 @@ ex_3_1
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Each parameter the model currently fixes has an expected chi-square drop if you were to free it, and you want the largest ones.
+Call `modindices()` with `sort. = TRUE` and take `head(..., 5)` of the `mi`-ranked rows.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -382,6 +406,9 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Compare the original model against a version with the extra path to see whether the added parameter earns its degree of freedom.
+Fit the augmented model (add `x9` to the `visual =~` line) as `ex_3_3_alt`, then call `anova(ex_2_1, ex_3_3_alt)`.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -433,6 +460,9 @@ ex_3_3
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A full SEM stacks a measurement part that defines the latent variables and a structural part that regresses them on each other.
+Write three `=~` lines for ind60, dem60, and dem65, add the `~` regressions, and fit the whole string with `sem()`.
 
 ```r title="Your turn"
 ex_4_1 <- # your code here
@@ -480,6 +510,9 @@ summary(ex_4_1)
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Naming a coefficient lets you reuse it, and the product of two named paths is itself a quantity you can define.
+Pre-multiply the paths with labels (`a*ind60`, `b*dem60`, `c*ind60`) and add `indirect := a * b` and `total := a * b + c`.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -522,6 +555,9 @@ summary(ex_4_2)
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+The product of two coefficients is skewed, so its interval should come from resampling rather than a normal approximation.
+Refit with `se = "bootstrap"` and `bootstrap = 200`, then read the indirect row from `parameterEstimates(..., boot.ci.type = "perc")`.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -571,6 +607,9 @@ ex_4_3
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Fitting the same model once per subgroup, with every parameter free, gives the baseline for any cross-group comparison.
+Add the `group = "school"` argument to the `cfa()` call on the three-factor model.
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -611,6 +650,9 @@ summary(ex_5_1, fit.measures = TRUE)
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Holding the loadings identical across groups and checking whether fit worsens tells you if the factors mean the same thing in each group.
+Refit with `group.equal = "loadings"`, then compare it to the configural fit with `anova()`.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -660,6 +702,9 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Telling lavaan that the indicators are ordered ratings switches it away from treating them as continuous.
+Pass `ordered = c("y1", "y2", "y3", "y4")` to `cfa()` on a one-factor model.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -706,6 +751,9 @@ summary(ex_5_3, standardized = TRUE)
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Assemble one row per indicator with just the columns a reader needs, then order it for presentation.
+Subset `parameterEstimates(..., standardized = TRUE)` to the loading rows, build a `data.frame`, and `order()` it by factor then by descending `std.all`.
 
 ```r title="Your turn"
 ex_6_1 <- # your code here

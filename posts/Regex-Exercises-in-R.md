@@ -39,6 +39,10 @@ library(stringr)
 
 **Difficulty:** Beginner
 
+[HINTS]
+An anchor tied to the start of the string lets you require "Mr " only at the beginning, not anywhere inside.
+Use `str_detect()` with the pattern `"^Mr "` - keep the trailing space so "Mrs" does not match.
+
 ```r title="Your turn"
 names_v <- c("Mr Smith", "Dr Jones", "Mrs Park", "Mr Lee", "Ms Khan")
 ex_1_1 <- # your code here
@@ -70,6 +74,10 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Pin the extension to the very end of the string and escape the dot so it is treated as a literal character.
+Call `str_detect()` with `regex("\\.csv$", ignore_case = TRUE)` so both ".csv" and ".CSV" match.
 
 ```r title="Your turn"
 files_v <- c("sales.csv","report.txt","2024-q1.CSV","data.csv.bak","summary.csv")
@@ -103,6 +111,10 @@ ex_1_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Surround a digit pattern with both a start and an end anchor so extra characters on either side fail the match.
+Pass `"^\\d{3}$"` to `str_detect()` - the `{3}` quantifier means exactly three, not three-or-more.
+
 ```r title="Your turn"
 codes_v <- c("123","ab12","456","78","9999","007","a456b")
 ex_1_3 <- # your code here
@@ -134,6 +146,10 @@ ex_1_3
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Build a character class of the only allowed characters, anchor both ends, and require at least one character so the empty string fails.
+Use `str_detect()` with `"^[A-Z-]+$"` - put the dash last in the class so it is a literal hyphen, not a range.
 
 ```r title="Your turn"
 sku_v <- c("AB-CD","X-Y-Z","AB1-CD","SHIRT","red-hat","HAT 1","")
@@ -169,6 +185,10 @@ ex_1_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+Counting single-character matches across each string gives you the per-string total directly, with no anchors needed.
+Apply `str_count()` with the digit class `"\\d"` to return one integer per element.
+
 ```r title="Your turn"
 ids_v <- c("user42","abc","007agent","2024-spring","NoNumbers")
 ex_2_1 <- # your code here
@@ -201,6 +221,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Wrap the optional prefix in a group and mark the whole group as appearing zero or one times, then anchor the entire string.
+Use `str_detect()` with `"^(\\+1 )?\\d{3}-\\d{3}-\\d{4}$"` - escape the literal `+` and make the group optional with `?`.
+
 ```r title="Your turn"
 phones_v <- c("555-123-4567","+1 555-123-4567","555.123.4567","555-12-4567","+44 20 7946 0958")
 ex_2_2 <- # your code here
@@ -232,6 +256,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A range quantifier sets a minimum and maximum repeat count, and anchoring both ends rejects anything outside that window.
+Pass `"^[A-Za-z]{4,6}$"` to `str_detect()` so digits like the "7" in "jaguar7" cause a failure.
 
 ```r title="Your turn"
 words_v <- c("cat","tiger","leopard","wolf","panther","ox","jaguar7")
@@ -267,6 +295,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Capture the run of characters before the "@" with a group, then pull just that group out of the match result.
+Use `str_match()` with `"^([^@]+)@.+$"` and subset column 2 with `[, 2]` to get the capture group.
+
 ```r title="Your turn"
 emails_v <- c("alice@acme.com","bob.lee@uni.edu","carol+spam@gmail.com","bademail","dan@io")
 ex_3_1 <- # your code here
@@ -298,6 +330,10 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Capture each name part in its own group, then reorder the groups when you write the replacement text.
+Call `str_replace()` with pattern `"^(\\w+) (\\w+)$"` and replacement `"\\2, \\1"`.
 
 ```r title="Your turn"
 names_full <- c("Ada Lovelace","Grace Hopper","Linus Torvalds","Donald Knuth")
@@ -335,6 +371,10 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Three capture groups, one per number, with escaped literal dots between them, give you each component separately.
+Use `str_match()` with `"^(\\d+)\\.(\\d+)\\.(\\d+)$"`, then build a `data.frame()` from columns 2-4 wrapped in `as.integer()`.
 
 ```r title="Your turn"
 versions_v <- c("1.4.12","2.0.0","0.10.3","11.22.33","bad")
@@ -382,6 +422,10 @@ ex_3_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Match the last path segment without crossing a slash, then split it at the final dot into two captured pieces.
+Use `str_match()` with `"([^/]+)\\.([^.]+)$"` and assemble a `data.frame()` from columns 2 and 3.
 
 ```r title="Your turn"
 paths_v <- c("reports/2026/q1.csv","data/raw.tsv","notes.md","archive/old/file.tar.gz","noext")
@@ -436,6 +480,10 @@ ex_3_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A zero-width assertion can require the dollar sign be present before the number without including it in the result.
+Use `str_extract_all()` with `"(?<=\\$)\\d+\\.\\d{2}"` so the dollar sign is matched but not returned.
+
 ```r title="Your turn"
 lines_v <- c("Total: $42.50 (was $50.00)","Tax: $3.25","No charge","$1.00 deposit")
 ex_4_1 <- # your code here
@@ -478,6 +526,10 @@ ex_4_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A negative assertion placed after a word lets you reject any word whose very next character is a comma.
+Use `str_extract_all()` with `"\\b\\w+\\b(?!,)"` and unwrap the single-element list with `[[1]]`.
+
 ```r title="Your turn"
 sentence <- "Linus, Ada and Grace built tools that Donald, Edsger, and others studied"
 ex_4_2 <- # your code here
@@ -510,6 +562,10 @@ ex_4_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Stack several zero-width assertions at the start, each scanning ahead for one required character type, then enforce length afterwards.
+Use `str_detect()` with stacked `(?=.*...)` lookaheads followed by `.{8,}$` for the eight-character minimum.
+
 ```r title="Your turn"
 pw_v <- c("Pass123!","weakpass","STRONG1!","Sec ure9!","Aa1@bcde","short1!")
 ex_4_3 <- # your code here
@@ -541,6 +597,10 @@ ex_4_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Assert the opening tag before and the closing tag after the text, so only the cell content is returned.
+Use `str_extract_all()` with `"(?<=<td>)[^<]+(?=</td>)"` and unwrap with `[[1]]`.
 
 ```r title="Your turn"
 html <- "<tr><td>Acme</td><td>1200</td><td>USD</td></tr>"
@@ -576,6 +636,10 @@ ex_4_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Word boundaries keep a five-digit run from being part of a longer number or bleeding into adjacent letters.
+Use `str_extract()` with `"\\b\\d{5}\\b"` to return the first matching ZIP per element.
+
 ```r title="Your turn"
 addr_v <- c("742 Evergreen, Springfield, IL 62704","221B Baker St, NA",
             "100 Main, Reno, NV 89501-1234","No address","P.O. Box 5, NY 10001")
@@ -610,6 +674,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Make the protocol's optional letter optional, then run to the next whitespace, which delimits log fields.
+Use `str_extract_all()` with `"https?://\\S+"` and unwrap with `[[1]]`.
+
 ```r title="Your turn"
 log_line <- "GET https://api.example.com/v1/users 200 ref=https://search.example.com/?q=test ua=Mozilla"
 ex_5_2 <- # your code here
@@ -641,6 +709,10 @@ ex_5_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Fixed-width digit groups joined by literal punctuation and letters pin the timestamp shape exactly.
+Use `str_extract()` with `"\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z"`.
 
 ```r title="Your turn"
 logs_v <- c("2026-04-12T08:13:55Z OK","ERR 2026-04-12T08:14:01Z timeout",
@@ -678,6 +750,10 @@ ex_5_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Literal text between capture groups anchors each field's position while the groups pull out the values.
+Use `str_match()` with `"^ORD-(\\d{4}-\\d{2}-\\d{2})-SKU(\\d+)-Q(\\d+)$"`, then build a `data.frame()` with `as.integer()` on the qty column.
 
 ```r title="Your turn"
 orders_v <- c("ORD-2026-04-12-SKU742-Q5","ORD-2026-04-13-SKU100-Q1","ORD-2026-04-13-SKU742-Q12")
@@ -729,6 +805,10 @@ ex_5_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Four dot-separated short digit runs, fenced by word boundaries, isolate each address from surrounding text.
+Use `str_extract_all()` with `"\\b\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\b"`.
+
 ```r title="Your turn"
 log_v <- c("10.0.0.1 - GET / 200","fail from 192.168.1.42","clean: 8.8.8.8 and 1.1.1.1","no-ip line")
 ex_5_5 <- # your code here
@@ -773,6 +853,10 @@ ex_5_5
 
 **Difficulty:** Beginner
 
+[HINTS]
+One operation can both trim the ends and collapse internal whitespace runs down to single spaces.
+Call `str_squish()` on the vector - it combines trimming with whitespace collapsing.
+
 ```r title="Your turn"
 raw_v <- c("  hello   world  ","\tone\ttwo  three","clean","   "," a  b  c ")
 ex_6_1 <- # your code here
@@ -804,6 +888,10 @@ ex_6_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Insert a separator only at the boundary where a lowercase or digit character is followed by an uppercase one, then downcase everything.
+Use `str_replace_all()` with `"([a-z0-9])([A-Z])"` and replacement `"\\1_\\2"`, then wrap the result in `str_to_lower()`.
 
 ```r title="Your turn"
 cols_v <- c("firstName","lastName","userID","httpRequestCount","email")
@@ -837,6 +925,10 @@ ex_6_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Capture the first and last four digits, anchor the whole sixteen-digit string, and rebuild it with a fixed mask between.
+Use `str_replace()` with `"^(\\d{4})\\d{8}(\\d{4})$"` and replacement `"\\1XXXXXXXX\\2"`.
+
 ```r title="Your turn"
 cards_v <- c("4111111111111234","5500000000000009","378282246310005","invalid")
 ex_6_3 <- # your code here
@@ -868,6 +960,10 @@ ex_6_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Solve it in two stages - first reduce every input to bare digits, then reformat only the ones that have exactly ten.
+Use `str_replace_all()` with `"\\D"` to strip non-digits, gate on `"^\\d{10}$"`, then `str_replace()` with three capture groups.
 
 ```r title="Your turn"
 phones_v2 <- c("(415) 555-2671","415.555.2671","415 555 2671","4155552671",
@@ -907,6 +1003,10 @@ ex_6_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+First remove anything that looks like a tag, then map each entity name to its literal character.
+Use `str_replace_all()` with `"<[^>]+>"` to drop tags, then its named-vector form `c("&amp;" = "&", ...)` for the entities.
 
 ```r title="Your turn"
 raw_html <- c("<p>Hello &amp; goodbye</p>","<b>x &lt; y</b>","plain text","<span class=\"x\">tagged</span>")

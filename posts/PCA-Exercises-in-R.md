@@ -44,6 +44,9 @@ library(tibble)
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+When variables sit on different measurement scales, equalising their variance before the fit stops any one column from dominating purely for numerical reasons.
+Pass the first four columns of iris to the PCA function and set its scale argument to TRUE.
 
 ```r title="Your turn"
 ex_1_1 <- # your code here
@@ -78,6 +81,9 @@ summary(ex_1_1)
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+The variance breakdown printed for a fit is itself a small matrix you can index into, so the number is already there to be read off rather than recomputed.
+Take summary(ex_1_1)$importance and index row 2 (Proportion of Variance) at column "PC2".
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -109,6 +115,9 @@ round(ex_1_2, 4)
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Run the analysis twice with the scaling switch flipped, then read each PC1 share off the squared standard deviations of each fit.
+Call prcomp() with scale = FALSE and again with scale = TRUE, divide sdev^2 by its sum, take the first element, and assemble with c(unscaled = , scaled = ).
 
 ```r title="Your turn"
 cols <- c("mpg", "disp", "hp", "wt")
@@ -152,6 +161,9 @@ round(ex_1_3, 5)
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+The fit object already stores the column means and standard deviations it used, so this is a matter of reading them off rather than computing anything.
+Build a tibble() from the $center and $scale components of ex_1_1, using names() for the variable column.
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -195,6 +207,9 @@ ex_1_4
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Turn the per-component variances into a running total, then locate the first point where that total clears the threshold.
+Compute cumsum(fit$sdev^2) / sum(fit$sdev^2), then use which(... >= 0.9)[1] to get the smallest k.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -230,6 +245,9 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A scree plot is just the component index against its proportion of variance, drawn so the elbow where the curve flattens is visible.
+Put the component numbers and proportions in a tibble, then use ggplot() with geom_line() and geom_point(), and name the axes with labs().
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -271,6 +289,9 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Each component's eigenvalue is its variance, and the rule keeps only those carrying more than a single standardised variable would on its own.
+Compute eigenvalues as fit$sdev^2, then sum() the logical test that they exceed 1.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -304,6 +325,9 @@ ex_2_3
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Compare each component's observed variance share against what a purely random split of total variance would expect for a piece of that rank.
+Build the expected proportions with sapply() over the formula (1 / p) * sum(1 / k:p), then sum() where the observed share beats the expected one.
 
 ```r title="Your turn"
 ex_2_4 <- # your code here
@@ -340,6 +364,9 @@ ex_2_4
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+The loadings say how strongly each original variable weighs on a component, and the largest in magnitude names what the component is mostly about.
+Pull the "PC1" column from fit$rotation, then use which.max(abs(...)) to index into names().
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -377,6 +404,9 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Rank the variables by the size of their PC2 weight regardless of sign, then keep the leading few rows.
+Make a tibble from the fit$rotation[, "PC2"] column, then arrange(desc(abs(...))) and slice_head(n = 3).
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -428,6 +458,9 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A component's sign is arbitrary, so flipping it means negating its loading direction and its scores together so the two stay consistent.
+Multiply the "PC1" column of fit$rotation and the "PC1" column of fit$x by -1, then store the modified fit list.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -471,6 +504,9 @@ head(ex_3_3$x[, 1:2])
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+For a scaled fit, the correlation between a variable and a component is just the loading weighted by how much spread that component carries.
+Compute fit$rotation %*% diag(fit$sdev) and then set the column names to PC1..PCk.
 
 ```r title="Your turn"
 ex_3_4 <- # your code here
@@ -517,6 +553,9 @@ round(ex_3_4, 3)
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+The scores sit in a matrix whose rows are in the same order as the input data, so the grouping label can be attached row-for-row.
+Build a tibble() from ex_1_1$x[, "PC1"], ex_1_1$x[, "PC2"], and iris$Species.
 
 ```r title="Your turn"
 ex_4_1 <- # your code here
@@ -562,6 +601,9 @@ head(ex_4_1)
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A scatter of the first two scores coloured by group, with the variance percentages folded into the axis labels so the chart reads on its own.
+Use ggplot(ex_4_1, aes(PC1, PC2, colour = Species)) with geom_point(), and build the axis text with paste0() inside labs().
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -604,6 +646,9 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A biplot overlays the observation scores and the variable loading arrows on one pair of axes, and you then capture the figure that was drawn.
+Call biplot() on the fit with scale = 0, then snapshot it with recordPlot().
 
 ```r title="Your turn"
 fit <- prcomp(USArrests, scale = TRUE)
@@ -642,6 +687,9 @@ ex_4_3 <- recordPlot()
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Principal component regression swaps the correlated predictors for their orthogonal scores before the model is fitted, which steadies the coefficients.
+Fit prcomp() on the four predictors, assemble a data frame with mpg plus PC1 and PC2 taken from $x, then call lm(mpg ~ PC1 + PC2).
 
 ```r title="Your turn"
 predictors <- c("disp", "hp", "wt", "qsec")
@@ -684,6 +732,9 @@ ex_5_1
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+New rows must be transformed with the exact centring and scaling the original fit learned, never with values recomputed from the new data.
+Call predict() on the existing prcomp fit, passing the new rows through the newdata argument.
 
 ```r title="Your turn"
 new_cars <- tibble(
@@ -728,6 +779,9 @@ round(ex_5_2, 3)
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Multiplying the kept scores back through the kept loadings rebuilds the data in scaled space, and undoing the scaling and centring returns it to original units.
+Compute fit$x[, 1:2] %*% t(fit$rotation[, 1:2]), apply two sweep() calls with fit$scale and fit$center, then take the root mean of the squared errors.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -767,6 +821,9 @@ round(ex_5_3, 4)
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+PCA is a singular value decomposition underneath, so the singular values of the prepared matrix carry the same information as the component standard deviations.
+Run svd() on the scale()d iris matrix, convert with d / sqrt(n - 1), and take max(abs(...)) of the difference from the fit's $sdev.
 
 ```r title="Your turn"
 ex_5_4 <- # your code here
@@ -804,6 +861,9 @@ round(ex_5_4, 12)
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Distance from the score-space centroid, measured against the spread of each component, flags rows that sit far out, with a chi-square quantile setting the cutoff.
+Use mahalanobis() on the first two score columns with cov = diag(fit$sdev[1:2]^2), then keep names where the distance exceeds qchisq(0.95, df = 2).
 
 ```r title="Your turn"
 ex_5_5 <- # your code here

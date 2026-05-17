@@ -41,6 +41,10 @@ library(dplyr)
 
 **Difficulty:** Beginner
 
+[HINTS]
+All three answers are areas under the standard normal curve, and the cumulative-from-the-left view gives every one of them.
+Reach for `pnorm()` with the default lower tail for the body, `lower.tail = FALSE` for the upper tail, and a difference of two `pnorm()` calls at 1 and -1 for the middle band.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -76,6 +80,10 @@ ex_1_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+You want the area in the right tail of a normal curve, beyond the cutoff value.
+Call the normal CDF at 130 with `mean = 100`, `sd = 15`, and `lower.tail = FALSE`.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -106,6 +114,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The reject region is two separate pieces, one below the lower limit and one above the upper limit, and their probabilities add.
+Add `pnorm(492, 500, 4)` to `pnorm(508, 500, 4, lower.tail = FALSE)`, then scale that probability by 10000.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -139,6 +151,10 @@ ex_1_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You need the score sitting at a given percentile, which is the inverse of a cumulative probability.
+Use `qnorm(0.90, mean = 1050, sd = 200)` and wrap it in `round()`.
+
 ```r title="Your turn"
 ex_1_4 <- # your code here
 ex_1_4
@@ -169,6 +185,10 @@ ex_1_4
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Generate a reproducible random sample, then summarize it with the usual location and spread measures.
+Seed with `set.seed(2026)`, draw with `rnorm(1000, mean = 50, sd = 10)`, then apply `mean()` and `sd()`.
 
 ```r title="Your turn"
 ex_1_5 <- # your code here
@@ -205,6 +225,10 @@ round(ex_1_5, 4)
 
 **Difficulty:** Beginner
 
+[HINTS]
+You want the probability of an exact count in a fixed number of independent yes/no trials.
+Call `dbinom()` with the count 2, `size = 50`, and `prob = 0.03`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -234,6 +258,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+"At least 8" is the upper tail of a count distribution, so rewrite it as a strict inequality before the cumulative function lines up.
+Use `pbinom(7, size = 20, prob = 0.25, lower.tail = FALSE)` - note the 7, not 8.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -265,6 +293,10 @@ ex_2_2
 
 **Difficulty:** Beginner
 
+[HINTS]
+You want the probability of an exact event count when events arrive at a steady average rate.
+Call `dpois()` at 15 with `lambda = 12`.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 ex_2_3
@@ -294,6 +326,10 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You need the smallest count that captures a target share of hours, which is the inverse of a cumulative count probability.
+Use `qpois(0.99, lambda = 12)`.
 
 ```r title="Your turn"
 ex_2_4 <- # your code here
@@ -325,6 +361,10 @@ ex_2_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Simulate many single yes/no trials, then compare the observed success share with the true rate.
+Seed with `set.seed(7)`, draw with `rbinom(10000, size = 1, prob = 0.37)`, take `mean()`, and use `abs()` for the error.
 
 ```r title="Your turn"
 ex_2_5 <- # your code here
@@ -363,6 +403,10 @@ round(ex_2_5, 4)
 
 **Difficulty:** Beginner
 
+[HINTS]
+For a uniform distribution the probability of an interval is just its share of the total range, and the mean sits at the midpoint.
+Take the difference of two `punif()` calls at 30 and 20 with `min = 15`, `max = 45`, and compute `(15 + 45) / 2` for the mean.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -395,6 +439,10 @@ round(ex_3_1, 4)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want the chance a waiting time exceeds a threshold, which is the right tail of the waiting-time distribution.
+Call `pexp(500, rate = 1/200, lower.tail = FALSE)` - note it takes a rate, not a mean.
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -424,6 +472,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The total of several independent waiting times follows a gamma distribution, and you need its 95th percentile.
+Use `qgamma(0.95, shape = 5, rate = 1/30)`.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -455,6 +507,10 @@ ex_3_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A beta posterior has a closed-form mean from its two shape parameters, and its credible bound is a percentile of that beta.
+Compute the mean as `alpha / (alpha + beta)` with alpha 49 and beta 55, and get the lower bound from `qbeta(0.025, shape1 = 49, shape2 = 55)`.
 
 ```r title="Your turn"
 ex_3_4 <- # your code here
@@ -491,6 +547,10 @@ round(ex_3_4, 4)
 
 **Difficulty:** Advanced
 
+[HINTS]
+A lognormal tail probability is driven entirely by the normal that governs its logarithm.
+Call `plnorm(1.025, meanlog = 0.0005, sdlog = 0.012, lower.tail = FALSE)`.
+
 ```r title="Your turn"
 ex_3_5 <- # your code here
 ex_3_5
@@ -523,6 +583,10 @@ ex_3_5
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A two-sided test splits its rejection probability into two equal tails, so the critical value is an upper-tail percentile.
+Use `qt(0.975, df = 19)` - the 0.975 reflects splitting 0.05 across two tails.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -553,6 +617,10 @@ ex_4_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A lower-tail test rejects for small statistic values, so the critical value is a low percentile of the distribution.
+Use `qchisq(0.05, df = 24)`.
+
 ```r title="Your turn"
 ex_4_2 <- # your code here
 ex_4_2
@@ -582,6 +650,10 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+An ANOVA rejects for large variance ratios, so the critical value is an upper-tail percentile of the F distribution.
+Use `qf(0.95, df1 = 3, df2 = 56)`.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -621,6 +693,10 @@ ex_4_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+You are evaluating the height of each curve at several points, then laying the normal and the three t curves side by side in a table.
+Build a `tibble()` whose columns come from `dnorm(xs)` and `dt(xs, df = ...)` for df 3, 10, and 30.
 
 ```r title="Your turn"
 ex_4_4 <- # your code here
@@ -664,6 +740,10 @@ ex_4_4
 
 **Difficulty:** Advanced
 
+[HINTS]
+Repeat the draw-a-sample-and-average experiment many times, then describe the spread of those averages.
+Seed with `set.seed(11)`, wrap `mean(rexp(25, rate = 1/10))` inside `replicate(5000, ...)`, then take `mean()` and `sd()`.
+
 ```r title="Your turn"
 ex_4_5 <- # your code here
 ex_4_5
@@ -699,6 +779,10 @@ round(ex_4_5, 4)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The fraction of random points landing inside the quarter circle equals the ratio of its area to the square's.
+Seed with `set.seed(42)`, draw coordinates with `runif()`, test `x^2 + y^2 <= 1`, and multiply the `mean()` of that by 4.
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -736,6 +820,10 @@ round(ex_5_1, 4)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Parametric VaR is a low percentile of the return distribution, converted from log-return space into simple-return space.
+Get the log-return quantile from `qnorm(0.01, mean = 0.0004, sd = 0.011)`, map it with `exp(...) - 1`, then negate and scale to a percentage.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -775,6 +863,10 @@ ex_5_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Compare a step function built from the sample against the true cumulative curve at a handful of points.
+Build the step function with `ecdf(samp)`, evaluate it and `pnorm()` on the grid, and assemble the columns in a `tibble()`.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -819,6 +911,10 @@ ex_5_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+For each simulated dataset, check whether its interval traps the true mean, then average those hits.
+Inside `replicate(5000, ...)` build the half-width as `qnorm(0.975) * 2 / sqrt(n)`, test whether 5 lies between the bounds, then take `mean()`.
+
 ```r title="Your turn"
 ex_5_4 <- # your code here
 ex_5_4
@@ -859,6 +955,10 @@ ex_5_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Stack both density curves into one long data frame with a column flagging which distribution each row belongs to, then map that column to color.
+Build a grid with `seq(-4, 4, by = 0.05)`, get heights from `dnorm()` and `dt(..., df = 3)`, and draw with `ggplot()` plus `geom_line()` mapping `color = distribution`.
 
 ```r title="Your turn"
 ex_5_5 <- # your code here

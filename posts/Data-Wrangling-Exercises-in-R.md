@@ -54,6 +54,10 @@ library(ggplot2)   # diamonds, mpg, economics, txhousing
 
 **Difficulty:** Beginner
 
+[HINTS]
+Think about how to bundle three separate facts about the data - its height, its width, and a small preview - into one container that keeps each piece labelled.
+Build a named `list()` whose elements come from `nrow()`, `ncol()`, and `head(mtcars, 3)`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -100,6 +104,10 @@ ex_1_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+You need the printed type-listing kept as text you can search later, not just something shown on screen once.
+Wrap `glimpse(diamonds)` inside `capture.output()` so the console lines become a character vector.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 head(ex_1_2, 4)
@@ -133,6 +141,10 @@ head(ex_1_2, 4)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+First measure how much is missing in each column, then keep only the offending columns and order them worst-first.
+Combine `is.na()` with `colSums()` for per-column counts, subset to counts above zero, and `sort()` with `decreasing = TRUE`.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -172,6 +184,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You are describing the data itself - one row per column, recording each column's name, its type, and an example value.
+Build a `tibble()` from `names(iris)`, `sapply(iris, class)`, and `sapply()` over `iris[1, ]` coerced with `as.character`.
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -216,6 +232,10 @@ ex_1_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A low-information column is one that takes very few different values, so count the variety in each column and surface the smallest first.
+Apply a function returning `length(unique(x))` to every column with `sapply()`, then `sort()` the result ascending.
+
 ```r title="Your turn"
 ex_1_5 <- # your code here
 ex_1_5
@@ -252,6 +272,10 @@ ex_1_5
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Compute four summary statistics for every numeric column, then reshape so each column becomes a row and each statistic its own column.
+Use `summarise(across(...))` with a named list of `min`, `median`, `max`, `mean` and a `.names` pattern, then `pivot_longer()` with a `.value` token in `names_to`.
 
 ```r title="Your turn"
 ex_1_6 <- # your code here
@@ -293,6 +317,10 @@ head(ex_1_6, 3)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+You want one flat string that pairs every column name with its type, joined by a separator.
+`paste()` `names(diamonds)` against `sapply(diamonds, function(x) class(x)[1])` with `sep = ":"`, then `paste()` again with `collapse = " | "`.
 
 ```r title="Your turn"
 ex_1_7 <- # your code here
@@ -337,6 +365,10 @@ ex_1_7
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Keep only the three columns asked for, then trim the rows down to a short preview.
+Pipe `mpg` through `select(manufacturer, model, cty)` into `head(5)`.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -383,6 +415,10 @@ ex_2_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+Keep only the rows that clear a numeric threshold while preserving the model names attached to each row.
+Use base-R bracket subsetting `mtcars[mtcars$mpg > 25, ]` - the trailing comma keeps every column.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -425,6 +461,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Narrow the rows by two conditions, then narrow the columns, then cut to a short preview.
+Chain `filter(cut == "Ideal", carat >= 1)`, `select(carat, cut, color, price)`, and `head(5)`.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -473,6 +513,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Keep the rows matching two thresholds, then order the survivors from cheapest upward.
+Use `filter(carat > 2, price < 10000)` then `arrange(price)`.
+
 ```r title="Your turn"
 ex_2_4 <- # your code here
 head(ex_2_4, 3)
@@ -516,6 +560,10 @@ head(ex_2_4, 3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Pull the highest-priced rows, using carat only to settle ties so the ordering is reproducible.
+Use `slice_max()` with `n = 5` and pass `tibble(price, carat)` to its `order_by` argument.
 
 ```r title="Your turn"
 ex_2_5 <- # your code here
@@ -562,6 +610,10 @@ ex_2_5
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Reduce the column to its unique values, then put them in alphabetical order.
+Use `distinct(manufacturer)` followed by `arrange(manufacturer)`.
+
 ```r title="Your turn"
 ex_2_6 <- # your code here
 head(ex_2_6, 4)
@@ -606,6 +658,10 @@ head(ex_2_6, 4)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Take a slice of rows first, then sort within quality groups by descending price, then keep four columns.
+Chain `head(10)`, `arrange(cut, desc(price))`, and `select(cut, color, carat, price)`.
 
 ```r title="Your turn"
 ex_2_7 <- # your code here
@@ -652,6 +708,10 @@ head(ex_2_7, 4)
 
 **Difficulty:** Advanced
 
+[HINTS]
+Keep a row when at least one of three chosen columns sits above that column's own average.
+Use `filter()` with `if_any(c(mpg, hp, wt), ~ .x > mean(.x))`.
+
 ```r title="Your turn"
 ex_2_8 <- # your code here
 nrow(ex_2_8)
@@ -689,6 +749,10 @@ nrow(ex_2_8)
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Add one derived column built from the ratio of two existing columns, rounded for display.
+Use `mutate(hp_per_cyl = round(hp / cyl, 1))`.
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -728,6 +792,10 @@ head(ex_3_1[, c("mpg", "cyl", "hp", "hp_per_cyl")], 3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Assign each row one of three labels depending on which price band it falls into.
+Add a `tier` column inside `mutate()` using `case_when()`, ordering the branches `price < 1000`, `price < 5000`, and a `TRUE` catch-all.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -771,6 +839,10 @@ count(ex_3_2, tier)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Add a TRUE/FALSE column driven by whether one measurement crosses a threshold.
+Use `mutate(large_petal = if_else(Petal.Length > 5, TRUE, FALSE))`.
+
 ```r title="Your turn"
 ex_3_3 <- # your code here
 table(ex_3_3$large_petal)
@@ -809,6 +881,10 @@ table(ex_3_3$large_petal)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Standardise one column by recentring it on its average and rescaling by its spread, then keep just the before-and-after columns.
+In `mutate()` write `round((mpg - mean(mpg)) / sd(mpg), 2)`, then `select(mpg, mpg_z)`.
 
 ```r title="Your turn"
 ex_3_4 <- # your code here
@@ -854,6 +930,10 @@ head(ex_3_4, 4)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Apply the same standardising formula to every numeric column without naming any of them.
+Use `mutate(across(where(is.numeric), ~ round((.x - mean(.x)) / sd(.x), 2)))`.
+
 ```r title="Your turn"
 ex_3_5 <- # your code here
 head(ex_3_5, 3)
@@ -897,6 +977,10 @@ head(ex_3_5, 3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Translate the short codes into readable labels, then keep only the identifying columns.
+Recode `drv` inside `mutate()` with `case_when()` mapping each code, then `select(manufacturer, model, drv)`.
 
 ```r title="Your turn"
 ex_3_6 <- # your code here
@@ -951,6 +1035,10 @@ head(ex_3_6, 5)
 
 **Difficulty:** Advanced
 
+[HINTS]
+For each row, average the current value with the six values before it, skipping missing days, so the first six rows have no answer.
+Write a helper that loops with `seq_along()` and calls `mean(x[(i - 6):i], na.rm = TRUE)` when `i >= 7`, then add it via `mutate()`.
+
 ```r title="Your turn"
 ex_3_7 <- # your code here
 head(ex_3_7[, c("Ozone", "Day", "Ozone_7d")], 8)
@@ -1004,6 +1092,10 @@ head(ex_3_7[, c("Ozone", "Day", "Ozone_7d")], 8)
 
 **Difficulty:** Advanced
 
+[HINTS]
+Add three derived columns in a single transformation step - a log, a ratio, and a logical flag.
+Use one `mutate()` with `log(price)`, `as.integer(round(price / carat))`, and `cut == "Ideal"`.
+
 ```r title="Your turn"
 ex_3_8 <- # your code here
 head(ex_3_8[, c("carat", "cut", "log_price", "price_per_carat", "is_ideal")], 3)
@@ -1052,6 +1144,10 @@ head(ex_3_8[, c("carat", "cut", "log_price", "price_per_carat", "is_ideal")], 3)
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Collapse the four quarter columns into one column holding the labels and one column holding the values.
+Use `pivot_longer(cols = Q1:Q4, names_to = "quarter", values_to = "sales")`.
 
 ```r title="Your turn"
 wide <- tibble(
@@ -1103,6 +1199,10 @@ head(ex_4_1, 4)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Spread the single metric column out so each distinct metric value becomes its own column.
+Use `pivot_wider(names_from = metric, values_from = value)`.
 
 ```r title="Your turn"
 long <- tibble(
@@ -1156,6 +1256,10 @@ ex_4_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Stack the four measurement columns into one name column and one value column while leaving the grouping column in place, then preview.
+Use `pivot_longer(cols = -Species, names_to = "measurement", values_to = "value")` then `head(15)`.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 head(ex_4_3, 4)
@@ -1199,6 +1303,10 @@ head(ex_4_3, 4)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Keep every customer even those with no order, filling blanks wherever order data is missing.
+Use `left_join(orders, by = "customer_id")` with the customers table on the left.
 
 ```r title="Your turn"
 customers <- tibble(customer_id = 1:3, name = c("Anya","Borja","Camille"))
@@ -1244,6 +1352,10 @@ ex_4_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Keep only the products whose category exists in the lookup table, then drop the join key.
+Use `inner_join(categories, by = "cat_id")` then `select(-cat_id)`.
 
 ```r title="Your turn"
 products <- tibble(
@@ -1297,6 +1409,10 @@ ex_4_5
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Return only the orders whose customer is absent from the customers table.
+Use `anti_join(customers, by = "customer_id")` with the orders table on the left.
+
 ```r title="Your turn"
 customers <- tibble(customer_id = 1:3)
 orders <- tibble(customer_id = c(1, 2, 9), order_id = c(5001, 5002, 5003), amount = c(120, 200, 450))
@@ -1340,6 +1456,10 @@ ex_4_6
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Stack the two logs into one table while recording which day each row originally came from.
+Use `bind_rows()` with the inputs passed as named arguments and `.id = "source_day"`.
 
 ```r title="Your turn"
 day1 <- tibble(user_id = c(11, 12), action = c("login","click"))
@@ -1385,6 +1505,10 @@ ex_4_7
 
 **Difficulty:** Advanced
 
+[HINTS]
+Join two tables whose key column carries a different name on each side.
+Use `inner_join(lookup, by = c("prod_code" = "code"))`.
+
 ```r title="Your turn"
 sales  <- tibble(prod_code = c("A001","B002","Z999"), revenue = c(300, 450, 200))
 lookup <- tibble(code = c("A001","B002"), product = c("Apple","Banana"))
@@ -1429,6 +1553,10 @@ ex_4_8
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Split the combined string column into two separate columns at its delimiter.
+Use `separate_wider_delim(period, delim = "-", names = c("year", "quarter"))`.
 
 ```r title="Your turn"
 sales <- tibble(
@@ -1482,6 +1610,10 @@ ex_4_9
 
 **Difficulty:** Beginner
 
+[HINTS]
+Partition the rows by engine size, then collapse each partition down to a single average.
+Use `group_by(cyl)` then `summarise(mean_mpg = round(mean(mpg), 2))`.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -1524,6 +1656,10 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Split the rows by diet, then collapse each group into a count and two summary statistics.
+Use `group_by(Diet)` then `summarise()` with `n()`, `round(mean(weight), 1)`, and `round(sd(weight), 1)`.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -1575,6 +1711,10 @@ ex_5_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Aggregate the count and average price for each cut, then order the result by price.
+Use `group_by(cut)`, `summarise(n = n(), mean_price = as.integer(mean(price)))`, then `arrange(desc(mean_price))`.
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 ex_5_3
@@ -1624,6 +1764,10 @@ ex_5_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Produce a frequency table of one column ordered from most to least common.
+Use `count(color, sort = TRUE)`.
+
 ```r title="Your turn"
 ex_5_4 <- # your code here
 ex_5_4
@@ -1671,6 +1815,10 @@ ex_5_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Move the model names into a real column, then keep the two best rows within each cylinder group.
+Use `tibble::rownames_to_column("model")`, `group_by(cyl)`, and `slice_max(mpg, n = 2, with_ties = FALSE)`.
 
 ```r title="Your turn"
 ex_5_5 <- # your code here
@@ -1720,6 +1868,10 @@ ex_5_5
 
 **Difficulty:** Intermediate
 
+[HINTS]
+For each species, average every numeric column at once without listing them by name.
+Use `group_by(Species)` then `summarise(across(where(is.numeric), ~ round(mean(.x), 2)))`.
+
 ```r title="Your turn"
 ex_5_6 <- # your code here
 ex_5_6
@@ -1764,6 +1916,10 @@ ex_5_6
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Within each account, order by month and build a running total that restarts for every account.
+Use `group_by(account)`, `arrange(month, .by_group = TRUE)`, and `mutate(cum_amount = cumsum(amount))`.
 
 ```r title="Your turn"
 deposits <- tibble(
@@ -1825,6 +1981,10 @@ ex_5_7
 
 **Difficulty:** Advanced
 
+[HINTS]
+Count each cut-and-color pair, then express each count as its fraction of that cut's total.
+Use `count(cut, color)`, then `group_by(cut)` and `mutate(share = round(n / sum(n), 3))`.
+
 ```r title="Your turn"
 ex_5_8 <- # your code here
 head(ex_5_8, 6)
@@ -1869,6 +2029,10 @@ head(ex_5_8, 6)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Keep only the rows that are complete across every single column.
+Use `tidyr::drop_na()` with no arguments.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 nrow(ex_6_1)
@@ -1900,6 +2064,10 @@ nrow(ex_6_1)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Replace only the missing values in one column with a central value computed from the observed values.
+In `mutate()`, use `if_else(is.na(Ozone), median(Ozone, na.rm = TRUE), as.numeric(Ozone))`.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here
@@ -1939,6 +2107,10 @@ median(ex_6_2$Ozone)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Make the text comparable by stripping stray surrounding spaces and standardising the capitalisation.
+In `mutate()`, combine `str_trim()` with `str_to_title()` on the `product` column.
 
 ```r title="Your turn"
 messy <- tibble(
@@ -1990,6 +2162,10 @@ ex_6_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Add a logical column that records whether a keyword appears, regardless of letter case.
+In `mutate()`, use `str_detect(campaign, regex("holiday", ignore_case = TRUE))`.
+
 ```r title="Your turn"
 campaigns <- tibble(
   campaign = c("Holiday Email Q4","Spring Sale","holiday flash promo","New Product Launch"),
@@ -2040,6 +2216,10 @@ ex_6_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Convert the text dates into real date values, then pull the year and month parts out of them.
+Use one `mutate()` with `as.Date(date)`, `year(date)`, and `month(date)`.
 
 ```r title="Your turn"
 raw <- tibble(
@@ -2095,6 +2275,10 @@ ex_6_5
 
 **Difficulty:** Advanced
 
+[HINTS]
+Split the single name column into two columns at the space between the words.
+Use `separate_wider_delim(full_name, delim = " ", names = c("first", "last"))`.
+
 ```r title="Your turn"
 people <- tibble(full_name = c("Anya Petrova","Borja Sanchez","Camille Dubois"))
 ex_6_6 <- # your code here
@@ -2139,6 +2323,10 @@ ex_6_6
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Clean the region text and drop the incomplete rows before reshaping, or the spread will fragment into stray columns.
+Chain `mutate(region = str_trim(region))`, `drop_na(sales)`, then `pivot_wider(names_from = region, values_from = sales)`.
 
 ```r title="Your turn"
 raw <- tibble(
@@ -2193,6 +2381,10 @@ ex_7_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+Engineer a tier label and a log column first, then collapse to one row per tier carrying a count and two medians.
+In `mutate()` build a `case_when()` tier and `log(price)`, then `group_by(tier)` and `summarise()` with `n()` and `median()`.
+
 ```r title="Your turn"
 ex_7_2 <- # your code here
 ex_7_2
@@ -2246,6 +2438,10 @@ ex_7_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Attach the product names, total the revenue for each region-and-product pair, then keep only the single best pair per region.
+Use `inner_join(products, by = "prod_id")`, a grouped `summarise(revenue = sum(revenue))`, then `slice_max(revenue, n = 1)` grouped by region.
 
 ```r title="Your turn"
 sales <- tibble(
@@ -2303,6 +2499,10 @@ ex_7_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Turn the long log into one row per user with action counts as columns, then add a total and a rank.
+Use `count()` then `pivot_wider()` with `values_fill = 0`, and `mutate()` a `total` plus `dense_rank(desc(total))`.
 
 ```r title="Your turn"
 log <- tibble(

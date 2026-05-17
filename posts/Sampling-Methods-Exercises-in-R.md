@@ -48,6 +48,10 @@ set.seed(1)
 
 **Difficulty:** Beginner
 
+[HINTS]
+You need random row positions, not random values - draw a set of integers within the valid row range, then use them to index the data frame.
+Call sample(nrow(mtcars), size = 10, replace = FALSE) to get the indices, then subset with mtcars[idx, ].
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -84,6 +88,10 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Each roll is independent, so the same face can come up repeatedly - that means drawing with replacement, then counting how often each face appears.
+Use sample(1:6, size = 1000, replace = TRUE) and summarise the result with table().
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -122,6 +130,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Reproducibility comes from resetting the random number generator to the same state right before each draw.
+Call set.seed(42) before each sample(1:100, 5), then wrap both vectors in list(first = ..., second = ...).
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -170,6 +182,10 @@ identical(first, second)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Treat the observed sample as the population: repeatedly draw a same-size sample from it with replacement and record the statistic each time.
+Drive 1,000 iterations with replicate(), each computing mean(mtcars$mpg[sample(n, n, replace = TRUE)]).
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 str(ex_2_1)
@@ -209,6 +225,10 @@ sd(ex_2_1)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A percentile interval is just the empirical tails of the resampled statistics - resample many medians, then read off the cut points.
+After replicate()-ing median(sample(...)), pass the medians to quantile(..., c(0.025, 0.975)) and label them with setNames().
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -251,6 +271,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+To keep the relationship between two variables intact, resample whole rows together rather than each column on its own.
+Inside replicate(), draw idx <- sample(n, n, replace = TRUE) once and compute cor(mtcars$mpg[idx], mtcars$wt[idx]).
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -301,6 +325,10 @@ quantile(ex_2_3, c(0.025, 0.975))
 
 **Difficulty:** Advanced
 
+[HINTS]
+The package version needs a function that returns your statistic from a resampled copy of the data, plus a separate call for the interval.
+Write a statistic with signature (data, idx) returning the wt coefficient, pass it to boot(data = mtcars, statistic = ..., R = 1000), then boot.ci(type = "bca").
+
 ```r title="Your turn"
 ex_2_4 <- # your code here
 ex_2_4
@@ -343,6 +371,10 @@ boot.ci(ex_2_4, type = "bca")
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+One approach resamples whole observations; the other holds the fitted values fixed and only reshuffles the leftover noise before refitting.
+For the residual version, build y_star <- fitted(fit) + sample(residuals(fit), n, replace = TRUE) and refit; take sd() of each set of slopes.
 
 ```r title="Your turn"
 ex_2_5 <- # your code here
@@ -401,6 +433,10 @@ ex_2_5
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want the draw to happen separately within each class so every class contributes the same number of rows.
+Pipe iris through group_by(Species) then slice_sample(n = 5).
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -448,6 +484,10 @@ count(ex_3_1, Species)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Sample the groups themselves, not the rows - once a group is chosen, every member of it comes along.
+Pick clusters with sample(unique(mtcars$cyl), size = 2), keep rows where cyl %in% picked, then record them via attr(..., "clusters_picked").
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -491,6 +531,10 @@ attr(ex_3_2, "clusters_picked")
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Pick one random entry point near the top of the frame, then step through it at a fixed stride.
+Choose start <- sample(seq_len(4), 1), build positions with seq(from = start, to = nrow(diamonds), by = 4), and index diamonds with them.
 
 ```r title="Your turn"
 library(ggplot2)
@@ -541,6 +585,10 @@ nrow(ex_3_3)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+One design fixes the same count in every stratum; the other takes a fixed fraction of each stratum's size.
+Both use group_by(Species), one with slice_sample(n = 10) and the other with slice_sample(prop = 0.2); collect them in list(equal = ..., proportional = ...).
 
 ```r title="Your turn"
 ex_3_4 <- # your code here
@@ -605,6 +653,10 @@ count(ex_3_4$proportional, Species)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Give each customer a selection chance proportional to their revenue, then repeat the draw enough times to read off how often each one wins.
+Pass prob = customers$revenue to sample(..., size = 10000, replace = TRUE), then tabulate the winners and divide by 10000 inside mutate().
+
 ```r title="Your turn"
 customers <- tibble(
   customer = LETTERS[1:8],
@@ -663,6 +715,10 @@ ex_4_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+Larger units should be more likely to be selected, and here you pick without putting a chosen unit back.
+Use sample(cities$city, size = 3, replace = FALSE, prob = cities$population), then filter() and arrange(desc(population)).
+
 ```r title="Your turn"
 cities <- tibble(
   city       = LETTERS[1:10],
@@ -718,6 +774,10 @@ ex_4_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+The estimate has to account for how the sample was drawn, so each respondent carries a weight reflecting how many people they stand for.
+Build a design with svydesign(ids = ~1, strata = ~stratum, weights = ~weight, data = poll), then call svymean(~score, design).
+
 ```r title="Your turn"
 poll <- tibble(
   stratum  = rep(c("urban", "rural"), c(12, 8)),
@@ -771,6 +831,10 @@ ex_4_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Under the null the group labels are interchangeable, so shuffling them many times builds the distribution of differences you would expect by chance.
+In replicate(), permute the labels with sample(mtcars$am), recompute the group mean gap, and set p_value <- mean(abs(null) >= abs(observed)).
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -814,6 +878,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Instead of random resampling, systematically remove one observation at a time and see how much the estimate moves.
+Compute theta_i with sapply(seq_len(n), function(i) mean(x[-i])), then apply sqrt((n-1)/n * sum((theta_i - theta_bar)^2)).
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 ex_5_2
@@ -851,6 +919,10 @@ ex_5_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Refit the model with one row dropped each time; rows whose removal swings the coefficient most are the influential ones.
+Use sapply(seq_len(n), function(i) coef(lm(mpg ~ wt, data = mtcars[-i, ]))[["wt"]]) and set names() to rownames(mtcars).
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -895,6 +967,10 @@ names(ex_5_3)[which.max(abs(ex_5_3 - mean(ex_5_3)))]
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Draw a random subset of row positions for training; whatever is left over becomes the test set.
+Use sample(n, size = floor(0.7 * n)) for train_idx, then mtcars[train_idx, ] and mtcars[-train_idx, ] in a named list.
 
 ```r title="Your turn"
 ex_6_1 <- # your code here
@@ -944,6 +1020,10 @@ nrow(ex_6_1$test)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Draw the training fraction within each class so both splits keep the same class proportions, then define the test set as everything not in train.
+After group_by(Species) and slice_sample(prop = 0.8), get the test set with anti_join() on a row_id column.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here

@@ -41,6 +41,10 @@ set.seed(42)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Think about building the whole vector of squares at once, then collapsing it to a single number - no running accumulator is needed.
+Square the sequence with `^2`, wrapping `1:10` in parentheses so it binds before the power, then reduce with `sum()`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -70,6 +74,10 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+R arithmetic already works position-by-position across two equal-length operands, so no per-index work is required.
+Apply the `+` operator directly to `x` and `y`.
 
 ```r title="Your turn"
 x <- 1:5
@@ -105,6 +113,10 @@ ex_1_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each day's value is the previous value scaled by its return, which is a running product flowing down the vector.
+Apply `cumprod()` to `1 + returns`, then multiply the result by the starting 1000.
+
 ```r title="Your turn"
 returns <- c(0.05, 0.03, -0.02, 0.04, -0.01)
 ex_1_3 <- # your code here
@@ -136,6 +148,10 @@ round(ex_1_3, 3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want each consecutive gap between values, a single lag-1 subtraction swept across the vector.
+Take the first ten values with `head(mtcars$mpg, 10)`, pass that to `diff()`, then `round(..., 1)`.
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -169,6 +185,10 @@ ex_1_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Capping means pulling values above a ceiling down and values below a floor up, one element at a time.
+Use `pmin()` against the upper quantile `qs[2]`, then wrap that in `pmax()` against the lower quantile `qs[1]`.
 
 ```r title="Your turn"
 qs <- quantile(iris$Sepal.Length, c(0.05, 0.95))
@@ -209,6 +229,10 @@ cat("Winsorized range:", range(ex_2_1), "\n")
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You need to map each row's mileage into one of three labels based on ordered thresholds.
+Inside `mutate()`, build `tier` with `case_when()` using ordered `mpg < 15` and `mpg <= 25` branches plus a `TRUE` catch-all.
 
 ```r title="Your turn"
 ex_2_2 <- mtcars |>
@@ -255,6 +279,10 @@ count(ex_2_2, tier)
 
 **Difficulty:** Beginner
 
+[HINTS]
+For every position, you choose between the fallback value and the original depending on whether the entry is missing.
+Call `ifelse()` with `is.na(airquality$Ozone)` as the test, `med` as the true branch, and the column itself as the false branch.
+
 ```r title="Your turn"
 med <- median(airquality$Ozone, na.rm = TRUE)
 ex_2_3 <- # your code here
@@ -293,6 +321,10 @@ head(ex_2_3, 5)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+There is a dedicated reducer that averages every column in one compiled pass, beating both the loop and the apply machinery.
+Call `colMeans()` on `mtcars`.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 round(ex_3_1, 4)
@@ -324,6 +356,10 @@ round(ex_3_1, 4)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want a per-row summary, so the operation walks across rows and reduces each one to a single count.
+Call `apply()` with margin `1` and an anonymous function that does `sum(is.na(r))`.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -358,6 +394,10 @@ table(ex_3_2)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Each group produces a complex model object, so collect the results in a list rather than trying to fit them in a vector.
+Map `lapply()` over `groups`, fitting `lm(mpg ~ wt, data = g)` inside the function.
 
 ```r title="Your turn"
 groups <- split(mtcars, mtcars$cyl)
@@ -396,6 +436,10 @@ round(sapply(ex_3_3, coef), 4)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The fast loop should write into a fixed-size container instead of regrowing one each step; then subtract the two measured times.
+Preallocate with `numeric(n)`, assign via `out[i] <- i^2`, and compute the gap as `unname(t_slow["elapsed"] - t_fast["elapsed"])`.
 
 ```r title="Your turn"
 n <- 5000
@@ -455,6 +499,10 @@ cat("Difference:",  ex_4_1, "\n")
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Instead of testing and pushing indices in a loop, ask directly for the positions where a condition holds true.
+Pass the logical predicate `x < 0` to `which()`.
+
 ```r title="Your turn"
 x <- c(3, -1, 7, -4, 2, -8, 0, 5)
 ex_4_2 <- # your code here
@@ -491,6 +539,10 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Fix the result's shape up front so every nested-loop write lands in place rather than regrowing the container.
+Preallocate with `matrix(NA_real_, nrow = length(alpha), ncol = length(lambda))`, then set `ex_4_3[i, j] <- (alpha[i] - 1)^2 + (lambda[j] - 2)^2`.
 
 ```r title="Your turn"
 alpha  <- seq(0, 1, length = 5)
@@ -543,6 +595,10 @@ round(ex_4_3, 3)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each balance depends on the previous capped balance, so you need a running fold that carries state forward.
+Use `Reduce()` with `accumulate = TRUE` and `init = 1000`, folding with `min(b * (1 + r), cap)`.
+
 ```r title="Your turn"
 returns <- c(0.10, 0.20, 0.15, -0.5, 0.10)
 cap     <- 1500
@@ -578,6 +634,10 @@ ex_5_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The next state's distribution is set by the current state, so each draw must read the row matching where the chain is now.
+Inside the loop, draw with `sample()` of size 1 and `prob = P[states[t - 1], ]`.
 
 ```r title="Your turn"
 P <- matrix(c(0.7, 0.2, 0.1,
@@ -631,6 +691,10 @@ table(ex_5_2)
 
 **Difficulty:** Advanced
 
+[HINTS]
+The update step averages the current guess with the target value divided by that guess.
+Set `x_new <- (x + 2 / x) / 2` and let the surrounding `while` break on the tolerance test.
+
 ```r title="Your turn"
 x     <- 1
 iters <- 0
@@ -682,6 +746,10 @@ cat("Converged to", format(ex_5_3, digits = 9), "in", iters, "iterations\n")
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Collect the three measured run times into one labelled container so they can be compared side by side.
+Build `ex_6_1` with `c()` of named entries, each pulled via `unname(t_loop["elapsed"])` and friends.
+
 ```r title="Your turn"
 n      <- 1e6
 t_loop <- system.time({
@@ -732,6 +800,10 @@ round(ex_6_1, 4)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Gather the three elapsed timings under readable names so the winning strategy is obvious at a glance.
+Assemble `ex_6_2` with `c()`, pulling each time via `unname(t_loop["elapsed"])` and the others.
 
 ```r title="Your turn"
 m <- matrix(rnorm(2000 * 200), 2000, 200)
@@ -786,6 +858,10 @@ round(ex_6_2, 4)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Store both measured timings in one named container before rounding and printing them.
+Build `ex_6_3` with `c(apply = ..., rowSums = ...)`, each value taken from `unname(t_apply["elapsed"])` and `unname(t_rs["elapsed"])`.
+
 ```r title="Your turn"
 m <- matrix(rnorm(5000 * 50), 5000, 50)
 
@@ -832,6 +908,10 @@ cat("identical:", isTRUE(all.equal(a, b)), "\n")
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Repeat one self-contained trial many times and let the repetition collect the scalar results into a vector for you.
+Wrap `sum(sample(0:1, 10, replace = TRUE))` in `replicate()` with a count of 1000.
 
 ```r title="Your turn"
 ex_6_4 <- # your code here using replicate

@@ -356,6 +356,29 @@ def check_what_to_do_next(fm, body, ctx):
     return False, "no '## What to do next' closing section"
 
 
+def check_hints_block(fm, body, ctx):
+    """Every exercise needs a [HINTS] block of exactly 2 non-empty hint lines.
+    md2html.py renders it as the contract's <div class="exercise-hints">."""
+    bad = []
+    for i, ex in enumerate(ctx["exercises"], 1):
+        lines = ex["raw"].splitlines()
+        idx = next((j for j, ln in enumerate(lines)
+                    if ln.strip() == "[HINTS]"), None)
+        if idx is None:
+            bad.append(i)
+            continue
+        hints = []
+        for ln in lines[idx + 1:]:
+            if ln.strip() == "":
+                break
+            hints.append(ln.strip())
+        if len(hints) != 2:
+            bad.append(i)
+    if bad:
+        return False, f"missing/malformed [HINTS] (need exactly 2 lines) in: {bad[:5]}"
+    return True, "all exercises have a 2-hint [HINTS] block"
+
+
 CHECKS = [
     ("01 frontmatter_complete",   check_frontmatter_complete),
     ("02 post_type_EX",           check_post_type),
@@ -374,6 +397,7 @@ CHECKS = [
     ("15 no_webr_mention",        check_no_webr_mention),
     ("16 libraries_loaded",       check_libraries_loaded),
     ("17 what_to_do_next",        check_what_to_do_next),
+    ("18 hints_block",            check_hints_block),
 ]
 
 

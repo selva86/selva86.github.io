@@ -49,6 +49,9 @@ library(tibble)
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Each income bracket is currently its own column, but you want every religion-bracket pair to become a single row instead.
+Reach for pivot_longer() and select everything except the id column with cols = -religion, then label the new columns via names_to and values_to.
 
 ```r title="Your turn"
 ex_1_1 <- # your code here
@@ -96,6 +99,9 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+You only need a slice of the weekly columns folded down, and rank rows for weeks that never happened should not survive.
+Call pivot_longer() with cols = wk1:wk6 to grab just that range, and turn on values_drop_na = TRUE.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -136,6 +142,9 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+The week labels carry a repeated text stem you want gone, and the result should be a number rather than a string.
+Inside pivot_longer(), add names_prefix = "wk" to drop the stem and names_transform = list(week = as.integer) to coerce the key.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -181,6 +190,9 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Fold every weekly column down to long form first, then collapse each track to its single strongest showing.
+After pivot_longer() with cols = starts_with("wk"), group_by(artist, track) and summarise with min(rank) as peak_rank, then arrange it.
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -228,6 +240,9 @@ ex_1_4
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+You want one row per fish and a separate column for every monitoring station.
+Use pivot_wider() with names_from = station to supply the new column names and values_from = seen for the cells.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -266,6 +281,9 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Absent observations should read as a numeric zero rather than a blank unknown.
+Repeat the same pivot_wider() call but add values_fill = 0.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -305,6 +323,9 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Leadership wants regions running down the side and the four quarters spread across the top.
+Apply pivot_wider() with names_from = quarter and values_from = revenue.
 
 ```r title="Your turn"
 revenue_long <- tribble(
@@ -355,6 +376,9 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Each column name secretly packs two variables joined by a separator that you want pulled apart.
+In pivot_longer(), pass a length-two names_to = c("sex", "age") together with names_sep = "_".
 
 ```r title="Your turn"
 health <- tribble(
@@ -405,6 +429,9 @@ ex_3_1
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+The column names hold a metric label and a year, and a precise pattern can capture each piece on its own.
+Use pivot_longer() with names_to = c("metric", "year") and names_pattern = "(gdp|pop)_(\\d+)", plus names_transform for the year.
 
 ```r title="Your turn"
 econ <- tribble(
@@ -457,6 +484,9 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Each child contributes two parallel columns, and you want those prefixes to become real columns rather than values.
+In pivot_longer(), put the special ".value" entry in names_to alongside "child" and split with names_sep = "_".
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -499,6 +529,9 @@ ex_3_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Strip the repeated text stem off the column names, then make sure what remains lands as a real number.
+Inside pivot_longer(), use names_prefix = "depth_" and names_transform = list(depth = as.numeric).
 
 ```r title="Your turn"
 survey <- tribble(
@@ -549,6 +582,9 @@ ex_3_4
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Each student should end up with a paired set of columns for every subject, one column per measurement.
+Pass a vector to values_from = c(score, grade) in pivot_wider() with names_from = subject.
 
 ```r title="Your turn"
 scores <- tribble(
@@ -596,6 +632,9 @@ ex_4_1
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A store can post the same product more than once, so each cell needs an aggregated total instead of a clash.
+Add values_fn = sum to the pivot_wider() call with names_from = product and values_from = units_sold.
 
 ```r title="Your turn"
 sales <- tribble(
@@ -646,6 +685,9 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+You want the new column names to follow a specific quarter-then-metric layout that you control.
+Use pivot_wider() with names_from = c(quarter, metric) and a names_glue = "{quarter}_{metric}" template.
 
 ```r title="Your turn"
 finance <- tribble(
@@ -701,6 +743,9 @@ ex_4_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+One column holds two pieces of information divided by a space that downstream code wants as distinct fields.
+Use separate_wider_delim() with delim = " " and names = c("first", "last").
 
 ```r title="Your turn"
 people <- tibble(full_name = c(
@@ -747,6 +792,9 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Three component columns need to be glued back into one combined string with a separator between them.
+Call unite() with col = "date", the year, month, and day columns in order, and sep = "-".
 
 ```r title="Your turn"
 parts <- tribble(
@@ -793,6 +841,9 @@ ex_5_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Days where a sensor stayed silent are missing entirely, and you need every date-sensor pairing to exist.
+Use complete(date, sensor_id, ...) and pass fill = list(reading = 0) to set the materialized cells.
 
 ```r title="Your turn"
 sensors <- tribble(
@@ -842,6 +893,9 @@ ex_5_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+The report date appears only once per batch and should be propagated into the blank rows beneath it.
+Use fill() on the date column with .direction = "down".
 
 ```r title="Your turn"
 report <- tribble(

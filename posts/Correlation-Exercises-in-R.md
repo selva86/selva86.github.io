@@ -42,6 +42,10 @@ library(ppcor)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Correlation measures how strongly two numeric columns move together; you only need the single coefficient for these two columns.
+Pass the two columns as the first two arguments; the Pearson method is the default, so no extra argument is required.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -71,6 +75,10 @@ ex_1_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Missing values block the computation, so you must tell the function to ignore rows where either column is empty.
+Add the `use = "complete.obs"` argument so NAs are dropped across both columns together before the coefficient is computed.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -102,6 +110,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You need two measures of the same pair, one scale-dependent and one standardized, bundled together under names.
+Combine `cov()` and `cor()` inside a single `c()` call, giving the elements names `covariance` and `correlation`.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -137,6 +149,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Center both vectors on their averages, then divide the summed cross-product by the geometric mean of the two summed squared deviations.
+Build the numerator with `sum((x - mean(x)) * (y - mean(y)))` and the denominator with `sqrt()` of the product of the two squared-deviation sums.
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -178,6 +194,10 @@ cat("agrees with cor():", isTRUE(all.equal(ex_1_4, cor(x, y))), "\n")
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Build a scatter plot, add a straight-line trend without its uncertainty band, and place the rounded coefficient into the title text.
+Combine `geom_point()` with `geom_smooth(method = "lm", se = FALSE)`, then assemble the title string with `paste0()` inside `labs()`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -217,6 +237,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want an all-pairs scatter grid restricted to four chosen columns, with the saved object being the data subset itself.
+Subset the four columns into `ex_2_2` first, then draw the grid by calling `pairs()` on that subset.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ```
@@ -247,6 +271,10 @@ pairs(ex_2_2)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Compute the full correlation matrix first, then render it as a clustered triangular heatmap with the coefficient values shown in each tile.
+Pass the matrix to `ggcorrplot()` with `hc.order = TRUE`, `type = "lower"`, and `lab = TRUE`.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -292,6 +320,10 @@ ex_2_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+Feeding an entire dataset, rather than two single columns, returns every pairwise coefficient at once.
+Call `cor()` on the whole `mtcars` data frame to get the 11-by-11 matrix.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 round(ex_3_1, 2)
@@ -334,6 +366,10 @@ round(ex_3_1, 2)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Drop the symmetric duplicates and self-pairs, reshape the matrix into long rows, then keep only the strong pairs sorted by magnitude.
+Blank the upper triangle with `upper.tri()`, melt via `as.table()` then `as.data.frame()`, and apply `filter(abs(r) > 0.8)` with `arrange(desc(abs(r)))`.
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -372,6 +408,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Splitting the columns into two groups and correlating one group against the other produces a rectangular, not square, matrix.
+Subset the two column sets into separate data frames, then pass both to `cor(x, y)` as the two arguments.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -412,6 +452,10 @@ round(ex_3_3, 3)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+One coefficient reacts to curvature while the other cares only about rank order; compute both on the same pair to see the contrast.
+Call `cor()` twice with `method = "pearson"` and `method = "spearman"`, bundled into a named `c()`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -447,6 +491,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+This coefficient is built by counting how often the two rankings agree versus disagree on the order of pairs.
+Call `cor()` on the two judge vectors with `method = "kendall"`.
 
 ```r title="Your turn"
 judge_a <- c(7, 4, 9, 6, 8, 3, 5, 2)
@@ -487,6 +535,10 @@ ex_4_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Compute the same association three different ways and lay the results out as a two-column table of method name and coefficient.
+Build a `tibble()` with a `method` column and an `r` column holding three `cor()` calls that vary the `method` argument.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -526,6 +578,10 @@ ex_4_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+Run the significance test once, then pick the coefficient and the p-value out of the resulting object by name.
+Save `cor.test()` to a variable and read `$estimate` and `$p.value` into a named vector.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -562,6 +618,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The same significance test also reports an interval estimate for the true correlation; you just need to extract and label it.
+Read `$conf.int` from the `cor.test()` object and name its two elements `lower` and `upper` with `setNames()`.
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 ex_5_2
@@ -593,6 +653,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Move the correlation onto a scale where its standard error is stable, build a symmetric interval there, then move back.
+Use `atanh()` for the transform, a standard error of `1 / sqrt(n - 3)`, `qnorm(0.975)` as the multiplier, and `tanh()` to back-transform.
 
 ```r title="Your turn"
 r <- 0.6
@@ -634,6 +698,10 @@ ex_5_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+Strip the influence of the third variable out of both columns before measuring how the leftover parts relate.
+Call `ppcor::pcor.test()` with the two variables of interest plus the control variable, then pull `$estimate` and `$p.value`.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -666,6 +734,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Resample the paired rows many times, recompute the coefficient on each draw, and read the interval off the spread of those values.
+Use `replicate()` around `sample.int(n, replace = TRUE)` to index rows, then `quantile()` at probs `c(0.025, 0.975)`.
 
 ```r title="Your turn"
 set.seed(42)
@@ -706,6 +778,10 @@ ex_6_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Compute the coefficient within each subgroup, then test whether the gap between them is larger than sampling noise.
+Transform each r with `atanh()`, divide the difference by `sqrt(1/(n1-3) + 1/(n2-3))`, and convert to a p-value with `pnorm()`.
+
 ```r title="Your turn"
 ex_6_3 <- # your code here
 ex_6_3
@@ -743,6 +819,10 @@ ex_6_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A symmetric curve hides from ordinary correlation, so also relate the response to the magnitude of the predictor instead of its signed value.
+Compute `cor()` with `method = "pearson"` and `"spearman"`, then a third `cor()` call that uses `abs(x)`.
 
 ```r title="Your turn"
 set.seed(7)

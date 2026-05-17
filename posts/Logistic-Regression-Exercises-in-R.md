@@ -47,6 +47,10 @@ library(ggplot2)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A logistic regression is a generalized linear model with a binomial response; the model formula puts the outcome on the left and the predictor on the right.
+Call `glm()` with the formula `am ~ mpg`, `data = mtcars`, and `family = binomial`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 summary(ex_1_1)$coefficients
@@ -79,6 +83,10 @@ summary(ex_1_1)$coefficients
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Predicting for unseen predictor values means supplying a fresh data frame and asking for output on the probability scale rather than the log-odds scale.
+Use `predict()` with `newdata = data.frame(mpg = c(10, 20, 30))` and `type = "response"`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -114,6 +122,10 @@ ex_1_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The inverse-link transformation turns a model's linear predictor on the log-odds scale into fitted probabilities.
+Extract the linear predictor with `predict(ex_1_1, type = "link")`, then pass it through `plogis()`.
+
 ```r title="Your turn"
 ex_1_3 <- # your code here
 head(ex_1_3)
@@ -148,6 +160,10 @@ head(ex_1_3)
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+A fitted model object stores its goodness-of-fit numbers as named components you can pull out directly.
+Combine `ex_1_1$null.deviance`, `ex_1_1$deviance`, and `ex_1_1$aic` into a named vector with `c()`.
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -187,6 +203,10 @@ ex_1_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Logistic coefficients live on the log-odds scale; exponentiating moves them onto the multiplicative odds-ratio scale.
+Apply `exp()` to `coef(ex_1_1)`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -220,6 +240,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Confidence interval bounds computed on the log-odds scale must be exponentiated before they can be read as odds-ratio bounds.
+Wrap `confint(ex_1_1)` in `exp()`.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -251,6 +275,10 @@ ex_2_2
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+A percent change in odds is just the odds ratio re-expressed relative to a baseline of one.
+Take `exp(coef(ex_1_1)["mpg"])`, compute `(or - 1) * 100`, and `round()` it to one decimal.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -289,6 +317,10 @@ ex_2_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Comparing two nested models tests whether the extra term produces a significant drop in deviance.
+Fit `m2` as `glm(am ~ mpg + wt, ...)`, then call `anova(m1, m2, test = "LRT")`.
 
 ```r title="Your turn"
 m1     <- glm(am ~ mpg,      data = mtcars, family = binomial)
@@ -333,6 +365,10 @@ ex_2_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Adding predictors just means listing more terms on the right side of the model formula.
+Call `glm(y ~ Sepal.Length + Sepal.Width + Petal.Length, data = iris2, family = binomial)`, wrapping it in `suppressWarnings()` for the separation warning.
+
 ```r title="Your turn"
 iris2  <- iris |>
   filter(Species %in% c("setosa", "versicolor")) |>
@@ -373,6 +409,10 @@ coef(ex_3_1)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A categorical predictor with several levels enters the model as dummy variables measured against a reference level, and exponentiated coefficients read as odds ratios.
+Fit `glm(am ~ factor(cyl), ...)`, then apply `exp()` to `coef()` and `round()` to two decimals.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -423,6 +463,10 @@ signups <- tibble::tibble(
 
 **Difficulty:** Advanced
 
+[HINTS]
+An interaction lets one predictor's effect depend on the level of another predictor.
+Use the `discount * new_customer` shorthand as the formula inside `glm()` with `family = binomial`.
+
 ```r title="Your turn"
 ex_3_3 <- # your code here
 summary(ex_3_3)$coefficients
@@ -457,6 +501,10 @@ summary(ex_3_3)$coefficients
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Once the predictors are already on a z-score scale, fitting proceeds exactly like any other multi-predictor model.
+Call `glm(am ~ mpg + hp + wt, data = mtcars_z, family = binomial)` inside `suppressWarnings()`.
 
 ```r title="Your turn"
 mtcars_z <- mtcars |>
@@ -501,6 +549,10 @@ round(coef(ex_3_4), 3)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A confusion matrix cross-tabulates predicted classes against actual classes once a probability cutoff has been applied.
+Threshold `predict(ex_1_1, type = "response")` at 0.5 with `ifelse()`, then cross-tabulate predicted vs `mtcars$am` using `table()`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -536,6 +588,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Each classification metric is a ratio built from specific cells of the confusion matrix.
+Pull the TP, TN, FP, and FN cells out of `ex_4_1`, then combine the three ratios into a named `c()` and `round()` to three decimals.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -576,6 +632,10 @@ ex_4_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The area under the ROC curve summarizes how well the model ranks positives above negatives across every possible threshold.
+Build the curve with `pROC::roc()` passing `quiet = TRUE`, then extract the area with `pROC::auc()`.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -608,6 +668,10 @@ ex_4_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+McFadden's measure expresses how far the fitted model's deviance falls below the null model's deviance.
+Compute `1 - (ex_1_1$deviance / ex_1_1$null.deviance)` and `round()` to three decimals.
+
 ```r title="Your turn"
 ex_4_4 <- # your code here
 ex_4_4
@@ -639,6 +703,10 @@ ex_4_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The accuracy-maximizing cutoff is found by scanning a grid of candidate thresholds and keeping the one that scores best.
+Build the grid with `seq(0.05, 0.95, by = 0.05)`, compute accuracy at each threshold, and pick the winner with `which.max()`.
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -686,6 +754,10 @@ tx <- tibble::tibble(
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Balancing the classes means drawing a random subset of the majority class so its count matches the minority class.
+Use `slice_sample()` on the non-fraud rows, `bind_rows()` them with the fraud rows, then fit `glm(fraud ~ amount + risk_score, ...)`.
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 round(coef(ex_5_2), 3)
@@ -722,6 +794,10 @@ round(coef(ex_5_2), 3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The F1 score blends precision and recall into a single harmonic mean.
+Threshold the predicted probabilities at 0.5, count TP, FP, and FN, then compute `2 * precision * recall / (precision + recall)` and `round()` to three decimals.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -773,6 +849,10 @@ ex_5_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Precision and recall move in opposite directions as the cutoff shifts, so a table at several thresholds exposes the trade-off.
+Loop the thresholds with `sapply()`, compute precision and recall at each, and assemble the columns inside a `tibble()`.
 
 ```r title="Your turn"
 ex_5_4 <- # your code here
@@ -833,6 +913,10 @@ ex_5_4
 
 **Difficulty:** Advanced
 
+[HINTS]
+Instead of resampling, you can tell the fitting routine to count rare-class rows more heavily so the intercept shifts toward a balanced one.
+Pass `weights = ifelse(tx$fraud == 1, 9, 1)` to `glm(fraud ~ amount + risk_score, ...)`.
+
 ```r title="Your turn"
 ex_5_5 <- # your code here
 c(unweighted_int = round(coef(glm(fraud ~ amount + risk_score, data = tx, family = binomial))[1], 2),
@@ -872,6 +956,10 @@ c(unweighted_int = round(coef(glm(fraud ~ amount + risk_score, data = tx, family
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Generalization is measured by scoring rows the model never saw while it was being fit.
+Split the row indices with `sample()`, fit on the training rows, then score `predict(..., newdata = test, type = "response")` and feed it to `pROC::auc(pROC::roc(...))`.
 
 ```r title="Your turn"
 ex_6_1 <- # your code here
@@ -923,6 +1011,10 @@ churn_df <- tibble::tibble(
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A full evaluation reports a threshold-free ranking score alongside the threshold-dependent error rates.
+After an 80/20 `sample()` split and `glm(churned ~ tenure_months + monthly_spend + support_tickets, ...)`, assemble accuracy, `pROC::auc()`, sensitivity, and specificity into a named `c()`.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here
@@ -991,6 +1083,10 @@ loans <- tibble::tibble(
 
 **Difficulty:** Advanced
 
+[HINTS]
+A tidy coefficient table puts one row per term, with odds ratios and intervals ready for downstream tooling.
+Fit the `default ~ fico + dti + loan_amount` model, then call `broom::tidy()` with `exponentiate = TRUE` and `conf.int = TRUE`.
+
 ```r title="Your turn"
 ex_6_3 <- # your code here
 ex_6_3
@@ -1027,6 +1123,10 @@ ex_6_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A cost-aware cutoff is the threshold that maximizes total expected profit rather than raw accuracy.
+Sweep candidate thresholds with `seq()`, compute profit per threshold from the $10 reward and $0.50 cost, and pick the best with `which.max()`.
 
 ```r title="Your turn"
 ex_6_4 <- # your code here

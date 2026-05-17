@@ -51,6 +51,10 @@ Every solution defines a `shinyApp(ui, server)` object and assigns it to `ex_<se
 
 **Difficulty:** Beginner
 
+[HINTS]
+A Shiny app is always a UI object paired with a server function; the UI holds the input control and an empty output slot, and the server fills that slot.
+Put a `textInput` inside `sidebarPanel` and a `textOutput` inside `mainPanel`, then build the greeting with `renderText` and `paste0`.
+
 ```r title="Your turn"
 ui <- # your code here
 
@@ -98,6 +102,10 @@ ex_1_1 <- shinyApp(ui, server)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Compute the sum in a single place so one value flows to the output instead of repeating the arithmetic at the render site.
+Wrap `input$a + input$b` in `reactive()` and read it as `total()` inside `renderPrint`.
+
 ```r title="Your turn"
 ui <- # your code here
 server <- # your code here
@@ -141,6 +149,10 @@ ex_1_2 <- shinyApp(ui, server)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The slider value should feed straight into the plotting call so the chart redraws on every change.
+Give `sliderInput` `min = 5, max = 50, value = 20` and pass `input$bins` to the `breaks` argument of `hist()` inside `renderPlot`.
 
 ```r title="Your turn"
 ui <- # your code here
@@ -191,6 +203,10 @@ ex_1_3 <- shinyApp(ui, server)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each tab is just a container for one view; the layout widget stacks the tabs while the server fills every output independently.
+Put three `tabPanel`s inside `tabsetPanel` and wire them with `renderPrint(summary(...))`, `renderTable` and `renderPlot(plot(...))`.
+
 ```r title="Your turn"
 ui <- # your code here
 server <- # your code here
@@ -238,6 +254,10 @@ ex_1_4 <- shinyApp(ui, server)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The dashboard chrome is three nested regions - a header, a sidebar and a body that carries your headline numbers.
+Use `dashboardPage` with `dashboardHeader`, `dashboardSidebar` and `dashboardBody`, and place three `valueBox()` calls fed by `nrow()`, `mean()` and `max()`.
 
 ```r title="Your turn"
 ui <- # your code here
@@ -289,6 +309,10 @@ ex_1_5 <- shinyApp(ui, server)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+When two outputs need the same filtered data, the filter should run once and both outputs should read its cached result.
+Build the subset with `reactive(iris[iris$Species == input$sp, ])` and feed the resulting `filtered()` to both `renderTable(head(...))` and `renderPrint(summary(...))`.
+
 ```r title="Your turn"
 ui <- # your code here
 server <- # your code here
@@ -333,6 +357,10 @@ ex_2_1 <- shinyApp(ui, server)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A button press is an event; the toast should be a side effect that fires only on that event, never on app start.
+Wrap `showNotification("Saved", duration = 3)` inside `observeEvent(input$go, {...})`.
+
 ```r title="Your turn"
 ui <- # your code here
 server <- # your code here
@@ -372,6 +400,10 @@ ex_2_2 <- shinyApp(ui, server)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The sample should be recomputed only when the button is pressed and otherwise hand back the values from the last draw.
+Use `eventReactive(input$draw, rnorm(1000))` and read it inside `renderText`, formatting `mean()` and `sd()` with `sprintf`.
 
 ```r title="Your turn"
 ui <- # your code here
@@ -417,6 +449,10 @@ ex_2_3 <- shinyApp(ui, server)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+An optional input means the render code can run before a real value exists, so guard it with a calm message instead of letting it error.
+Inside `renderPlot`, call `validate(need(nzchar(input$sp), "Please pick a species"))` before drawing the `boxplot`.
 
 ```r title="Your turn"
 ui <- # your code here
@@ -465,6 +501,10 @@ ex_2_4 <- shinyApp(ui, server)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The output must commit the input values only at click time, so reading those inputs cannot itself create a live dependency.
+Gate the result with `eventReactive(input$save, ...)` and wrap each `input$name` and `input$version` read in `isolate()`.
 
 ```r title="Your turn"
 ui <- # your code here
@@ -515,6 +555,10 @@ ex_2_5 <- shinyApp(ui, server)
 
 **Difficulty:** Beginner
 
+[HINTS]
+The dropdown options should be derived from the data itself rather than typed by hand, so the app adapts when the data changes.
+Set `selectInput`'s `choices` to `sort(unique(as.character(iris$Species)))`, then show the matching rows with `renderTable(head(...))`.
+
 ```r title="Your turn"
 ui <- # your code here
 server <- # your code here
@@ -555,6 +599,10 @@ ex_3_1 <- shinyApp(ui, server)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A date-range control hands back a start and an end; the plot should show only the rows that fall between them.
+Use `dateRangeInput` with `start` and `end`, then `filter(date >= input$rng[1], date <= input$rng[2])` and draw with `ggplot` plus `geom_line`.
 
 ```r title="Your turn"
 ui <- # your code here
@@ -599,6 +647,10 @@ ex_3_2 <- shinyApp(ui, server)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Advanced controls should stay hidden until the user opts in, and the server must tolerate those inputs not existing yet.
+Wrap the extra controls in `conditionalPanel(condition = "input.adv == true", ...)` and guard `input$n` and `input$dist` with `isTruthy()`.
 
 ```r title="Your turn"
 ui <- # your code here
@@ -653,6 +705,10 @@ ex_3_3 <- shinyApp(ui, server)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A download is produced on demand - the app must name the file and write its contents at click time.
+Pair `downloadButton` with `downloadHandler`, supplying a `filename` function and a `content` function that calls `write.csv()`.
+
 ```r title="Your turn"
 ui <- # your code here
 server <- # your code here
@@ -697,6 +753,10 @@ ex_3_4 <- shinyApp(ui, server)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A counter needs mutable state that several handlers can both write to and read from.
+Hold the count in `reactiveValues(n = 0L)`, change it inside two `observeEvent` blocks, and display it with `renderText`.
 
 ```r title="Your turn"
 ui <- # your code here
@@ -743,6 +803,10 @@ ex_3_5 <- shinyApp(ui, server)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A module bundles a slice of UI together with its matching server logic so it can be dropped in without id clashes.
+Namespace the UI ids with `ns <- NS(id)` inside a `tagList`, and wrap the server logic in `moduleServer(id, function(input, output, session) {...})`.
 
 ```r title="Your turn"
 histUI <- # your code here
@@ -796,6 +860,10 @@ ex_4_1 <- shinyApp(ui, server)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A well-built module can be instantiated more than once, with each copy keeping its own isolated inputs.
+Call `histUI("e", ...)` and `histUI("w", ...)` inside two `column(6, ...)` halves of a `fluidRow`, then call `histServer` once per id.
 
 ```r title="Your turn"
 ui <- # your code here
@@ -855,6 +923,10 @@ ex_4_2 <- shinyApp(ui, server)
 
 **Difficulty:** Advanced
 
+[HINTS]
+A module can hand a value back to its parent without ever exposing its internal input ids.
+Have the `moduleServer` body in `pickerServer` return a `reactive()` of the filtered frame; the parent stores it and calls it like `filtered()`.
+
 ```r title="Your turn"
 pickerUI <- # your code here
 pickerServer <- # your code here
@@ -904,6 +976,10 @@ ex_4_3 <- shinyApp(ui, server)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Modules talk to each other only through the values passed in and returned, never by reaching into each other's ids.
+Feed the reactive returned by `pickerServer("p")` straight into `tableServer("t", filtered)`, which renders it with `renderTable(head(data(), 6))`.
 
 ```r title="Your turn"
 pickerUI <- # ...
@@ -968,6 +1044,10 @@ ex_4_4 <- shinyApp(ui, server)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A range slider returns two endpoints; the plot should redraw using only the rows that lie between them.
+Use `sliderInput` with `value = c(1, 3)`, `filter(carat >= input$ct[1], carat <= input$ct[2])`, then `ggplot(aes(carat, price, colour = cut))` plus `geom_point`.
+
 ```r title="Your turn"
 ui <- # your code here
 server <- # your code here
@@ -1014,6 +1094,10 @@ ex_5_1 <- shinyApp(ui, server)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+An interactive table widget supplies sorting, paging and per-column filtering that a static table cannot.
+Render with `renderDT(datatable(mtcars, filter = "top", rownames = TRUE, options = list(pageLength = 10)))` into a `DTOutput`.
+
 ```r title="Your turn"
 ui <- # your code here
 server <- # your code here
@@ -1059,6 +1143,10 @@ ex_5_2 <- shinyApp(ui, server)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+An existing static chart can be promoted to an interactive one with hover tooltips rather than being redrawn from scratch.
+Build the ggplot with a `text` aesthetic and pass it to `ggplotly(g, tooltip = c(...))` inside `renderPlotly`.
 
 ```r title="Your turn"
 ui <- # your code here
@@ -1108,6 +1196,10 @@ ex_5_3 <- shinyApp(ui, server)
 
 **Difficulty:** Advanced
 
+[HINTS]
+Dragging a rectangle over a plot is itself an input the server can read to select the enclosed rows.
+Set `brush = "br"` on `plotOutput`, then filter with `brushedPoints(mtcars, input$br, xvar = "wt", yvar = "mpg")` inside `renderPrint`.
+
 ```r title="Your turn"
 ui <- # your code here
 server <- # your code here
@@ -1154,6 +1246,10 @@ ex_5_4 <- shinyApp(ui, server)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A computation that runs for several seconds should report how far along it is so it never feels frozen.
+Wrap the chunked loop in `withProgress(message = ..., value = 0, {...})` and call `incProgress(1/5)` once per chunk.
 
 ```r title="Your turn"
 ui <- # your code here
@@ -1207,6 +1303,10 @@ ex_6_1 <- shinyApp(ui, server)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Branding is applied by handing the page a compiled theme object rather than writing CSS by hand.
+Pass `bs_theme(bg = "white", fg = "navy", primary = "#0d6efd", base_font = font_google("Inter"))` to the `theme` argument of `fluidPage`.
 
 ```r title="Your turn"
 ui <- # your code here

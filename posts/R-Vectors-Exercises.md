@@ -52,6 +52,10 @@ set.seed(42)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Four construction routes can print the same numbers yet leave the vector with a different underlying storage type, so think about what "truly identical" should mean.
+Build a named list using `c()`, `:`, `seq()`, and `seq_len()`, then compare pairs with `identical()` and inspect storage with `typeof()`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -93,6 +97,10 @@ identical(ex_1_1$v1, ex_1_1$v2)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+When values of different kinds land in one vector, R promotes them all to a single common kind following a fixed precedence order.
+Wrap each `c(...)` call in `typeof()` and gather the five resulting strings with another `c()`.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -133,6 +141,10 @@ ex_1_2
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+A quick three-part audit confirms a vector's size plus both of its ends in one glance.
+Combine `length()`, `head(prices, 3)`, and `tail(prices, 3)` into a named list.
 
 ```r title="Your turn"
 prices <- seq(5, 100, by = 5)
@@ -180,6 +192,10 @@ ex_1_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+An index vector inside the brackets returns elements in exactly the order you ask for, and a contiguous run can be written compactly.
+Use `prices[c(1, 5, 10)]` for the anchors and `prices[11:15]` for the band, collected in a named list.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -221,6 +237,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You can describe the elements to keep either by the positions you exclude or by trimming a fixed count off one end.
+Build a negative index from `length(prices)` and also use `head(prices, -2)`, then compare the two with `identical()`.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -257,6 +277,10 @@ ex_2_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Build a single mask that is TRUE only where both bounds hold at once, then use it to subset.
+Combine `prices > 30` and `prices < 75` with `&`, and index `prices` with that logical vector.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 ex_2_3
@@ -289,6 +313,10 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Flip the pass/fail mask so that failures become TRUE, then turn that into positions and a tally.
+Apply `which(!results)` for the failing positions and `sum(!results)` for the count, in a named list.
 
 ```r title="Your turn"
 results <- c(TRUE, TRUE, FALSE, TRUE, TRUE, TRUE, FALSE, TRUE,
@@ -340,6 +368,10 @@ ex_2_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A named vector behaves like a dictionary, and to get matching labels you apply the test to the names rather than to the values.
+Use `pop["India"]`, `pop[c("USA", "Nigeria")]`, and `names(pop)[pop > 300]`.
+
 ```r title="Your turn"
 pop <- c(USA = 331, China = 1412, India = 1417, Brazil = 215, Nigeria = 223)
 ex_3_1 <- # your code here
@@ -379,6 +411,10 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Names that contain a hyphen must be quoted when you build the vector, and a key lookup returns values in the order of the keys you pass.
+Create the vector with backticked names like `` `SKU-A` ``, index it by `c("SKU-A", "SKU-C", "SKU-F")`, and total with `sum()`.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -423,6 +459,10 @@ ex_3_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Sorting by the values is direct, but sorting by the labels needs a permutation derived from the names.
+Use `order(names(pop))` for the alphabetical version and `sort(pop, decreasing = TRUE)` for the descending one.
+
 ```r title="Your turn"
 ex_3_3 <- # your code here
 ex_3_3
@@ -456,6 +496,10 @@ ex_3_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Write the conversion formula once and let R apply it across every element with no loop in sight.
+Compute `(temps_f - 32) * 5 / 9` and wrap the expression in `round(..., 2)`.
 
 ```r title="Your turn"
 temps_f <- c(30, 40, 50, 60, 70, 80, 90, 100)
@@ -491,6 +535,10 @@ ex_4_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+When one vector is shorter, R reuses its elements from the start, and an uneven fit produces a warning rather than a hard error.
+Assign `a + b` straight to `ex_4_2`; the shorter `b` wraps, so position 4 pairs `a[4]` with `b[1]`.
 
 ```r title="Your turn"
 a <- c(1, 2, 3, 4)
@@ -531,6 +579,10 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A running total and a day-over-day change are two complementary views of the same series, and one can be recovered from the other.
+Use `1000 + cumsum(pnl)` for the balance, then `diff()` on that balance with the opening 1000 prepended.
 
 ```r title="Your turn"
 pnl <- c(250, -150, 280, 145, -245, 90)
@@ -577,6 +629,10 @@ ex_4_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+A missing value contaminates an aggregate unless the function is explicitly told to ignore it.
+Call `mean(rt)`, `mean(rt, na.rm = TRUE)`, and `sum(rt, na.rm = TRUE)` into a named list.
+
 ```r title="Your turn"
 rt <- c(120, 95, NA, 140, 75, NA, 88)
 ex_5_1 <- # your code here
@@ -622,6 +678,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each special value answers a different question about missingness, absence, and finiteness, and one of them has zero length.
+Run `is.na`, `is.null`, `is.nan`, and `is.finite` against `NA`, `NULL`, `0 / 0`, and `1 / 0`.
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 ex_5_2
@@ -662,6 +722,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Fill each gap by reaching back to the most recent value already known, walking the series strictly in time order.
+Loop with `seq_along()`, and when `is.na()` is TRUE at position `i` (with `i > 1`), copy element `i - 1` forward.
 
 ```r title="Your turn"
 sensor <- c(22.1, NA, 22.3, NA, NA, 22.8, NA, 23.1, NA, NA)
@@ -706,6 +770,10 @@ ex_5_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+Re-express each value as how many spread-units it sits from the centre, then threshold on the magnitude of that distance.
+Compute `(amounts - mean(amounts)) / sd(amounts)`, then subset `amounts` where `abs(z) > 2`.
+
 ```r title="Your turn"
 amounts <- c(45.0, 52.3, 47.8, 245.0, 49.1, 50.4, 9.2, 51.5, 48.9, 53.7)
 ex_6_1 <- # your code here
@@ -746,6 +814,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Turn the continuous values into a small set of labeled bands, using open-ended outer edges so nothing escapes a bucket.
+Call `cut()` with `breaks = c(-Inf, 250, 800, Inf)`, the three `labels`, and `right = FALSE`, then count with `table()`.
 
 ```r title="Your turn"
 clv <- c(120, 450, 88, 230, 890, 1250, 75, 340, 1100, 95, 560, 410)

@@ -51,6 +51,10 @@ library(tibble)
 
 **Difficulty:** Beginner
 
+[HINTS]
+You want a substring test, not an exact equality check - a row qualifies whenever the word appears anywhere inside the text.
+Feed the result of `str_detect()` into `filter()`, and wrap the pattern in `regex(..., ignore_case = TRUE)` so casing is ignored.
+
 ```r title="Setup data for Exercise 1.1"
 reviews <- tibble(
   id = 1:8,
@@ -112,6 +116,10 @@ ex_1_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You need a per-string tally, not a yes/no flag, since a subject line can mention the word several times.
+Build the `free_count` column with `str_count()` wrapped in `regex(..., ignore_case = TRUE)` inside a `tibble()`.
+
 ```r title="Setup data for Exercise 1.2"
 subjects <- c(
   "Save 10 percent",
@@ -168,6 +176,10 @@ ex_1_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+This is a question about position - only the very first character counts, so the pattern must be tied to the string start.
+Subset the vector with `str_detect()` using the anchored pattern `"^\\d"`.
+
 ```r title="Setup data for Exercise 1.3"
 skus <- c("ALPHA-12", "12-ALPHA", "BETA-99", "7XX-RED",
           "GAMMA", "300-NEW", "DELTA-1", "9-FINAL")
@@ -204,6 +216,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want the first run of four consecutive digits lifted out of each name as text.
+Call `str_extract()` with the pattern `"\\d{4}"`.
 
 ```r title="Setup data for Exercise 2.1"
 filenames <- c("report_2024_q3.csv", "summary_2023_annual.csv",
@@ -256,6 +272,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A tweet may hold several matches or none, so you need every match per string, not only the first.
+Use `str_extract_all()` with a pattern of a literal `#` followed by `\\w+`.
 
 ```r title="Setup data for Exercise 2.2"
 tweets <- c(
@@ -318,6 +338,10 @@ ex_2_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+You need each numeric piece pulled out on its own, so the pattern must mark three separate sub-parts to capture.
+Use `str_match()` with three parenthesised groups, escaping the literal input parentheses as `\\(` and `\\)`.
+
 ```r title="Setup data for Exercise 2.3"
 phones <- c("(415) 555-1234",
             "(212) 867-5309",
@@ -361,6 +385,10 @@ ex_2_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+You want to rewrite most of the string while preserving one part, so capture the part you keep and refer back to it in the replacement.
+Use `str_replace()` with the last four digits in a capture group and place `\\1` after the `XXXX` blocks in the replacement string.
 
 ```r title="Setup data for Exercise 3.1"
 cards <- c("1234-5678-9012-3456",
@@ -406,6 +434,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+All four spellings differ only by an optional separator between the two halves of the word, so a single flexible pattern can cover them.
+Use `str_replace_all()` with `regex("i[- ]?phone", ignore_case = TRUE)` and the replacement `"iPhone"`.
+
 ```r title="Setup data for Exercise 3.2"
 tickets <- c("iphone battery drains fast",
              "Selling my old IPhone",
@@ -450,6 +482,10 @@ ex_3_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+You are inserting commas at certain positions without consuming any characters, so match the gaps rather than the digits.
+Use `str_replace_all()` with the lookahead pattern `"\\B(?=(\\d{3})+(?!\\d))"` and a comma as the replacement.
+
 ```r title="Setup data for Exercise 3.3"
 amounts <- c("1234567", "42", "999", "100000", "12345678")
 ```
@@ -491,6 +527,10 @@ ex_3_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+You want a rectangular two-column result rather than ragged lists, so split into a fixed number of pieces.
+Use `str_split_fixed()` splitting on a space with `n = 2`.
+
 ```r title="Setup data for Exercise 4.1"
 full_names <- c("Ada Lovelace", "Alan Turing", "Grace Hopper",
                 "Donald Knuth", "Barbara Liskov")
@@ -531,6 +571,10 @@ ex_4_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The integers dropped their leading zeros, so first turn them into text, then widen each value to a fixed length.
+Apply `str_pad()` with `width = 5`, `side = "left"`, and `pad = "0"` to `as.character(zips)`.
+
 ```r title="Setup data for Exercise 4.2"
 zips <- c(2138L, 10001L, 94110L, 501L, 60601L, 7030L)
 ```
@@ -566,6 +610,10 @@ ex_4_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want to swap two parts of each string, so capture both halves and emit them in reversed order.
+Use `str_replace()` with two capture groups and the replacement `"\\2, \\1"`.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -598,6 +646,10 @@ ex_4_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Validity is about the whole string matching exactly, with the extension being optional, so pin down both ends.
+Use `str_detect()` with the pattern `"^\\d{5}(-\\d{4})?$"`.
 
 ```r title="Setup data for Exercise 5.1"
 codes <- c("02138", "94110-1234", "1234", "ABCDE",
@@ -640,6 +692,10 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want every long word per sentence, with each match confined to a whole word rather than a fragment inside one.
+Use `str_extract_all()` with the pattern `"\\b[A-Za-z]{7,}\\b"`.
 
 ```r title="Setup data for Exercise 5.2"
 text_vec <- c(
@@ -696,6 +752,10 @@ ex_5_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+You want the number but not the currency sign, so require the sign to be present without including it in the match.
+Use `str_extract_all()` with a positive lookbehind `(?<=\\$)` followed by `\\d+(?:\\.\\d{2})?`.
+
 ```r title="Setup data for Exercise 5.3"
 listings <- c(
   "Sale: was $19.99, now $24.50",
@@ -748,6 +808,10 @@ ex_5_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Two clean-up steps are needed: collapse the stray spacing, then make the capitalisation consistent.
+Pipe the vector through `str_squish()` and then `str_to_title()`.
+
 ```r title="Setup data for Exercise 6.1"
 dirty_names <- c("  ada lovelace ",
                  "alan   TURING",
@@ -795,6 +859,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Each line has four fields in a fixed layout, so capture all four at once and assemble them into columns.
+Use `str_match()` with four capture groups, then build a `tibble()` from columns 2 through 5 of the result matrix.
 
 ```r title="Setup data for Exercise 6.2"
 logs <- c(
@@ -851,6 +919,10 @@ ex_6_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Lowercase first, then turn every run of unwanted characters into a single separator, and finally trim separators off the ends.
+Pipe through `str_to_lower()`, then `str_replace_all("[^a-z0-9]+", "-")`, then `str_replace_all("^-|-$", "")`.
 
 ```r title="Setup data for Exercise 6.3"
 titles <- c(

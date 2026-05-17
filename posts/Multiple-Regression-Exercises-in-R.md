@@ -44,6 +44,10 @@ library(broom)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A multiple regression model takes one outcome and several predictors joined in the formula; once it is fitted, the named slopes can be read straight back out.
+Fit with `lm(mpg ~ wt + hp, data = mtcars)` and pass the result to `coef()`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 coef(ex_1_1)
@@ -74,6 +78,10 @@ coef(ex_1_1)
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+A partial slope already gives the change per one unit of the predictor, so scaling it by the size of the move gives the answer directly.
+Pull the `wt` slope with `coef(ex_1_1)["wt"]`, multiply by 0.5, and strip the carried name with `unname()`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -106,6 +114,10 @@ ex_1_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each coefficient comes with an interval of plausible values, and you only need the row for one predictor.
+Call `confint()` with `parm = "hp"` and `level = 0.95`, then index `[1, ]` to collapse the single row to a vector.
+
 ```r title="Your turn"
 ex_1_3 <- # your code here
 ex_1_3
@@ -136,6 +148,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Goodness-of-fit numbers live inside the model summary object, not just in its printout.
+Fit `lm(mpg ~ wt + hp + cyl, data = mtcars)` and read `$adj.r.squared` off `summary()`.
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -170,6 +186,10 @@ round(ex_1_4, 4)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The summary stores every coefficient's estimate, standard error, and test statistic in one indexable table.
+Index `summary(fit)$coefficients` by the row `"cyl"` and the column `"t value"`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 round(ex_2_1, 4)
@@ -200,6 +220,10 @@ round(ex_2_1, 4)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+To judge whether a block of extra predictors earns its place, compare the small and large models as a pair rather than predictor by predictor.
+Pass both fitted models to `anova()` and take the `Pr(>F)` value from the second row.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -233,6 +257,10 @@ signif(ex_2_2, 4)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Backward selection starts from the full model and prunes predictors until removing any more would only hurt the fit criterion.
+Run `step()` with `direction = "backward"` and `trace = 0`, then wrap the chosen model in `formula()`.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -276,6 +304,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Every residual diagnostic plot starts from two aligned vectors: what the model predicted and how far each point missed.
+Build a `tibble()` with `fitted(ex_1_1)` and `resid(ex_1_1)` as its two columns.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 head(ex_3_1, 5)
@@ -313,6 +345,10 @@ head(ex_3_1, 5)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A normality check applies to the residuals the model leaves behind, not to the raw outcome variable.
+Feed `resid(ex_1_1)` to `shapiro.test()` and read its `$p.value`.
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 round(ex_3_2, 4)
@@ -343,6 +379,10 @@ round(ex_3_2, 4)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+To check whether residual spread stays constant across the fit, run the test on the model object itself.
+Call `bptest()` on `ex_1_1` and pull its `$p.value`.
+
 ```r title="Your turn"
 ex_3_3 <- # your code here
 round(ex_3_3, 4)
@@ -372,6 +412,10 @@ round(ex_3_3, 4)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+An influence score per row flags the points that move the fit the most, judged against a cutoff that shrinks with sample size.
+Get the scores with `cooks.distance()`, compare them against `4 / nrow(mtcars)`, and pull the `names()` of the ones above it.
 
 ```r title="Your turn"
 ex_3_4 <- # your code here
@@ -412,6 +456,10 @@ ex_3_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Pairwise relationships among the predictors are the first screen for redundancy before any model is fitted.
+Subset `mtcars` to the five predictor columns and pass that to `cor()`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 round(ex_4_1, 3)
@@ -448,6 +496,10 @@ round(ex_4_1, 3)
 
 **Difficulty:** Advanced
 
+[HINTS]
+Multicollinearity is measured per predictor by how well the rest of the model can already explain that predictor.
+Fit `lm(mpg ~ wt + hp + cyl + disp, data = mtcars)` and pass the model to `vif()`.
+
 ```r title="Your turn"
 ex_4_2 <- # your code here
 round(ex_4_2, 4)
@@ -480,6 +532,10 @@ round(ex_4_2, 4)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Removing the single most redundant predictor should pull the remaining inflation factors back under the threshold.
+Refit without `cyl` as `lm(mpg ~ wt + hp + disp, data = mtcars)` and rerun `vif()` on the smaller model.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -516,6 +572,10 @@ round(ex_4_3, 4)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The multiplication shorthand in a formula expands to both main effects plus their product term in one stroke.
+Fit `lm(mpg ~ wt * hp, data = mtcars)` and read the four slopes with `coef()`.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -548,6 +608,10 @@ ex_5_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Logging the outcome changes its scale, so you fit a separate model for each version and read the fit number off each.
+Fit `mpg ~ wt + hp` and `log(mpg) ~ wt + hp`, then collect each `summary()$r.squared` into a named `c()`.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -585,6 +649,10 @@ round(ex_5_2, 4)
 
 **Difficulty:** Advanced
 
+[HINTS]
+A curved relationship needs a squared term, added in an orthogonal form so it does not collide with the linear term.
+Put `poly(hp, 2)` in the formula alongside `wt` and read `$adj.r.squared` from `summary()`.
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 round(ex_5_3, 3)
@@ -615,6 +683,10 @@ round(ex_5_3, 3)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+To decide whether the interaction is worth its one degree of freedom, weigh the model with it against the model without it.
+Pass `m_main` and `m_intx` to `anova()` and take the `F` value from the second row.
 
 ```r title="Your turn"
 ex_5_4 <- # your code here
@@ -651,6 +723,10 @@ round(ex_5_4, 3)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Scoring a hypothetical car means handing the model a new one-row dataset and asking for the uncertainty band around the mean.
+Call `predict()` with `newdata = new_car` and `interval = "confidence"`.
+
 ```r title="Your turn"
 new_car <- data.frame(wt = 3.0, hp = 110)
 ex_6_1 <- # your code here
@@ -683,6 +759,10 @@ round(ex_6_1, 5)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+An honest error score is fitted on one slice of rows and measured on rows the model never saw during fitting.
+Fit on `train`, get `predict(fit, newdata = test)`, then compute `sqrt(mean((test$mpg - preds)^2))`.
 
 ```r title="Your turn"
 set.seed(42)
@@ -729,6 +809,10 @@ round(ex_6_2, 4)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A fitted model can be reshaped into a flat one-row-per-term table with its confidence bounds attached.
+Fit the three-predictor model and pass it to `tidy()` with `conf.int = TRUE`.
 
 ```r title="Your turn"
 ex_6_3 <- # your code here

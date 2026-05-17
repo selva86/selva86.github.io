@@ -44,6 +44,10 @@ library(tidyr)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Each row in mpg is one car, so you want a tally of rows per body style, not a sum of any existing column.
+Map the category to x with aes(x = class) and add geom_bar(), which counts rows per category for you.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -75,6 +79,10 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+The per-cut totals are already computed in the summary table, so the chart only needs to draw bars at those heights.
+Pass diamond_totals to ggplot() with aes(x = cut, y = total_price) and use geom_col().
 
 ```r title="Your turn"
 diamond_totals <- diamonds |>
@@ -115,6 +123,10 @@ ex_1_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want each bar's height to read as a fraction of all rows, with the heights summing to one across every category.
+Inside aes() set y = after_stat(prop) and group = 1, then add geom_bar().
+
 ```r title="Your turn"
 ex_1_3 <- # your code here
 ex_1_3
@@ -148,6 +160,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The color should carry the category, the theme should be clean, and the legend is redundant once the x-axis labels every bar.
+Map fill = class in aes(), then add scale_fill_viridis_d(), theme_minimal(), and theme(legend.position = "none").
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -184,6 +200,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+One fixed color for every bar means the color is decoration, not data, so it belongs outside the aesthetic mapping.
+Set fill = "#1f7a8c" as an argument to geom_bar() rather than inside aes(), and add theme_classic().
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -216,6 +236,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+To spotlight one category, give it a bold color and paint every other bar the same neutral grey.
+Map fill = cut, then use scale_fill_manual(values = ...) with a named vector setting "Premium" to "#e85d04" and every other cut to "grey70".
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -260,6 +284,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Splitting each class bar into segments for a second category, stacked on top of each other, is ggplot's default behavior.
+Add fill = drv to aes() alongside x = class and call geom_bar() with no position argument.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -292,6 +320,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Instead of segments stacked on top of each other, you want each subgroup drawn as its own bar sharing a common baseline.
+Keep aes(x = class, fill = drv) but pass position = "dodge" to geom_bar().
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -323,6 +355,10 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Rescale every bar to the same full height so the segments show within-class composition rather than totals.
+Use geom_bar(position = "fill") and format the axis with scale_y_continuous(labels = label_percent()).
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -360,6 +396,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The bars should run from the most common body style down to the rarest so the ranking is obvious at a glance.
+Wrap class in fct_infreq() inside aes(x = ...) and reset the axis title with labs(x = "class").
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -392,6 +432,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Order the categories by the numeric value the bars represent, with the tallest bar first.
+Inside aes() use reorder(class, -mean_hwy) for x with geom_col(); the minus sign sorts descending.
 
 ```r title="Your turn"
 mpg_hwy <- mpg |>
@@ -433,6 +477,10 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+For a horizontal chart you order the categorical axis by the price value, then flip the plot's orientation.
+Use fct_reorder(cut, mean_price) in aes(), draw with geom_col(), and add coord_flip().
 
 ```r title="Your turn"
 cut_price <- diamonds |>
@@ -478,6 +526,10 @@ ex_4_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each bar needs its own count printed as text floating just above its top edge.
+Add geom_text(stat = "count", aes(label = after_stat(count)), vjust = -0.3) to the bar chart.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -511,6 +563,10 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The dollar totals should display in compact millions on the axis without altering the underlying numbers.
+Plot the summary with geom_col(), then scale_y_continuous(labels = label_dollar(scale = 1e-6, suffix = "M")) and set the title via labs().
 
 ```r title="Your turn"
 cut_revenue <- diamonds |>
@@ -557,6 +613,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Draw each cut's share as a horizontal bar and tuck a formatted percentage just inside each bar's end.
+Use geom_col() with coord_flip(), then geom_text(aes(label = label_percent(accuracy = 0.1)(share)), hjust = 1.1, color = "white").
 
 ```r title="Your turn"
 cut_share <- diamonds |>
@@ -608,6 +668,10 @@ ex_5_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+Trim the data to the five most frequent classes first, then build a titled, captioned bar chart ordered by count.
+Use count(class, sort = TRUE) plus slice_max(n, n = 5), then geom_col() with fct_reorder() and labs(title = ..., caption = "Source: ggplot2::mpg").
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -652,6 +716,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Reshape the two mileage columns into one long value column so a single bar layer can compare both measures side by side.
+After pivot_longer(), map fill = measure, draw geom_col(position = position_dodge(width = 0.85)), and give geom_text() a matching position_dodge.
 
 ```r title="Your turn"
 mpg_summary <- mpg |>
@@ -708,6 +776,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A lollipop replaces each solid bar with a thin stem running from zero plus a dot marking the value.
+Draw the stems with geom_segment(aes(x = 0, xend = mean_hwy, y = class, yend = class)) and the heads with geom_point().
 
 ```r title="Your turn"
 mpg_hwy <- mpg |>

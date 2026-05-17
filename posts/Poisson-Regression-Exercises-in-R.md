@@ -49,6 +49,10 @@ library(tidyr)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A count outcome modelled on the log scale needs a generalised linear model with a Poisson error structure, not ordinary least squares.
+Call glm() with the formula breaks ~ wool + tension and set family = poisson; the log link is the default, so you need not name it.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -82,6 +86,10 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Coefficients sit on the log-rate scale, so reversing the link turns each one into a multiplicative factor on the expected count.
+Wrap coef(ex_1_1) inside exp() to produce the named vector of incidence rate ratios.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -121,6 +129,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Grouped data still carries one count per row, so the same count-model machinery applies as it would for ungrouped records.
+Pass the formula complaints ~ region and family = poisson to glm(), with data = comp.
 
 ```r title="Your turn"
 comp <- data.frame(
@@ -166,6 +178,10 @@ ex_1_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The fitted object stores point estimates only; the standard errors, test statistics, and p-values live in its printed report.
+Apply summary() to ex_1_1 and pull the $coefficients element to get the matrix.
+
 ```r title="Your turn"
 ex_1_4 <- # your code here
 ex_1_4
@@ -203,6 +219,10 @@ ex_1_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+Scoring new cases means feeding the model a fresh data frame whose columns and factor levels match the training data.
+Build a newdata frame with wool and tension factors, then call predict() with type = "response" to get counts rather than log-rates.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -238,6 +258,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A symmetric interval only behaves on the scale where the model is linear, so build it before transforming back to counts.
+Call predict() with se.fit = TRUE, form fit plus or minus 1.96 * se.fit, then apply exp() to the fit, lower, and upper values.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -283,6 +307,10 @@ ex_2_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each observation contributes a discrepancy that can be standardised two different ways, and a side-by-side frame makes the contrast visible.
+Use residuals() with type = "pearson" and type = "deviance", alongside fitted(), inside a data.frame() call.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 head(ex_2_3)
@@ -322,6 +350,10 @@ head(ex_2_3)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Residual deviance behaves like a chi-squared variable when the model's variance assumption holds, so it can be turned into a p-value.
+Feed deviance(ex_1_1) and df.residual(ex_1_1) to pchisq() with lower.tail = FALSE.
+
 ```r title="Your turn"
 ex_2_4 <- # your code here
 ex_2_4
@@ -358,6 +390,10 @@ ex_2_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Counts from units with different exposure are not comparable until the model accounts for how long each unit was at risk.
+Add offset(log(policy_years)) to the formula claims ~ region and fit it with glm() and family = poisson.
 
 ```r title="Your turn"
 ins <- data.frame(
@@ -403,6 +439,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+With exposure already inside the model, the exposure value you choose for new data sets the unit the predicted rate is reported in.
+Build a newdata frame with policy_years = 100, call predict() with type = "response", then name the result by region.
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -444,6 +484,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Fitting the same predictors with and without exposure correction reveals where ignoring exposure distorts the story.
+Fit a second glm() of claims ~ region with no offset, then assemble both predict() outputs into a tibble().
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -491,6 +535,10 @@ ex_3_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+Letting the data estimate the exposure effect, rather than fixing it, tests whether counts really do scale proportionally with exposure.
+Put log(policy_years) on the right-hand side of the glm() formula as an ordinary term instead of wrapping it in offset().
+
 ```r title="Your turn"
 ex_3_4 <- # your code here
 ex_3_4
@@ -526,6 +574,10 @@ ex_3_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+If the data vary more than a Poisson process allows, the average squared standardised residual sits well above one.
+Sum residuals(ex_1_1, type = "pearson")^2 and divide by df.residual(ex_1_1).
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -559,6 +611,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+When variance exceeds the mean, the point estimates can stay as they are but the uncertainty around them must be widened.
+Refit the same formula with glm() using family = quasipoisson, then inspect summary(ex_4_2)$coefficients.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -600,6 +656,10 @@ summary(ex_4_2)$coefficients
 
 **Difficulty:** Advanced
 
+[HINTS]
+A model that carries an extra variance parameter can absorb overdispersion that a strict mean-equals-variance model cannot.
+Fit with MASS::glm.nb() using the formula breaks ~ wool + tension; the estimated theta prints with the model.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -633,6 +693,10 @@ ex_4_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Comparing two nested fits comes down to how much the log-likelihood improves once the extra parameter is allowed.
+Take 2 * (logLik(ex_4_3) - logLik(ex_1_1)), pass it to pchisq() with df = 1 and lower.tail = FALSE, and halve the result for the boundary test.
 
 ```r title="Your turn"
 ex_4_4 <- # your code here
@@ -674,6 +738,10 @@ ex_4_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Tallying events silently drops combinations that never occurred, but a zero count is real information a count model must keep.
+Chain count() with tidyr::complete(), passing fill = list(clicks = 0) to restore the missing pairs.
 
 ```r title="Your turn"
 events <- data.frame(
@@ -725,6 +793,10 @@ ex_5_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+Each fitted mean implies its own probability of producing a zero, and summing those probabilities gives the count of zeros the model expects.
+Compare sum(warpbreaks$breaks == 0) against sum(dpois(0, lambda = fitted(ex_1_1))).
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 ex_5_2
@@ -765,6 +837,10 @@ ex_5_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Whether an extra set of terms earns its place is judged by the deviance it removes against the degrees of freedom it costs.
+Fit the wool-only and the full models, then call anova() on both with test = "Chisq".
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -807,6 +883,10 @@ ex_5_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A reporting pipeline chains a rate fit, a prediction at a chosen exposure, and an uncertainty band into one tidy output.
+Fit glm() with offset(log(staffed_hours)), predict at staffed_hours = 1000 with se.fit = TRUE, exponentiate the bounds, and collect them in a tibble().
 
 ```r title="Your turn"
 er_visits <- data.frame(

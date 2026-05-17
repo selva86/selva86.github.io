@@ -54,6 +54,10 @@ library(tibble)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Each state currently carries four separate crime measurements across columns, and the state labels are not a real column yet but are hiding in the rownames.
+Lift the rownames into a column with rownames_to_column("state"), then pivot_longer() with cols = -state, names_to = "crime", and values_to = "rate".
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -105,6 +109,10 @@ ex_1_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The four measurement columns should collapse into one key column and one value column, while the species label stays put as an identifier.
+Use pivot_longer() with a column range such as Sepal.Length:Petal.Width, plus names_to = "measurement" and values_to = "value".
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -158,6 +166,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Each month is its own column right now, but you want every row to stand for a single region-month pair with one revenue figure.
+Pivot the jan:mar columns longer with names_to = "month" and values_to = "revenue".
 
 ```r title="Your turn"
 sales_wide <- tibble::tibble(
@@ -220,6 +232,10 @@ ex_1_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+First reduce the many looms per wool-tension combination down to one average, then spread the tension levels across the top of the table.
+After group_by(wool, tension) and summarise() of the mean, use pivot_wider() with names_from = tension and values_from set to the mean column.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -265,6 +281,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Keep one row per month and turn every distinct day into its own column holding that day's reading, with blanks where no observation exists.
+After narrowing to the three relevant columns with select(), use pivot_wider() with names_from = Day and values_from = Ozone.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -309,6 +329,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Each patient should become a single row, with the visit numbers turning into columns and patients with fewer visits left blank.
+Use pivot_wider() with names_from = visit, values_from = systolic, and names_prefix = "v" to get v1, v2, v3.
 
 ```r title="Your turn"
 encounters <- tibble::tibble(
@@ -378,6 +402,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each column name packs two facts joined by an underscore, so the reshape should produce two new label columns at once.
+Pass a length-2 vector to names_to and set names_sep = "_" in pivot_longer() to split the name into group and time.
+
 ```r title="Your turn"
 trial_wide <- tibble::tibble(
   subject       = c("S01", "S02", "S03"),
@@ -445,6 +473,10 @@ ex_3_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+The two pieces of each column name need to be captured separately, and the year piece should arrive as a number rather than text.
+Use names_pattern with a regex of two capture groups, give names_to both column names, and pass names_transform = list(year = as.integer).
+
 ```r title="Your turn"
 qtr_wide <- tibble::tibble(
   store   = c("Store_A", "Store_B"),
@@ -511,6 +543,10 @@ ex_3_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+One piece of each column name should decide which output column the value lands in, instead of becoming a label column of its own.
+Put the .value sentinel as the first element of names_to alongside "year", with names_sep = "_".
+
 ```r title="Your turn"
 anthro_wide <- tibble::tibble(
   subject     = c("A", "B", "C"),
@@ -573,6 +609,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The new column names should be built from two existing columns, reordered and given a prefix rather than left to the default join.
+In pivot_wider(), give names_from both year and quarter, set values_from = revenue, and supply a names_glue template like "rev_{year}_{quarter}".
+
 ```r title="Your turn"
 ex_4_1 <- ex_3_2 |>
   # your code here
@@ -617,6 +657,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+There are several records per warehouse-region cell, so the reshape needs a rule for collapsing those duplicates into one number.
+Pass values_fn = mean to pivot_wider() alongside names_from = region and values_from = minutes.
 
 ```r title="Your turn"
 deliveries <- tibble::tibble(
@@ -672,6 +716,10 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Both measurement columns should each spawn their own family of quarter columns in a single reshape, not two separate ones.
+After summarising the means per quarter, give pivot_wider() a vector values_from = c(min_temp, max_temp) with names_from = month_q.
 
 ```r title="Your turn"
 weather <- tibble::tibble(
@@ -736,6 +784,10 @@ ex_4_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+To compare two years you first need them side by side as columns, then compute the ratio, then keep only the columns that matter.
+Use pivot_wider() with names_from = year and names_prefix = "rev_", then mutate() the rounded growth and select() the final three columns.
+
 ```r title="Your turn"
 ex_5_1 <- ex_3_2 |>
   # your code here
@@ -785,6 +837,10 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Reshaping the data to long and then back to wide should return the original exactly, provided every row carries a unique identifier.
+Chain pivot_longer() over the measurement columns into a pivot_wider() that reverses it, then compare with all.equal().
 
 ```r title="Your turn"
 ex_5_2 <- iris |>
@@ -837,6 +893,10 @@ isTRUE(all.equal(ex_5_2, iris_id))
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Collapse the many length measurements per dose-supplement pair down to one rounded average, then put the supplements across the columns.
+After group_by(dose, supp) and summarise() of the rounded mean, use pivot_wider() with names_from = supp and values_from set to the mean column.
+
 ```r title="Your turn"
 ex_5_3 <- ToothGrowth |>
   # your code here
@@ -881,6 +941,10 @@ ex_5_3
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Because the key repeats within a group, the reshape would otherwise collide several values into one column name and error out.
+Pass names_repair = "unique" to pivot_wider() (with values_fn = list) so the colliding names get ...n suffixes.
 
 ```r title="Your turn"
 dup_long <- tibble::tibble(
@@ -945,6 +1009,10 @@ ex_6_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Some respondents left blanks, and you do not want those empty cells turning into rows in the long output.
+Add values_drop_na = TRUE to pivot_longer() over the q1:q2 columns.
+
 ```r title="Your turn"
 survey_wide <- tibble::tibble(
   respondent = c("R1", "R2", "R3", "R4"),
@@ -1004,6 +1072,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Each blank cell in the wide table marks a visit that never happened, so you want a per-patient tally of those blanks, ranked.
+Use rowwise() with mutate(missed = sum(is.na(c_across(v1:v3)))), then arrange(desc(missed)).
 
 ```r title="Your turn"
 ex_6_3 <- ex_2_3 |>

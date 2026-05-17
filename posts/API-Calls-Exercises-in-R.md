@@ -46,6 +46,9 @@ library(purrr)
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+A request in httr2 is a lazy description of a call - you state where to point it without sending anything over the network yet.
+Pass the URL string to request() and assign the result to ex_1_1; do not add any perform step.
 
 ```r title="Your turn"
 ex_1_1 <- # your code here
@@ -82,6 +85,9 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Identifying who is calling is just one more piece of metadata layered onto an existing request before it is sent.
+Pipe the request from Exercise 1.1 into req_user_agent() with the agent string as its only argument.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -121,6 +127,9 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Query parameters are key-value pairs appended to the URL, and the library can encode them for you instead of you hand-building the string.
+Add req_url_query(name = "selva", country_id = "IN") to a request() for the base URL.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -159,6 +168,9 @@ ex_1_3 |> req_dry_run()
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+The same URL can carry a different verb and a payload - you reshape an existing request rather than build a new one.
+Chain req_method("POST") and req_body_json(list(team = "data", priority = 1)) onto the request().
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -195,6 +207,9 @@ ex_1_4
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Sending the request returns a response, and the single value you want lives inside its parsed body.
+After req_perform(), call resp_body_json() and pull the title element with $title.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -236,6 +251,9 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+An array of flat JSON objects is already table-shaped - the work is getting it into a rectangular structure.
+Take resp_body_string(), pass it to fromJSON(), then coerce with as_tibble().
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -291,6 +309,9 @@ nested_json <- '[
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Nested objects break the rectangle; collapsing them turns each sub-field into its own dotted column.
+Call fromJSON() with flatten = TRUE, coerce with as_tibble(), then select() the four columns.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -335,6 +356,9 @@ ex_2_3
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+A response carries metadata alongside its body - status, content type, and headers are all data you can read directly.
+Build a named list() combining resp_status(), resp_content_type(), and resp_header(resp, "server").
 
 ```r title="Your turn"
 ex_2_4 <- # your code here
@@ -384,6 +408,9 @@ ex_2_4
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A reflection endpoint hands your payload back inside its response, so you send a body and then read the same thing returned.
+POST with req_body_json(payload), parse via resp_body_json(), and extract the json element.
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -428,6 +455,9 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Legacy endpoints expect form-encoded fields rather than JSON, so the body builder you pick has to match what the server parses.
+Use req_body_form() for the two fields, then pluck("form") from the parsed response and pass it to as_tibble().
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -468,6 +498,9 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Deleting a resource is just another HTTP verb, and success is signalled by the status code rather than the body.
+Set req_method("DELETE"), perform the request, and read the integer code with resp_status().
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -509,6 +542,9 @@ ex_3_3
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Secrets belong in the environment, not the script - read the token at runtime and attach it to the request.
+Get the value with Sys.getenv("GITHUB_PAT", unset = "demo-token") and pass it to req_auth_bearer_token().
 
 ```r title="Your turn"
 ex_4_1 <- # your code here
@@ -548,6 +584,9 @@ ex_4_1 |> req_dry_run()
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Username-and-password auth is a header the client adds before the call, and the server echoes back the identity it accepted.
+Attach req_auth_basic("selva", "letmein"), perform the request, then pluck("user") from the parsed body.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -584,6 +623,9 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A key placed in the URL leaks easily, so it should be masked from anything that prints the request while the real value still travels on the wire.
+Add the key via req_url_query() and name that same parameter in its .redact argument.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -621,6 +663,9 @@ ex_4_3
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A transient server failure should not kill a job - the client can wait briefly and try the same call again on its own.
+Add req_retry(max_tries = 3, backoff = ~ 2) before req_perform(), then read the code with resp_status().
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -655,6 +700,9 @@ ex_5_1
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Staying under a published rate cap means pacing the calls so the client never sends faster than the limit allows.
+Configure req_throttle(rate = 10 / 60) on the request, then replicate() the perform-and-status call three times.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -696,6 +744,9 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A paginated endpoint reveals one page at a time, so you keep asking for the next page until every record is collected.
+Drive req_perform_iterative() with iterate_with_offset("_page", start = 1, offset = 1) and max_reqs = 4, then combine the bodies with resps_data().
 
 ```r title="Your turn"
 ex_5_3 <- # your code here

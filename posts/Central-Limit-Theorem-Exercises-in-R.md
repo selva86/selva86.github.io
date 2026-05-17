@@ -47,6 +47,10 @@ excess_kurt <- function(x) mean((x - mean(x))^4) / sd(x)^4 - 3
 
 **Difficulty:** Beginner
 
+[HINTS]
+One sample mean is simply the average of n random draws taken from the population.
+Generate the 30 draws with `runif(30)` and wrap that call inside `mean()`.
+
 ```r title="Your turn"
 set.seed(1)
 ex_1_1 <- # your code here
@@ -85,6 +89,10 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+A sampling distribution is built by repeating the single-mean experiment many times and collecting every result into one vector.
+Pass `mean(runif(30))` as the expression to `replicate(1000, ...)`.
 
 ```r title="Your turn"
 set.seed(1)
@@ -130,6 +138,10 @@ sd(ex_1_2)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Put the 1000 means on a density-scaled histogram so the theoretical curve can share the same y-axis as the bars.
+Map `aes(y = after_stat(density))` inside `geom_histogram()` and add `stat_function(fun = dnorm, args = list(...))` for the red overlay.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -182,6 +194,10 @@ ex_1_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Keep the replicate-and-average recipe identical; only the population generator changes to a right-skewed one.
+Call `replicate(5000, mean(rexp(40, rate = 1)))`.
+
 ```r title="Your turn"
 set.seed(7)
 ex_2_1 <- # your code here
@@ -226,6 +242,10 @@ length(ex_2_1); mean(ex_2_1); sd(ex_2_1); moment_skew(ex_2_1)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The simulation recipe is unchanged; only the population draw becomes a lognormal one.
+Replace the inner draw with `rlnorm(50, meanlog = 0, sdlog = 1)` inside `mean()` and `replicate()`.
+
 ```r title="Your turn"
 set.seed(11)
 ex_2_2 <- # your code here
@@ -266,6 +286,10 @@ mean(ex_2_2); sd(ex_2_2); moment_skew(ex_2_2)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Each sample must first decide which of the two component peaks every observation comes from, then average those draws.
+Use `rbinom(n, 1, 0.5)` to pick a peak per draw, combine two `rnorm()` calls, and `replicate()` the resulting mean.
 
 ```r title="Your turn"
 set.seed(21)
@@ -313,6 +337,10 @@ hist(ex_2_3, breaks = 30, main = "Mean of bimodal samples")
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Loop over the sample sizes, build a fresh sampling distribution at each one, and record its shape statistics as a row.
+Use `lapply()` over the n values, call `moment_skew()` and `excess_kurt()` on each batch, then stack rows with `do.call(rbind, ...)`.
 
 ```r title="Your turn"
 set.seed(5)
@@ -365,6 +393,10 @@ ex_2_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+At each sample size, compare the spread of the simulated means against the population spread divided by the root of n.
+Loop with `lapply()`, take `sd()` of each replicate batch, and set `theoretical_se` to `pop_sd / sqrt(n)`.
+
 ```r title="Your turn"
 set.seed(3)
 ex_3_1 <- # your code here
@@ -413,6 +445,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+For each simulated sample, check whether its confidence interval brackets the known true mean, then average those hits.
+Inside `replicate()`, pull `t.test(s)$conf.int` and test `ci[1] <= 4 & 4 <= ci[2]`.
+
 ```r title="Your turn"
 set.seed(9)
 ex_3_2 <- # your code here
@@ -454,6 +490,10 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+For each population, step through the candidate sample sizes and stop at the first one that no longer looks non-normal.
+Sweep `ns` in a loop, run `shapiro.test()` on the sample means, and return the first n whose `p.value` exceeds 0.05.
 
 ```r title="Your turn"
 set.seed(13)
@@ -515,6 +555,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The sample mean has its own narrower mean and spread, so a tail question becomes a lookup against that distribution.
+Use `1 - pnorm(10.5, mean = mu, sd = sig / sqrt(n))` for the CLT value and a `replicate()` proportion for the simulation.
+
 ```r title="Your turn"
 set.seed(17)
 ex_4_1 <- # your code here
@@ -564,6 +608,10 @@ ex_4_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Build one sample mean from each group per replicate and record the difference between them.
+Inside `replicate(5000, ...)`, subtract `mean(rnorm(40, 48, 10))` from `mean(rnorm(40, 50, 10))`.
+
 ```r title="Your turn"
 set.seed(23)
 ex_4_2 <- # your code here
@@ -601,6 +649,10 @@ length(ex_4_2); mean(ex_4_2); sd(ex_4_2)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A sample proportion is just the mean of 0/1 outcomes, so the same simulate-and-summarise recipe still applies.
+Draw with `rbinom(n, 1, p)`, take its `mean()` inside `replicate()`, and build the one-row `data.frame` using `mean()`, `sd()`, and `mean(phat == 0)`.
 
 ```r title="Your turn"
 set.seed(27)
@@ -650,6 +702,10 @@ ex_4_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Run the same averaging experiment at two very different sample sizes and watch whether the spread actually settles down.
+Call `replicate(5000, mean(rcauchy(30)))` and again with `rcauchy(1000)`, then combine the two `sd()` values into a named `c()`.
+
 ```r title="Your turn"
 set.seed(33)
 ex_5_1 <- # your code here
@@ -687,6 +743,10 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Stack both sets of sample means into one long table tagged by sample size so the panels can be drawn together.
+Use `stat_qq()` with `stat_qq_line()` and split the two sizes apart with `facet_wrap()`.
 
 ```r title="Your turn"
 set.seed(41)
@@ -741,6 +801,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+With only one real sample, you re-draw from it with replacement to imitate fresh samples from the population.
+Inside `replicate(4000, ...)`, call `sample(sample_obs, length(sample_obs), replace = TRUE)` and take its `mean()`.
 
 ```r title="Your turn"
 set.seed(47)

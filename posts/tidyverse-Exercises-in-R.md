@@ -52,6 +52,9 @@ library(ggplot2)
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+You need to keep only the rows that satisfy two requirements at the same time, while leaving every column untouched.
+Filter with two comma-separated conditions: one testing `class` for equality with "compact", one testing `cty` against 25.
 
 ```r title="Your turn"
 ex_1_1 <- # your code here
@@ -89,6 +92,9 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Name the one column you want up front, then let a pattern-based selector grab the whole family of related columns.
+Pass `price` first and then `starts_with("c")` to your column selection.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -126,6 +132,9 @@ ex_1_2
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Sort primarily by price from high to low, and use the size column only to settle rows that share the same price.
+Call `arrange()` with `desc(price)` followed by `carat` as the tiebreaker.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -168,6 +177,9 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Add a new column whose label depends on which of three price ranges each row falls into.
+Inside `mutate()`, use `case_when()` with conditions ordered low-to-high and a final `TRUE ~ "premium"` catch-all.
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -205,6 +217,9 @@ count(ex_1_4, tier)
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Collapse the entire price column down to a single row holding four separately named statistics.
+Inside `summarise()`, compute `mean()`, `median()`, and `quantile(price, 0.10)` / `quantile(price, 0.90)`, wrapping results in `round()`.
 
 ```r title="Your turn"
 ex_1_5 <- # your code here
@@ -247,6 +262,9 @@ ex_1_5
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Reduce the data to one row per unique key combination, but hold on to every other column from the first matching row.
+Call `distinct()` on `manufacturer` and `model` with the `.keep_all = TRUE` argument.
 
 ```r title="Your turn"
 ex_1_6 <- # your code here
@@ -284,6 +302,9 @@ ex_1_6
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Work within each cut grade and keep only the rows holding the largest price values, including any ties at the cutoff.
+Use `group_by(cut)` then `slice_max(price, n = 3, with_ties = TRUE)`, and `ungroup()` at the end.
 
 ```r title="Your turn"
 ex_1_7 <- # your code here
@@ -323,6 +344,9 @@ ex_1_7
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Give two columns clearer names, then move a few columns to the front while leaving the rest in place.
+Use `rename()` with `new = old` pairs, then `relocate()` listing the three columns that should lead.
 
 ```r title="Your turn"
 ex_1_8 <- # your code here
@@ -361,6 +385,9 @@ ex_1_8
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Apply the same standardising transformation to every column at once instead of writing one line per column.
+Use `mutate(across(everything(), ...))` with a lambda like `\(x) (x - mean(x)) / sd(x)`.
 
 ```r title="Your turn"
 ex_1_9 <- # your code here
@@ -400,6 +427,9 @@ ex_1_9
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Split the data by class, then report a count and an average per group, ordered so the best average is on top.
+Use `group_by(class)`, `summarise(n = n(), mean_hwy = round(mean(hwy), 1))`, then `arrange(desc(mean_hwy))`.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -439,6 +469,9 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Tally how many rows fall in each category, then convert those tallies into shares of the overall total.
+Use `count(cut, sort = TRUE)`, then `mutate(pct = round(100 * n / sum(n), 2))`.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -477,6 +510,9 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Combine the two tables so that only records present on both sides survive the merge.
+Use `inner_join()` with `by = "customer_id"`.
 
 ```r title="Your turn"
 customers <- tibble(
@@ -524,6 +560,9 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Keep every customer, attach order details where they exist, and replace the blanks left behind with zero.
+Use `left_join()` on `customer_id`, then `mutate(amount = coalesce(amount, 0))`.
 
 ```r title="Your turn"
 ex_2_4 <- # your code here
@@ -558,6 +597,9 @@ ex_2_4
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Return the orders whose key has no counterpart at all in the customer table.
+Use `anti_join(customers, by = "customer_id")`.
 
 ```r title="Your turn"
 ex_2_5 <- # your code here
@@ -595,6 +637,9 @@ ex_2_5
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Filter the iris rows down to those whose species appears in the lookup table, without pulling in its columns.
+Use `semi_join(keep, by = "Species")` against the iris tibble.
 
 ```r title="Your turn"
 keep <- tibble(Species = c("setosa", "virginica"))
@@ -632,6 +677,9 @@ ex_2_6
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Keep the union of keys from both feeds, then pick the preferred value per row when both are present.
+Use `full_join()` on `sku`, then `mutate(final_price = coalesce(price_a, price_b))`.
 
 ```r title="Your turn"
 feed_a <- tibble(sku = c("A","B","C"), price_a = c(10, 20, 30))
@@ -673,6 +721,9 @@ ex_2_7
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Stack the list of tables into one, carrying each table's name into a new label column.
+Use `bind_rows()` with the `.id = "quarter"` argument.
 
 ```r title="Your turn"
 q_list <- list(
@@ -716,6 +767,9 @@ ex_2_8
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+After putting the rows in date order, compare each day's value against the one immediately before it.
+Use `arrange(date)`, then `mutate(delta = close - lag(close))`.
 
 ```r title="Your turn"
 prices <- tibble(
@@ -762,6 +816,9 @@ ex_2_9
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Reshape the table so the four spread-out columns collapse into one key column and one value column.
+Use `pivot_longer(cols = Q1:Q4, names_to = "quarter", values_to = "sales")`.
 
 ```r title="Your turn"
 wide_sales <- tibble(
@@ -808,6 +865,9 @@ ex_3_1
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Reverse the earlier reshape so every key value becomes its own column once more.
+Use `pivot_wider(names_from = quarter, values_from = sales)`.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -846,6 +906,9 @@ ex_3_2
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Split the single text column at its space into two named columns and discard the original.
+Use `separate_wider_delim(full_name, delim = " ", names = c("first", "last"))`.
 
 ```r title="Your turn"
 people <- tibble(full_name = c("Ada Lovelace", "Grace Hopper", "Margaret Hamilton"))
@@ -882,6 +945,9 @@ ex_3_3
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Break the structured code into fields by describing each piece's pattern, letting the dashes act as throwaway separators.
+Use `separate_wider_regex()` with a `patterns` vector mixing named entries like `year = "\\d{4}"` and unnamed separator strings.
 
 ```r title="Your turn"
 events <- tibble(code = c("EVT-2026-0427-NY-ORDER", "EVT-2026-0428-SF-REFUND", "EVT-2026-0429-NY-ORDER"))
@@ -926,6 +992,9 @@ ex_3_4
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Collapse each manufacturer's many rows into a single row carrying a packed table of the remaining columns.
+Use `group_by(manufacturer)` then `nest()`, finishing with `ungroup()`.
 
 ```r title="Your turn"
 ex_3_5 <- # your code here
@@ -964,6 +1033,9 @@ ex_3_5
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Expand the packed table column so every original vehicle becomes its own row again.
+Use `unnest(data)` on the nested tibble.
 
 ```r title="Your turn"
 ex_3_6 <- # your code here
@@ -1002,6 +1074,9 @@ ex_3_6
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Fill in every missing pairing of the two key columns so no day-product combination is absent.
+Use `complete(day, product, fill = list(sales = 0))`.
 
 ```r title="Your turn"
 sparse <- tibble(
@@ -1045,6 +1120,9 @@ ex_3_7
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Propagate each block's label downward into the rows left blank beneath it.
+Use `fill(branch, .direction = "down")`.
 
 ```r title="Your turn"
 tx <- tibble(
@@ -1087,6 +1165,9 @@ ex_3_8
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Filter rows by testing whether the manufacturer text contains a substring, regardless of letter case.
+Inside `filter()`, use `str_detect()` with the pattern wrapped in `regex("audi", ignore_case = TRUE)`.
 
 ```r title="Your turn"
 ex_4_1 <- # your code here
@@ -1122,6 +1203,9 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Delete only the run of zeros anchored to the very start of each string, keeping the column as text.
+In `mutate()`, use `str_remove(id_raw, "^0+")`.
 
 ```r title="Your turn"
 ids <- tibble(id_raw = c("00042", "00100", "01999"))
@@ -1159,6 +1243,9 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Pull out every pattern match within each row, then expand the result so each match becomes its own row.
+Use `str_extract_all(text, "\\d{3}-\\d{3}-\\d{4}")`, then `unnest_longer()` on that list-column.
 
 ```r title="Your turn"
 notes <- tibble(
@@ -1204,6 +1291,9 @@ ex_4_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Parse each string by trying several candidate date layouts until one of them fits.
+Use `parse_date_time(raw, orders = c("ymd", "mdy", "dmy"))`, then `as.Date()` to drop the time.
 
 ```r title="Your turn"
 mixed <- tibble(raw = c("2026-04-27", "04/28/2026", "29-Apr-2026"))
@@ -1242,6 +1332,9 @@ ex_4_4
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Pull the calendar components out of the date, then average the rate within each year-and-month period.
+Use `mutate(year = year(date), month = month(date))`, `group_by(year, month)`, then `summarise(mean_savings = mean(psavert), .groups = "drop")`.
 
 ```r title="Your turn"
 ex_4_5 <- # your code here
@@ -1279,6 +1372,9 @@ ex_4_5
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Subtract the signup date from a fixed reference date, then turn the resulting gap into a plain number.
+In `mutate()`, compute `as.numeric(as.Date("2026-05-12") - signup_date)`.
 
 ```r title="Your turn"
 signups <- tibble(
@@ -1320,6 +1416,9 @@ ex_4_6
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Split the multi-valued string so each tag occupies its own row, then tally how often each tag appears.
+Use `separate_longer_delim(tags, delim = ";")`, then `count(tag = tags, sort = TRUE)`.
 
 ```r title="Your turn"
 articles <- tibble(
@@ -1360,6 +1459,9 @@ ex_4_7
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Parse the UTC strings, then shift only the displayed timezone while keeping the underlying instant fixed.
+Parse with `ymd_hms(utc_string, tz = "UTC")` and wrap it in `with_tz(..., "America/New_York")`.
 
 ```r title="Your turn"
 events <- tibble(utc_string = c(
@@ -1398,6 +1500,9 @@ ex_4_8
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Apply the averaging function to each column and force the combined output into a plain numeric vector.
+Use `map_dbl(mtcars, mean)`.
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -1427,6 +1532,9 @@ ex_5_1
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Walk both vectors in parallel, combining each matching pair of elements into one number.
+Use `map2_dbl(a, b, \(x, y) x + y)`.
 
 ```r title="Your turn"
 a <- c(1, 2, 3, 4)
@@ -1463,6 +1571,9 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Iterate over several parameter columns together, producing one sequence per row stored inside a list-column.
+In `mutate()`, use `pmap(list(start, ratio, n), ...)` with a lambda computing `start * ratio ^ (0:(n-1))`.
 
 ```r title="Your turn"
 params <- tibble(
@@ -1503,6 +1614,9 @@ ex_5_3
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Pack each cylinder group's rows, fit a model on each packed table, then pull out the numbers you need from every fit.
+Use `group_by(cyl)` and `nest()`, then `map()` to fit `lm(mpg ~ wt, data = df)` and `map_dbl()` to extract `coef()` and `summary()$r.squared`.
 
 ```r title="Your turn"
 ex_5_4 <- # your code here
@@ -1545,6 +1659,9 @@ ex_5_4
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Retain only the list entries that pass a type test, leaving their names intact.
+Use `keep(mixed, is.numeric)`.
 
 ```r title="Your turn"
 mixed <- list(
@@ -1586,6 +1703,9 @@ ex_5_5
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Merge an arbitrary number of tables by folding a join cumulatively across the whole list.
+Use `reduce(left_join, by = "customer_id")` over the list of tibbles.
 
 ```r title="Your turn"
 t_names    <- tibble(customer_id = 1:3, name = c("Alice","Bob","Cara"))
@@ -1623,6 +1743,9 @@ ex_5_6
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Wrap the function so a bad input returns a captured error instead of halting the whole run.
+Build a wrapped version with `safely(log)`, then apply it across the inputs with `map()`.
 
 ```r title="Your turn"
 inputs <- list(1, 100, -5, "oops")
@@ -1660,6 +1783,9 @@ ex_5_7
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Run a printing side effect for each element together with its position, returning the input invisibly.
+Use `iwalk()` with a lambda `\(x, i) cat(...)` that combines the index and the element.
 
 ```r title="Your turn"
 fruits <- list("apple", "banana", "cherry")
@@ -1699,6 +1825,9 @@ ex_5_8
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Average the mileage per class, order the classes by that average, then assign each a sequential position.
+Use `group_by(class)`, `summarise(mean_hwy = round(mean(hwy), 1))`, `arrange(desc(mean_hwy))`, then `mutate(rank = row_number())`.
 
 ```r title="Your turn"
 ex_6_1 <- # your code here
@@ -1741,6 +1870,9 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Within each region, average each value with the two values that immediately precede it.
+Use `group_by(region)` then `mutate(ma3 = (revenue + lag(revenue) + lag(revenue, 2)) / 3)`.
 
 ```r title="Your turn"
 qtr <- tibble(
@@ -1785,6 +1917,9 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Build a boolean column for each quality rule, combine them into an overall flag, then keep only the rows that tripped it.
+In `mutate()`, create `flag_xyz_zero`, `flag_depth_oob`, and `flag_any`, then `filter(flag_any)`.
 
 ```r title="Your turn"
 ex_6_3 <- # your code here
@@ -1827,6 +1962,9 @@ ex_6_3
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+After dropping missing prices, compute each city's annual median and keep only the top few cities within every year.
+Use `filter(!is.na(median), year %in% 2010:2014)`, `group_by(year, city)`, `summarise(year_median = median(median), .groups = "drop_last")`, then `slice_max(year_median, n = 3, with_ties = FALSE)`.
 
 ```r title="Your turn"
 ex_6_4 <- # your code here
@@ -1867,6 +2005,9 @@ ex_6_4
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Spread the data wide so each period contributes two columns, one for every metric you are tracking.
+Use `pivot_wider(names_from = quarter, values_from = c(sales, units), names_glue = "{.value}_{quarter}")`.
 
 ```r title="Your turn"
 long <- tibble(
@@ -1914,6 +2055,9 @@ ex_6_5
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Fit a model per species, then turn each fitted model into a tidy table of one row per coefficient.
+Use `nest()`, `map()` to fit `lm(Petal.Length ~ Sepal.Length, ...)`, `map(model, broom::tidy)`, then `unnest()` the tidied column.
 
 ```r title="Your turn"
 ex_6_6 <- # your code here
@@ -1957,6 +2101,9 @@ ex_6_6
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Work out how many months separate each active month from signup, count customers per gap, then spread the gaps across columns.
+Parse months with `ym()`, derive `gap` from `year()` and `month()`, `count(signup_month, gap)`, then `pivot_wider(names_from = gap, values_from = n, names_prefix = "gap_")`.
 
 ```r title="Your turn"
 activity <- tribble(
@@ -2009,6 +2156,9 @@ ex_6_7
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Summarise each customer into three numbers: how recently they bought, how many times, and how much in total.
+Use `group_by(customer_id)` then `summarise()` with `as.numeric(as_of - max(tx_date))`, `n()`, and `sum(amount)`.
 
 ```r title="Your turn"
 tx <- tribble(

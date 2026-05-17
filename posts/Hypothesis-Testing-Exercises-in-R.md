@@ -54,6 +54,10 @@ library(tibble)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A one-sample test compares your data's mean against a single fixed reference value, and that reference value is a parameter you supply.
+Call t.test() on the vector and set the mu argument to 3.0; the default alternative is already two-sided.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -88,6 +92,10 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+The result of a test is just a list, so every piece of it is reachable as a named element of that list.
+Pull `$statistic`, `$p.value`, and the two slots of `$conf.int`, assemble them with c(), and strip the leftover label with unname().
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -135,6 +143,10 @@ ex_1_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+When the question is directional - is the mean strictly above a threshold - the test should count deviations on only one side.
+Run t.test() with mu = 40 and alternative = "greater", wrapping the vector in na.omit() first to drop the missing values.
+
 ```r title="Your turn"
 ex_1_3 <- # your code here
 ex_1_3
@@ -172,6 +184,10 @@ ex_1_3$p.value
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A confidence interval and a two-sided p-value encode the same decision rule, just expressed as an interval versus a cutoff.
+After t.test(trees$Height, mu = 75), compare `$p.value` to 0.05 and check whether 75 lies between the two `$conf.int` endpoints.
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -221,6 +237,10 @@ ex_1_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A two-sample test asks whether two groups share a common mean; the response and the grouping factor are its two inputs.
+Filter iris to the two species, then call t.test() with the formula `Sepal.Length ~ Species` and a data argument.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -275,6 +295,10 @@ pre_post <- tibble::tibble(
 
 **Difficulty:** Intermediate
 
+[HINTS]
+When each row pairs two measurements on the same subject, the test should work on the within-subject differences, not the raw groups.
+Pass both vectors to t.test() and set paired = TRUE so it tests the per-subject differences against zero.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -312,6 +336,10 @@ ex_2_2$p.value
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The same comparison can assume the two groups share one variance or allow them to differ, and that single assumption changes the degrees of freedom.
+Run t.test() twice on the same formula, once with var.equal = FALSE and once with var.equal = TRUE, then collect `$parameter` and `$p.value`.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -363,6 +391,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Before trusting an equal-variance assumption you can test the ratio of the two group variances against one.
+Subset mtcars to the two cylinder counts and call var.test() with the formula `mpg ~ cyl`.
+
 ```r title="Your turn"
 ex_2_4 <- # your code here
 ex_2_4
@@ -394,6 +426,10 @@ ex_2_4$p.value
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+With only means, standard deviations, and sample sizes you can still rebuild the test statistic and its tail probability by hand.
+Form the standard error from the `s^2/n` terms, divide the mean difference by it, get the Welch df, then double pt(-abs(t), df) for the two-sided p.
 
 ```r title="Your turn"
 ex_2_5 <- # your code here
@@ -445,6 +481,10 @@ ex_2_5
 
 **Difficulty:** Beginner
 
+[HINTS]
+Testing a single observed rate against a hypothesised probability is a one-proportion test built on the normal approximation.
+Call prop.test() with x = 540, n = 1000, p = 0.5, and correct = FALSE to drop the continuity correction.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -489,6 +529,10 @@ ex_3_1$p.value
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Comparing two observed rates is a two-group test on the difference in proportions.
+Pass length-2 vectors to prop.test() - x = c(clicks_A, clicks_B) and n = c(impressions_A, impressions_B).
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -539,6 +583,10 @@ smoke <- matrix(
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A test of independence checks whether two categorical variables in a contingency table vary together or freely.
+Pass the matrix straight to chisq.test(); with a two-dimensional table it runs the Pearson independence test automatically.
+
 ```r title="Your turn"
 ex_3_3 <- # your code here
 ex_3_3
@@ -576,6 +624,10 @@ ex_3_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A goodness-of-fit test compares observed category counts against a set of expected probabilities.
+Give chisq.test() the count vector and a `p` argument of rep(1/6, 6) for the fair-die probabilities.
 
 ```r title="Your turn"
 ex_3_4 <- # your code here
@@ -627,6 +679,10 @@ pain <- tibble::tibble(
 
 **Difficulty:** Intermediate
 
+[HINTS]
+For paired measurements on an ordinal scale, rank the differences rather than assuming their spacing is meaningful.
+Call wilcox.test() with the two vectors and paired = TRUE to run the signed-rank version.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -666,6 +722,10 @@ ex_4_1$p.value
 
 **Difficulty:** Intermediate
 
+[HINTS]
+When two independent groups are skewed, compare them by rank position instead of by mean.
+After filtering to the two months, call wilcox.test() with the formula `Ozone ~ month_label`.
+
 ```r title="Your turn"
 ex_4_2 <- # your code here
 ex_4_2
@@ -704,6 +764,10 @@ ex_4_2$p.value
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The rank-based comparison extends naturally past two groups to test whether any of several groups differs.
+Call kruskal.test() with the formula `weight ~ group` and the PlantGrowth data.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -738,6 +802,10 @@ rt <- rgamma(25, shape = 2, rate = 0.02)   # right-skewed reaction times
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Resampling the data with replacement many times builds an empirical picture of how the statistic itself varies.
+Use replicate() around mean(sample(rt, length(rt), replace = TRUE)), then take the 0.025 and 0.975 quantile() of the results.
 
 ```r title="Your turn"
 ex_4_4 <- # your code here
@@ -780,6 +848,10 @@ ex_4_4
 
 **Difficulty:** Advanced
 
+[HINTS]
+When the null is true, repeatedly testing fresh samples should reject at roughly the chosen alpha rate.
+Use replicate() to run t.test(rnorm(30), mu = 0)$p.value many times, then take mean() of the indicator p-value < 0.05.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -815,6 +887,10 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+An effect size rescales the gap between two group means into units of their shared spread.
+Compute the pooled variance from each group's var() and n, then divide the difference of means by its square root.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -860,6 +936,10 @@ round(ex_5_2, 2)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Power analysis links effect size, alpha, power, and sample size so that fixing all but one solves for the last.
+Call pwr.t.test() with d = 0.5, sig.level = 0.05, power = 0.8, and type = "two.sample", leaving n unspecified.
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 ex_5_3
@@ -901,6 +981,10 @@ ceiling(ex_5_3$n)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Sweeping the effect size across a range shows how detectability climbs as the true difference grows.
+Map pwr.t.test(d = .x, n = 30, sig.level = 0.05, type = "two.sample")$power over a seq() of d values.
 
 ```r title="Your turn"
 ex_5_4 <- # your code here
@@ -958,6 +1042,10 @@ raw_p <- c(0.0001, 0.0008, 0.003, 0.012, 0.018, 0.022, 0.035, 0.041, 0.049, 0.06
 
 **Difficulty:** Advanced
 
+[HINTS]
+Running many tests inflates the chance of at least one false positive, so the raw p-values need rescaling.
+Apply p.adjust() to the vector twice, with method = "bonferroni" and method = "BH".
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -1003,6 +1091,10 @@ ex_6_1 %>%
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Running the same test within each subgroup and stacking the results turns a wall of output into one tidy table.
+group_by(cyl), then reframe() a broom::tidy() of t.test(mpg ~ am), and select the columns you need.
+
 ```r title="Your turn"
 ex_6_2 <- # your code here
 ex_6_2
@@ -1035,6 +1127,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Under the null the group labels are exchangeable, so reshuffling them builds the distribution of differences expected by chance.
+Compute the observed mean difference, then replicate() that difference after sample()-ing the group vector, and compare absolute values.
 
 ```r title="Your turn"
 ex_6_3 <- # your code here
@@ -1085,6 +1181,10 @@ fill <- tibble::tibble(
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+To argue two groups are practically the same, test that their difference sits inside an agreed equivalence margin from both sides.
+Run t.test() on the differences twice - mu = -0.5 with alternative = "greater" and mu = 0.5 with alternative = "less" - and keep the larger p-value.
 
 ```r title="Your turn"
 ex_6_4 <- # your code here

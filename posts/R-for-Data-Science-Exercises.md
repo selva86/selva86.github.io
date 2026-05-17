@@ -58,6 +58,10 @@ set.seed(2026)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Treat the multi-line string just as you would a file - the importer reads text connections directly, so no temp file is needed.
+Call read_csv() on csv_text and add show_col_types = FALSE to silence the column-spec message.
+
 ```r title="Your turn"
 csv_text <- "id,name,score
 A001,Alice,91.2
@@ -108,6 +112,10 @@ ex_1_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+First copy the dataset into the target name, then ask for a transposed, column-by-column overview.
+Assign mtcars to ex_1_2; the glimpse() call is already written for you.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 glimpse(ex_1_2)
@@ -147,6 +155,10 @@ glimpse(ex_1_2)
 
 **Difficulty:** Beginner
 
+[HINTS]
+You need a lossless conversion from a base data frame into the modern table type that prints compactly.
+Wrap airquality in as_tibble(); the head(ex_1_3, 3) line is already provided.
+
 ```r title="Your turn"
 ex_1_3 <- # your code here
 head(ex_1_3, 3)
@@ -184,6 +196,10 @@ head(ex_1_3, 3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Import the data the usual way first - unparseable cells become NA, and the recovery report lives in a side attribute.
+Read with read_csv(csv_text, show_col_types = FALSE); the problems() call then surfaces the failed row.
 
 ```r title="Your turn"
 csv_text <- "user,spend
@@ -235,6 +251,10 @@ problems(ex_1_4)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Override the type guesser so the numeric-looking column is kept as text and its leading zeros survive.
+Pass col_types = cols(id = col_character(), score = col_character()) to read_csv().
 
 ```r title="Your turn"
 csv_text <- "id,score
@@ -290,6 +310,10 @@ class(ex_1_5$score)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Compute one statistic over every numeric column at once, letting the factor column drop out automatically.
+Inside summarise(), use across(where(is.numeric), mean) on iris.
+
 ```r title="Your turn"
 ex_1_6 <- # your code here
 ex_1_6
@@ -335,6 +359,10 @@ ex_1_6
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Each quarter column should collapse into rows, turning the column names into one variable and the cells into another.
+Call pivot_longer() with cols = Q1:Q3, names_to = "quarter", and values_to = "revenue".
 
 ```r title="Your turn"
 wide <- tibble(
@@ -397,6 +425,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Spread one key column across the top so each of its values becomes its own column header.
+Use pivot_wider() with names_from = question and values_from = answer.
+
 ```r title="Your turn"
 long <- tibble(
   respondent = c("r1","r1","r1","r2","r2","r2"),
@@ -449,6 +481,10 @@ ex_2_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Break the single text column into two pieces at the space and give each piece a name.
+Apply separate_wider_delim() with delim = " " and names = c("first", "last").
+
 ```r title="Your turn"
 people <- tibble(full_name = c("Ada Lovelace","Grace Hopper","Alan Turing"))
 
@@ -499,6 +535,10 @@ ex_2_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+Keep only the rows that are complete for the one column the regression cannot tolerate gaps in.
+Pipe airquality into drop_na(Ozone).
+
 ```r title="Your turn"
 ex_2_4 <- # your code here
 nrow(ex_2_4)
@@ -537,6 +577,10 @@ nrow(ex_2_4)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Carry each stamped value downward into the blank rows beneath it until the next stamp appears.
+Use fill(session_id, .direction = "down").
 
 ```r title="Your turn"
 logs <- tibble(
@@ -593,6 +637,10 @@ ex_2_5
 
 **Difficulty:** Advanced
 
+[HINTS]
+Materialise every product-quarter pairing the data skipped, inserting a sentinel value where none existed.
+Call complete(product, quarter, fill = list(revenue = 0)).
+
 ```r title="Your turn"
 sparse <- tibble(
   product = c("Alpha","Beta"),
@@ -646,6 +694,10 @@ ex_2_6
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Glue the three date parts into a single string, then parse that string into a real date.
+Use unite("date", year, month, day, sep = "-"), then mutate(date = ymd(date)).
 
 ```r title="Your turn"
 parts <- tibble(
@@ -708,6 +760,10 @@ ex_2_7
 
 **Difficulty:** Beginner
 
+[HINTS]
+Keep only the rows whose highway figure clears the threshold.
+Pipe mpg into filter(hwy > 30).
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 nrow(ex_3_1)
@@ -744,6 +800,10 @@ nrow(ex_3_1)
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Trim down to three columns and rename two of them in the very same step.
+Use select(manufacturer, vehicle = model, mpg_highway = hwy).
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -789,6 +849,10 @@ head(ex_3_2)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Add a derived column dividing one mileage figure by the other, rounded for readability.
+Use mutate(hwy_cty_ratio = round(hwy / cty, 2)).
+
 ```r title="Your turn"
 ex_3_3 <- # your code here
 head(ex_3_3, 1)
@@ -831,6 +895,10 @@ head(ex_3_3, 1)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Collapse the rows to one per vehicle class, reporting a robust center for two mileage columns.
+Chain group_by(class) into summarise(median_cty = median(cty), median_hwy = median(hwy)).
 
 ```r title="Your turn"
 ex_3_4 <- # your code here
@@ -883,6 +951,10 @@ ex_3_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Within each cut category, keep only the few highest-priced rows, then fix the display order.
+Chain group_by(cut), slice_max(price, n = 3), and arrange(cut, desc(price)).
+
 ```r title="Your turn"
 ex_3_5 <- # your code here
 head(ex_3_5)
@@ -931,6 +1003,10 @@ head(ex_3_5)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Pair each order with its customer attributes and drop customers who never placed one.
+Use inner_join(orders, by = "customer_id") on the customers tibble.
+
 ```r title="Your turn"
 customers <- tibble(customer_id = c("C1","C2","C3"), name = c("Aria","Boris","Cleo"))
 orders    <- tibble(customer_id = c("C1","C2","C2"), order_id = c("O100","O101","O102"), amount = c(42.5,19.9,55.0))
@@ -975,6 +1051,10 @@ ex_3_6
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Keep only the customer rows whose key never appears anywhere among the orders.
+Use anti_join(orders, by = "customer_id") on the customers tibble.
 
 ```r title="Your turn"
 customers <- tibble(customer_id = c("C1","C2","C3"), name = c("Aria","Boris","Cleo"))
@@ -1022,6 +1102,10 @@ ex_3_7
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Add a label column whose value depends on which price band each row falls into.
+Inside mutate(), use case_when() with price < 1000, price < 5000, and a TRUE catch-all branch.
+
 ```r title="Your turn"
 ex_3_8 <- # your code here
 count(ex_3_8, tier)
@@ -1068,6 +1152,10 @@ count(ex_3_8, tier)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The change column is today's value minus the value sitting in the row directly above.
+Use mutate(delta = sales - lag(sales)).
 
 ```r title="Your turn"
 daily <- tibble(day = c("Mon","Tue","Wed","Thu","Fri"), sales = c(100,110,105,130,145))
@@ -1118,6 +1206,10 @@ ex_3_9
 
 **Difficulty:** Advanced
 
+[HINTS]
+Average the current value together with the two values immediately preceding it.
+Use mutate(rolling_3 = (sales + lag(sales) + lag(sales, 2)) / 3).
+
 ```r title="Your turn"
 daily <- tibble(day = c("Mon","Tue","Wed","Thu","Fri"), sales = c(100,110,105,130,145))
 
@@ -1167,6 +1259,10 @@ ex_3_10
 
 **Difficulty:** Beginner
 
+[HINTS]
+Start a plot that maps carat and price to the two axes, then add a layer of dots.
+Build ggplot(diamonds, aes(x = carat, y = price)) and add geom_point().
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -1200,6 +1296,10 @@ ex_4_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Make the colour data-driven by mapping it inside the aesthetic, but keep transparency a fixed setting outside it.
+Add colour = cut inside aes() and alpha = 0.4 inside geom_point().
+
 ```r title="Your turn"
 ex_4_2 <- # your code here
 ex_4_2
@@ -1232,6 +1332,10 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Split the single scatter into one small panel per class on an auto-arranged grid.
+Add facet_wrap(~ class) to a displ-vs-hwy geom_point() plot.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -1268,6 +1372,10 @@ ex_4_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Draw a single-variable distribution and shrink the bin size so the hidden clusters surface.
+Use geom_histogram(binwidth = 0.05) on aes(x = carat).
+
 ```r title="Your turn"
 ex_4_4 <- # your code here
 ex_4_4
@@ -1301,6 +1409,10 @@ ex_4_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Put the drive-train category on the x-axis and the mileage on the y-axis as side-by-side summary boxes.
+Use geom_boxplot() with aes(x = drv, y = hwy).
 
 ```r title="Your turn"
 ex_4_5 <- # your code here
@@ -1336,6 +1448,10 @@ ex_4_5
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Reorder the category by descending count before plotting so the bars rank tallest to shortest.
+Wrap the x mapping in fct_infreq(class) and add geom_bar().
+
 ```r title="Your turn"
 ex_4_6 <- # your code here
 ex_4_6
@@ -1369,6 +1485,10 @@ ex_4_6
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+With the series already in a tibble, draw a connected line across the time index.
+Map year and value in aes() and add geom_line().
 
 ```r title="Your turn"
 co2_df <- tibble(
@@ -1414,6 +1534,10 @@ ex_4_7
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Layer a fitted trend curve on top of the existing scatter so the pattern reads at a glance.
+Add geom_smooth(method = "loess") to the displ-vs-hwy geom_point() plot.
+
 ```r title="Your turn"
 ex_4_8 <- # your code here
 ex_4_8
@@ -1449,6 +1573,10 @@ ex_4_8
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Take the scatter, transform both axes logarithmically, format the labels, and apply a clean theme.
+Combine scale_x_log10(), scale_y_log10(labels = scales::label_dollar()), labs(), and theme_minimal().
 
 ```r title="Your turn"
 ex_4_9 <- # your code here
@@ -1499,6 +1627,10 @@ ex_4_9
 
 **Difficulty:** Beginner
 
+[HINTS]
+Fit an ordinary least-squares model of mileage on weight and keep the fitted object.
+Use lm(mpg ~ wt, data = mtcars).
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -1538,6 +1670,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Convert the model's coefficient table into a tidy tibble that can join with other summaries.
+Apply tidy() from broom to fit.
+
 ```r title="Your turn"
 fit <- lm(mpg ~ wt, data = mtcars)
 ex_5_2 <- # your code here
@@ -1576,6 +1712,10 @@ ex_5_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Pull the one-row, model-level fit metrics rather than the per-coefficient table.
+Apply glance() from broom to fit.
 
 ```r title="Your turn"
 fit <- lm(mpg ~ wt, data = mtcars)
@@ -1618,6 +1758,10 @@ ex_5_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Attach the predicted values and residuals back onto the original rows.
+Apply augment() from broom to fit.
 
 ```r title="Your turn"
 fit <- lm(mpg ~ wt, data = mtcars)
@@ -1662,6 +1806,10 @@ head(select(ex_5_4, mpg, .fitted, .resid), 3)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Fit a model with three predictors at once, then convert its coefficients to a tibble.
+Pipe lm(mpg ~ wt + cyl + hp, data = mtcars) into tidy().
+
 ```r title="Your turn"
 ex_5_5 <- # your code here
 ex_5_5
@@ -1702,6 +1850,10 @@ ex_5_5
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Fit a model for the binary outcome using the link family meant for 0/1 responses, then tidy it.
+Use glm(is_virginica ~ Petal.Length, data = iris_bin, family = binomial) piped into tidy().
 
 ```r title="Your turn"
 iris_bin <- iris |>
@@ -1747,6 +1899,10 @@ ex_5_6
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Compare the two transmission groups' mean mileage with a two-sample test, then tidy the result.
+Use t.test(mpg ~ am, data = mtcars) piped into tidy().
+
 ```r title="Your turn"
 ex_5_7 <- # your code here
 select(ex_5_7, estimate, statistic, p.value)
@@ -1784,6 +1940,10 @@ select(ex_5_7, estimate, statistic, p.value)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Partition petal-length variance into between-species and within-species pieces, then tidy the table.
+Use aov(Petal.Length ~ Species, data = iris) piped into tidy().
 
 ```r title="Your turn"
 ex_5_8 <- # your code here
@@ -1826,6 +1986,10 @@ ex_5_8
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Draw a random 80 percent of the row indices, then split rows into a kept set and its complement.
+Use sample(seq_len(nrow(iris)), size = 0.8 * nrow(iris)) for the index, then build list(train = iris[idx, ], test = iris[-idx, ]).
+
 ```r title="Your turn"
 set.seed(2026)
 ex_6_1 <- # your code here
@@ -1867,6 +2031,10 @@ nrow(ex_6_1$train); nrow(ex_6_1$test)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Run the provided per-row classifier across every test row and store its verdict in a new column.
+Pipe test through rowwise(), then mutate(predicted = classify_one(cur_data())) and ungroup().
 
 ```r title="Your turn"
 set.seed(2026)
@@ -1940,6 +2108,10 @@ head(ex_6_2, 1)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Cross-tabulate the true labels against the predicted ones, then divide correct counts by the total.
+Build the matrix with table(), compute sum(diag(cm)) / sum(cm), and store both in a list().
+
 ```r title="Your turn"
 # build ex_6_2 first as in Exercise 6.2
 preds <- ex_6_2
@@ -1992,6 +2164,10 @@ ex_6_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+With the features already scaled, partition the rows into three groups.
+Call kmeans(features, centers = 3, nstart = 25).
+
 ```r title="Your turn"
 features <- iris |>
   select(-Species) |>
@@ -2039,6 +2215,10 @@ table(Species = iris$Species, cluster = ex_6_4$cluster)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+For each fold, train on the rest of the rows and measure average absolute error on the held-out part.
+Loop over the folds with vapply(), fitting lm(mpg ~ wt + cyl + hp) and computing mean(abs(preds - test$mpg)).
 
 ```r title="Your turn"
 set.seed(2026)
@@ -2098,6 +2278,10 @@ round(mean(ex_6_5), 2)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Render the summary tibble as a report-ready table with numbers fixed to two decimals.
+Call kable() from knitr with digits = 2 on summary_tbl.
+
 ```r title="Your turn"
 summary_tbl <- mpg |>
   group_by(class) |>
@@ -2145,6 +2329,10 @@ ex_7_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Get a one-row metric summary from each model, stack them into one tibble, and keep a label column.
+Use bind_rows(lapply(fits, glance), .id = "model"), then select() the metric columns.
 
 ```r title="Your turn"
 fits <- list(
@@ -2199,6 +2387,10 @@ ex_7_2
 
 **Difficulty:** Beginner
 
+[HINTS]
+Convert the screaming-uppercase names so only each word's first letter stays capitalised.
+Inside mutate(), apply str_to_title() to the name column.
+
 ```r title="Your turn"
 crm <- tibble(id = c("c1","c2","c3"), name = c("ADA LOVELACE","GRACE HOPPER","ALAN TURING"))
 
@@ -2245,6 +2437,10 @@ ex_7_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Sort by mileage descending, keep the first five rows, trim the columns, and render a table.
+Chain arrange(desc(mpg)), slice_head(n = 5), select(car, mpg, wt, hp), and kable().
 
 ```r title="Your turn"
 mtcars_named <- mtcars |>
@@ -2293,6 +2489,10 @@ ex_7_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Write the plot object out to a portable temporary file at a fixed physical size.
+Call ggsave() with a tempfile(fileext = ".pdf") path plus explicit width, height, and units.
 
 ```r title="Your turn"
 plot_obj <- ggplot(mpg, aes(displ, hwy)) +

@@ -44,6 +44,10 @@ library(loo)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A Beta prior updated with binomial data stays a Beta; its two new shape parameters are the old ones with each outcome's count folded in.
+Add the 14 successes to the first prior parameter and the 100 - 14 failures to the second, then bundle both with `c()`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -78,6 +82,10 @@ ex_1_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The mean of a Beta is its first parameter divided by the sum of both, and the interval endpoints are just posterior quantiles.
+Compute `16 / (16 + 88)` for the mean and `qbeta(c(0.025, 0.975), 16, 88)` for the bounds, then name them with `c(mean = ..., lower = ..., upper = ...)`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -114,6 +122,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A Gamma prior on a Poisson rate updates by accumulating total counts and total exposure time onto its two parameters.
+Set the posterior shape to `prior_shape + 120` and the posterior rate to `prior_rate + 8`, then the mean is shape divided by rate.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -152,6 +164,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Evaluate prior times likelihood across a fine grid, normalize the weights to sum to one, then take a weighted average of the grid values.
+Build the grid with `seq(0, 1, length.out = 1000)`, get the likelihood from `dbinom(7, size = 10, prob = p_grid)`, and finish with `sum(p_grid * post)`.
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -195,6 +211,10 @@ ex_1_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Fit the regression with a sampler that returns full posterior draws rather than a single least-squares point estimate.
+Call `rstanarm::stan_glm(mpg ~ wt, data = mtcars, family = gaussian(), iter = 2000, chains = 4, seed = 1)`.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -247,6 +267,10 @@ print(ex_2_1)
 
 **Difficulty:** Advanced
 
+[HINTS]
+Override the default coefficient and intercept priors by handing your own distributions to the fitting call.
+Pass `prior = rstanarm::normal(location = -5, scale = 2)` and `prior_intercept = rstanarm::normal(location = 20, scale = 2.5)` to `stan_glm()`.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -293,6 +317,10 @@ rstanarm::prior_summary(ex_2_2)
 
 **Difficulty:** Advanced
 
+[HINTS]
+Model the binary transmission outcome on the log-odds scale by choosing the binomial family for the Bayesian fit.
+Call `rstanarm::stan_glm(am ~ mpg + hp, data = mtcars, family = binomial(link = "logit"), iter = 2000, chains = 4, seed = 1)`.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 ex_2_3
@@ -332,6 +360,10 @@ print(ex_2_3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Pull equal-tailed intervals straight from the stored posterior draws of the already-fitted model.
+Call `rstanarm::posterior_interval()` on `ex_2_1` with `prob = 0.90`.
 
 ```r title="Your turn"
 ex_2_4 <- # your code here
@@ -374,6 +406,10 @@ ex_2_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Fit the regression with brms and attach a domain-informed prior to just the weight coefficient.
+Pass `prior = brms::prior(normal(-4, 1), class = "b", coef = "wt")` to `brms::brm(mpg ~ wt, data = mtcars, chains = 4, iter = 2000, seed = 1)`.
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -419,6 +455,10 @@ summary(ex_3_1)
 
 **Difficulty:** Advanced
 
+[HINTS]
+Let each cylinder group carry its own intercept drawn from a shared distribution so sparse groups borrow strength from the rest.
+Use the formula `mpg ~ wt + (1 | cyl)` inside `brms::brm()` with default priors, 4 chains, and 2,000 iterations.
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -455,6 +495,10 @@ summary(ex_3_2)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Fit the same model twice under priors of very different width, then read the central slope value from each posterior.
+Use `brms::prior(normal(0, 0.1), class = "b")` and `brms::prior(normal(0, 100), class = "b")`, then take `median()` of `brms::as_draws_df(fit)$b_wt` for each.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -507,6 +551,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Audit the priors brms actually assigned, including the defaults it silently filled in for the variance terms.
+Call `brms::prior_summary()` on the fitted hierarchical model `ex_3_2`.
+
 ```r title="Your turn"
 ex_3_4 <- # your code here
 ex_3_4
@@ -538,6 +586,10 @@ ex_3_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Summarize convergence by taking the single worst per-parameter scale-reduction value across the whole fit.
+Convert with `posterior::as_draws()`, pull the rhat column via `posterior::summarise_draws(draws, "rhat")`, then apply `max()`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -568,6 +620,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Measure how many effectively independent draws back the wt posterior after correcting for autocorrelation between iterations.
+Get the draws with `posterior::as_draws_df(ex_2_1)` and call `posterior::ess_bulk()` on the `wt` column.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -602,6 +658,10 @@ ex_4_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Produce a visual of every chain's sampled path over the iterations to confirm they overlap rather than drift apart.
+Call `bayesplot::mcmc_trace()` on `ex_2_1` with `pars = "wt"`.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -632,6 +692,10 @@ ex_4_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Simulate replicate datasets from the fitted model and overlay their densities against the one observed response distribution.
+Generate replicates with `rstanarm::posterior_predict(ex_2_1, draws = 50)`, then feed them to `bayesplot::ppc_dens_overlay(y = mtcars$mpg, yrep = ...)`.
 
 ```r title="Your turn"
 ex_4_4 <- # your code here
@@ -665,6 +729,10 @@ ex_4_4
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Extract the equal-tailed interval for a single named coefficient from the model's stored posterior draws.
+Call `rstanarm::posterior_interval()` on `ex_2_1` with `prob = 0.95` and `pars = "wt"`.
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -701,6 +769,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Report the shortest interval that still holds 95% of the posterior mass for every parameter, not the equal-tailed one.
+Call `bayestestR::hdi()` on `ex_2_1` with `ci = 0.95`.
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 ex_5_2
@@ -730,6 +802,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Draw predictions for the new car that carry both coefficient and residual uncertainty, then summarize that spread.
+Call `rstanarm::posterior_predict(ex_2_1, newdata = data.frame(wt = 3.0), draws = 4000)`, then apply `mean()` and `quantile(..., c(0.05, 0.95))`.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -772,6 +848,10 @@ ex_5_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Fit the richer model, then rank both fits by their estimated out-of-sample predictive accuracy rather than in-sample fit.
+Fit `mpg ~ wt + cyl` with `stan_glm()`, then pass `loo::loo()` of each fit into `loo::loo_compare()`.
 
 ```r title="Your turn"
 ex_5_4 <- # your code here

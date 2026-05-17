@@ -41,6 +41,10 @@ library(utils)
 
 **Difficulty:** Beginner
 
+[HINTS]
+One element of the list is text rather than a number, so the helper must detect that case per element and substitute a missing value instead of letting the addition blow up.
+Inside add_one(), coerce x with as.numeric() wrapped in suppressWarnings(), test the result with is.na(), and return NA_real_ when it fails.
+
 ```r title="Your turn"
 items <- list(1, 2, "three", 4)
 add_one <- function(x) x + 1
@@ -81,6 +85,10 @@ ex_1_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The lowest helper is where the division actually happens, so the guard against an all-zero denominator belongs there, not in the outer report wrapper.
+In wmean(), compute sum(w) once, and if it equals 0 emit a warning() and return(NA_real_); call the chain through suppressWarnings().
 
 ```r title="Your turn"
 wmean <- function(x, w) sum(x * w) / sum(w)
@@ -128,6 +136,10 @@ ex_1_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The error handler runs while the failing call chain is still active, so that is the moment to snapshot the stack and turn each frame into readable text.
+In the error handler, call sys.calls(), deparse each entry with vapply() and deparse(), and keep the last three frames with tail().
+
 ```r title="Your turn"
 ex_1_3 <- tryCatch({
   log(c(1, -2, 3))
@@ -170,6 +182,10 @@ ex_1_3
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+The accumulator is re-created on every pass through the loop, so it never remembers what came before; it needs to live where it survives all iterations.
+Move the acc <- 0 initialization above the for loop so each iteration adds onto the previous running total.
 
 ```r title="Your turn"
 running_sum_bad <- function(x) {
@@ -222,6 +238,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The wrapper hard-codes its own value for the same name the caller is trying to pass, so the user's choice never reaches the inner call.
+Make breaks a formal argument of quick_hist() with a default, pass it explicitly to hist(), and read the bin count from length(h$counts).
+
 ```r title="Your turn"
 quick_hist_bad <- function(x, ...) {
   breaks <- 5                       # bug: shadows any user-supplied breaks
@@ -261,6 +281,10 @@ ex_2_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+You want to watch a loop's intermediate index value without editing the source, then make sure the instrumentation is removed afterward.
+Use trace() with quote(print(idx)) and an at position inside the loop body, capture the run with capture.output(), then untrace().
 
 ```r title="Your turn"
 rmean <- function(x, k) {
@@ -318,6 +342,10 @@ ex_2_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+All the closures share one loop variable, so they all see its final value; each closure needs its own private copy fixed at definition time.
+Wrap the per-iteration assignment in local() (or build the list with Map()) so each function binds its own number.
+
 ```r title="Your turn"
 make_adder_bad <- function() {
   out <- list()
@@ -367,6 +395,10 @@ ex_3_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+You want to confirm the clipping thresholds at the point where both are already computed, without editing the function body.
+Inject a trace() of quote(message("lo=", lo, " hi=", hi)) at the right at position, then capture with capture.output(type = "message") and untrace().
 
 ```r title="Your turn"
 winsorize <- function(x, p = 0.05) {
@@ -419,6 +451,10 @@ ex_3_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Instrumentation left in place leaks into later calls, so the discipline is to pair adding it with removing it and then proving it is gone.
+After calling the traced function, run untrace(), then inspect body(nchar) via deparse() and grepl() to confirm the injected expression is absent.
+
 ```r title="Your turn"
 suppressMessages(trace(nchar, quote(message("arg=", type)), at = 1))
 # call nchar, then untrace
@@ -457,6 +493,10 @@ ex_3_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+One bad row should not abort the whole batch, so each element must be converted in isolation with its own safety net.
+Wrap strict_parse(s) in tryCatch() with error = function(e) NA_real_ and apply it per element with vapply() returning numeric(1).
 
 ```r title="Your turn"
 strict_parse <- function(s) {
@@ -511,6 +551,10 @@ ex_4_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Errors and warnings are different kinds of conditions, and the helper should report which one occurred rather than collapsing them together.
+Give tryCatch() separate warning = and error = arms, extract text with conditionMessage(), and return a named list(kind, message).
+
 ```r title="Your turn"
 classify <- function(expr) {
   # tryCatch with separate error= and warning= arms
@@ -555,6 +599,10 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The cleanup step must run no matter how the body exits, so it belongs in the one arm that always executes.
+Add a finally = arm to tryCatch() that calls close(con) and flips the outer flag with <<-; confirm with isOpen().
 
 ```r title="Your turn"
 tmp <- tempfile()
@@ -605,6 +653,10 @@ ex_4_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+You want every warning logged but the computation to keep running, which means the handler must record the message and then hand control back to the signalling code.
+Use withCallingHandlers() with a warning = handler that appends conditionMessage(w) via <<- and then calls invokeRestart("muffleWarning").
+
 ```r title="Your turn"
 warnings_log <- character()
 # withCallingHandlers around sapply(log) with invokeRestart("muffleWarning")
@@ -646,6 +698,10 @@ ex_5_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A specific failure mode should be distinguishable from ordinary bugs, so it needs its own labelled condition that handlers can target precisely.
+Build the condition with structure() giving a class vector that starts with data_quality_error, raise it via stop(), and catch it with a data_quality_error = arm in tryCatch().
 
 ```r title="Your turn"
 make_dq_error <- function(msg, price) {
@@ -700,6 +756,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The helper should advertise a recovery option without deciding to use it; the caller picks the policy from its own handler.
+Expose the recovery path with withRestarts() inside safe_log(), then call it under withCallingHandlers() whose handler runs invokeRestart("use_default").
 
 ```r title="Your turn"
 safe_log <- function(x) {
@@ -762,6 +822,10 @@ ex_5_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Bad input should fail immediately with a readable reason instead of producing a cryptic downstream error.
+Add a stopifnot() line asserting the numeric types and p0 > 0, then capture the failure with tryCatch() and conditionMessage().
+
 ```r title="Your turn"
 log_return <- function(p1, p0) {
   # add stopifnot guards
@@ -804,6 +868,10 @@ ex_6_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+To inspect a failed call's locals you must look while its frames still exist, walking from the deepest one outward.
+Inside a withCallingHandlers() error handler, iterate rev(sys.frames()) and pull the variable with get0("n", envir = fr, inherits = FALSE).
 
 ```r title="Your turn"
 deep_call <- function() {
@@ -859,6 +927,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Rethrowing should add context without discarding the original cause, so the new error must carry a link back to the one that triggered it.
+Build the outer condition with structure() including a parent slot holding e, raise it with stop(), and walk the parent links collecting each conditionMessage().
 
 ```r title="Your turn"
 parse_value <- function(s) {

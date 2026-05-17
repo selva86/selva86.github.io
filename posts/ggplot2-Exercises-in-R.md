@@ -43,6 +43,9 @@ library(tibble)
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Start every plot by declaring the data frame and which columns map to the x and y positions.
+Pass `diamonds` with `aes(x = carat, y = price)` to the plot call, then add a point layer.
 
 ```r title="Your turn"
 ex_1_1 <- # your code here
@@ -75,6 +78,9 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+A line layer simply connects the points along the x-axis in order, so the x column must be a proper date.
+Map `date` to x and `unemploy` to y, then add `geom_line()`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -107,6 +113,9 @@ ex_1_2
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+When you want a count per category, the bar layer can tally the rows for you, so you only supply the category.
+Map `cut` to x and add `geom_bar()`, which counts rows by default with no y mapping.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -139,6 +148,9 @@ ex_1_3
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+A histogram needs only one continuous variable; it slices the range into bins and counts the values in each.
+Map `hwy` to x and add `geom_histogram(bins = 30)`.
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -172,6 +184,9 @@ ex_1_4
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Mapping a grouping column to a colour splits the data so each group gets its own curve.
+Map `Sepal.Length` to x and `Species` to `color`, then add `geom_density()`.
 
 ```r title="Your turn"
 ex_1_5 <- # your code here
@@ -205,6 +220,9 @@ ex_1_5
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A boxplot pairs a categorical axis with a numeric axis and summarises each category's spread.
+Map `class` to x and `hwy` to y, then add `geom_boxplot()`.
 
 ```r title="Your turn"
 ex_1_6 <- # your code here
@@ -238,6 +256,9 @@ ex_1_6
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+An area layer fills the region from the zero baseline up to each y value.
+Map `date` to x and `psavert` to y, then add `geom_area()`.
 
 ```r title="Your turn"
 ex_1_7 <- # your code here
@@ -271,6 +292,9 @@ ex_1_7
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A numeric grouping column must be treated as discrete categories before each group can get its own shape.
+Map `factor(dose)` to x and `len` to y, then add `geom_violin()`.
 
 ```r title="Your turn"
 ex_1_8 <- # your code here
@@ -306,6 +330,9 @@ ex_1_8
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Encoding a category as colour lets a single scatter separate its groups visually.
+Inside `aes()` map `Petal.Length`, `Petal.Width`, and `color = Species`, then add `geom_point()`.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -339,6 +366,9 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Filling bars by a second category splits each bar; placing those pieces side by side makes them comparable.
+Map `cut` to x and `fill = clarity`, then add `geom_bar(position = "dodge")`.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -372,6 +402,9 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A third numeric variable can be shown by varying how large each point is drawn.
+Map `wt`, `mpg`, and `size = qsec` inside `aes()`, then add `geom_point()`.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -405,6 +438,9 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Point markers can encode a category, but the variable must be discrete for distinct symbols to be chosen.
+Map `shape = factor(cyl)` inside `aes()` and add `geom_point(size = 3)`.
 
 ```r title="Your turn"
 ex_2_4 <- # your code here
@@ -438,6 +474,9 @@ ex_2_4
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Once a category is mapped to colour, a manual scale lets you override the palette with exact colours you choose.
+Map `color = cut`, then add `scale_color_manual(values = c(...))` with the five hex codes.
 
 ```r title="Your turn"
 ex_2_5 <- # your code here
@@ -473,6 +512,9 @@ ex_2_5
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A category mapped to colour can be restyled with a ready-made palette built for qualitative groups.
+Map `color = Species`, then add `scale_color_brewer(palette = "Set2")`.
 
 ```r title="Your turn"
 ex_2_6 <- # your code here
@@ -507,6 +549,9 @@ ex_2_6
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A continuous variable mapped to colour produces a smooth ramp between two endpoint colours.
+Map `color = price`, then add `scale_color_gradient(low = "lightyellow", high = "darkred")`.
 
 ```r title="Your turn"
 ex_2_7 <- # your code here
@@ -541,6 +586,9 @@ ex_2_7
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Transparency is an aesthetic like any other and can be tied to a column to vary point by point.
+Map `alpha = carat` inside `aes()` alongside x and y, then add `geom_point()`.
 
 ```r title="Your turn"
 ex_2_8 <- # your code here
@@ -576,6 +624,9 @@ ex_2_8
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A heavy-tailed variable becomes readable when its axis compresses large values logarithmically.
+Build the carat-vs-price scatter, then add `scale_y_log10()`.
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -610,6 +661,9 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Axis tick text can be reformatted without changing the underlying values.
+Add `scale_y_continuous(labels = label_dollar())` to the volume-vs-median scatter.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -644,6 +698,9 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A date axis can be told both how often to place ticks and how to format their text.
+Add `scale_x_date(date_breaks = "10 years", date_labels = "%Y")` to the unemployment line.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -678,6 +735,9 @@ ex_3_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+You can zoom the visible window of a plot without discarding any of the data behind it.
+After `geom_histogram(bins = 30, na.rm = TRUE)`, add `coord_cartesian(xlim = c(0, 150))`.
 
 ```r title="Your turn"
 ex_3_4 <- # your code here
@@ -712,6 +772,9 @@ ex_3_4
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Tick positions on an axis are configurable independently of the data range.
+Add `scale_y_continuous(breaks = c(10, 15, 20, 25, 30, 35))` to the wt-vs-mpg scatter.
 
 ```r title="Your turn"
 ex_3_5 <- # your code here
@@ -746,6 +809,9 @@ ex_3_5
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Putting both axes on a logarithmic footing straightens out power-law relationships.
+Add both `scale_x_log10()` and `scale_y_log10()` to the carat-vs-price scatter.
 
 ```r title="Your turn"
 ex_3_6 <- # your code here
@@ -781,6 +847,9 @@ ex_3_6
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Bars can be drawn against a computed proportion instead of a raw count, and that proportion needs the whole dataset as its reference.
+Map `y = after_stat(prop)` with `group = 1`, add `geom_bar()`, then `scale_y_continuous(labels = label_percent())`.
 
 ```r title="Your turn"
 ex_3_7 <- # your code here
@@ -814,6 +883,9 @@ ex_3_7
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A second axis in ggplot is just a fixed transformation of the primary one, drawn on the opposite side.
+Filter to `Month == 5`, then add `scale_y_continuous(sec.axis = sec_axis(~ (. - 32) * 5/9, name = "Temp (Celsius)"))`.
 
 ```r title="Your turn"
 ex_3_8 <- # your code here
@@ -854,6 +926,9 @@ ex_3_8
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Splitting a plot into one small panel per category makes each group easy to inspect on its own.
+Add `facet_wrap(~ Species)` to the sepal scatter.
 
 ```r title="Your turn"
 ex_4_1 <- # your code here
@@ -888,6 +963,9 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+When wrapping a plot into panels you can cap how many appear per row.
+Add `facet_wrap(~ class, ncol = 4)` to the displ-vs-hwy scatter.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -922,6 +1000,9 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Two categorical variables can lay out panels as a full rows-by-columns grid.
+Add `facet_grid(drv ~ class)` to the displ-vs-hwy scatter.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -956,6 +1037,9 @@ ex_4_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Separate panels can each be allowed to autoscale their y-axis when group ranges differ a lot.
+Map `group = Chick`, draw `geom_line()`, and add `facet_wrap(~ Diet, scales = "free_y")`.
 
 ```r title="Your turn"
 ex_4_4 <- # your code here
@@ -990,6 +1074,9 @@ ex_4_4
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Faceting by a time unit gives one panel per period for side-by-side seasonal comparison.
+Draw `geom_point(na.rm = TRUE)` and add `facet_wrap(~ Month)`.
 
 ```r title="Your turn"
 ex_4_5 <- # your code here
@@ -1023,6 +1110,9 @@ ex_4_5
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Facet strip text can be relabelled by supplying a lookup from the original level values to friendlier names.
+Build a named vector and pass it via `labeller = as_labeller(...)` inside `facet_wrap(~ Month, ...)`.
 
 ```r title="Your turn"
 ex_4_6 <- # your code here
@@ -1059,6 +1149,9 @@ ex_4_6
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A two-way grid of panels reveals how a distribution shifts across two categorical dimensions at once.
+Map `clarity` to x, draw `geom_bar()`, and add `facet_grid(cut ~ color)`.
 
 ```r title="Your turn"
 ex_4_7 <- # your code here
@@ -1092,6 +1185,9 @@ ex_4_7
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+The strip label of a faceted panel can sit on any of its four edges.
+Add `facet_wrap(~ Species, strip.position = "bottom")` to the sepal scatter.
 
 ```r title="Your turn"
 ex_4_8 <- # your code here
@@ -1127,6 +1223,9 @@ ex_4_8
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+A complete theme swaps out the whole look of a plot in one step.
+Add `theme_minimal()` to the wt-vs-mpg scatter.
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -1161,6 +1260,9 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Crowded category labels stop overlapping once they are tilted and re-anchored to their ticks.
+Add `theme(axis.text.x = element_text(angle = 45, hjust = 1))` to the manufacturer bar chart.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -1195,6 +1297,9 @@ ex_5_2
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Every textual label around a plot - titles, axis names, captions - can be set together in one place.
+Add a single `labs(title = ..., subtitle = ..., x = ..., y = ..., caption = ...)` call to the iris scatter.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -1234,6 +1339,9 @@ ex_5_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A one-off label that is not tied to any data row is added as a standalone mark at fixed coordinates.
+Add `annotate("text", x = 5.25, y = 10.5, label = "Heaviest, lowest mpg", hjust = 1)` to the scatter.
 
 ```r title="Your turn"
 ex_5_4 <- # your code here
@@ -1268,6 +1376,9 @@ ex_5_4
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Printing a value above each bar means adding a text layer that reads from a precomputed summary.
+Run `count(diamonds, cut)`, draw `geom_col()`, then add `geom_text(aes(label = n), vjust = -0.3)`.
 
 ```r title="Your turn"
 ex_5_5 <- # your code here
@@ -1303,6 +1414,9 @@ ex_5_5
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Labelling each point needs the label values living in a real column, not in the row names.
+Use `rownames_to_column("car")`, then add `geom_text(aes(label = car), size = 3, hjust = -0.1)`.
 
 ```r title="Your turn"
 ex_5_6 <- # your code here
@@ -1337,6 +1451,9 @@ ex_5_6
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A title can be anchored to the edge of the whole plotting region rather than just the panel.
+Add `theme(plot.title.position = "plot", plot.title = element_text(hjust = 0))` to the titled iris scatter.
 
 ```r title="Your turn"
 ex_5_7 <- # your code here
@@ -1375,6 +1492,9 @@ ex_5_7
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Bundling a base look plus a few tweaks into a reusable helper keeps a fleet of charts consistent.
+Write a `theme_brand` function returning `theme_minimal(base_size = 13) + theme(...)`, then apply it to the class bar chart.
 
 ```r title="Your turn"
 ex_5_8 <- # your code here
@@ -1418,6 +1538,9 @@ ex_5_8
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Where the legend sits relative to the plot is a single theme setting.
+Add `theme(legend.position = "bottom")` to the iris scatter.
 
 ```r title="Your turn"
 ex_5_9 <- # your code here
@@ -1453,6 +1576,9 @@ ex_5_9
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A trend line is just another layer drawn on top of the points.
+After `geom_point()`, add `geom_smooth(method = "lm", se = TRUE)`.
 
 ```r title="Your turn"
 ex_6_1 <- # your code here
@@ -1487,6 +1613,9 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A shaded band needs a lower and an upper bound, and it should be drawn before the line so the line stays on top.
+Add `lwr`/`upr` columns with `mutate()`, draw `geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2)`, then `geom_line()`.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here
@@ -1522,6 +1651,9 @@ ex_6_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A reference marker at a single value is a separate layer added over the distribution.
+After `geom_histogram(bins = 30)`, add `geom_vline(xintercept = mean(mpg$hwy), color = "red", linetype = "dashed")`.
 
 ```r title="Your turn"
 ex_6_3 <- # your code here
@@ -1556,6 +1688,9 @@ ex_6_3
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Faceting already groups the data, so a smoother added to a faceted plot fits one curve per panel.
+Add `geom_smooth(method = "loess", se = FALSE)` and `facet_wrap(~ drv)` to the displ-vs-hwy scatter.
 
 ```r title="Your turn"
 ex_6_4 <- # your code here
@@ -1590,6 +1725,9 @@ ex_6_4
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A lollipop is a thin stem rising from a baseline with a dot at its tip, built from two layers on aggregated data.
+Summarise mean mpg per cyl, draw `geom_segment(aes(xend = ..., y = 0, yend = avg))`, then `geom_point()`.
 
 ```r title="Your turn"
 ex_6_5 <- # your code here
@@ -1627,6 +1765,9 @@ ex_6_5
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A dot plot sorts categories by their value and shows each as a single point instead of a bar.
+Map `y = reorder(class, n)`, draw `geom_point(size = 4)`, and add `theme(panel.grid.major.y = element_blank())`.
 
 ```r title="Your turn"
 ex_6_6 <- # your code here
@@ -1662,6 +1803,9 @@ ex_6_6
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Rescaling every bar to the same full height turns a count chart into a composition chart.
+Map `x = color`, `fill = cut`, draw `geom_bar(position = "fill")`, then `scale_y_continuous(labels = label_percent())`.
 
 ```r title="Your turn"
 ex_6_7 <- # your code here
@@ -1696,6 +1840,9 @@ ex_6_7
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A full-height highlight band is a rectangle drawn behind the line and stretched to the plot edges.
+Add `annotate("rect", xmin = ..., xmax = ..., ymin = -Inf, ymax = Inf, fill = "red", alpha = 0.15)` before `geom_line()`.
 
 ```r title="Your turn"
 ex_6_8 <- # your code here
@@ -1733,6 +1880,9 @@ ex_6_8
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A dumbbell connects two states with a segment and marks each end with its own dot.
+Build a tibble of start/end means, draw `geom_segment(aes(x = start, xend = end, ...))`, then a `geom_point()` for each end.
 
 ```r title="Your turn"
 ex_6_9 <- # your code here

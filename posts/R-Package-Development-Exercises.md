@@ -47,6 +47,10 @@ All exercises operate inside `tempdir()` so nothing is written to your real work
 
 **Difficulty:** Beginner
 
+[HINTS]
+Building a package starts with generating its skeleton folder, then inspecting and sorting the files that skeleton contains.
+Call `usethis::create_package()` with `open = FALSE` on a path under `tempdir()`, then pass that path to `list.files()` with `all.files = TRUE, no.. = TRUE` inside `sort()`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -79,6 +83,10 @@ ex_1_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A scaffolding helper needs to know which project it acts on before it can write a license file you then read back.
+Set the active project with `usethis::proj_set(..., force = TRUE)`, run `usethis::use_mit_license("Acme Corp")`, then `readLines()` the `LICENSE` file.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -114,6 +122,10 @@ character(0)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Adding a source file to a package is a one-call operation, and reading an empty file still returns a valid (empty) vector.
+After `usethis::proj_set()`, call `usethis::use_r("string_utils")` and then `readLines()` the new `R/string_utils.R`.
+
 ```r title="Your turn"
 ex_1_3 <- # your code here
 ex_1_3
@@ -148,6 +160,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+DESCRIPTION can be edited as a live, mutable object rather than as raw text, and afterward you filter for only the fields you changed.
+Load it with `desc::desc(file = ...)`, use the `$set()` and `$set_authors()` methods (passing a `person()` call), `$write()` it back, then `grep()` the Title and Authors@R lines from `readLines()`.
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -189,6 +205,10 @@ ex_1_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A hard dependency is recorded in DESCRIPTION, and once added you slice out the line that opens the block plus the one beneath it.
+Run `usethis::use_package("dplyr", type = "Imports")`, then `grep()` for `^Imports:` and take that index together with the next line.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -225,6 +245,10 @@ ex_2_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+A version floor on an optional dependency is just another DESCRIPTION edit, and you extract the same two-line slice afterward.
+Pass `min_version = "3.0.0"` to `usethis::use_package("testthat", type = "Suggests", ...)`, then `grep()` `^Suggests:` and take that line plus the next.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -260,6 +284,10 @@ ex_2_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Version numbers follow a strict component scheme, so advancing one is a dedicated operation rather than a string edit.
+Call `desc::desc_bump_version("minor", file = ...)` against DESCRIPTION, then `grep()` the `^Version:` line from `readLines()`.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -301,6 +329,10 @@ ex_2_3
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+A documentation header is just specially-prefixed comment lines sitting above the function, so you can write the whole file at once and then filter for those comment lines.
+Build the source as a character vector, `writeLines()` it to `R/pad_zero.R`, then keep the lines where `startsWith(..., "#'")` is true.
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -348,6 +380,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Turning comment headers into help files is a single render step, after which you pick specific lines out of the generated file.
+Run `roxygen2::roxygenise(pkg_path)`, `readLines()` `man/pad_zero.Rd`, and `grep()` for the `\title`, `\item{x}`, and return-value lines.
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -388,6 +424,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+An examples section is added by inserting more comment lines before the function and re-rendering, then locating a brace-delimited range in the output.
+`append()` `#' @examples` lines into the source above the `pad_zero` definition, re-run `roxygen2::roxygenise()`, then slice the Rd from the `\examples{` line to its matching `}`.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -430,6 +470,10 @@ ex_3_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+Making a function publicly callable is controlled by one tag, which causes a registration line to appear in a separate package file.
+Insert `#' @export` above `pad_zero`, re-run `roxygen2::roxygenise()`, then `grep()` the `export(pad_zero)` line from `NAMESPACE`.
+
 ```r title="Your turn"
 ex_3_4 <- # your code here
 ex_3_4
@@ -470,6 +514,10 @@ ex_3_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+The test directory and its runner script are best created by a helper, after which you just list what it produced.
+After `usethis::proj_set()`, call `usethis::use_testthat(edition = 3)`, then `sort()` the output of `list.files()` on the `tests` directory.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -504,6 +552,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A test file is plain R you write to disk, and running the whole directory yields a results object that behaves like a table.
+`writeLines()` two `test_that()` blocks with `expect_equal()` into `tests/testthat/test-pad_zero.R`, then coerce `testthat::test_dir(..., reporter = "silent")` with `as.data.frame()`.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -548,6 +600,10 @@ ex_4_2[, c("file", "nb", "failed", "warning", "skipped", "error")]
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+To test a failure path you must first make the function fail on bad input and then assert that it does, and the suite result reports how many checks failed.
+Rewrite `pad_zero` to `stop()` when `width < 1`, append a `test_that()` block using `expect_error()` with a regexp matcher, then read the `failed` column from `as.data.frame(testthat::test_dir(...))`.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -598,6 +654,10 @@ ex_4_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+A snapshot test records printed output to a file on its first run, and you then read that generated file to find the captured line.
+Append a `test_that()` block calling `expect_snapshot()`, run `testthat::test_dir()`, then `readLines()` `tests/testthat/_snaps/pad_zero.md` and `grep()` the indented output line.
+
 ```r title="Your turn"
 ex_4_4 <- # your code here
 ex_4_4
@@ -644,6 +704,10 @@ ex_4_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Regenerating help files is a single wrapper call, after which you simply enumerate the documentation directory.
+Call `devtools::document(pkg_path, quiet = TRUE)`, then `sort()` the result of `list.files()` on the `man` directory.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -677,6 +741,10 @@ ex_5_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A package check returns a structured result whose distinct problem categories you can count individually.
+Run `devtools::check(pkg_path, quiet = TRUE, args = "--no-tests", error_on = "never")`, then build a named vector from `length()` of its `errors`, `warnings`, and `notes` elements.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -715,6 +783,10 @@ ex_5_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A release artefact is a single tarball produced by a build step, and you want only its file name, not the full path.
+Call `devtools::build(pkg_path, path = tempdir(), quiet = TRUE)` and pass the returned path to `basename()`.
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 ex_5_3
@@ -750,6 +822,10 @@ ex_5_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A vignette skeleton is generated for you with its YAML front matter pre-filled, and you then pull out two specific keys.
+After `usethis::proj_set()`, call `usethis::use_vignette("intro", title = "Introduction to rspkg")`, then `grep()` the `^title:` and `^vignette:` lines from `readLines()` of `vignettes/intro.Rmd`.
 
 ```r title="Your turn"
 ex_6_1 <- # your code here
@@ -789,6 +865,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A changelog file is created by a helper and then extended by appending a line, and you report only the lines that actually have content.
+Run `usethis::use_news_md(open = FALSE)`, append the bullet with `writeLines()` and `c()`, then take `[1:3]` of the lines kept by `nzchar()`.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here

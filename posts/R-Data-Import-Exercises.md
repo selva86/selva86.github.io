@@ -139,6 +139,10 @@ account_id,name,balance
 
 **Difficulty:** Beginner
 
+[HINTS]
+The readr import family inspects the first chunk of rows and infers a type for every column on its own.
+Call read_csv() with csv_products as its only argument and assign the tibble it returns.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -179,6 +183,10 @@ ex_1_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+A comma reader will not split these fields; you need the general reader where you state which character separates columns.
+Use read_delim() on csv_pipe and set delim = "|".
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -218,6 +226,10 @@ ex_1_2
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Tabs separate the fields here, so reach for the reader named after that specific format.
+Call read_tsv() on tsv_lab; no extra arguments are needed.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -261,6 +273,10 @@ ex_1_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The default type guesser will strip the leading zeros, so you must override the inferred type for the two identifier columns.
+Pass col_types = cols(zipcode = col_character(), phone = col_character()) to read_csv().
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -299,6 +315,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You need a parser that discards currency symbols and the thousands grouping mark before turning the text into numbers.
+Apply parse_number() to the vector c("$1,299.00", "$24.99", "$74.50").
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -331,6 +351,10 @@ ex_2_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Parse failures are recorded silently, so read the file first and then ask the result which rows it could not coerce.
+Run read_csv(csv_bad_rows), then call problems() on the parsed object.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -375,6 +399,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Tell the reader, before parsing, every spelling that should count as missing so the score column lands as numeric.
+Pass na = c("", "N/A", "-999", "NULL") to read_csv() on csv_messy_na.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -415,6 +443,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The data is already loaded, so you need a post-hoc replacement that swaps one specific value for missing.
+Call na_if() on numbers_with_sentinel with -999 as the second argument.
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -447,6 +479,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+For each column, the share of non-missing values is just the average of a non-missing TRUE/FALSE flag.
+Apply summarise(across(everything(), ~ mean(!is.na(.x)))) to ex_3_1.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -488,6 +524,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The real header sits below several junk lines, so tell the reader how many lines to discard before it looks for column names.
+Pass skip = 3 to read_csv() on csv_with_meta.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -526,6 +566,10 @@ ex_4_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+There is no delimiter here; columns are defined by character positions, so you must declare where each one starts and ends.
+Use read_fwf() with col_positions = fwf_positions(start, end, col_names) for the three columns.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -574,6 +618,10 @@ ex_4_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You can tell the reader which columns to keep so it never parses the discarded ones at all.
+Pass col_select = c(product, price) to read_csv() on csv_products.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -614,6 +662,10 @@ ex_4_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A JSON array of uniformly shaped objects can be flattened straight into a data frame by the right parser.
+Call jsonlite::fromJSON() on the json_campaigns string.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -651,6 +703,10 @@ ex_5_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+To round-trip a tibble with its exact column types intact you need R's native binary format, not a text file.
+Write ex_1_1 to a tempfile() with saveRDS(), then read it back with readRDS().
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -696,6 +752,10 @@ ex_5_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+For speed at scale, use the high-performance reader, then convert its output so dplyr pipelines can consume it.
+Call data.table::fread() on csv_products and pipe the result into as_tibble().
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -738,6 +798,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Read each file on its own, tag every set of rows with its source month, then stack the three tables into one.
+Read each string with read_csv(), add the label via mutate(month = ..., .before = 1), and combine with bind_rows().
 
 ```r title="Your turn"
 ex_6_2 <- # your code here
@@ -788,6 +852,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Three separate problems each need their own reader argument; fix the row alignment before the column types and missing values.
+In one read_csv() call set skip = 2, col_types = cols(account_id = col_character()), and na = c("", "NA", "-999").
 
 ```r title="Your turn"
 ex_6_3 <- # your code here

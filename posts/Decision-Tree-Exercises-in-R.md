@@ -51,6 +51,10 @@ library(tibble)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A tree only needs to know which column is the outcome and which dataset to learn the splits from.
+Pass the formula `Species ~ .` and `data = iris` to the tree-fitting function; the dot stands in for every other column.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -98,6 +102,10 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+When the outcome column holds numbers, the same tree-growing approach predicts a value instead of a class, with no extra setting.
+Use the formula `mpg ~ .` with `data = mtcars`; the dot picks up every remaining column as a predictor.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -151,6 +159,10 @@ ex_1_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+List the four wanted predictors explicitly on the right of the formula rather than using the catch-all dot.
+Write `Ozone ~ Solar.R + Wind + Temp + Month` and point `data` at the already-cleaned `clean_air`.
+
 ```r title="Your turn"
 clean_air <- na.omit(airquality)
 
@@ -190,6 +202,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Spell out the three predictor columns in the formula; the outcome belongs on the left of the tilde.
+Use `churn ~ tenure_mo + monthly_charges + contract` with `data = churn_df`.
 
 ```r title="Your turn"
 churn_df <- tibble(
@@ -243,6 +259,10 @@ ex_1_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+Tree growth is capped by handing the model a bundle of control settings, one of which limits how many levels deep splits may go.
+Add `control = rpart.control(maxdepth = 2)` to the same `Ozone ~ ...` fit on `na.omit(airquality)`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -289,6 +309,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Two thresholds decide whether a node may split: a minimum node size and a minimum improvement; loosen both to grow deeper.
+Pass `control = rpart.control(minsplit = 5, cp = 0.005)` to the `mpg ~ .` fit on `mtcars`.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -329,6 +353,10 @@ ex_2_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A high complexity threshold keeps only the splits that deliver a large impurity reduction and discards the rest.
+Set `control = rpart.control(cp = 0.5)` on the `Species ~ .` fit over `iris`.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 ex_2_3
@@ -365,6 +393,10 @@ ex_2_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Build one tree with the package defaults and a second with a far lower complexity threshold and minimum node size.
+`fit_default` is a plain `rpart(Species ~ ., data = iris)`; `fit_deep` adds `control = rpart.control(cp = 0.001, minsplit = 2)`.
 
 ```r title="Your turn"
 fit_default <- # your code here
@@ -417,6 +449,10 @@ ex_2_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+A fitted tree object can be handed straight to a dedicated diagram drawer whose defaults already show classes, probabilities, and node percentages.
+Call `rpart.plot()` on `ex_3_1` with no extra arguments.
+
 ```r title="Your turn"
 ex_3_1 <- rpart(Species ~ ., data = iris)
 # your plot call here
@@ -448,6 +484,10 @@ rpart.plot(ex_3_1)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The fitted model already stores a ranking of how much each predictor contributed; you just reach into the object for it.
+Pull the `variable.importance` element out of `fit_mt` with the `$` accessor.
 
 ```r title="Your turn"
 fit_mt <- rpart(mpg ~ ., data = mtcars)
@@ -483,6 +523,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Instead of reading the indented tree printout, ask for a tidy table where each row is one leaf's if-then rule.
+Call `rpart.rules()` on the `fit_churn` object.
 
 ```r title="Your turn"
 churn_df <- tibble(
@@ -531,6 +575,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Reuse the fitted tree to score rows, asking for the single most likely category rather than raw scores.
+Call `predict()` with `fit_iris`, the `iris` data, and `type = "class"`.
+
 ```r title="Your turn"
 fit_iris <- rpart(Species ~ ., data = iris)
 
@@ -570,6 +618,10 @@ head(ex_4_1)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The same scoring step can return a full set of per-category likelihoods instead of one hard label.
+Call `predict()` with `fit_iris`, `iris`, and `type = "prob"`.
+
 ```r title="Your turn"
 fit_iris <- rpart(Species ~ ., data = iris)
 
@@ -607,6 +659,10 @@ head(ex_4_2)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Cross-tabulating two parallel vectors of labels gives a grid whose diagonal counts the correct calls.
+Pass `predicted = preds` and `actual = iris$Species` to `table()`.
+
 ```r title="Your turn"
 fit_iris <- rpart(Species ~ ., data = iris)
 preds    <- predict(fit_iris, iris, type = "class")
@@ -641,6 +697,10 @@ ex_4_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Fit the tree on the training rows only, score the untouched holdout rows, then summarise the gap between predictions and truth as one error number.
+After `rpart(mpg ~ ., data = train)` and `predict()` on `holdout`, combine the residuals with `sqrt(mean(...^2))`.
 
 ```r title="Your turn"
 set.seed(1)
@@ -692,6 +752,10 @@ ex_4_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The complexity-parameter table is already stored inside the fitted tree object; you only need to read it out.
+Assign the `cptable` element of `deep_mt`, reached with the `$` accessor.
+
 ```r title="Your turn"
 deep_mt <- rpart(mpg ~ ., data = mtcars, cp = 0.001)
 printcp(deep_mt)
@@ -738,6 +802,10 @@ ex_5_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+Find the table row with the lowest cross-validation error, take its complexity value, and cut the tree back to that size.
+Use `which.min()` on the `"xerror"` column to index the `"CP"` value, then feed it to `prune()` as `cp`.
+
 ```r title="Your turn"
 deep_mt <- rpart(mpg ~ ., data = mtcars, cp = 0.001)
 
@@ -779,6 +847,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Among the rows whose error sits under the threshold, the first one is the smallest tree that still qualifies; prune to its complexity value.
+Use `which(cpt[, "xerror"] <= threshold)[1]` to grab the `"CP"`, then call `prune()` on `deep_mt`.
 
 ```r title="Your turn"
 deep_mt <- rpart(mpg ~ ., data = mtcars, cp = 0.001)

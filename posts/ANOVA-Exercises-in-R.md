@@ -43,6 +43,10 @@ library(car)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Think about which model object compares a continuous response across several groups, and how a formula expresses "the response depends on the group".
+Pass the formula `weight ~ group` and `data = PlantGrowth` to `aov()`, then assign the fitted model to `ex_1_1`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 summary(ex_1_1)
@@ -78,6 +82,10 @@ summary(ex_1_1)
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+A one-way ANOVA models a single continuous outcome against one grouping factor, here sepal length against the three species.
+Call `aov()` with the formula `Sepal.Length ~ Species` and `data = iris`, storing the result in `ex_1_2`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -115,6 +123,10 @@ summary(ex_1_2)
 
 **Difficulty:** Beginner
 
+[HINTS]
+This is the same single-factor model again, with tooth length as the response and supplement type as the only grouping factor.
+Use `aov(len ~ supp, data = ToothGrowth)` and assign the fitted model to `ex_1_3`.
+
 ```r title="Your turn"
 ex_1_3 <- # your code here
 summary(ex_1_3)
@@ -149,6 +161,10 @@ summary(ex_1_3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The ANOVA table lives inside the model's summary object; you need to reach into it and pull two numbers from the factor row.
+Take `summary(ex_1_1)[[1]]`, index its `"F value"` and `"Pr(>F)"` columns at row 1, and combine them with `c(F = ..., p = ...)`.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -190,6 +206,10 @@ round(ex_2_1, 5)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Once the omnibus F test flags a difference, a post-hoc procedure tells you which specific pairs of groups actually differ.
+Pass the fitted model `ex_1_1` to `TukeyHSD()` and assign the returned object to `ex_2_2`.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -237,6 +257,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Compare every pair of groups with multiple t-tests, but adjust the p-values so the family-wise error stays controlled.
+Call `pairwise.t.test()` on `PlantGrowth$weight` and `PlantGrowth$group` with `p.adjust.method = "bonferroni"`.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -286,6 +310,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A two-way additive model puts a second grouping factor on the right side without letting the two factors interact.
+Use `aov()` with the formula `len ~ supp + factor(dose)` and `data = ToothGrowth`, wrapping dose in `factor()`.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 summary(ex_3_1)
@@ -324,6 +352,10 @@ summary(ex_3_1)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+To let one factor's effect change across the levels of another, the model must include their interaction, not just their separate effects.
+Replace the `+` with `*` in the formula, fitting `len ~ supp * factor(dose)` with `aov()`.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -364,6 +396,10 @@ summary(ex_3_2)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want the average response within each combination of the two factors, producing one number per supp-by-dose cell.
+Call `aggregate()` with `len ~ supp + factor(dose)`, `data = ToothGrowth`, and `FUN = mean`.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -410,6 +446,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Before trusting the F test, check whether the groups have roughly equal spread around their centers.
+Use `leveneTest()` from the `car` package with `weight ~ group` and `data = PlantGrowth`, assigning the result to `ex_4_1`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -445,6 +485,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The normality assumption concerns the model's leftover errors, so extract those from the fitted model before testing anything.
+Feed `residuals(ex_1_1)` into `shapiro.test()` and store the htest object in `ex_4_2`.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -482,6 +526,10 @@ ex_4_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+When variances differ across groups, you need a version of the ANOVA that does not assume equal spread.
+Call `oneway.test()` with `weight ~ group`, `data = PlantGrowth`, and `var.equal = FALSE`, saving the result to `ex_4_3`.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -516,6 +564,10 @@ ex_4_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Effect size here is the share of total variation explained by the factor, so you need the sums of squares from the ANOVA table.
+Pull the `"Sum Sq"` column from `summary(ex_1_1)[[1]]`, divide the group value by the group-plus-residual total, and `round(..., 3)`.
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -552,6 +604,10 @@ ex_5_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+With the contrasts already assigned to the factor and the model refitted, the answer is simply the coefficient table the summary produces.
+Assign `summary(fit)$coefficients` to `ex_5_2`.
 
 ```r title="Your turn"
 pg <- PlantGrowth
@@ -598,6 +654,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Run each test separately, then reach into each result object for its single p-value and label the five numbers in one vector.
+Combine the p-values from `leveneTest()`, `shapiro.test()`, `summary(ex_1_1)[[1]]`, `oneway.test()`, and `kruskal.test()` with `c()`, then `round(..., 4)`.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here

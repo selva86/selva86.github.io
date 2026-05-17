@@ -49,6 +49,10 @@ library(mclust)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Clustering ignores the species labels, but once groups exist you can still check how well the unsupervised partition lines up with the known classes.
+Run `kmeans(iris[, 1:4], centers = 3)`, then cross-tabulate `km$cluster` against `iris$Species` with `table()`.
+
 ```r title="Your turn"
 set.seed(1)
 ex_1_1 <- # your code here
@@ -85,6 +89,10 @@ ex_1_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The run-to-run variation comes from a single random starting point; let the algorithm try many starts and keep the best one.
+Add `nstart = 25` to your `kmeans()` call and read the `tot.withinss` element from the returned object.
+
 ```r title="Your turn"
 set.seed(1)
 ex_1_2 <- # your code here
@@ -117,6 +125,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Columns measured on very different ranges distort a distance-based grouping unless you first put them on a common footing.
+Standardize with `scale()`, pass the result to `kmeans(centers = 4, nstart = 25)`, and read the `size` element.
 
 ```r title="Your turn"
 set.seed(7)
@@ -151,6 +163,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want the share of the total variation that the clustering explains, expressed as a tidy percentage.
+From the same fit, divide `betweenss` by `totss`, multiply by 100, and `round()` to one decimal.
 
 ```r title="Your turn"
 set.seed(7)
@@ -187,6 +203,10 @@ ex_1_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The elbow method needs one within-cluster spread number per candidate count, collected into a vector you can later eyeball.
+Use `sapply(1:10, ...)` to fit `kmeans(centers = k, nstart = 25)` and pull `tot.withinss` for each k.
 
 ```r title="Your turn"
 set.seed(1)
@@ -234,6 +254,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+For each candidate count you need a single quality score summarizing how snugly points sit inside their assigned groups.
+For each k, fit `kmeans()`, pass its cluster vector plus a `dist()` matrix to `silhouette()`, and `mean()` the `sil_width` column into a `tibble()`.
 
 ```r title="Your turn"
 set.seed(1)
@@ -285,6 +309,10 @@ ex_2_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+A principled count compares your data's compactness against what pure randomness would produce, then picks the leanest defensible choice.
+Run `clusGap()` with `FUN = kmeans`, then feed its gap and SE columns to `maxSE()` with `method = "firstSEmax"`.
+
 ```r title="Your turn"
 set.seed(1)
 ex_2_3 <- # your code here
@@ -320,6 +348,10 @@ ex_2_3
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+A hierarchical tree records the distance at which each pair of groups was joined; that ladder of values is what you want.
+Pass `dist(scale(USArrests))` to `hclust(method = "average")` and extract the `height` element.
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -358,6 +390,10 @@ head(ex_3_1, 5)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The same data and cut point can yield very different group sizes depending on how the tree decides which clusters to merge.
+Loop the four linkage names through `hclust()`, `cutree(k = 4)`, then `sort(table(...))` and `paste()` the sizes together.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -414,6 +450,10 @@ ex_3_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A flat group assignment becomes meaningful only once you reattach it to the names of the things being grouped.
+Fit `hclust(method = "ward.D2")`, apply `cutree(k = 4)`, then build a `tibble()` from `rownames(USArrests)` and `arrange()` by state.
+
 ```r title="Your turn"
 ex_3_3 <- # your code here
 ex_3_3
@@ -459,6 +499,10 @@ ex_3_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+You want to know how faithfully the tree's implied distances reproduce the real pairwise distances between points.
+Compute `cophenetic()` of the `hclust` object and `cor()` it against the original `dist()` object, then `round()`.
+
 ```r title="Your turn"
 ex_3_4 <- # your code here
 ex_3_4
@@ -496,6 +540,10 @@ ex_3_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A density-based method does not force every point into a group; some land in a leftover noise bucket you should still count.
+Run `dbscan()` on `scale(faithful)` with `eps = 0.4` and `minPts = 5`, then `table()` the `cluster` element.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -529,6 +577,10 @@ ex_4_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A good radius sits where neighbor distances stop rising gently and start climbing steeply.
+Compute `kNNdist(fs, k = 5)`, `sort()` it, take the 90th percentile via `quantile(..., 0.90)`, then `round()`.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -567,6 +619,10 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+An outlier-resistant alternative picks real observations as group centers instead of averaging coordinates.
+Run `pam(k = 4)`, then build a `tibble()` from `rownames()[pm$id.med]` and `table(pm$clustering)`.
 
 ```r title="Your turn"
 set.seed(1)
@@ -614,6 +670,10 @@ ex_4_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Some points end up closer to a neighboring group than to their own; you want to count those misfits.
+Build the `silhouette()` object from the `kmeans()` cluster vector and `sum()` how many `sil_width` values fall below zero.
+
 ```r title="Your turn"
 set.seed(1)
 ex_5_1 <- # your code here
@@ -648,6 +708,10 @@ ex_5_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+You need a chance-corrected agreement score between the discovered groups and the true labels, immune to how the groups happen to be numbered.
+Pass the `kmeans()` cluster vector and `iris$Species` to `adjustedRandIndex()`, then `round()` to three decimals.
+
 ```r title="Your turn"
 set.seed(1)
 ex_5_2 <- # your code here
@@ -680,6 +744,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+You want to know whether each group survives intact when the data is resampled many times over.
+Run `clusterboot()` with `clustermethod = hclustCBI`, `method = "ward.D2"`, and `k = 4`, then `round()` the `bootmean` element.
 
 ```r title="Your turn"
 set.seed(1)
@@ -743,6 +811,10 @@ orders <- tibble::tribble(
 
 **Difficulty:** Advanced
 
+[HINTS]
+Reduce each customer to how recently, how often, and how much they bought, then put those three columns on a common scale.
+`group_by(customer_id)` and `summarise()` recency/frequency/monetary, move the ids into row names, then `scale()` the result.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -794,6 +866,10 @@ ex_6_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Group ids alone tell a marketer nothing; the payoff is a per-group summary expressed in the original, readable units.
+Run `kmeans(centers = 3, nstart = 25)`, attach `km$cluster` to the unscaled RFM table, then `group_by(cluster)` and `summarise()` the means.
 
 ```r title="Your turn"
 set.seed(2)
@@ -849,6 +925,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Within one segment, you want the customer who is jointly most unusual once correlations between the features are accounted for.
+Subset the largest cluster, compute `mahalanobis()` against its `colMeans()` and `cov()`, then take the row name via `which.max()`.
 
 ```r title="Your turn"
 set.seed(2)

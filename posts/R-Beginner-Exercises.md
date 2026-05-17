@@ -42,6 +42,10 @@ library(stats)      # mean, sd, var, cor, lm, aggregate, quantile
 
 **Difficulty:** Beginner
 
+[HINTS]
+Think about which constructor bundles several separate values into one vector, and what label R attaches to plain whole numbers by default.
+Use `c()` to combine the five values, then `class()` on the result to inspect its type.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -75,6 +79,10 @@ class(ex_1_1)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Square every element of the sequence first, then collapse all the squared values into a single total.
+Build the sequence with `1:100`, raise it with `^2`, and total it with `sum()`.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -104,6 +112,10 @@ ex_1_2
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Test each number against both divisibility conditions, then keep only the positions where both are true.
+Use the modulo operator `%%` for each remainder test and join the two checks with `&` inside the subsetting brackets.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -136,6 +148,10 @@ ex_1_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Arrange the values from highest to lowest, then take just the front of that arrangement.
+Call `sort()` with `decreasing = TRUE`, then slice the first three positions with `[1:3]`.
+
 ```r title="Your turn"
 sales <- c(220, 175, 410, 95, 360, 280, 410, 130)
 ex_1_4 <- # your code here
@@ -167,6 +183,10 @@ ex_1_4
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+You want one index per element, running from the first position to the last.
+Pass the `cities` vector to `seq_along()`.
 
 ```r title="Your turn"
 cities <- c("Mumbai", "Delhi", "Bengaluru", "Chennai")
@@ -205,6 +225,10 @@ ex_1_5
 
 **Difficulty:** Beginner
 
+[HINTS]
+Each named column of the table comes from its own equal-length vector.
+Call `data.frame()` with `channel`, `clicks`, and `cost` as named arguments.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -242,6 +266,10 @@ ex_2_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+You need both the row and column counts returned together in a single length-two result.
+Pass `ChickWeight` to `dim()`.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -275,6 +303,10 @@ ex_2_2
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Multiply the existing weight column by the conversion factor; the operation runs across every row at once.
+Reference the `ex_2_3$wt` column and multiply it by `453.592`.
 
 ```r title="Your turn"
 ex_2_3 <- mtcars
@@ -315,6 +347,10 @@ head(ex_2_3[, c("wt", "wt_kg")])
 
 **Difficulty:** Beginner
 
+[HINTS]
+Stack a one-row table beneath the existing one, matching its column names and types.
+Call `rbind()` with `inv` and a new `data.frame(item = "stapler", qty = 8)`.
+
 ```r title="Your turn"
 inv <- data.frame(item = c("pen", "notebook"), qty = c(40, 15))
 ex_2_4 <- # your code here
@@ -350,6 +386,10 @@ ex_2_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Convert the factor's text labels into a plain character vector rather than its internal integer codes.
+Apply `as.character()` to `iris$Species`.
+
 ```r title="Your turn"
 ex_2_5 <- # your code here
 head(ex_2_5)
@@ -382,6 +422,10 @@ head(ex_2_5)
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Find the position of the unwanted column, then exclude just that position while keeping every row.
+Locate the index with `which(names(mtcars) == "carb")` and negate it inside the column slot of `[ , ]`.
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -416,6 +460,10 @@ cat("\"carb\" not in column names:", !"carb" %in% names(ex_3_1), "\n")
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Filter the rows by a condition while referring to the column by its bare name, no `$` prefix.
+Call `subset()` with `iris` and the condition `Sepal.Width > 3.5`.
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 nrow(ex_3_2)
@@ -449,6 +497,10 @@ cat("rows removed:", nrow(iris) - nrow(ex_3_2), "\n")
 
 **Difficulty:** Beginner
 
+[HINTS]
+Test whether each row's gear value belongs to a small set of allowed values.
+Use `%in% c(4, 5)` on `mtcars$gear` as the row condition inside `[ , ]`.
+
 ```r title="Your turn"
 ex_3_3 <- # your code here
 nrow(ex_3_3)
@@ -481,6 +533,10 @@ cat("gears kept:", sort(unique(ex_3_3$gear)), "\n")
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Keep only the rows where the column holds no recorded value.
+Use `is.na(airquality$Ozone)` as the row condition inside `[ , ]`.
 
 ```r title="Your turn"
 ex_3_4 <- # your code here
@@ -516,6 +572,10 @@ cat("total rows in airquality:", nrow(airquality), "\n")
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Compute the row order that sorts the table by the column, then apply that order back to all the rows.
+Pass `mtcars$mpg` with `decreasing = TRUE` to `order()` and use the result in the row slot of `[ , ]`.
 
 ```r title="Your turn"
 ex_3_5 <- # your code here
@@ -553,6 +613,10 @@ head(ex_3_5, 3)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Compute the two statistics separately, then bind them into one vector that carries a label for each.
+Call `mean()` and `sd()` on `mtcars$mpg`, combining them as `c(mean = ..., sd = ...)`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -584,6 +648,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Ask for the three cut points at the requested fractions, and make sure missing values do not poison the result.
+Call `quantile()` with `probs = c(0.05, 0.50, 0.95)` and `na.rm = TRUE`.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -617,6 +685,10 @@ ex_4_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Split the values into groups defined by the cylinder column, then summarize each group.
+Call `tapply()` with `mtcars$mpg`, `mtcars$cyl`, and `mean`.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -647,6 +719,10 @@ ex_4_3
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Measure how strongly the two columns move together in a straight-line sense.
+Pass `mtcars$hp` and `mtcars$mpg` to `cor()`.
 
 ```r title="Your turn"
 ex_4_4 <- # your code here
@@ -681,6 +757,10 @@ ex_4_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Count how many rows fall into each combination of the two categorical columns.
+Pass both columns to `table()`, naming the arguments `cyl` and `gear`.
 
 ```r title="Your turn"
 ex_4_5 <- # your code here
@@ -718,6 +798,10 @@ ex_4_5
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Apply the three-way labelling to every element at once, layering one test inside the false branch of another.
+Nest one `ifelse()` (testing `< 20`) inside another (testing `< 30`).
+
 ```r title="Your turn"
 temps <- c(18, 25, 31, 12, 29, 36, 22)
 ex_5_1 <- # your code here
@@ -750,6 +834,10 @@ ex_5_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+The function body only needs the BMI division formula; the default value handles a missing second argument.
+Return `weight_kg / height_m^2` as the last expression in the body.
 
 ```r title="Your turn"
 bmi <- function(weight_kg, height_m = 1.7) {
@@ -786,6 +874,10 @@ ex_5_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Reject invalid input before doing any real work, and otherwise compute the result normally.
+Guard with `if (x <= 0) stop("x must be positive")`, then return `log(x)`.
 
 ```r title="Your turn"
 safe_log <- function(x) {
@@ -824,6 +916,10 @@ ex_5_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Keep drawing values until one clears the threshold, then leave the loop immediately.
+Inside the loop test `if (draw > 95)`, store `draw` into `ex_5_4`, and exit with `break`.
 
 ```r title="Your turn"
 set.seed(42)
@@ -870,6 +966,10 @@ if (ex_5_4 > 95) "qualifying integer found"
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The constructor holds a tally that the returned inner function updates and reports back on each call.
+Initialize `count <- 0`, then return an inner function that does `count <<- count + 1` before yielding `count`.
 
 ```r title="Your turn"
 make_counter <- function() {
@@ -921,6 +1021,10 @@ cat("independent counter starts fresh:", fresh(), "\n")
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The plot is already drawn; the variable just needs to hold the expected marker text for grading.
+Assign the string `"colored scatter drawn"` to `ex_6_1`.
+
 ```r title="Your turn"
 plot(iris$Petal.Length, iris$Sepal.Length, col = iris$Species)
 ex_6_1 <- # your code here
@@ -957,6 +1061,10 @@ ex_6_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The two histograms are already drawn; the variable only needs the grading marker text.
+Assign the string `"two histograms drawn"` to `ex_6_2`.
 
 ```r title="Your turn"
 par(mfrow = c(1, 2))
@@ -998,6 +1106,10 @@ ex_6_2
 
 **Difficulty:** Beginner
 
+[HINTS]
+Build a one-dimensional count of the gear categories, then hand that table to the pie drawer.
+Use `table(mtcars$gear)` to make the frequency table.
+
 ```r title="Your turn"
 ex_6_3 <- # build the table here
 pie(ex_6_3)
@@ -1032,6 +1144,10 @@ ex_6_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The scatter-plot matrix is already drawn; the variable just needs its marker text.
+Assign the string `"pairs matrix drawn"` to `ex_6_4`.
+
 ```r title="Your turn"
 pairs(iris[, 1:4])
 ex_6_4 <- # your code here
@@ -1064,6 +1180,10 @@ ex_6_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The multi-series line plot is already drawn; only the grading marker text remains.
+Assign the string `"matplot drawn"` to `ex_6_5`.
 
 ```r title="Your turn"
 matplot(EuStockMarkets, type = "l")

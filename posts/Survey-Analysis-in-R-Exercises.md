@@ -46,6 +46,10 @@ The four `api*` data frames loaded above (`apipop`, `apistrat`, `apiclus1`, `api
 
 **Difficulty:** Beginner
 
+[HINTS]
+A single-stage sample has no clustering, but it is still grouped - think about which argument says "no cluster" and which one names the school-type grouping.
+Build it with `svydesign()`, passing `id = ~1` for no clustering plus `strata`, `weights`, and `data` arguments pointing at `stype`, `pw`, and `apistrat`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -78,6 +82,10 @@ ex_1_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+When whole districts are sampled, the district is the unit of randomization, so the design must declare that grouping rather than treating schools as independent.
+Use `svydesign()` with `id = ~dnum` to name the primary sampling unit, plus `weights = ~pw` and `data = apiclus1`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -112,6 +120,10 @@ ex_1_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A two-stage sample varies at two levels, and supplying finite-population sizes lets the design derive the weights instead of you passing them in.
+Call `svydesign()` with `id = ~dnum + snum` and `fpc = ~fpc1 + fpc2`, and omit `weights` because `fpc` implies them.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -148,6 +160,10 @@ ex_1_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+You want a population mean that respects the sampling weights, not the plain average of the sampled rows.
+Apply `svymean()` to the formula `~api00` with `ex_1_1` as the design argument.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -179,6 +195,10 @@ ex_2_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+A population total scales the sampled values up by their weights rather than averaging them.
+Use `svytotal()` on the formula `~enroll` with the design `ex_1_1`.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -216,6 +236,10 @@ ex_2_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Percentiles come from inverting the weighted cumulative distribution, so you need a quantile-based estimator, not a mean.
+Call `svyquantile()` on `~api00` with `ex_1_1` and a `quantiles` argument of `c(0.25, 0.5, 0.75)`.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 ex_2_3
@@ -251,6 +275,10 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The inflation factor you need is reported as an optional extra column on the same weighted-mean estimator you already know.
+Call `svymean()` on `~api00` with `ex_1_1` and add the `deff = TRUE` argument.
 
 ```r title="Your turn"
 ex_2_4 <- # your code here
@@ -288,6 +316,10 @@ ex_2_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You need the same statistic computed once per category, with the design's structure preserved inside each slice.
+Use `svyby()` with `~api00`, the grouping formula `~stype`, the design `ex_1_1`, and `svymean` as the function to apply.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -322,6 +354,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Restricting to a subgroup must keep the design intact - filter the design itself, not the underlying data frame.
+Wrap the design with `subset(ex_1_1, meals > 50)` and pass that result to `svymean()` on `~api00`.
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -353,6 +389,10 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Comparing two subgroup means safely needs their covariance retained, then a weighted difference taken across the groups.
+Re-run `svyby()` with `covmat = TRUE`, then feed that object to `svycontrast()` with a coefficient vector like `c(1, -1, 0)`.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -392,6 +432,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want a cross-tabulation whose cells are weighted population counts, not raw sample frequencies.
+Call `svytable()` with the two-variable formula `~stype + sch.wide` and the design `ex_1_1`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -429,6 +473,10 @@ ex_4_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A test of independence on survey data needs a design-aware correction, not the classical Pearson statistic.
+Use `svychisq()` with the formula `~stype + sch.wide` and `ex_1_1`; the Rao-Scott F adjustment is the default.
+
 ```r title="Your turn"
 ex_4_2 <- # your code here
 ex_4_2
@@ -462,6 +510,10 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A proportion needs a confidence interval that cannot stray outside zero and one.
+Call `svyciprop()` on `~I(sch.wide == "Yes")` with `ex_1_1` and `method = "logit"`.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -502,6 +554,10 @@ ex_4_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A regression on survey data needs design-consistent standard errors, so it cannot be an ordinary weighted fit.
+Fit `svyglm()` with the formula `api00 ~ ell + meals` and `design = ex_1_1`; the Gaussian family is the default.
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -544,6 +600,10 @@ summary(ex_5_1)
 
 **Difficulty:** Advanced
 
+[HINTS]
+A binary outcome on weighted data calls for a logit model whose family tolerates non-integer weights.
+Use `svyglm()` with the outcome `I(as.numeric(sch.wide == "Yes"))`, predictors `api99 + meals`, `design = ex_1_1`, and `family = quasibinomial()`.
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 summary(ex_5_2)$coefficients
@@ -583,6 +643,10 @@ summary(ex_5_2)$coefficients
 
 **Difficulty:** Advanced
 
+[HINTS]
+The marginal effect you want is a linear combination of the fitted slopes that uses their joint covariance.
+Call `svycontrast()` on `ex_5_1` with a named list giving `ell` a weight of 25 and `meals` a weight of 60.
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 ex_5_3
@@ -619,6 +683,10 @@ ex_5_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Adjusting weights so each category sums to a known population count is a calibration step layered on top of the existing design.
+Call `postStratify()` with `ex_1_1`, the formula `~stype`, and the `pop_totals` data frame.
 
 ```r title="Your turn"
 pop_totals <- data.frame(
@@ -660,6 +728,10 @@ ex_6_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+When you know two separate marginal distributions but not their joint table, the weights must be fitted to both margins at once.
+Call `rake()` with `ex_1_1`, `sample.margins = list(~stype, ~awards)`, and `population.margins = list(stype_pop, awards_pop)`.
+
 ```r title="Your turn"
 stype_pop  <- data.frame(stype  = c("E", "H", "M"), Freq = c(4421, 755, 1018))
 awards_pop <- data.frame(awards = c("No", "Yes"),    Freq = c(1438, 4756))
@@ -700,6 +772,10 @@ ex_6_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Converting to a replicate-weight design swaps Taylor linearization for many perturbed weight columns.
+Call `as.svrepdesign()` on `ex_1_1` with `type = "bootstrap"` and `replicates = 200`.
+
 ```r title="Your turn"
 ex_6_3 <- # your code here
 ex_6_3
@@ -735,6 +811,10 @@ ex_6_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The tidyverse route reproduces subgroup means with a group-then-summarise grammar on a survey-aware object.
+Convert with `as_survey()`, then `group_by(stype)` and `summarise()` using `survey_mean(api00)`.
 
 ```r title="Your turn"
 ex_6_4 <- # your code here

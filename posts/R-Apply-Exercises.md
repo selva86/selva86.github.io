@@ -56,6 +56,10 @@ set.seed(42)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A data frame is already a collection of columns; you want one summary number per column, kept in a named, list-shaped container.
+Reach for `lapply()` over `airquality`, passing `mean` and `na.rm = TRUE` as extra arguments.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -127,6 +131,10 @@ ex_1_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+First break the data into one group per cylinder count, then run the same model on each piece.
+Use `split()` on `mtcars$cyl`, then `lapply()` with an anonymous function calling `lm(mpg ~ wt, data = ...)`.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -175,6 +183,10 @@ ex_1_2
 
 **Difficulty:** Beginner
 
+[HINTS]
+You need every value turned into text while keeping the original key for each entry.
+Call `lapply()` on `cfg` with `as.character` as the function.
+
 ```r title="Your turn"
 cfg <- list(host = "db01", port = 5432L, timeout = 30.5, ssl = TRUE)
 ex_1_3 <- # your code here
@@ -217,6 +229,10 @@ ex_1_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+For each column you want a single count of how many entries are missing, collected into one labelled vector.
+Use `sapply()` over `airquality` with `function(x) sum(is.na(x))`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -248,6 +264,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Each column should collapse to one robust spread number, and one-number-per-column simplifies neatly into a plain vector.
+Call `sapply()` on `USArrests` with `mad` as the function.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -281,6 +301,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+When each column returns two labelled numbers, the results stack side by side into a small table.
+Use `sapply()` on `ToothGrowth[, c("len", "dose")]` with a function returning `c(mean = mean(x), median = median(x))`.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -319,6 +343,10 @@ round(ex_2_3, 3)
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+You are walking across the rows of the matrix, totalling each student's three quizzes.
+Use `apply()` on `scores` with `MARGIN = 1` and `sum`.
 
 ```r title="Your turn"
 scores <- matrix(
@@ -368,6 +396,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each column should be re-centred and rescaled independently so no single metric dominates.
+Use `apply()` with `MARGIN = 2` and a function returning `(x - mean(x)) / sd(x)`.
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 head(ex_3_2)
@@ -405,6 +437,10 @@ head(ex_3_2)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You need the position of the top score in each row, then translate that position into the matching subject label.
+Use `apply()` with `MARGIN = 1` and `which.max`, then index `colnames(scores)` with the result.
+
 ```r title="Your turn"
 ex_3_3 <- # your code here
 ex_3_3
@@ -436,6 +472,10 @@ ex_3_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+First mark every cell that sits too far outside its column's middle range, then check whether any cell in a row was marked.
+Use `apply()` with `MARGIN = 2` and `quantile(x, c(0.25, 0.75))` to build a logical flag matrix, then `apply()` with `MARGIN = 1` and `any`.
 
 ```r title="Your turn"
 set.seed(42)
@@ -483,6 +523,10 @@ ex_3_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want the fraction of missing values per column, guaranteed to come back as plain numbers.
+Use `vapply()` over `airquality` with `function(x) mean(is.na(x))` and a `numeric(1)` template.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -513,6 +557,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Check each column's type, then reduce all those checks to a single yes-or-no answer.
+Use `vapply()` with `is.numeric` and a `logical(1)` template, wrapped in `all()`.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -546,6 +594,10 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Each column should produce three labelled numbers, and a fixed-length return shape lets them stack into a guaranteed matrix.
+Use `vapply()` over `airquality` with a function returning `c(min, median, max)` (each with `na.rm = TRUE`) and a `numeric(3)` template.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -588,6 +640,10 @@ ex_4_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+You are stepping through two vectors together, combining the matching pair at each position.
+Use `mapply()` with `function(l, h) h - l + 1` over `lows` and `highs`.
+
 ```r title="Your turn"
 lows  <- c(2, 5, 9, 12, 18)
 highs <- c(8, 11, 14, 20, 25)
@@ -628,6 +684,10 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Each customer needs its own draw with its own size and scale, and the varying-length results must stay separate.
+Use `mapply()` with `rnorm` over `sizes`, `means`, and `sds`, setting `SIMPLIFY = FALSE`.
 
 ```r title="Your turn"
 set.seed(42)
@@ -673,6 +733,10 @@ ex_5_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Three aligned inputs feed one formula per account, producing a single number each.
+Use `mapply()` with `function(p, r, y) p * (1 + r)^y` over `principal`, `rate`, and `years`, then set `names()`.
+
 ```r title="Your turn"
 principal <- c(1000, 2500, 5000)
 rate      <- c(0.04, 0.06, 0.05)
@@ -714,6 +778,10 @@ ex_5_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+Split one measurement vector by a grouping label and summarise within each group.
+Use `tapply()` with `ChickWeight$weight`, `ChickWeight$Diet`, and `mean`.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -754,6 +822,10 @@ ex_6_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+For each species you want a small set of percentile values, so a per-group multi-number result stays as a list.
+Use `tapply()` with `iris$Sepal.Width`, `iris$Species`, and `function(x) quantile(x, c(0.25, 0.5, 0.75))`.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here
@@ -801,6 +873,10 @@ ex_6_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Grouping by two factors at once lays the group means out across a rows-by-columns grid.
+Use `tapply()` with `warpbreaks$breaks`, `list(warpbreaks$wool, warpbreaks$tension)`, and `mean`.
+
 ```r title="Your turn"
 ex_6_3 <- # your code here
 ex_6_3
@@ -837,6 +913,10 @@ ex_6_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+For each gear group, compute a unit-free spread measure that relates variability to the group's average.
+Use `tapply()` with `mtcars$mpg`, `mtcars$gear`, and `function(x) 100 * sd(x) / mean(x)`.
 
 ```r title="Your turn"
 ex_6_4 <- # your code here

@@ -47,6 +47,10 @@ library(ggplot2)
 
 **Difficulty:** Beginner
 
+[HINTS]
+You want to keep only the rows that clear a numeric threshold and discard the rest.
+Use `filter()` with the condition `mpg > 25`, taking care to use the greater-than operator and not `=`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -84,6 +88,10 @@ ex_1_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+You need to subset the catalog down to rows that sit below a strict price cut-off.
+Use `filter()` with `price < 1000`; the strict `<` operator excludes the boundary value.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -118,6 +126,10 @@ ex_1_2
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+You want to match each row's category against one exact text label and keep only the matches.
+Use `filter()` with `class == "compact"`, quoting the string so R reads it as a literal value.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -156,6 +168,10 @@ ex_1_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Two separate requirements must both hold true before a row qualifies.
+In `filter()`, list `Species == "setosa"` and `Petal.Width >= 0.4` separated by a comma.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -190,6 +206,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A row should survive if either of two unrelated situations applies to it.
+Combine `Ozone > 100` with `is.na(Solar.R)` using the `|` operator inside `filter()`.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -227,6 +247,10 @@ ex_2_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want to test whether each row's value is one of a small allowed set.
+Use `filter()` with the `%in%` operator and the vector `c(4, 6)`.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 ex_2_3
@@ -262,6 +286,10 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You need to keep rows whose value falls inside a closed numeric range.
+Use the `between(carat, 0.5, 1.0)` helper inside `filter()`; both bounds are inclusive.
 
 ```r title="Your turn"
 ex_2_4 <- # your code here
@@ -300,6 +328,10 @@ ex_2_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want to discard every row whose key measurement was never recorded.
+Wrap the column in `is.na()` and negate it with `!` inside `filter()`.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -333,6 +365,10 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want the handful of rows sitting at the very top of one column's ranking.
+Use `slice_max()` on the `hp` column with the argument `n = 5`.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -373,6 +409,10 @@ ex_3_2
 
 **Difficulty:** Beginner
 
+[HINTS]
+You want to keep only a named subset of columns and drop everything else.
+Use `select()` and list `mpg`, `cyl`, and `hp` as unquoted column names.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -409,6 +449,10 @@ head(ex_4_1)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want to remove a single column while every other column passes through untouched.
+Use `select()` with a minus sign in front of the column name: `-fl`.
+
 ```r title="Your turn"
 ex_4_2 <- # your code here
 ex_4_2
@@ -443,6 +487,10 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want to pick a few columns and give each a clearer label in the same step.
+Inside `select()`, use the `new_name = old_name` syntax, for example `fuel_economy = mpg`.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -482,6 +530,10 @@ head(ex_4_3)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want to grab every column whose name shares a common opening prefix.
+Use the `starts_with("Sepal")` helper inside `select()`.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -518,6 +570,10 @@ head(ex_5_1)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want to select columns from a name vector without breaking if one is absent.
+Pass the character vector of names to the `any_of()` helper inside `select()`.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -556,6 +612,10 @@ ex_5_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+You want to choose columns by testing a property of each one rather than naming them.
+Use `select()` with `where()` and pass the predicate `is.numeric`.
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 ex_5_3
@@ -591,6 +651,10 @@ ex_5_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want to pull the rightmost column to the front, then let the rest follow in their original order.
+Combine the `last_col()` and `everything()` helpers inside `select()`.
 
 ```r title="Your turn"
 ex_5_4 <- # your code here
@@ -631,6 +695,10 @@ head(ex_5_4)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want to narrow down to one city's rows first, then keep only the columns the feed needs.
+Chain `filter(city == "Houston")` into `select(date, median, sales)` with the pipe.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -670,6 +738,10 @@ ex_6_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want to restrict to one category of rows, then trim down to the reporting columns.
+Pipe `filter(cut == "Premium")` into `select(carat, color, clarity, price)`.
+
 ```r title="Your turn"
 ex_6_2 <- # your code here
 ex_6_2
@@ -708,6 +780,10 @@ ex_6_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+You want to apply two row tests at once, then expose only three columns.
+Use `filter(Month %in% c(6, 7, 8), !is.na(Ozone))`, then `select(Ozone, Temp, Month)`.
+
 ```r title="Your turn"
 ex_6_3 <- # your code here
 ex_6_3
@@ -745,6 +821,10 @@ ex_6_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+You want to combine a set-membership test and a numeric threshold, then keep four columns.
+Use `filter(class %in% c("compact", "subcompact"), hwy >= 30)`, then `select(manufacturer, model, class, hwy)`.
 
 ```r title="Your turn"
 ex_6_4 <- # your code here

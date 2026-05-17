@@ -48,6 +48,10 @@ library(lubridate)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Collapse the log to one row per customer, then derive each metric from that customer's own purchase dates and amounts.
+Group by `user_id` and `summarise()`: recency from `max(txn_date)` subtracted from `ref`, frequency from `n()`, monetary from `sum(amount)`.
+
 ```r title="Your turn"
 txns <- tibble(
   user_id  = c("c001","c001","c001","c002","c002","c003","c003","c003","c003","c004"),
@@ -104,6 +108,10 @@ ex_1_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+Each dimension needs a 1-to-3 rank where the best customers land in bucket 3, and recency must be flipped because more days since purchase is worse.
+Inside `mutate()`, use `ntile()` with 3 buckets per dimension; negate the recency column (`-R`) so recent buyers score highest.
+
 ```r title="Your turn"
 ex_1_2 <- ex_1_1 |>
   # your code here
@@ -152,6 +160,10 @@ ex_1_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Glue the three single-digit scores into one string, then tally how many customers fall into each combination.
+Build the code with `paste0(R_score, F_score, M_score)` in `mutate()`, then `count()` on the new column.
+
 ```r title="Your turn"
 ex_1_3 <- ex_1_2 |>
   # your code here
@@ -196,6 +208,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Assign a label by testing the score combination, checking the most specific rule before the broader one.
+Use `case_when()` in `mutate()` with the Champions test first, then the At Risk test, then a `TRUE` fallback to "Other".
 
 ```r title="Your turn"
 ex_1_4 <- ex_1_2 |>
@@ -244,6 +260,10 @@ ex_1_4
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Collapse the per-user log to one row per variant, reporting both the group size and the conversion outcome.
+Group by `variant` and `summarise()` with `n()`, `sum(converted)`, and `mean(converted)` for the rate.
 
 ```r title="Your turn"
 set.seed(42)
@@ -297,6 +317,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Feed the two variants' conversion counts and sample sizes into a two-proportion test, then pull the fields you need off the result.
+Call `prop.test()` with `x` = conversions, `n` = users, and `correct = FALSE`; read `$p.value` and `$conf.int`.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -342,6 +366,10 @@ ex_2_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Resample the log many times with replacement, compute the relative lift on each resample, and read the spread off that distribution.
+Use `replicate()` over a `slice_sample(prop = 1, replace = TRUE)` draw, then take `quantile()` at 0.025 and 0.975.
 
 ```r title="Your turn"
 set.seed(7)
@@ -392,6 +420,10 @@ ex_2_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+Work backwards from the baseline rate, the lift you want to detect, the power, and alpha to get the required group size.
+Call `power.prop.test()` with `p1 = 0.05`, `p2 = 0.055`, `power = 0.8`, `sig.level = 0.05`, then `ceiling()` the returned `$n`.
+
 ```r title="Your turn"
 ex_2_4 <- # your code here
 ex_2_4
@@ -441,6 +473,10 @@ ex_2_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Keep only the final touch of each journey, then total revenue by the channel of that closing touch.
+Group by `conversion_id` and `slice_max(touch_order, n = 1)`, then regroup by `channel` and `sum()` the revenue.
 
 ```r title="Your turn"
 events <- tibble(
@@ -500,6 +536,10 @@ ex_3_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+Split each journey's revenue equally across its touches before rolling the credit up by channel.
+Within `group_by(conversion_id)`, `mutate()` a per-touch credit of `revenue / n()`, then regroup by `channel` and sum.
+
 ```r title="Your turn"
 ex_3_2 <- events |>
   # your code here
@@ -548,6 +588,10 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Weight each touch by how close it sits to the conversion, normalise those weights within a journey, then split revenue by them.
+Inside `group_by(conversion_id)`, compute `0.5 ^ (max(touch_order) - touch_order)`, divide by `sum()` of the raw weights, and multiply by `revenue`.
 
 ```r title="Your turn"
 ex_3_3 <- events |>
@@ -610,6 +654,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each customer's cohort comes from their own earliest purchase, truncated to the start of that month.
+Group by `user_id` and `mutate()` an `acq_month` with `floor_date(min(txn_date), "month")`.
+
 ```r title="Your turn"
 purchases <- tibble(
   user_id  = c("u1","u1","u1","u2","u2","u3","u3","u4","u4"),
@@ -662,6 +710,10 @@ ex_4_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Fix the cohort size at month zero, then for each later month count the distinct customers still active and divide by that fixed size.
+Derive months elapsed with `interval(acq_month, txn_month) %/% months(1)`, `distinct()` users before counting, and `left_join()` the cohort sizes.
 
 ```r title="Your turn"
 ex_4_2 <- ex_4_1 |>
@@ -720,6 +772,10 @@ ex_4_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Measure each customer's gap from their last purchase to a fixed reference date, then compare it against the 90-day cutoff.
+`summarise()` `days_since_last` as `ref_d - max(txn_date)`, then `mutate()` a `churned` flag with `>= 90`.
+
 ```r title="Your turn"
 ref_d <- as.Date("2024-06-01")
 
@@ -773,6 +829,10 @@ ex_4_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Fit a binary-outcome model on the three predictors, then read the coefficient table straight off the fitted object.
+Call `glm()` with `family = binomial`, then pull `summary(fit)$coefficients` into a tibble of term, estimate, and p-value.
 
 ```r title="Your turn"
 set.seed(11)
@@ -844,6 +904,10 @@ ex_4_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+For each customer, combine their typical order size, how often they order, and the margin assumption.
+Group by `user_id` and `summarise()` with `mean(amount)`, `n()`, and a product that multiplies by `0.30`.
+
 ```r title="Your turn"
 ex_5_1 <- purchases |>
   # your code here
@@ -894,6 +958,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Project each customer's monthly purchase rate forward a year, shrinking each future month's contribution before summing.
+Compute `monthly_freq` as `freq / 5`, then sum `monthly_freq * aov * 0.30 / (1 + 0.01)^t` over `t = 1:12`, e.g. via `mapply()`.
+
 ```r title="Your turn"
 ex_5_2 <- ex_5_1 |>
   # your code here
@@ -941,6 +1009,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Rank customers by spend, isolate the top fifth by headcount, and compare their revenue against the whole base.
+`arrange(desc(revenue))`, take the top `ceiling(nrow() * 0.20)` rows with `slice_head()`, then divide summed top revenue by total.
 
 ```r title="Your turn"
 set.seed(99)
@@ -1003,6 +1075,10 @@ ex_5_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each stage's rate depends on the row directly above it, while the overall rate depends on the very first row.
+`mutate()` with `lag(users)` for the step-over-step ratio and `first(users)` for the overall-from-top ratio.
+
 ```r title="Your turn"
 funnel <- tibble(
   stage = c("Visit","Signup","Activate","Pay"),
@@ -1053,6 +1129,10 @@ ex_6_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Add the cost-efficiency metric first, then keep only the three best campaigns by conversion volume.
+`mutate()` a `cpa` of `spend / conversions`, `arrange(desc(conversions))`, then `slice_head(n = 3)`.
 
 ```r title="Your turn"
 campaigns <- tibble(

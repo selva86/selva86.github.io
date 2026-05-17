@@ -44,6 +44,10 @@ library(units)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Vector data sits on disk as a shapefile plus sidecar files - you need a reader that turns that bundle into a spatial table held in memory.
+Call st_read() on the shapefile path, resolving the path with system.file("shape/nc.shp", package = "sf"), and pass quiet = TRUE.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 class(ex_1_1)
@@ -85,6 +89,10 @@ dim(ex_1_1)
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Auditing a layer means answering three separate questions - how many features, what shape type, which columns - and bundling the answers together.
+Use nrow() for the count, st_geometry_type() wrapped in unique() for the type, and head(names(...), 6) for the columns, collected with list().
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -145,6 +153,10 @@ Asheville  -82.5515  35.5951
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A plain data frame becomes spatial once you tell R which columns hold the coordinates and which datum those numbers belong to.
+Pass the tibble to st_as_sf() with coords = c("lon", "lat") and crs = 4326.
+
 ```r title="Your turn"
 stores <- tibble::tibble(
   store = c("Raleigh", "Charlotte", "Greensboro", "Durham", "Asheville"),
@@ -189,6 +201,10 @@ ex_1_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Every spatial layer carries a coordinate reference description, and a registered one has a short numeric identifier you can pull straight out.
+Call st_crs() on the layer and read its $epsg element.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -222,6 +238,10 @@ ex_2_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Changing the projection recomputes every coordinate into a different reference system - it is not just a relabelling of the layer.
+Use st_transform() with a target code of 3857.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -263,6 +283,10 @@ print(ex_2_2, n = 0)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Reliable area numbers need a low-distortion projected system first; after that it is a measurement, a unit conversion, and a ranking.
+After st_transform() to 32617, compute st_area(), convert with units::set_units(..., "km^2"), then arrange() descending and take head(5).
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -311,6 +335,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Collapsing each polygon to a single representative point keeps the attribute table but swaps out the shape column.
+Select NAME and BIR74 first, then apply st_centroid(), wrapping the whole call in suppressWarnings().
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 head(ex_3_1, 5)
@@ -347,6 +375,10 @@ head(ex_3_1, 5)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A radius only means meters once the layer is in a projected system; the overlapping disks then need to be dissolved into a single shape.
+After st_transform() to 3857, apply st_buffer(dist = 30000) and collapse the result with st_union().
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -386,6 +418,10 @@ print(ex_3_2, n = 0)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The shared region of two polygons is itself a polygon, and once you have that shape the overlap size is just its measured area.
+Compute st_intersection() of the two sfc objects, then pass the resulting geometry to st_area().
 
 ```r title="Your turn"
 sq_a <- st_polygon(list(rbind(c(0,0), c(10,0), c(10,10), c(0,10), c(0,0))))
@@ -436,6 +472,10 @@ ex_3_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+Tagging each point with the area that contains it is a join driven by location instead of a shared key - but both layers must share a reference system first.
+Reproject the points with st_transform() to 4267, then run st_join() against the counties with join = st_within.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -473,6 +513,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Finding everything near a point is a proximity test that returns which features fall inside a radius, measured in the layer's linear units.
+Use st_is_within_distance() with dist = 80000 and sparse = FALSE, then subset the NAME column and sort() it.
 
 ```r title="Your turn"
 raleigh <- st_sfc(st_point(c(-78.6382, 35.7796)), crs = 4326) |>
@@ -516,6 +560,10 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Counting points per area means asking, for each county, how many store features land inside it, then keeping only the non-empty counties.
+Take lengths(st_intersects(counties, stores)) as the n_stores column, then filter() to n_stores > 0 and arrange() descending.
 
 ```r title="Your turn"
 stores_nad27 <- st_transform(ex_1_3, 4267)
@@ -561,6 +609,10 @@ ex_4_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+A bare outline map needs only the shape column, drawn with no fill so the borders carry all the information.
+Call plot() on st_geometry(ex_1_1) with col = NA and border = "grey30".
+
 ```r title="Your turn"
 plot(st_geometry(ex_1_1), col = NA, border = "grey30")
 ex_5_1 <- "boundaries_plotted"
@@ -598,6 +650,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A choropleth maps one attribute to fill colour across the polygons, drawn on a deliberately minimal canvas.
+Build it with ggplot() plus geom_sf(aes(fill = BIR74)), scale_fill_viridis_c(option = "plasma"), and theme_minimal().
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 print(ex_5_2)
@@ -634,6 +690,10 @@ print(ex_5_2)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+An existing map object can be extended by stacking new layers that draw the store locations and their names on top.
+Add a geom_sf(data = ex_1_3, shape = 21, fill = "red", ...) layer and a geom_sf_text(data = ex_1_3, aes(label = store), nudge_y = 0.15, ...) layer onto ex_5_2.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here

@@ -53,6 +53,9 @@ library(rpart)
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+caret gives you one unified entry point so any model family is fitted the same way; you only declare which family you want.
+Call train() with the formula mpg ~ ., data = mtcars, and method = "lm".
 
 ```r title="Your turn"
 ex_1_1 <- # your code here
@@ -98,6 +101,9 @@ ex_1_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+An interpretable tree baseline is just another model family routed through the same training interface.
+Use train() with Species ~ ., data = iris, and method = "rpart".
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -140,6 +146,9 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Predictors and the response can be supplied as two separate inputs instead of bundled into a single formula.
+Pass x = iris[, -5] and y = iris$Species to train() with method = "rf" and tuneLength = 2.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -190,6 +199,9 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+The resampling scheme is a separate configuration object you build once and hand to the training call.
+Build trainControl(method = "cv", number = 5) and pass it as trControl to a knn train() call.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -233,6 +245,9 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Averaging the whole k-fold scheme over several runs tightens a noisy estimate on a small sample.
+Set method = "repeatedcv" with number = 5 and repeats = 3 in trainControl, then train glmnet with tuneLength = 3.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -279,6 +294,9 @@ ex_2_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+You can pre-compute fold membership yourself so each fold keeps the same class mix as the whole dataset.
+Generate folds with createFolds(iris$Species, k = 5, returnTrain = TRUE) and pass them to trainControl via the index argument.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -323,6 +341,9 @@ ex_2_3
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Standardizing predictors should happen inside each fold so no held-out information leaks into the scaling.
+Add preProcess = c("center", "scale") to a knn train() call alongside a 5-fold trainControl.
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -369,6 +390,9 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Correlated predictors can be rotated onto uncorrelated axes before the model ever sees them.
+Pass preProcess = c("center", "scale", "pca") to train() with method = "rpart" on iris.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -411,6 +435,9 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A power transformation can pull right-skewed columns toward a more symmetric shape before fitting.
+Use preProcess = c("BoxCox", "center", "scale") in a method = "lm" train() call on mtcars.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -453,6 +480,9 @@ ex_3_3
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A robust cleaning chain that fills gaps, drops dead columns, then standardizes belongs inside the resampling loop, and the order of those steps matters.
+Drop rows with NA Ozone, then set preProcess = c("medianImpute", "nzv", "center", "scale") on a method = "lm" train() call.
 
 ```r title="Your turn"
 ex_3_4 <- # your code here
@@ -501,6 +531,9 @@ ex_3_4
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+You can ask the trainer to auto-generate a wider set of candidate settings than its sparse default.
+Set tuneLength = 5 on a train() call with method = "rf" and a 5-fold trainControl.
 
 ```r title="Your turn"
 ex_4_1 <- # your code here
@@ -548,6 +581,9 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Instead of letting the trainer guess, you can hand it the exact list of parameter values to test.
+Build a data.frame with a cp column and pass it as tuneGrid to train() with method = "rpart".
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -598,6 +634,9 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+When two parameters interact, their candidate values must be crossed together rather than scanned one at a time.
+Use expand.grid(alpha = ..., lambda = ...) and pass the result as tuneGrid to a method = "glmnet" train() call.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -644,6 +683,9 @@ ex_4_3$bestTune
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+To rank models on ranking quality rather than raw accuracy, you must tell the trainer which performance summary to compute and let it keep class probabilities.
+Set summaryFunction = twoClassSummary and classProbs = TRUE in trainControl, then train glm with metric = "ROC".
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -701,6 +743,9 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A single honest holdout slice scored after training is the audit-friendly alternative to a rolled-up resampling number.
+Split with createDataPartition(iris$Species, p = 0.7), train rpart on the train slice, predict() on the rest, and pass the predicted and observed factors to confusionMatrix().
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -746,6 +791,9 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Rebalancing an imbalanced training set has to happen inside resampling so held-out scores still reflect the real prevalence.
+Set sampling = "down" in trainControl and train rpart on the imbalanced data with that control.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -791,6 +839,9 @@ ex_5_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A fair head-to-head needs both models scored on the exact same fold draws.
+Train knn and rpart under one shared trainControl (same seed set before each), then pool them with resamples(list(knn = ..., rpart = ...)).
 
 ```r title="Your turn"
 ex_6_1 <- # your code here
@@ -837,6 +888,9 @@ ex_6_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Once per-fold scores are pooled, you want the full distribution per model, not just one average.
+Call summary() on the resamples() object comparing knn and rpart.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here
@@ -885,6 +939,9 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A formal verdict on whether one model truly beats another comes from a paired test on the per-fold differences.
+Pass the resamples() object to diff(), then call summary() on that diff object.
 
 ```r title="Your turn"
 ex_6_3 <- # your code here
@@ -929,6 +986,9 @@ ex_6_3
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+After fitting, you can ask which predictors carried the most weight in the model's decisions.
+Train rf with tuneLength = 2, then pass the fitted object to varImp().
 
 ```r title="Your turn"
 ex_7_1 <- # your code here
@@ -965,6 +1025,9 @@ ex_7_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A fitted, tuned model exposes both its winning settings and per-class probability output for new rows.
+Read model$bestTune, then call predict() with newdata = iris[1:5, ] and type = "prob".
 
 ```r title="Your turn"
 ex_7_2 <- # your code here

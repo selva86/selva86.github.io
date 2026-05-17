@@ -47,6 +47,10 @@ library(tibble)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Think about which two visual channels should carry the numeric columns and which layer draws one mark per row.
+Map `wt` and `mpg` inside `aes()`, then add a `geom_point()` layer.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -81,6 +85,10 @@ ex_1_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The points stack because the x-axis is categorical, so you need to spread them sideways without disturbing the real y-values.
+Swap the point layer for `geom_jitter(width = 0.2, height = 0)`.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -114,6 +122,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A bubble chart encodes two extra variables by sizing and coloring the markers, and the rows should be thinned first so they stay legible.
+Draw a reproducible sample with `set.seed()` and `slice_sample(n = 500)`, then map `size = depth` and `color = cut` in `aes()`.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -154,6 +166,10 @@ ex_1_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+A frequency chart needs only the category on one axis; the bar layer can tally the rows for you.
+Map `x = cut` in `aes()` and add `geom_bar()` with no `y` aesthetic.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -186,6 +202,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+When the heights are already computed you want a bar layer that plots values literally instead of recounting rows.
+Summarise mean `mpg` by `cyl` with `group_by()` and `summarise()`, then plot with `geom_col()` over `factor(cyl)`.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -225,6 +245,10 @@ ex_2_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The same bar chart can show absolute totals, side-by-side groups, or proportions depending on how overlapping groups are arranged.
+Build three `geom_bar()` charts using `position = "stack"`, `"dodge"`, and `"fill"`, then collect them with `list()`.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -270,6 +294,10 @@ length(ex_2_3)
 
 **Difficulty:** Beginner
 
+[HINTS]
+To see distribution shape you bucket a numeric column into intervals and count what lands in each.
+Use `geom_histogram(binwidth = 500)` and pass a `color` for the bin outlines.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -304,6 +332,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Comparing distribution shapes across a category calls for smoothed curves you can see through one another.
+Map `fill = cut` and add `geom_density(alpha = 0.4)`.
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -337,6 +369,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The default category order is alphabetical, so re-rank it by a summary of the numeric variable to make the chart read in order.
+Inside `mutate()`, apply `fct_reorder(class, hwy, .fun = median)` before adding `geom_boxplot()`.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -374,6 +410,10 @@ ex_3_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A richer distribution view layers the full shape, the IQR summary, and a central-tendency marker on the same axes.
+Layer `geom_violin()`, then `geom_boxplot(width = 0.1)`, then `stat_summary(fun = mean, geom = "point")`.
 
 ```r title="Your turn"
 ex_3_4 <- # your code here
@@ -413,6 +453,10 @@ ex_3_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A time series is a connected path, so derive the metric you want and order it along the date axis.
+Add a `rate` column with `mutate()`, then map `x = date` and draw `geom_line()`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -449,6 +493,10 @@ ex_4_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Overlaying a trend on a scatter means adding a second layer that fits a model and shades its uncertainty.
+Add `geom_smooth(method = "lm", se = TRUE)` on top of `geom_point()`.
+
 ```r title="Your turn"
 ex_4_2 <- # your code here
 ex_4_2
@@ -483,6 +531,10 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+To control the confidence band yourself, fit the model, predict across a grid of x-values, and draw the band as its own layer.
+Use `lm()` and `predict(..., interval = "confidence")`, then add `geom_ribbon(aes(ymin = lwr, ymax = upr))` and `geom_line()` with `inherit.aes = FALSE`.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -529,6 +581,10 @@ ex_4_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A heatmap needs three columns - two keys and a value - so the wide correlation matrix has to be reshaped to long form first.
+Reshape with `pivot_longer()`, draw `geom_tile()`, and color it with `scale_fill_gradient2(midpoint = 0)`.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -569,6 +625,10 @@ ex_5_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+With tens of thousands of rows a point cloud is unreadable, so bin the plane into cells and color each by how many observations fall inside.
+Use `geom_bin2d(bins = 40)` and apply `scale_fill_viridis_c()`.
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 ex_5_2
@@ -605,6 +665,10 @@ ex_5_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Labelling only a few points means feeding one layer a filtered subset while the marker layer keeps the full data.
+Filter the top four rows with `slice_max(hp, n = 4)`, then add `geom_text(data = ..., aes(label = car), vjust = -1)`.
 
 ```r title="Your turn"
 ex_6_1 <- # your code here

@@ -42,6 +42,10 @@ library(tibble)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Think about tying each category to a specific color by name rather than by position, so the mapping survives any reordering of levels.
+Reach for `scale_color_manual()` and pass a named character vector to its `values` argument, like `c("4" = "tomato", ...)`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -76,6 +80,10 @@ ex_1_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Define the five brand colors once as a lookup keyed by cut level, then feed that lookup into the fill scale of a count bar chart.
+Use `geom_bar()` with `scale_fill_manual(values = ...)` passing a named vector, and `guides(fill = "none")` to drop the redundant legend.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -117,6 +125,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Legend order and the category-to-color mapping are separate concerns, so you only need to change what the legend displays.
+Keep the same `values` vector but add a `breaks` argument listing the levels in your desired order.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -161,6 +173,10 @@ ex_1_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+Missing values need an explicit color of their own, and every declared category should stay in the legend even when it has no data.
+Build the factor with `levels = c(4, 6, 8)` first, then in `scale_color_manual()` set `na.value = "grey50"` and `drop = FALSE`.
+
 ```r title="Your turn"
 ex_1_4 <- # your code here
 ex_1_4
@@ -203,6 +219,10 @@ ex_1_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+ColorBrewer ships ready-made qualitative palettes meant for distinct, unordered categories.
+Apply `scale_color_brewer(palette = "Set1")` to the scatter colored by `factor(cyl)`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -234,6 +254,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Drop the rows that have no reading first, then color each month group with a qualitative palette.
+Filter with `!is.na(Ozone)`, then combine `geom_boxplot()` with `scale_color_brewer(palette = "Dark2")`.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -269,6 +293,10 @@ ex_2_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A Brewer palette can be stretched smoothly over a continuous range instead of used as a fixed set of discrete swatches.
+Use `geom_hex()` and apply `scale_fill_distiller(palette = "Spectral")` to the count fill.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 ex_2_3
@@ -300,6 +328,10 @@ ex_2_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+When you need more colors than a palette ships, interpolate brand-new ones evenly between two anchor shades.
+Build the seven colors with `colorRampPalette(c("#440154", "#FDE725"))(7)` and feed them to `scale_fill_manual(values = ...)`.
 
 ```r title="Your turn"
 ex_2_4 <- # your code here
@@ -345,6 +377,10 @@ ex_2_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+A continuous variable mapped to color needs a smooth, perceptually even ramp rather than discrete swatches.
+Map `mpg` to the `color` aesthetic and add `scale_color_viridis_c()`.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -377,6 +413,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You can swap the palette variant and flip the direction of the ramp without touching a single hex code.
+Pass `option = "plasma"` and `direction = -1` to `scale_color_viridis_c()`.
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -408,6 +448,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A categorical variable needs the discrete form of the palette, with levels ordered so the colors read as a quality gradient.
+Use `scale_color_viridis_d(option = "magma")`, and consider `end = 0.85` to trim the pale yellow for better contrast.
 
 ```r title="Your turn"
 ratings_df <- tibble::tibble(
@@ -454,6 +498,10 @@ ex_3_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+A heavily right-skewed fill hides structure in low-density regions unless you compress the high end of the color scale.
+Add `trans = "sqrt"` to `scale_fill_viridis_c()` and label the legend with the transform applied.
+
 ```r title="Your turn"
 ex_3_4 <- # your code here
 ex_3_4
@@ -488,6 +536,10 @@ ex_3_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+The simplest continuous color scale just interpolates linearly between two endpoint colors.
+Use `scale_color_gradient(low = "white", high = "darkred")`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -519,6 +571,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+When a value can be positive or negative, the color scale should pivot around its natural center so the sign-flip stays visible.
+Use `scale_fill_gradient2()` with `low`, `mid`, `high`, and `midpoint = 0`.
 
 ```r title="Your turn"
 pnl_df <- tibble::tibble(
@@ -568,6 +624,10 @@ ex_4_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Two or three endpoint colors aren't enough when you must reproduce a custom multi-stop corporate ramp.
+Pass all five hex codes as a single vector to `scale_color_gradientn(colors = ...)`.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -601,6 +661,10 @@ ex_4_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+For the white band to truly sit at zero, the scale must span the variable's full theoretical range, not just the observed min and max.
+Use `scale_fill_gradient2()` with `midpoint = 0` and lock `limits = c(-1, 1)`.
 
 ```r title="Your turn"
 ex_4_4 <- # your code here
@@ -647,6 +711,10 @@ ex_4_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+An ordinal category reads well with a single-hue ramp where each level is tied to its shade by name.
+Pass the named blue vector to `scale_fill_manual(values = ...)` and drop the legend with `guides(fill = "none")`.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -689,6 +757,10 @@ ex_5_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+A colorblind-safe sequential palette can be interpolated continuously to fill a tile heatmap, with darker meaning more.
+Use `geom_tile()` with `scale_fill_distiller(palette = "YlOrRd", direction = 1)`.
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 ex_5_2
@@ -724,6 +796,10 @@ ex_5_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Only one palette variant is tuned to stay readable under both red-green and blue-yellow color vision deficiencies.
+Apply `scale_color_viridis_d(option = "cividis")` to the scatter colored by `factor(cyl)`.
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 ex_5_3
@@ -756,6 +832,10 @@ ex_5_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Replace the default palette with the exact brand colors, each one keyed to a specific variant by name.
+Define a named vector for A, B, and C and pass it to `scale_color_manual(values = ...)`.
 
 ```r title="Your turn"
 ab_df <- tibble::tibble(

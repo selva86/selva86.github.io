@@ -48,6 +48,10 @@ library(lme4)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A Table 1 reports one row per treatment arm, so the 40 subjects need to collapse down to per-arm aggregates.
+Group by `arm`, then summarise with `n()`, `mean(age)`, and `mean(tumour_mm)`, passing `.groups = "drop"`.
+
 ```r title="Your turn"
 set.seed(42)
 trial <- tibble(
@@ -106,6 +110,10 @@ ex_1_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Balance between two categorical factors is a question of whether their cross-tabulation departs from independence.
+Build the cross-tab with `table(trial2$sex, trial2$arm)`, then pass that table to `chisq.test()`.
+
 ```r title="Your turn"
 set.seed(7)
 trial2 <- trial |>
@@ -148,6 +156,10 @@ ex_1_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+An absolute milligram gap scales with dose level, so deviations are only comparable once expressed relative to the plan.
+In a `mutate()` compute `100 * abs(dose_actual_mg - dose_planned_mg) / dose_planned_mg`, then `filter()` rows where it is at least 10.
 
 ```r title="Your turn"
 dosing <- tribble(
@@ -205,6 +217,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Each arm needs a randomized count, a completer count, and the gap between them expressed as a rate.
+Group by `arm` and summarise `n()`, `sum(completed)`, and `round(1 - pp_n / itt_n, 2)`.
 
 ```r title="Your turn"
 set.seed(11)
@@ -272,6 +288,10 @@ ex_1_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Comparing a continuous endpoint across two independent arms is a textbook two sample mean comparison.
+Call `t.test()` with the formula `ldl_mg_dl ~ arm` and `data = ldl`; the Welch variant is the default.
+
 ```r title="Your turn"
 set.seed(3)
 ldl <- tibble(
@@ -325,6 +345,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Two measurements on the same patient are linked, so the test must operate on within-subject changes.
+Pass `bp$pre_sbp` and `bp$post_sbp` to `t.test()` with `paired = TRUE`.
+
 ```r title="Your turn"
 set.seed(5)
 bp <- tibble(
@@ -372,6 +396,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A skewed marker breaks the normality a mean-based test relies on, so compare ranks instead of raw values.
+Use `wilcox.test()` with the formula `alt_u_l ~ arm`, `data = alt`, and `exact = FALSE`.
 
 ```r title="Your turn"
 set.seed(9)
@@ -426,6 +454,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Small cell counts make the chi square approximation unreliable, so use a test that computes exact probabilities.
+Pass the pre-built `ae_tab` matrix to `fisher.test()`.
+
 ```r title="Your turn"
 ae_tab <- matrix(
   c(9, 41, 2, 48),
@@ -474,6 +506,10 @@ ex_2_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+Overall survival with no grouping is a single curve estimated from follow-up time and event status.
+Fit `survfit()` with the formula `Surv(time, status == 2) ~ 1` and `data = lung`.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -511,6 +547,10 @@ ex_3_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Asking whether a grouping factor shifts survival is a test of equality between several curves.
+Run `survdiff()` with the formula `Surv(time, status == 2) ~ ph.ecog` and `data = lung_clean`.
 
 ```r title="Your turn"
 lung_clean <- lung |>
@@ -555,6 +595,10 @@ ex_3_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Adjusted hazard ratios come from a regression that models how covariates multiplicatively scale the hazard.
+Fit `coxph()` with the formula `Surv(time, status == 2) ~ age + ph.ecog` and `data = lung_clean`.
+
 ```r title="Your turn"
 lung_clean <- lung |>
   filter(!is.na(ph.ecog))
@@ -592,6 +636,10 @@ ex_3_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The assumption to check is whether each covariate's effect stays constant as follow-up time passes.
+Pass the fitted model `ex_3_3` to `cox.zph()`.
 
 ```r title="Your turn"
 ex_3_4 <- # your code here
@@ -635,6 +683,10 @@ ex_3_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each subject deserves their own baseline reaction time while the day effect is shared across everyone.
+Fit `lmer()` with `Reaction ~ Days + (1 | Subject)` and `data = sleepstudy`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -669,6 +721,10 @@ ex_4_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Deciding whether the richer random structure earns its keep is a nested model comparison.
+Pass the two pre-fitted models `m_ri` and `m_rs` to `anova()`.
 
 ```r title="Your turn"
 m_ri <- lmer(Reaction ~ Days + (1 | Subject),     data = sleepstudy, REML = FALSE)
@@ -713,6 +769,10 @@ ex_4_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+A subject's predicted baseline is the population intercept plus that subject's own deviation from it.
+Pull the grand mean with `fixef()`, the per-subject deviations with `ranef()$Subject`, build a `tibble()`, then `arrange()` by the baseline.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -755,6 +815,10 @@ ex_4_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+Testing one continuous outcome across the levels of a single factor is the simplest analysis of variance.
+Fit `aov()` with the formula `len ~ supp` and `data = ToothGrowth`.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 summary(ex_5_1)
@@ -787,6 +851,10 @@ summary(ex_5_1)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Two factors plus the chance that their effects depend on each other call for a crossed model.
+Fit `aov()` with `len ~ supp * factor(dose)`; the `*` expands to both main effects and the interaction.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -826,6 +894,10 @@ summary(ex_5_2)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A yes/no endpoint needs a model that predicts a probability rather than a raw number.
+Fit `glm()` with `responder ~ age + dose_mg`, `data = vax`, and `family = binomial`.
 
 ```r title="Your turn"
 set.seed(13)
@@ -885,6 +957,10 @@ summary(ex_5_3)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Solving for sample size means fixing the effect, the spread, the alpha, and the target power, then letting the count fall out.
+Call `power.t.test()` with `delta = 8`, `sd = 12`, `sig.level = 0.05`, and `power = 0.80`.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -921,6 +997,10 @@ ex_6_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Many simultaneous tests inflate false positives, so each raw p value needs rescaling for the whole family.
+Build a `tibble()` from the names and values of `p_raw`, add a column from `p.adjust(p_raw, method = "BH")`, then `arrange()` by it.
 
 ```r title="Your turn"
 p_raw <- c(C01 = 0.009, C02 = 0.31, C03 = 0.0001, C04 = 0.55, C05 = 0.072,

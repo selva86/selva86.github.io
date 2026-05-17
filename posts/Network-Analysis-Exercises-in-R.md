@@ -44,6 +44,10 @@ library(dplyr)
 
 **Difficulty:** Beginner
 
+[HINTS]
+The two-column data frame is just a list of endpoint pairs; you need a constructor that turns those pairs into a graph plus a flag saying friendships run both ways.
+Call graph_from_data_frame() on edges and pass directed = FALSE.
+
 ```r title="Your turn"
 edges <- data.frame(
   from = c("Ada","Ada","Ben","Cleo","Dan","Eva","Finn","Gia"),
@@ -93,6 +97,10 @@ ex_1_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+Each element of the list answers one separate question about the graph's shape and cleanliness, so build it from four independent one-value queries.
+Use vcount(), ecount(), is_directed(), and is_simple() on ex_1_1 inside a list() with names n, m, directed, simple.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -135,6 +143,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Copy the graph first, then write a per-vertex value onto the copy, lining the lookup up by vertex name so the order cannot drift.
+After ex_1_3 <- ex_1_1, assign V(ex_1_3)$dept <- dept_map[V(ex_1_3)$name].
 
 ```r title="Your turn"
 dept_map <- c(Ada="Sales", Ben="Sales", Cleo="Engineering",
@@ -182,6 +194,10 @@ V(ex_1_3)$dept
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Get a per-vertex connection count, then turn that named vector into a two-column table ordered from most to least connected.
+Call degree(ex_1_1), build a tibble() with name = names(deg) and degree = deg, then arrange(desc(degree)).
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -222,6 +238,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want the share of nodes at each degree value, then to label those shares with the degree they belong to.
+Call degree_distribution(g_ba) and set names() to seq(0, length(ex_2_2) - 1).
+
 ```r title="Your turn"
 set.seed(42)
 g_ba <- sample_pa(200, power = 1.2, m = 2, directed = FALSE)
@@ -258,6 +278,10 @@ head(ex_2_2, 10)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Two separate structural ratios sit side by side in one named vector: one for how saturated the edges are, one for how often triangles close.
+Combine edge_density() and transitivity(ex_1_1, type = "global") inside c() with names density and transitivity.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -302,6 +326,10 @@ ex_2_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Score every vertex by how often it sits on shortest routes, then keep only the busiest handful in a sorted table.
+Call betweenness(g_kar, directed = FALSE, normalized = FALSE), build a tibble(), arrange(desc(betweenness)), then slice_head(n = 10).
 
 ```r title="Your turn"
 g_kar <- make_graph("Zachary")
@@ -351,6 +379,10 @@ ex_3_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+Rank vertices by how short their average trip to everyone else is, scaled so graph size does not distort the score.
+Call closeness(g_kar, normalized = TRUE), then tibble() with arrange(desc(closeness)) and slice_head(n = 5).
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -395,6 +427,10 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+You want a score that rewards being linked to other high-scoring nodes, then the five highest in a sorted table.
+Take the $vector element of eigen_centrality(g_kar), build a tibble(), arrange(desc(eigen)), and slice_head(n = 5).
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -442,6 +478,10 @@ ex_3_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+First turn the citation pairs into a graph that respects direction, then score papers with a random-walk-with-restart measure.
+Build the graph with graph_from_data_frame(cites, directed = TRUE), then take the $vector of page_rank(g_cite, damping = 0.85).
 
 ```r title="Your turn"
 cites <- data.frame(
@@ -491,6 +531,10 @@ ex_3_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Ask the graph for the route between the two named stations, then pull just the station labels strung along it.
+Call shortest_paths(ex_1_1, from = "Ada", to = "Finn") and read names() of its $vpath[[1]].
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -528,6 +572,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+One list element holds every pairwise hop count, the other holds the single worst-case hop count across all pairs.
+Put distances(g_kar) and diameter(g_kar) into a list() named distances and diameter.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -567,6 +615,10 @@ dim(ex_4_2$distances)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Break the graph into its disconnected pieces, then report how many vertices sit in the biggest piece.
+Call components(g_disc) and take max() of its $csize vector.
+
 ```r title="Your turn"
 g_disc <- graph_from_literal(A-B-C, D-E, F)
 ex_4_3 <- # your code here
@@ -603,6 +655,10 @@ ex_4_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Run a fast modularity-optimizing partition and keep the whole communities object it hands back.
+Assign ex_5_1 <- cluster_louvain(g_kar).
 
 ```r title="Your turn"
 set.seed(7)
@@ -642,6 +698,10 @@ modularity(ex_5_1)
 
 **Difficulty:** Beginner
 
+[HINTS]
+You already have the partition; you just need a named count of how many vertices landed in each group.
+Call sizes(ex_5_1).
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 ex_5_2
@@ -674,6 +734,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Run three different partitioners on the same graph, then collect one quality number from each into a named vector.
+Run cluster_louvain(), cluster_edge_betweenness(), and cluster_walktrap() on g_kar, then wrap modularity() of each inside c() with names louvain, edge_btw, walktrap.
 
 ```r title="Your turn"
 set.seed(11)
@@ -715,6 +779,10 @@ ex_5_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Compute the force-directed coordinates once and save them, then feed those coordinates plus community colors into the drawing call.
+Save layout_with_fr(g_kar) to ex_5_4 and pass it as the layout argument to plot() alongside vertex.color = membership(ex_5_1).
 
 ```r title="Your turn"
 set.seed(99)
@@ -760,6 +828,10 @@ dim(ex_5_4)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Find which piece is biggest, then carve out just the vertices belonging to it together with their internal edges.
+From components(g_disc), take which.max() of $csize and pass the matching V(g_disc)[membership == biggest] to induced_subgraph().
+
 ```r title="Your turn"
 g_disc <- graph_from_literal(A-B-C, D-E, F)
 ex_6_1 <- # your code here
@@ -799,6 +871,10 @@ ex_6_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+Build the local neighborhood graph around one focal vertex at radius one, then pull the single graph out of the returned list.
+Call make_ego_graph(g_kar, order = 1, nodes = 1) and extract element [[1]].
+
 ```r title="Your turn"
 ex_6_2 <- # your code here
 ex_6_2
@@ -837,6 +913,10 @@ vcount(ex_6_2); ecount(ex_6_2)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Select only the edges whose weight clears the threshold, then rebuild a graph from just those edges and drop any nodes left stranded.
+Take E(g_w)[weight >= 5] and pass it to subgraph.edges(g_w, ..., delete.vertices = TRUE).
 
 ```r title="Your turn"
 edges <- data.frame(

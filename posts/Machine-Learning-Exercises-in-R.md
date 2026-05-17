@@ -46,6 +46,10 @@ set.seed(1)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A split is reproducible only if the random number stream is fixed before you draw the row indices; positive indices select the training rows and negative indices select the rest.
+Call `set.seed(1)`, then `sample(nrow(mtcars), size = round(0.7 * nrow(mtcars)))` for the indices, and subset with `mtcars[idx, ]` versus `mtcars[-idx, ]`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -81,6 +85,10 @@ dim(ex_1_1)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Draw 20 percent of the rows separately inside each species group, then stack the per-group test pieces back together so class ratios survive.
+Use `split(iris, iris$Species)` to get per-species frames, `lapply` a sampler over them, and `do.call(rbind, ...)` to recombine.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -118,6 +126,10 @@ table(ex_1_2$Species)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Shuffle the row order once, then cut that single permutation into three contiguous blocks so no row can land in two splits.
+Build `idx <- sample(n)`, compute cut points at `round(0.6 * n)` and `round(0.8 * n)`, and slice `idx` into the three ranges.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -161,6 +173,10 @@ nrow(ex_1_3)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Identify which columns hold text, then convert just those columns in a single sweep rather than one at a time.
+Flag character columns with `vapply(raw, is.character, logical(1))` and reassign `raw[chr_cols] <- lapply(raw[chr_cols], factor)`.
+
 ```r title="Your turn"
 ex_1_4 <- # your code here
 str(ex_1_4)
@@ -200,6 +216,10 @@ str(ex_1_4)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Missing values coerce to 1 when summed, so a per-column total of the missingness flags gives the NA count, and sorting reorders it.
+Combine `colSums(is.na(airquality))` with `sort(..., decreasing = TRUE)`.
+
 ```r title="Your turn"
 ex_1_5 <- # your code here
 ex_1_5
@@ -231,6 +251,10 @@ ex_1_5
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+The constant prediction that minimises squared error is the average of the training target; score it against the held-out rows.
+Repeat `mean(mt_train$mpg)` across the test rows, then compute `sqrt(mean((mt_test$mpg - preds)^2))`.
 
 ```r title="Your turn"
 ex_1_6 <- # your code here
@@ -269,6 +293,10 @@ round(ex_1_6, 3)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Find the most common class label, predict it for every row, and the accuracy is just the share of rows that already carry that label.
+Get the top label from `sort(table(iris$Species), decreasing = TRUE)` and compare it against `as.character(iris$Species)` with `mean()`.
+
 ```r title="Your turn"
 ex_1_7 <- # your code here
 ex_1_7
@@ -301,6 +329,10 @@ round(ex_1_7, 4)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Make the helper general by reading the response name out of the formula instead of hardcoding the target column.
+Inside the function call `set.seed(seed)`, `sample()` for the split, fit with `lm(formula, ...)`, and pull the response with `all.vars(formula)[1]`.
 
 ```r title="Your turn"
 evaluate_rmse <- function(formula, data, seed = 1) {
@@ -347,6 +379,10 @@ round(ex_1_8, 3)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A two-predictor linear model is one model-fitting call; the coefficients then come straight off the fitted object.
+Assign `lm(mpg ~ wt + hp, data = mtcars)` and read it with `coef()`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 coef(ex_2_1)
@@ -380,6 +416,10 @@ round(coef(ex_2_1), 4)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The `*` in a formula expands to both main effects and their interaction, and wrapping cylinder count makes it categorical rather than numeric.
+Fit `lm(mpg ~ wt * factor(cyl), data = mtcars)`.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 coef(ex_2_2)
@@ -409,6 +449,10 @@ round(coef(ex_2_2), 3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A curved fit needs a quadratic basis for weight rather than the raw column alone.
+Fit `lm(mpg ~ poly(wt, 2), data = mtcars)` and read `summary(...)$r.squared`.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -448,6 +492,10 @@ round(summary(ex_2_3)$r.squared, 4)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A regression tree is fit much like a linear model but recursively partitions the predictor space instead of fitting a global slope.
+Call `rpart(mpg ~ wt + hp + cyl + disp, data = mtcars, method = "anova")`.
+
 ```r title="Your turn"
 ex_2_4 <- # your code here
 print(ex_2_4)
@@ -481,6 +529,10 @@ print(ex_2_4)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Lowering the complexity threshold lets the tree keep splitting, and the resulting model carries its own cross-validated error table.
+Pass `control = rpart.control(cp = 0.001)` to `rpart`, then extract `fit$cptable`.
 
 ```r title="Your turn"
 ex_2_5 <- # your code here
@@ -521,6 +573,10 @@ round(ex_2_5, 4)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+An averaging ensemble is one fitting call; the dot on the right of the formula means use every other column as a predictor.
+Call `randomForest(mpg ~ ., data = mtcars, ntree = 500)` after `set.seed(1)`.
 
 ```r title="Your turn"
 set.seed(1)
@@ -564,6 +620,10 @@ print(ex_2_6)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Once a forest is fitted, predictor rankings are read directly off it rather than recomputed by hand.
+Fit the forest, then call `importance(fit)`.
+
 ```r title="Your turn"
 ex_2_7 <- # your code here
 round(ex_2_7, 1)
@@ -596,6 +656,10 @@ round(ex_2_7, 1)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Train all three models on the same training rows and score each one on the identical holdout so the comparison is fair.
+Fit `lm`, `rpart`, and `randomForest` on `tr`, then build a named vector of `sqrt(mean((y - predict(...))^2))` for each.
 
 ```r title="Your turn"
 set.seed(1)
@@ -642,6 +706,10 @@ round(ex_2_8, 3)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A two-class linear baseline is fit by a generalised linear model with the logit link rather than ordinary least squares.
+Call `glm(am ~ mpg + wt + hp, data = mtcars, family = binomial)`.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 round(coef(ex_3_1), 3)
@@ -672,6 +740,10 @@ round(coef(ex_3_1), 3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The fitted model returns scores on the probability scale only when you ask for the response scale, not the default link scale.
+Call `predict(fit, type = "response")` and threshold with `ifelse(... > 0.5, 1, 0)`.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -709,6 +781,10 @@ mean(preds == mtcars$am)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+kNN has no training step; you hand the labelled training rows and the unlabelled test rows to the classifier together.
+After splitting, call `class::knn(train = X_tr, test = X_te, cl = y_tr, k = 5)`.
+
 ```r title="Your turn"
 set.seed(1)
 ex_3_3 <- # your code here
@@ -743,6 +819,10 @@ table(ex_3_3, iris[-tr_idx, "Species"])
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Loop the neighbour count over a range and record how often the prediction matches the held-out label at each value.
+Use `sapply(1:15, function(k) mean(class::knn(...) == y_te))` and name the result with the k values.
 
 ```r title="Your turn"
 set.seed(1)
@@ -794,6 +874,10 @@ round(ex_3_4, 3)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A naive Bayes classifier is a single fitting call using the standard formula interface.
+Call `e1071::naiveBayes(Species ~ ., data = iris)`.
+
 ```r title="Your turn"
 ex_3_5 <- # your code here
 ex_3_5
@@ -833,6 +917,10 @@ ex_3_5
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The same tree-fitting routine does classification when you tell it the target is categorical rather than continuous.
+Call `rpart(Species ~ ., data = iris, method = "class")`.
+
 ```r title="Your turn"
 ex_3_6 <- # your code here
 print(ex_3_6)
@@ -865,6 +953,10 @@ print(ex_3_6)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A multi-class ensemble is one fitting call; its built-in confusion matrix comes from rows each tree never saw.
+Call `randomForest(Species ~ ., data = iris, ntree = 500)` after `set.seed(1)`.
 
 ```r title="Your turn"
 set.seed(1)
@@ -904,6 +996,10 @@ ex_3_7$confusion
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Ask the forest for per-class scores instead of hard labels, then keep only the opening rows of that matrix.
+Call `predict(fit, type = "prob")` and `head(..., 6)`.
+
 ```r title="Your turn"
 set.seed(1)
 ex_3_8 <- # your code here
@@ -941,6 +1037,10 @@ round(ex_3_8, 3)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Cross-tabulate the predicted label against the true label; the diagonal counts the correct calls.
+Threshold the probabilities to 0/1, then `table(predicted = preds, actual = mtcars$am)`.
+
 ```r title="Your turn"
 ex_3_9 <- # your code here
 ex_3_9
@@ -976,6 +1076,10 @@ ex_3_9
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Walk a grid of cut points, turn probabilities into labels at each one, and score the precision-recall balance.
+Build `seq(0.05, 0.95, by = 0.05)`, and `sapply` an F1 helper (counting TP, FP, FN) over it.
 
 ```r title="Your turn"
 ex_3_10 <- # your code here
@@ -1021,6 +1125,10 @@ round(ex_3_10, 3)
 
 **Difficulty:** Advanced
 
+[HINTS]
+Assign each row a fold label, then loop the folds so every row is scored exactly once by a model that did not see it.
+Build fold labels with `sample(rep(1:5, length.out = nrow(mtcars)))`, loop fitting `lm` on `folds != k` and scoring on `folds == k`.
+
 ```r title="Your turn"
 set.seed(1)
 ex_4_1 <- # your code here
@@ -1060,6 +1168,10 @@ round(ex_4_1, 3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Wrap the fold loop in a function and read the response name from the formula so it works for any model.
+Inside `cv_rmse`, build `folds` with `sample(rep(1:k, length.out = nrow(data)))` and pull the target with `all.vars(formula)[1]`.
 
 ```r title="Your turn"
 cv_rmse <- function(formula, data, k = 10, seed = 1) {
@@ -1106,6 +1218,10 @@ round(ex_4_2, 3)
 
 **Difficulty:** Advanced
 
+[HINTS]
+Re-run the whole fold procedure under several different seeds and pool every fold error before averaging.
+Write a one-seed CV function and `unlist(lapply(1:10, cv_one))`, then take `mean()`.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 round(ex_4_3, 3)
@@ -1146,6 +1262,10 @@ round(ex_4_3, 3)
 
 **Difficulty:** Advanced
 
+[HINTS]
+With one row held out at a time, refit on everything else and record that single row's prediction error.
+Loop `i` over `1:nrow(mtcars)`, fit `lm` on `mtcars[-i, ]`, predict `mtcars[i, , drop = FALSE]`, then `sqrt(mean(errs^2))`.
+
 ```r title="Your turn"
 ex_4_4 <- # your code here
 round(ex_4_4, 3)
@@ -1182,6 +1302,10 @@ round(ex_4_4, 3)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Resample the rows with replacement many times, refit on each resample, and keep the one coefficient you care about.
+Loop 1000 times drawing `sample(nrow(mtcars), replace = TRUE)`, refit `lm(mpg ~ wt, ...)`, and store `coef(...)["wt"]`.
 
 ```r title="Your turn"
 set.seed(1)
@@ -1221,6 +1345,10 @@ round(quantile(ex_4_5, c(0.025, 0.975)), 4)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+For each candidate complexity value, run a full cross-validation and record its mean error so the grid points are comparable.
+Loop the cp grid, fitting `rpart` with `control = rpart.control(cp = cp_val)` inside a 5-fold loop, and name the result by cp.
 
 ```r title="Your turn"
 set.seed(1)
@@ -1268,6 +1396,10 @@ round(ex_4_6, 3)
 
 **Difficulty:** Advanced
 
+[HINTS]
+Refit the forest once per candidate split-width and read its out-of-bag error rather than building a separate validation set.
+`sapply` over `2:6`, fitting `randomForest(mpg ~ ., data = mtcars, mtry = m, ntree = 500)` and taking `mean(rf$mse)`.
+
 ```r title="Your turn"
 set.seed(1)
 ex_4_7 <- # your code here
@@ -1310,6 +1442,10 @@ round(ex_4_7, 3)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+At each training-set size, score the model both on the rows it learned from and on the rows it did not, and store the pair.
+Loop the fractions, `sample()` that share of rows, fit `lm(mpg ~ wt + hp, ...)`, and fill a named two-column matrix.
 
 ```r title="Your turn"
 set.seed(1)
@@ -1361,6 +1497,10 @@ round(ex_4_8, 3)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Turn the categorical column into one indicator column per level, dropping the intercept so no level is treated as a baseline.
+Add `factor(cyl)`, call `model.matrix(~ cyl_f - 1, data = mt)`, and `head(..., 6)`.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -1400,6 +1540,10 @@ ex_5_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+Re-express each numeric column in standard-deviation units so no feature dominates a distance calculation.
+Apply `scale(iris[, 1:4])` and keep `head(..., 6)`.
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 round(ex_5_2, 3)
@@ -1435,6 +1579,10 @@ colMeans(X); apply(X, 2, sd)
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Fill each missing entry with the column's typical central value, computed while ignoring the gaps themselves.
+Compute `median(oz, na.rm = TRUE)` and assign it into `oz[is.na(oz)]`.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -1473,6 +1621,10 @@ summary(ex_5_3)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+For a text column the stand-in for a missing value is the most frequent category, not an average.
+Take the top name from `sort(table(regions), decreasing = TRUE)`, assign it into `regions[is.na(regions)]`, then `factor()`.
+
 ```r title="Your turn"
 regions <- c("north", "north", NA, "east", "north", "west", "west", NA, "north", "north")
 ex_5_4 <- # your code here
@@ -1508,6 +1660,10 @@ table(ex_5_4)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Score each column by how much it varies relative to its own level, and keep only the ones that clear the threshold.
+Compute `sd(x) / mean(x)` per column with `vapply`, then subset `df[, keep, drop = FALSE]`.
 
 ```r title="Your turn"
 df <- data.frame(
@@ -1553,6 +1709,10 @@ str(ex_5_5)
 
 **Difficulty:** Advanced
 
+[HINTS]
+Repeatedly find the most correlated pair and drop whichever member is more entangled with the rest until nothing exceeds the limit.
+In a `repeat` loop, take `abs(cor(...))`, zero the diagonal, and drop the column with the higher `colMeans` until `max` is at or below 0.85.
+
 ```r title="Your turn"
 ex_5_6 <- # your code here
 colnames(ex_5_6)
@@ -1596,6 +1756,10 @@ colnames(ex_5_6)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A skew-reducing transform compresses the long right tail; apply it to a random subset of the rows.
+Sample 1000 rows of `diamonds`, then apply `log1p()` to the `price` column.
+
 ```r title="Your turn"
 set.seed(1)
 ex_5_7 <- # your code here
@@ -1632,6 +1796,10 @@ skew(samp$price); skew(ex_5_7)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Create explicit product columns by multiplying pairs of existing predictors together.
+Add `mt$wt_hp <- mt$wt * mt$hp` and the analogous `wt_cyl` and `hp_cyl` columns.
 
 ```r title="Your turn"
 ex_5_8 <- # your code here
@@ -1670,6 +1838,10 @@ dim(ex_5_8); tail(colnames(ex_5_8), 3)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Both metrics start from the same residual vector; one squares the errors, the other takes their absolute size.
+From `err <- mtcars$mpg - predict(fit)`, build `c(RMSE = sqrt(mean(err^2)), MAE = mean(abs(err)))`.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 round(ex_6_1, 3)
@@ -1701,6 +1873,10 @@ round(ex_6_1, 3)
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Compare the model's leftover squared error against the squared error of just predicting the overall average.
+Compute `ss_res` as `sum((y - predict(fit))^2)`, `ss_tot` as `sum((y - mean(y))^2)`, then `1 - ss_res / ss_tot`.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here
@@ -1739,6 +1915,10 @@ summary(fit)$r.squared
 
 **Difficulty:** Beginner
 
+[HINTS]
+Accuracy is the share of out-of-bag predictions that match the truth, and the error rate is simply its complement.
+Compare `fit$predicted` against `iris$Species` with `mean()`, then form `c(accuracy = acc, error = 1 - acc)`.
+
 ```r title="Your turn"
 set.seed(1)
 ex_6_3 <- # your code here
@@ -1774,6 +1954,10 @@ round(ex_6_3, 4)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Count the three relevant cells - true positives, false positives, false negatives - then plug them into the standard ratios.
+Compute `tp`, `fp`, `fn` with logical `sum()`s, derive precision and recall, and set `F1 = 2 * prec * rec / (prec + rec)`.
 
 ```r title="Your turn"
 ex_6_4 <- # your code here
@@ -1812,6 +1996,10 @@ round(ex_6_4, 3)
 
 **Difficulty:** Advanced
 
+[HINTS]
+AUC equals the rank-based chance that a positive outscores a negative, so work from the ranks of the predicted scores.
+Rank the probabilities with `rank()`, sum the positives' ranks, subtract `n_pos * (n_pos + 1) / 2`, and divide by `n_pos * n_neg`.
+
 ```r title="Your turn"
 ex_6_5 <- # your code here
 round(ex_6_5, 4)
@@ -1847,6 +2035,10 @@ round(ex_6_5, 4)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Repeatedly draw a plain random test set from the imbalanced labels and tally how often it captures none of the rare class.
+Loop 50 times, draw `sample(seq_along(y), 0.2 * length(y))`, and increment a counter when `sum(y[idx] == 1) == 0`.
 
 ```r title="Your turn"
 set.seed(1)
@@ -1891,6 +2083,10 @@ ex_6_6
 
 **Difficulty:** Advanced
 
+[HINTS]
+Group rows by where their predicted score falls, then within each group compare the average prediction to the average actual outcome.
+Cut probabilities at `quantile(probs, seq(0, 1, by = 0.2))`, then `aggregate` the predictions and the target by bin with `mean`.
+
 ```r title="Your turn"
 ex_6_7 <- # your code here
 ex_6_7
@@ -1928,6 +2124,10 @@ ex_6_7
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Pull the residuals and fitted values off the model, then summarise their centre, spread, extreme, and mutual association.
+From `resid(fit)` and `fitted(fit)`, build `c(mean_resid = mean(res), sd_resid = sd(res), max_abs_resid = max(abs(res)), cor_fit_resid = cor(fits, res))`.
 
 ```r title="Your turn"
 ex_6_8 <- # your code here

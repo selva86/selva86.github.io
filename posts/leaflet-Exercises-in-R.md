@@ -45,6 +45,10 @@ library(tibble)
 
 **Difficulty:** Beginner
 
+[HINTS]
+An empty map widget shows nothing until you attach a basemap; create the widget first, then give it a tile layer.
+Pipe `leaflet()` into `addTiles()` called with no arguments to get the default OpenStreetMap tiles.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -81,6 +85,10 @@ ex_1_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+A basemap on its own opens at world extent; you need one more step to pin both the center point and the zoom level.
+After `addTiles()`, call `setView()` with `lng = -74.0060`, `lat = 40.7128`, and `zoom = 12`.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -115,6 +123,10 @@ ex_1_2
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Each map is built the same way but with a different basemap style; collect the three into a named container.
+Use `addProviderTiles()` with `providers$CartoDB.Positron` and `providers$Esri.WorldImagery`, plain `addTiles()` for OSM, all inside a `list()` with names osm/carto/esri.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -164,6 +176,10 @@ str(ex_1_3, max.level = 1)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Set up the basemap and view first, then drop a single point that carries a click message.
+Call `addMarkers()` with `lng`, `lat`, and `popup = "Brooklyn Flagship Opening Sept 2026"`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -204,6 +220,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Hand the table to the map up front so columns can be referenced by name, then let the view auto-frame to all points.
+Pass `stores` to `leaflet()`, use `addMarkers(lng = ~lng, lat = ~lat, popup = ~name)`, then `fitBounds()` with the min and max of the lng and lat columns.
 
 ```r title="Your turn"
 stores <- tibble::tribble(
@@ -263,6 +283,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Map each status category to a color and a glyph through lookup vectors, then build one vectorized icon definition.
+Use `awesomeIcons()` with `library = "fa"` and named lookup vectors for `icon` and `markerColor`, then render with `addAwesomeMarkers(icon = icons)`.
 
 ```r title="Your turn"
 status_stores <- tibble::tribble(
@@ -324,6 +348,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+When points pile up in a small area, group them so overlapping pins collapse into expandable bubbles.
+Pass `clusterOptions = markerClusterOptions()` to `addMarkers()`, and `setView()` on NYC at zoom 10.
+
 ```r title="Your turn"
 set.seed(7)
 prospects <- tibble::tibble(
@@ -379,6 +407,10 @@ ex_2_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Connect the stops in their table order with a line, then layer the points on top and frame the whole route.
+Use `addPolylines(lng = ~lng, lat = ~lat, color = "blue")`, then `addMarkers(popup = ~stop)`, then `fitBounds()`.
 
 ```r title="Your turn"
 route <- tibble::tribble(
@@ -436,6 +468,10 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Drive each circle's ground size from the revenue column, scaled by a constant so the biggest market reads clearly.
+Use `addCircles()` with `radius = ~revenue * 25000` and `label = ~paste0(name, ": $", revenue, "M")`.
 
 ```r title="Your turn"
 sales <- tibble::tribble(
@@ -500,6 +536,10 @@ ex_3_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each zone is defined by two opposite corners, so a simple box overlay fits without a coordinate list.
+Use `addRectangles()` with the `lng1`/`lat1`/`lng2`/`lat2` columns, `fillOpacity = 0.3`, and `label` set to the zone name.
+
 ```r title="Your turn"
 zones <- tibble::tribble(
   ~zone,     ~lng1,    ~lat1,   ~lng2,    ~lat2,   ~color,
@@ -557,6 +597,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Build a reusable mapping from a fixed numeric range onto a yellow-to-red color ramp, then apply it to the scores.
+Call `colorNumeric(palette = "YlOrRd", domain = 0:100)` and store both that function and its output on `scores` in a `list()`.
+
 ```r title="Your turn"
 scores <- c(10, 30, 55, 80, 95)
 
@@ -602,6 +646,10 @@ ex_4_1$colors
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Skewed counts need equal-count bins rather than equal-width ones, so each color holds the same number of zip codes.
+Use `colorQuantile(palette = "YlOrRd", domain = foot_traffic, n = 5)` and derive the bin index with `cut()` over `quantile()` breaks.
 
 ```r title="Your turn"
 set.seed(11)
@@ -654,6 +702,10 @@ head(ex_4_2)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Color each neighborhood polygon from a shared price scale, then add a key so the colors are decodable.
+Build the palette with `colorNumeric("YlGnBu", ...)`, loop `addPolygons(fillColor = pal(price))`, and finish with `addLegend(position = "bottomright")`.
 
 ```r title="Your turn"
 nbhds <- list(
@@ -735,6 +787,10 @@ ex_4_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+Give each polygon a temporary style that activates only while the cursor is hovering over it.
+Add `highlightOptions = highlightOptions(weight = 3, fillOpacity = 1.0, bringToFront = TRUE)` to the `addPolygons()` call.
+
 ```r title="Your turn"
 ex_4_4 <- # your code here, reuse nbhds and pal from ex_4_3
 ex_4_4
@@ -790,6 +846,10 @@ ex_4_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Tag every layer with a group name, then expose those groups as switchable base maps and toggleable overlays.
+Pass `group =` to each `addTiles`/`addProviderTiles`/`addCircleMarkers` call, then `addLayersControl(baseGroups = ..., overlayGroups = ...)`.
 
 ```r title="Your turn"
 set.seed(3)
@@ -860,6 +920,10 @@ ex_5_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+Build the five-store map first, then bolt on two presentation widgets - one to expand the view, one to show distance.
+Add `addFullscreenControl(position = "topleft")` and `addScaleBar(position = "bottomleft", options = scaleBarOptions(imperial = FALSE))`.
+
 ```r title="Your turn"
 sales <- tibble::tribble(
   ~name,         ~lng,      ~lat,
@@ -922,6 +986,10 @@ ex_5_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Assemble a small HTML snippet with a bold heading and a two-row table, then attach it as the polygon's click content.
+Build the string with `paste(...)` and pass it to `addPolygons()` through the `popup` argument.
+
 ```r title="Your turn"
 newark <- list(
   lng = c(-74.20, -74.14, -74.14, -74.20),
@@ -983,6 +1051,10 @@ ex_5_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Combine a fixed depot, metric-colored zone boxes, and depot-to-zone lines, tagging zones and routes so each can be toggled.
+Compute zone centers with `mutate()`, color with `colorNumeric("YlOrRd", ...)`, loop `addRectangles(group = "Zones")` and `addPolylines(group = "Routes", dashArray = "6,6")`, then `addLayersControl()`.
 
 ```r title="Your turn"
 depot <- list(name = "Newark Depot", lng = -74.17, lat = 40.73)
@@ -1074,6 +1146,10 @@ ex_6_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+Turn the scattered incident points into a smooth density surface, and use a dark basemap so the hot cores stand out.
+Use `addHeatmap(lng = ~lng, lat = ~lat, radius = 20, blur = 15)` on top of `providers$CartoDB.DarkMatter`.
+
 ```r title="Your turn"
 set.seed(42)
 centers <- list(c(-87.65, 41.87), c(-87.62, 41.90), c(-87.66, 41.92))
@@ -1128,6 +1204,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Stack three feature types - colored territory polygons, account points, and HQ icons - each in its own toggleable group sharing one revenue scale.
+Build one `colorNumeric("YlGnBu", ...)` palette, loop `addPolygons(group = "Territories")` and `addAwesomeMarkers(icon = awesomeIcons(icon = "star"), group = "HQs")`, add `addCircleMarkers(group = "Top Accounts")`, then `addLegend()` and `addLayersControl()`.
 
 ```r title="Your turn"
 territories <- list(

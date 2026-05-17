@@ -95,6 +95,9 @@ Note: `events` deliberately contains two orphan rows (user_id 7 and 9 do not exi
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Every user row should survive even when no matching plan record exists, so the user table has to drive the row count.
+Reach for `left_join()` with `by = "plan"`, keeping `users` on the left side.
 
 ```r title="Your turn"
 ex_1_1 <- # your code here
@@ -146,6 +149,9 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+You want only the rows whose key exists in both tables, which is what makes the two orphan event rows fall away.
+Use `inner_join()` to combine `events` with `users` on `by = "user_id"`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -190,6 +196,9 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+You need every row from both sides retained at once, not just an enrichment of one table by the other.
+Use `full_join()` between `users` and `plans` on `by = "plan"`.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -229,6 +238,9 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+The refund table should drive the row count, so the result must have exactly as many rows as there are refunds.
+Use `right_join()` from `events` to `refunds` on `by = "event_id"`.
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -273,6 +285,9 @@ ex_1_4
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+You want to keep user rows that have a match somewhere else, but without pulling in any columns from that other table.
+Use `semi_join()` on `users` against `events` with `by = "user_id"`.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -311,6 +326,9 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+You want the users whose key is absent from the event table, the exact opposite of a presence filter.
+Use `anti_join()` on `users` against `events` with `by = "user_id"`.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -348,6 +366,9 @@ ex_2_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Express two independent presence conditions, one per side, while keeping only the user columns in the result.
+Chain two `semi_join()` calls, each against a `filter()`ed subset: one on `type == "churn"`, one on `monthly_fee > 0`.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -389,6 +410,9 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+When the matching columns carry different names, the join has to be told which column on one side pairs with which on the other.
+Apply `rename()` first, then `inner_join()` with a named vector like `by = c("event_id" = "txn_id")`.
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -433,6 +457,9 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Bring in the plan label first, then match on it, expecting the row count to expand because each plan has several historical prices.
+Chain `inner_join()` to `users` on `user_id`, then `inner_join()` to `price_history` on `plan`.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -473,6 +500,9 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+When both sides share a column name, the join needs an explicit rule for renaming the clashing pair instead of the default.
+Pass the `suffix` argument, such as `suffix = c("_evt", "_plan")`, to the second `inner_join()`.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -518,6 +548,9 @@ ex_3_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Each event amount should land in exactly one half-open interval defined by a lower and an upper bound.
+Use `inner_join()` with `join_by(amount >= min_amt, amount < max_amt)`.
 
 ```r title="Your turn"
 ex_4_1 <- # your code here
@@ -558,6 +591,9 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Combine a same-user match with a date rule so only events on or after the signup date survive.
+Use `inner_join()` with `join_by(user_id, event_date >= signup)`.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -599,6 +635,9 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Match every price that was already in effect on the event date, then keep only the most recent one per event.
+Use `left_join()` with `join_by(plan, valid_from <= event_date)`, then `group_by(event_id)` and `slice_max(valid_from)`.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -644,6 +683,9 @@ ex_4_3
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Instead of matching every prior price and trimming afterwards, ask the join itself to return only the nearest match.
+Use `left_join()` with `join_by(plan, closest(event_date >= valid_from))`.
 
 ```r title="Your turn"
 ex_4_4 <- # your code here
@@ -690,6 +732,9 @@ ex_4_4
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Build a regular daily date grid first, then forward-fill the sparse price by matching each date to the most recent earlier price.
+Use `seq.Date()` for the grid and `left_join()` with `join_by(closest(date >= valid_from))` against the pro-only price rows.
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -736,6 +781,9 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Number each user's events in chronological order, then look up the row one position earlier for that same user.
+Add a `row_number()` key per user, build a copy with `rn + 1`, and `left_join()` on `by = c("user_id", "rn")`.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -785,6 +833,9 @@ ex_5_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Take the gap between each event date and the previous event's date, then express it as a whole number of days.
+Use `mutate(days_since_prev = as.integer(event_date - prev_date))` on the 5.2 result.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -826,6 +877,9 @@ ex_5_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Attach refunds to events, turn the missing refunds into zero, subtract, then total the result for each user.
+Use `left_join(refunds)`, `coalesce(refunded, 0)`, then `group_by(user_id)` with `summarise(sum(...))`.
 
 ```r title="Your turn"
 ex_6_1 <- # your code here
@@ -871,6 +925,9 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Anchor to the user table so every user appears even with zero events, then attach the plan facts and an events roll-up.
+Build a separate `per_user` aggregate, then `left_join()` `plans` and `per_user` onto `users`, filling gaps with `coalesce()`.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here
@@ -922,6 +979,9 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+First isolate the events that have no matching user, then roll those rows up into counts and a sample.
+Use `anti_join()` to extract the orphans, then `summarise()` with `n()`, `n_distinct(user_id)`, and `paste()`.
 
 ```r title="Your turn"
 ex_6_3 <- # your code here

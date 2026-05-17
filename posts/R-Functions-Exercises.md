@@ -41,6 +41,10 @@ library(tibble)
 
 **Difficulty:** Beginner
 
+[HINTS]
+The last expression evaluated in a function body becomes its return value, so no explicit return statement is needed.
+Divide weight_kg by height_m raised to the power 2 using the `^` operator, which binds tighter than `/`.
+
 ```r title="Your turn"
 bmi <- function(weight_kg, height_m) {
   # your code here
@@ -77,6 +81,10 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+A default value lets the caller skip the most common argument while still allowing an override.
+Return `c * 9 / 5 + offset`, leaving `offset` to fall back on its declared default of 32.
 
 ```r title="Your turn"
 c_to_f <- function(c, offset = 32) {
@@ -117,6 +125,10 @@ c_to_f(100)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Validating a string against a fixed allowed set is cleaner than a chain of equality checks.
+Assign `level <- match.arg(level)` so it resolves against the default vector, then return `level`.
+
 ```r title="Your turn"
 forecast_label <- function(level = c("sunny", "cloudy", "rain", "snow")) {
   # your code here
@@ -153,6 +165,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You need to tell apart an argument the caller never passed from one passed with an explicit value.
+Branch on `missing(pct)`: return `price` when it is true, else `price * (1 - pct / 100)`.
 
 ```r title="Your turn"
 apply_discount <- function(price, pct) {
@@ -194,6 +210,10 @@ ex_1_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Extra arguments collected into one place can be merged into a single vector before summarising.
+Flatten the inputs with `c(...)`, then call `mean()` passing `na.rm = TRUE`.
+
 ```r title="Your turn"
 mean_safely <- function(...) {
   # your code here
@@ -234,6 +254,10 @@ mean_safely(1:10)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+To combine many vectors pairwise you need each kept as a separate element, not merged into one.
+Capture the inputs with `list(...)` and fold them together with `Reduce(`+`, ...)`.
+
 ```r title="Your turn"
 sum_columns <- function(...) {
   # your code here
@@ -271,6 +295,10 @@ ex_2_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A wrapper can hard-code one option while letting every other option flow straight through.
+Call `mean(x, na.rm = TRUE, ...)` so the dots forward extra arguments such as `trim`.
 
 ```r title="Your turn"
 safe_mean <- function(x, ...) {
@@ -314,6 +342,10 @@ safe_mean(c(NA, NA, 5))
 
 **Difficulty:** Intermediate
 
+[HINTS]
+An argument's expression is only evaluated the moment the body actually reads that argument.
+Make the body simply `x` and never reference `y`, so its `stop()` default is never forced.
+
 ```r title="Your turn"
 pick_first <- function(x, y = stop("y was evaluated")) {
   # your code here
@@ -353,6 +385,10 @@ pick_first("hello")
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A function returned from another function keeps access to the variables of the call that built it.
+Hold `count` in the factory, return an inner function that does `count <<- count + 1` then returns `count`.
 
 ```r title="Your turn"
 make_counter <- function(start = 0) {
@@ -402,6 +438,10 @@ make_counter()()  # fresh counter is independent
 
 **Difficulty:** Advanced
 
+[HINTS]
+Storing past results in a private spot lets repeated calls skip the real computation.
+Keep a `cache` list in the enclosing scope; on a miss assign `cache[[key]] <<- f(x)` keyed by `as.character(x)`.
+
 ```r title="Your turn"
 memoise <- function(f) {
   # your code here
@@ -450,6 +490,10 @@ fast_sqrt(25)
 
 **Difficulty:** Advanced
 
+[HINTS]
+Cleanup code should run whether the work finishes normally or aborts partway with an error.
+After `tempfile()` and `file.create()`, register `on.exit(unlink(path))`, then call `action(path)`.
+
 ```r title="Your turn"
 with_tmpfile <- function(action) {
   # your code here
@@ -492,6 +536,10 @@ ex_3_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+A data frame is a list of columns, so one apply call can walk every column in turn.
+Use `sapply(mtcars, \(x) mean(x))` with the `\(x)` lambda shorthand.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -527,6 +575,10 @@ ex_4_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Selecting columns by a property of each column is a filtering job over a list of columns.
+Call `Filter(is.numeric, iris)` to keep only the columns where the predicate is true.
+
 ```r title="Your turn"
 ex_4_2 <- # your code here
 head(ex_4_2, 3)
@@ -560,6 +612,10 @@ head(ex_4_2, 3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Threading a value through a sequence of steps, each fed the previous result, is a fold.
+Use `Reduce(\(acc, f) f(acc), fns, init = x)` to apply the function list left to right.
 
 ```r title="Your turn"
 fns <- list(\(x) x + 1, sqrt, \(x) round(x, 2))
@@ -601,6 +657,10 @@ pipeline(99)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Each nested function can remember the argument it was handed and wait for the next one.
+Return `function(a) function(b) function(c) f(a, b, c)` as three layered closures.
 
 ```r title="Your turn"
 curry3 <- function(f) {
@@ -646,6 +706,10 @@ ex_4_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+When one call must surface several values, pack them into a single named container.
+Return `list(mean = mean(x), median = median(x), sd = sd(x))`.
 
 ```r title="Your turn"
 describe <- function(x) {
@@ -694,6 +758,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A self-calling function needs a stopping condition or it never terminates.
+Return `1` when `n <= 1`, otherwise return `n * fact(n - 1)`.
+
 ```r title="Your turn"
 fact <- function(n) {
   # your code here
@@ -730,6 +798,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A recursive computation that revisits the same inputs benefits from remembering earlier answers.
+Keep a `cache` list in the factory; the inner `fib` returns the cached value or stores `fib(n - 1) + fib(n - 2)` with `<<-`.
 
 ```r title="Your turn"
 make_fib <- function() {

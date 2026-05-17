@@ -46,6 +46,10 @@ options(stringsAsFactors = FALSE)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Think about how four equal-length lists of values can be stacked side by side as named columns of one table.
+Call `data.frame()` with named arguments `id`, `name`, `salary`, `dept`; write the ids as the sequence `101:104` so they stay integer.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -88,6 +92,10 @@ ex_1_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+A data frame behaves like a list of columns, so one inspection step can be applied across every column at once.
+Run `sapply(mtcars, class)` to get a named character vector of each column's class.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -127,6 +135,10 @@ $country
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You only want to transform two of the three columns, so first decide which column names to target and leave the unique identifier untouched.
+Subset the frame to `c("category", "country")`, run `lapply(..., factor)` over that slice, and assign the result back into those same columns.
 
 ```r
 catalog <- data.frame(
@@ -181,6 +193,10 @@ lapply(ex_1_3, class)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A single column can be reached by name through several access styles, and each should yield the identical vector.
+Save `iris$Sepal.Length`, then compare it against `iris[["Sepal.Length"]]` and `iris[, "Sepal.Length"]` using `identical()`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 c(identical(ex_2_1, iris[["Sepal.Length"]]),
@@ -222,6 +238,10 @@ c(identical(a, b), identical(a, d))
 
 **Difficulty:** Beginner
 
+[HINTS]
+You need the top few rows and the bottom few rows joined into one taller table.
+Stack `head(iris, 3)` and `tail(iris, 3)` together with `rbind()`.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -258,6 +278,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A single grouping column can be summarized into per-category counts in one step.
+Apply `table()` to `iris$Species` and store the resulting table object.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -299,6 +323,10 @@ Lotus Europa   30.4   4  95.1 113 3.77 1.513 16.90  1  1    5    2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Build a row-level true/false test that combines the two conditions, then keep only the rows where both hold.
+Index with `mtcars[mtcars$mpg > 25 & mtcars$cyl == 4, ]`, leaving the column slot empty.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -339,6 +367,10 @@ Datsun 710     22.8   4  108  93 3.85 2.320 18.61    4    1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Instead of removing columns directly, work out which column names should survive and select those.
+Compute the survivors with `setdiff(names(mtcars), c("vs", "am"))` and index `mtcars[, keep]`.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -383,6 +415,10 @@ ncol(ex_3_2)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+One call can both filter rows by a condition and pick a couple of columns at the same time.
+Use `subset()` on `airquality` with the row condition `Month == 5` and `select = c(Ozone, Wind)`.
+
 ```r title="Your turn"
 ex_3_3 <- # your code here
 head(ex_3_3)
@@ -424,6 +460,10 @@ Datsun 710        22.8   4  108  93 3.85 2.320 18.61  1  1    4    1 9.69
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A new column is just a vector derived from an existing one, assigned into a fresh name on a copy of the frame.
+Copy `mtcars`, then assign `round(mtcars$mpg * 0.425144, 2)` into `$kpl`.
 
 ```r title="Your turn"
 ex_4_1 <- # your code here
@@ -469,6 +509,10 @@ Duster 360        3.570        Heavy
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Continuous values can be grouped into named ranges by defining the boundary points and a label for each interval.
+Use `cut()` with `breaks = c(-Inf, 2.5, 3.5, Inf)` and `labels = c("Light", "Medium", "Heavy")`, assigning the result into `$weight_class`.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -523,6 +567,10 @@ table(ex_4_2$weight_class)
 
 **Difficulty:** Advanced
 
+[HINTS]
+Find the typical value of the observed readings, then write it only into the positions that are missing.
+Compute `median(..., na.rm = TRUE)` and assign it into the subset `Ozone[is.na(Ozone)]`.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 sum(is.na(ex_4_3$Ozone))
@@ -572,6 +620,10 @@ Porsche 914-2  26.0   4 120.3  91 4.43 2.140 16.70  0  1    5    2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Reordering a frame means producing the row sequence that satisfies your sort keys, then indexing rows by it.
+Pass `order(-mtcars$mpg, mtcars$hp)` as the row index into `mtcars[ , ]`; the leading minus gives descending order.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 head(ex_5_1)
@@ -615,6 +667,10 @@ Ford Pantera L        5   8
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Reduce the two-column slice to its distinct rows, then arrange those rows for readability.
+Apply `unique()` to `mtcars[, c("gear", "cyl")]`, then reorder the result with `order(gear, cyl)`.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -660,6 +716,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+You want to mark repeats in place rather than remove them, so add a true/false column instead of subsetting the frame.
+Assign `duplicated(audit)` to a new `$is_dup` column on a copy of the frame.
 
 ```r
 audit <- data.frame(
@@ -714,6 +774,10 @@ ex_5_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Two tables with the same columns can be stacked into one taller table even when their column orders differ.
+Combine `q1_west` and `q1_east` with `rbind()`, which aligns the columns by name.
+
 ```r
 q1_west <- data.frame(
   region  = c("West", "West", "West"),
@@ -766,6 +830,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Combine the two tables by matching rows that share a common key, keeping only the rows that match in both.
+Use `merge(orders, customers, by = "customer_id")` to produce the inner join.
 
 ```r
 orders <- data.frame(

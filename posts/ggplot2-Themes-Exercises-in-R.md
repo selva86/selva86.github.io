@@ -39,6 +39,9 @@ library(scales)
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Think about which built-in theme swaps the default gray panel for a clean white background while keeping faint gridlines.
+Append `theme_minimal()` as the final layer, after `geom_point()`.
 
 ```r title="Your turn"
 ex_1_1 <- # your code here
@@ -71,6 +74,9 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+You need the built-in theme that keeps only the two axis lines and strips every gridline and the panel border.
+Append `theme_classic()` after `geom_boxplot()`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -103,6 +109,9 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+For a sparkline you want the most aggressive built-in theme - one that erases all chrome: axes, ticks, labels, and background.
+Append `theme_void()` after `geom_line()`.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -137,6 +146,9 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Rotating tick labels alone leaves them centered on the tick; you also need to re-anchor where the label edge meets its tick.
+Inside `theme()`, set `axis.text.x = element_text(angle = 45, hjust = 1)`.
 
 ```r title="Your turn"
 ex_2_1 <- ggplot(mpg, aes(manufacturer, cty)) +
@@ -171,6 +183,9 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+One theme argument scales every text element at once; bolding the axis titles is a separate per-element override applied last.
+Use `theme_minimal(base_size = 16)` then `theme(axis.title = element_text(face = "bold"))`.
 
 ```r title="Your turn"
 ex_2_2 <- ggplot(ChickWeight, aes(Time, weight, color = Diet, group = Chick)) +
@@ -206,6 +221,9 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Target the single child element for the y-axis title so the x-axis title stays at its default look.
+Set `axis.title.y = element_text(color = "darkred", face = "bold")` inside `theme()`.
 
 ```r title="Your turn"
 ex_2_3 <- ggplot(economics, aes(date, unemploy)) +
@@ -244,6 +262,9 @@ ex_2_3
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+One theme setting relocates the legend below the panel; another erases the legend's title text.
+In `theme()`, set `legend.position = "bottom"` and `legend.title = element_blank()`.
 
 ```r title="Your turn"
 ex_3_1 <- ggplot(diamonds, aes(price, fill = cut)) +
@@ -279,6 +300,9 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Compact keys are a sizing measurement; the framed look comes from styling the legend's rectangular background separately.
+Set `legend.key.size = unit(0.5, "cm")` and `legend.background = element_rect(fill = "gray95", color = "black", linewidth = 0.3)`.
 
 ```r title="Your turn"
 ex_3_2 <- ggplot(mpg, aes(displ, hwy, color = class)) +
@@ -314,6 +338,9 @@ ex_3_2
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+There is a single legend-position value that suppresses the legend for every aesthetic at once.
+Set `legend.position = "none"` inside `theme()`.
 
 ```r title="Your turn"
 ex_3_3 <- ggplot(ChickWeight, aes(Time, weight, color = factor(Chick), group = Chick)) +
@@ -350,6 +377,9 @@ ex_3_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Gridlines follow a parent-child hierarchy; remove the minor set entirely, then the vertical half of the major set.
+In `theme()`, set `panel.grid.minor = element_blank()` and `panel.grid.major.x = element_blank()`.
 
 ```r title="Your turn"
 ex_4_1 <- ggplot(txhousing, aes(date, median)) +
@@ -387,6 +417,9 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+The region inside the axes and the region outside it are two separate elements - recolor both so no seam shows.
+Set `panel.background` and `plot.background` to `element_rect(fill = "#FAF7F2", color = NA)`, and `panel.grid = element_blank()`.
 
 ```r title="Your turn"
 ex_4_2 <- ggplot(mpg, aes(displ, hwy, size = cty)) +
@@ -423,6 +456,9 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Starting from a theme that already ships a black border, clear the grid and redraw the border at the thickness you want.
+Set `panel.grid = element_blank()` and `panel.border = element_rect(color = "black", fill = NA, linewidth = 0.5)`.
 
 ```r title="Your turn"
 ex_4_3 <- ggplot(iris, aes(Sepal.Length, Petal.Length, color = Species)) +
@@ -462,6 +498,9 @@ ex_4_3
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Centering a title is a horizontal-justification value; bold and size are separate text properties on the same element.
+Set `plot.title = element_text(face = "bold", size = 16, hjust = 0.5)` inside `theme()`.
 
 ```r title="Your turn"
 ap <- data.frame(month = as.Date(time(AirPassengers)), passengers = as.numeric(AirPassengers))
@@ -500,6 +539,9 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Title, subtitle, and caption are three sibling elements you can style independently for a typographic hierarchy.
+In `theme()`, set `plot.title`, `plot.subtitle`, and `plot.caption` each with `element_text()` (give the caption `hjust = 1`).
 
 ```r title="Your turn"
 co2_df <- data.frame(month = as.Date(time(co2)), ppm = as.numeric(co2))
@@ -544,6 +586,9 @@ ex_5_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+The whitespace around the whole figure is a single theme element measured on all four sides.
+Set `plot.margin = margin(2, 2, 2, 2, "mm")` inside `theme()`.
 
 ```r title="Your turn"
 ex_5_3 <- ggplot(mpg, aes(displ, hwy)) +
@@ -580,6 +625,9 @@ ex_5_3
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Installing a notebook-wide default mutates global state, and that change hands back the previous value so you can undo it.
+Call `theme_set(theme_minimal(base_size = 13))`, capture its return value, build the plot, then `theme_set()` the old value back.
 
 ```r title="Your turn"
 # install global theme, then build plot, then restore
@@ -615,6 +663,9 @@ theme_set(old_theme)  # restore previous default
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+The figure-numbering label is its own dedicated theme element, distinct from the plot title.
+Set `plot.tag = element_text(face = "bold", size = 14)` inside `theme()`.
 
 ```r title="Your turn"
 ex_5_5 <- ggplot(ToothGrowth, aes(factor(dose), len)) +
@@ -653,6 +704,9 @@ ex_5_5
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+You want the operator that wholesale-replaces named elements rather than merging properties into them.
+Inside the `%+replace% theme(...)` call, set `text = element_text(family = "serif")` and `panel.grid = element_blank()`.
 
 ```r title="Your turn"
 brand_minimal <- theme_minimal() %+replace% theme(
@@ -690,6 +744,9 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Return a theme object from the function so every chart reuses one styled definition, and thread the size argument down to the base theme.
+In the body, return `theme_minimal(base_size = base_size) %+replace% theme(panel.background = element_rect(fill = "gray95", color = NA), axis.title = element_text(color = "navy", family = "serif"), panel.grid.minor = element_blank(), text = element_text(family = "serif"))`.
 
 ```r title="Your turn"
 theme_corporate <- function(base_size = 11) {
@@ -734,6 +791,9 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A dark theme recolors both background regions and the text, then ghosts the gridlines down to a low opacity.
+Return a `%+replace% theme(...)` setting `plot.background` and `panel.background` to `element_rect(fill = "gray10", color = NA)`, `text` and `axis.text` to light gray, and `panel.grid = element_line(color = alpha("white", 0.1))`.
 
 ```r title="Your turn"
 theme_dark_slide <- function() {

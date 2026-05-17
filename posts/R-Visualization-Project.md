@@ -45,6 +45,10 @@ x-axis line, and a bold left-aligned sans-serif title.
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The Economist look comes entirely from theme overrides; the data layer is just an ordinary class-colored scatter, so think about which surfaces and which gridlines you need to recolor or blank.
+Map color = class in aes() with geom_point(), then in theme() set plot.background and panel.background to #d5e4eb, keep panel.grid.major.y white, blank panel.grid.major.x, and add a thin axis.line.x.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -94,6 +98,10 @@ Premium, Ideal) sorted by descending count, all colored
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You need a count per cut before plotting, and the y-axis factor has to be ordered by that count so the longest bar lands on top.
+Pipe diamonds through count(cut), map y = reorder(cut, n), draw geom_col(fill = "#01a2d9"), and recolor the panel via theme().
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -139,6 +147,10 @@ All normalized to [0,1] within their own series for shape comparison.
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Series with different units cannot share a y-axis until each is rescaled against its own minimum and maximum, which means grouping before you rescale.
+After filter(variable %in% ...), group_by(variable) then mutate() a min-max rescale, plot geom_line() with color = variable, and assign hex codes with scale_color_manual().
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -187,6 +199,10 @@ character before the title text, evoking the Economist's red bar.
 
 **Difficulty:** Beginner
 
+[HINTS]
+With base ggplot2 you cannot recolor part of a title, so the cheap trick is to put a colored block character at the front of the title string itself.
+Build on ex_1_1, paste a solid square glyph in front of the title text inside labs(title = ...), and keep plot.title bold and left-aligned.
+
 ```r title="Your turn"
 ex_1_4 <- # your code here
 ex_1_4
@@ -221,6 +237,10 @@ and a #d5e4eb background that blends with the panel.
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A legend below the panel widens the data area, and you can enlarge the swatches without touching the actual points.
+Add ex_1_1 plus guides(color = guide_legend(nrow = 1, override.aes = list(size = 4))), and set legend.position = "bottom" with legend.key.size in theme().
 
 ```r title="Your turn"
 ex_1_5 <- # your code here
@@ -260,6 +280,10 @@ on a #d5e4eb panel. Survival rate clearly higher in 1st class.
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The Titanic data is an array of frequencies, so convert it to a data frame and aggregate counts before any plotting happens.
+Run as.data.frame(Titanic), group_by(Class, Survived) and summarise(sum(Freq)), then geom_col() with fill = Survived and scale_fill_manual().
 
 ```r title="Your turn"
 ex_1_6 <- # your code here
@@ -308,6 +332,10 @@ horizontal gridlines and bold left-aligned title.
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Direct labels remove the legend lookup, but you must leave room on the right so the rightmost label is not clipped.
+Plot geom_point(), add geom_text(aes(label = country), hjust = -0.15), and extend the x-range with expand_limits().
 
 ```r title="Your turn"
 gdp_life <- tibble::tibble(
@@ -369,6 +397,10 @@ $dpi
 
 **Difficulty:** Beginner
 
+[HINTS]
+Print specs are inches at a target DPI; 1200 pixels wide is simply 4 inches at 300 DPI.
+Use tempfile() for the path, call ggsave() with width = 4, dpi = 300, units = "in", then wrap path, width, and dpi in a list().
+
 ```r title="Your turn"
 ex_1_8 <- # your code here
 ex_1_8
@@ -409,6 +441,10 @@ A single dark line of US unemployment from 1967 to 2015 on a
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+FiveThirtyEight layers a warm gray panel inside a white plot area, the reverse of the Economist, so think about which background is which.
+Draw geom_line(), then in theme() set panel.background to #f0f0f0, plot.background to white, white panel.grid.major, and blank panel.grid.minor.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -452,6 +488,10 @@ of the default gray-90. Everything else (gridlines, axes) unchanged.
 
 **Difficulty:** Beginner
 
+[HINTS]
+Change exactly one surface and nothing else, so you need the element that sits directly behind the data points.
+Add a single theme(panel.background = element_rect(fill = "#f0f0f0", color = NA)) to the default geom_point() plot.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -485,6 +525,10 @@ bottom, all #fc4f30, on a #f0f0f0 panel with white gridlines.
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Car names live in the row names, not a column, so they must be lifted into a real column before they can be an aesthetic.
+Use tibble::rownames_to_column("car"), map y = reorder(car, mpg), draw geom_col(fill = "#fc4f30"), and show only x-gridlines.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -529,6 +573,10 @@ above the bold title and a one-sentence subtitle below it
 
 **Difficulty:** Intermediate
 
+[HINTS]
+ggplot2 has a spare label slot normally used for figure tags that you can repurpose as a kicker line and position by hand.
+Add labs(tag = "ECONOMY", ...) to ex_2_1 and place it with plot.tag.position plus a styled plot.tag in theme().
+
 ```r title="Your turn"
 ex_2_4 <- # your code here
 ex_2_4
@@ -565,6 +613,10 @@ no legend title. Bold left-aligned title.
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A legend aligned to the top-left sits flush with the title and avoids the visual jitter a bottom legend introduces.
+After normalizing each series with group_by()/mutate(), plot geom_line(), name colors via scale_color_manual(), and set legend.position = "top" with legend.justification = "left".
 
 ```r title="Your turn"
 ex_2_5 <- # your code here
@@ -615,6 +667,10 @@ right of the final data point.
 
 **Difficulty:** Advanced
 
+[HINTS]
+To label a line at its end you only need the single last point of each series, fed as a separate small dataset.
+Filter to date == max(date) per group, add geom_text() on that data, drop the legend with guides(color = "none"), and pad the x-range with expand_limits().
+
 ```r title="Your turn"
 ex_2_6 <- # your code here
 ex_2_6
@@ -659,6 +715,10 @@ each panel name the class; bold left-aligned overall title.
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Comparing groups is cleaner when each group gets its own mini panel sharing the same scales.
+Add facet_wrap(~ class) to a geom_point() scatter and style the strips and panels in theme().
+
 ```r title="Your turn"
 ex_2_7 <- # your code here
 ex_2_7
@@ -701,6 +761,10 @@ and blue above a 0.5 horizontal reference line. Bold title
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The two-color fill is really two area layers, each clipped to one side of the 0.5 line.
+Draw two geom_area() layers using pmax(win_prob, 0.5) and pmin(win_prob, 0.5), add a geom_hline(yintercept = 0.5), and format the y-axis with percent.
 
 ```r title="Your turn"
 set.seed(1)
@@ -757,6 +821,10 @@ horizontal x-axis gridlines only. Bold left-aligned title.
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Grouped bars place survived and perished side by side so the reader compares the pair directly instead of reading a stack.
+After summarising, draw geom_col(position = position_dodge2(reverse = TRUE)), set colors with scale_fill_manual(), and base the look on theme_minimal().
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -802,6 +870,10 @@ expenditure from 1967 to 2015, white background, bold title
 
 **Difficulty:** Beginner
 
+[HINTS]
+Start from a stripped-down theme and add back only the title and value-axis gridlines.
+Draw geom_line(color = "#1380A1"), apply theme_minimal(), and bold the title via plot.title in theme().
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -842,6 +914,10 @@ title; caption "Source: ggplot2::economics" bottom-left.
 
 **Difficulty:** Intermediate
 
+[HINTS]
+BBC writes titles as one-sentence findings, not topic labels, and pushes the source down to a caption.
+On ex_3_2, set the narrative title and a caption in labs(), and blank axis.title in theme().
+
 ```r title="Your turn"
 ex_3_3 <- # your code here
 ex_3_3
@@ -878,6 +954,10 @@ BBC palette, white background, x-axis gridlines only.
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Aggregate to one value per cut-and-color pair first, then let the sub-category split the bars within each cut.
+group_by(cut, color) and summarise(mean(price)), then geom_col(position = position_dodge()) with fill = color and a manual palette.
 
 ```r title="Your turn"
 ex_3_4 <- # your code here
@@ -924,6 +1004,10 @@ proportions adding to 100%. X-axis labels formatted as percent.
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A 100% stack needs proportions, not counts, computed within each class so every bar fills the same width.
+After summarising counts, group_by(Class) and mutate(prop = n / sum(n)), plot geom_col() on prop, and format the x-axis with percent.
 
 ```r title="Your turn"
 ex_3_5 <- # your code here
@@ -973,6 +1057,10 @@ caption, all left-aligned.
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The BBC title block sets rank with size and style: bold finding, italic elaboration, faded source.
+On ex_3_5, add title, subtitle, and caption in labs(), and style plot.title, plot.subtitle, and plot.caption in theme().
+
 ```r title="Your turn"
 ex_3_6 <- # your code here
 ex_3_6
@@ -1010,6 +1098,10 @@ with a small italic text label at the top of the panel.
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Event markers turn a line into a narrative; the labels should stick to the top of the panel so resizing does not move them.
+Add geom_vline() for the event dates and geom_text() with y = Inf and a small vjust to park labels at the panel top.
 
 ```r title="Your turn"
 ex_3_7 <- # your code here
@@ -1063,6 +1155,10 @@ palette. X-axis is dose, y-axis is mean tooth length.
 
 **Difficulty:** Advanced
 
+[HINTS]
+A small-sample confidence interval uses the t-distribution, not a fixed 1.96 multiplier, and the multiplier depends on each cell's sample size.
+Summarise mean and standard error, compute the half-width with qt(0.975, n - 1) * se, then layer geom_errorbar() and geom_point() with position_dodge().
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -1110,6 +1206,10 @@ overlaid. White background, no panel border, bold title.
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Showing the raw observations on top of the boxes means you must avoid drawing the outliers twice.
+Draw geom_boxplot(outlier.shape = NA) first, overlay geom_jitter() with low alpha, and use theme_minimal().
+
 ```r title="Your turn"
 ex_4_2 <- # your code here
 ex_4_2
@@ -1149,6 +1249,10 @@ small "p = 0.0X" label above it. Bold sans-serif title.
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Run the pairwise test first, find the pair with the smallest p-value, then draw the bracket just above the tallest box.
+Use pairwise.t.test(), pull the minimum p-value, and place the bracket with annotate("segment", ...) and annotate("text", ...).
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -1198,6 +1302,10 @@ Monochrome black-and-gray styling, bold panel labels.
 
 **Difficulty:** Advanced
 
+[HINTS]
+Without a layout package you can fake a multi-panel figure by tagging each dataset with a panel column and faceting.
+Give each geom's data a panel column via transform(), then facet_wrap(~ panel, scales = "free", ncol = 2).
+
 ```r title="Your turn"
 ex_4_4 <- # your code here
 ex_4_4
@@ -1246,6 +1354,10 @@ smooth trend line overlaid. White background, no minor grid.
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The colorblind-safe palette has only 8 colors, so it must be recycled to cover all 18 subjects, and a single trend line overlays the lot.
+Build the palette vector, repeat it with rep(..., length.out = ...) inside scale_color_manual(), and add geom_smooth(aes(group = 1), se = FALSE).
+
 ```r title="Your turn"
 ex_4_5 <- # your code here
 ex_4_5
@@ -1288,6 +1400,10 @@ bold title "Loblolly pine growth".
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Show the central estimate with its uncertainty by drawing the band first so it sits behind the line.
+Summarise mean and a qt()-based CI per age, draw geom_ribbon(aes(ymin = ..., ymax = ...)) then geom_line() on top.
 
 ```r title="Your turn"
 ex_4_6 <- # your code here
@@ -1333,6 +1449,10 @@ Each cell shows the rounded correlation in black text.
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A correlation matrix has to be reshaped to long form before it can be tiled, and 0 is a meaningful midpoint for the color scale.
+Run cor(mtcars), pivot_longer() it, draw geom_tile() with geom_text() labels, and color with scale_fill_gradient2(midpoint = 0).
 
 ```r title="Your turn"
 ex_4_7 <- # your code here
@@ -1385,6 +1505,10 @@ $dpi
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Render at the exact target dimensions so font sizes stay legible; 1800x1200 pixels at 600 DPI is just 3 by 2 inches.
+Call ggsave() with width = 3, height = 2, dpi = 600, units = "in" to a tempfile(), then collect path and specs in a list().
+
 ```r title="Your turn"
 ex_4_8 <- # your code here
 ex_4_8
@@ -1427,6 +1551,10 @@ Bold left-aligned title "European stock indices".
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The matrix needs a date column and a reshape to long form before four series can be drawn from it.
+Convert with as.data.frame(), add a date sequence, pivot_longer(), draw geom_line() with color = index, and set the pink backgrounds in theme().
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -1480,6 +1608,10 @@ axis text. Looks like a Bloomberg terminal screen.
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A dark theme means every text element must be recolored explicitly, because each has its own color slot.
+Draw geom_line(color = "#ff9900"), set both backgrounds to #0a0a0a, and give axis.text, axis.title, and plot.title a white color in theme().
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 ex_5_2
@@ -1523,6 +1655,10 @@ mimicking a Bloomberg ticker tag.
 
 **Difficulty:** Advanced
 
+[HINTS]
+A ticker tag is a colored tile with text centered on top, both placed at the last data point.
+Take the last row of the data, add annotate("rect", ...) for the amber tile and annotate("text", ...) for "PCE", then expand_limits() so it is not clipped.
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 ex_5_3
@@ -1563,6 +1699,10 @@ Bold left-aligned title.
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Pick the top cities by total sales, but order the bars by the median value you actually display.
+Summarise per city, slice_max(total, n = 10), map y = reorder(city, med), draw geom_col(fill = "#262a33"), and show only x-gridlines.
 
 ```r title="Your turn"
 ex_5_4 <- # your code here
@@ -1610,6 +1750,10 @@ through each body from daily low to daily high.
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Each candle is two stacked shapes: a thin range line and a wider body between open and close.
+Draw geom_segment() for the low-to-high wick and geom_rect() for the open-to-close body, colored by direction with scale_fill_manual().
 
 ```r title="Your turn"
 set.seed(42)
@@ -1681,6 +1825,10 @@ behind the line. Bold title "US unemployment".
 
 **Difficulty:** Advanced
 
+[HINTS]
+The recession bands are drawn from a separate dataset and must stretch the full panel height regardless of the data range.
+Add geom_rect() with inherit.aes = FALSE, ymin = -Inf, ymax = Inf for the bands, drawn before the geom_line().
+
 ```r title="Your turn"
 ex_5_6 <- # your code here
 ex_5_6
@@ -1731,6 +1879,10 @@ NBER-dated US recessions."
 
 **Difficulty:** Beginner
 
+[HINTS]
+A source caveat is editorial table stakes, left-aligned with the rest of the title block.
+Add a caption in labs() on ex_5_6 and style plot.caption italic with hjust = 0 in theme().
+
 ```r title="Your turn"
 ex_5_7 <- # your code here
 ex_5_7
@@ -1765,6 +1917,10 @@ return is positive or negative. White bold ticker text centered.
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A screener compresses each series into a colored tile, where color carries direction and position carries identity.
+Compute last-week mean return per index, draw geom_tile() with geom_text() labels, force squares with coord_equal(), and strip everything with theme_void().
 
 ```r title="Your turn"
 ex_5_8 <- # your code here
@@ -1822,6 +1978,10 @@ point, with a short angled segment connecting label to line.
 
 **Difficulty:** Intermediate
 
+[HINTS]
+NYT annotations live inside the panel, so the label position is computed relative to the data point it describes.
+Find the peak with slice_max(), add annotate("text", ...) for the label and annotate("segment", ...) for the connector.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -1870,6 +2030,10 @@ caption "Source: ggplot2::economics" sits bottom-left.
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Serif type makes a chart read like reporting rather than an advertisement, and an NYT title leans on size, not bold weight.
+On ex_6_1, set text = element_text(family = "serif") and plot.title to face = "plain" in theme(), plus a caption in labs().
+
 ```r title="Your turn"
 ex_6_2 <- # your code here
 ex_6_2
@@ -1906,6 +2070,10 @@ in matching color at the right end, no legend block.
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Replacing a legend with end labels means feeding a label layer just the final point of each series.
+Normalize each series, take date == max(date) per group, add geom_text() on that subset, and drop the legend with guides(color = "none").
 
 ```r title="Your turn"
 ex_6_3 <- # your code here
@@ -1958,6 +2126,10 @@ An italic text label above the SUV cluster names the pattern.
 
 **Difficulty:** Advanced
 
+[HINTS]
+A highlight chart splits the data into figure and ground, so you need a flag separating the highlighted subset from everything else.
+Add an is_suv flag, map it to both color and alpha, set scale_color_manual() and scale_alpha_manual() with TRUE/FALSE values, and add an annotate("text", ...) kicker.
+
 ```r title="Your turn"
 ex_6_4 <- # your code here
 ex_6_4
@@ -2004,6 +2176,10 @@ plus a faint regression line. Serif text, subtle gridlines.
 
 **Difficulty:** Advanced
 
+[HINTS]
+When slopes vary across subjects, one panel per subject preserves each slope better than an overplotted multi-line chart.
+Add facet_wrap(~ Subject) and geom_smooth(method = "lm", se = FALSE) so each panel fits its own regression.
+
 ```r title="Your turn"
 ex_6_5 <- # your code here
 ex_6_5
@@ -2045,6 +2221,10 @@ italic text about the 2018 low. The first 2009 annotation stays.
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A pale backing rectangle keeps overlay text readable where it crosses gridlines or the data line.
+On ex_6_1, add annotate("rect", ...) first then annotate("text", ...) on top, both in date and count units.
 
 ```r title="Your turn"
 ex_6_6 <- # your code here
@@ -2090,6 +2270,10 @@ Each on its own free scale, monochrome blue theme, bold title.
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A dashboard packs trends, associations, distributions, and aggregates onto one screen, each panel needing its own scales.
+Tag each dataset with a panel column, bind_rows() them, and facet_wrap(~ panel, scales = "free", ncol = 2) over line, point, histogram, and column geoms.
 
 ```r title="Your turn"
 ex_7_1 <- # your code here
@@ -2150,6 +2334,10 @@ horizontal-only gridlines.
 
 **Difficulty:** Advanced
 
+[HINTS]
+A stacked-panel report shows one finding per panel sharing the x-axis but needing separate y-scales.
+Aggregate the two measures, stack with a panel column, draw geom_line(), and facet_wrap(~ panel, scales = "free_y", ncol = 1).
+
 ```r title="Your turn"
 ex_7_2 <- # your code here
 ex_7_2
@@ -2205,6 +2393,10 @@ y-axis. Bubble size scales with population, color by continent
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A bubble chart encodes four variables per point, and GDP spanning orders of magnitude calls for a logarithmic axis.
+Map size = population and color = continent in geom_point(), use scale_x_log10(), and bound bubble sizes with scale_size_continuous(range = ...).
 
 ```r title="Your turn"
 countries <- tibble::tibble(
@@ -2266,6 +2458,10 @@ Bold title naming the comparison.
 
 **Difficulty:** Advanced
 
+[HINTS]
+Two series on very different scales can share a panel if one is rescaled to the other's range and the second axis undoes the transform.
+Compute a scale_factor, plot deaths times that factor, and add the right axis with sec_axis(~ . / scale_factor) inside scale_y_continuous().
+
 ```r title="Your turn"
 set.seed(7)
 epi <- tibble::tibble(
@@ -2321,6 +2517,10 @@ A solid dark-navy header bar with white bold title sits above.
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The header-bar effect comes from coloring the plot-level background dark while the panel itself stays white, so the title picks up the dark fill.
+Flag the longest bar, color it via scale_fill_manual() with TRUE/FALSE, set plot.background to navy and panel.background to white, and push the title with plot.title.position = "plot".
 
 ```r title="Your turn"
 ex_7_5 <- # your code here

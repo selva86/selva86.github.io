@@ -44,6 +44,10 @@ library(dplyr)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Themes carry a single dial that rescales every text element at once - reach for that rather than restyling axis labels one by one.
+Add `theme_minimal()` to the plot and pass it `base_size = 14`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -78,6 +82,10 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Build the shared data layer once so the two plots differ only in the surrounding style you add afterwards.
+Save the common ggplot to a `base` object, add `theme_classic()` and `theme_bw()` to it separately, then collect both in a named `list()`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -114,6 +122,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Every built-in theme exposes proportional dials for fonts, lines, and rectangles, so thinner ticks come from a line dial rather than from styling ticks directly.
+Call `theme_light()` with `base_size = 12`, `base_family = "sans"`, and `base_line_size = 0.4`.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -152,6 +164,10 @@ ex_1_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Rotated tick text pivots around its anchor point, so the angle alone is not enough - you also need to control where the text is justified.
+Inside `theme()`, set `axis.text.x = element_text(angle = 45, hjust = 1)`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -188,6 +204,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Legend placement, the legend's rectangular backdrop, and the panel frame are three independent settings, each targeting a different region of the plot.
+In `theme()`, set `legend.position = "bottom"`, `legend.background = element_rect(fill = "grey95", colour = NA)`, and `panel.border = element_rect(fill = NA, colour = "black")`.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -229,6 +249,10 @@ ex_2_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Major and minor grid lines are separate leaf-level settings, so you can erase one while only recolouring the other.
+In `theme()`, set `panel.grid.minor = element_blank()` and `panel.grid.major = element_line(colour = "grey90", linewidth = 0.3)`.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 ex_2_3
@@ -269,6 +293,10 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A manual palette is safest when each colour is tied to a named level rather than left to positional order.
+Use `scale_fill_manual(values = ...)` with a vector named by each cut level.
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -313,6 +341,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+An ordered factor calls for a ramp that encodes magnitude, and the ramp can be flipped instead of hunting for a reversed palette name.
+Use `scale_colour_brewer(palette = "YlOrRd", direction = -1)`.
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -349,6 +381,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A continuous fill needs the continuous variant of the palette function, and the bright end of the ramp can be flipped onto the high values.
+Apply `scale_fill_viridis_c(option = "magma", direction = -1)` to a `geom_tile()`.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -389,6 +425,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Axis tick text is reformatted by handing the scale a formatting function rather than editing label strings by hand.
+Pass `labels = label_dollar()` to `scale_y_continuous()`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -425,6 +465,10 @@ ex_4_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A transform, the visible break values, and the data window can all be configured inside the single scale that governs that axis.
+Use `scale_x_log10()` with `limits`, `breaks`, and `labels = label_dollar()` arguments.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -466,6 +510,10 @@ ex_4_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+A discrete axis follows its factor's level order, so the sorting must happen on the variable mapped to x, driven by a summary of y.
+Map x with `reorder(class, hwy, FUN = median)` and rename the axis with `labs()`.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -504,6 +552,10 @@ ex_4_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Renaming a legend and hiding a different one are separate jobs - one touches a title, the other turns a guide off without unmapping the aesthetic.
+Use `labs(colour = "Cylinders")` to rename and `guides(size = "none")` to suppress the size legend.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -540,6 +592,10 @@ ex_5_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Title, subtitle, and caption are three independent text elements, so each one is styled on its own to build the typographic hierarchy.
+Set the text with `labs()`, then style `plot.title`, `plot.subtitle`, and `plot.caption` using `element_text()` inside `theme()`.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -585,6 +641,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Marking one fixed observation calls for layers whose coordinates are constants, not values pulled from the plotted data frame.
+Add `annotate("segment", ..., arrow = arrow(...))` for the arrow and `annotate("text", ..., label = ...)` for the label.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -635,6 +695,10 @@ ex_5_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Bundling repeated styling into one reusable definition keeps the house look in a single place to update.
+Write a function that returns `theme_minimal(base_size = 12) + theme(...)`, then add `theme_digest()` to both plots.
 
 ```r title="Your turn"
 ex_6_1 <- # your code here
@@ -687,6 +751,10 @@ ex_6_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+Typography and brand colour are separate concerns, so keep the theme helper and the palette as two distinct objects.
+Define `digest_palette` as a vector named by cyl level, then add `scale_colour_manual(values = digest_palette)` alongside `theme_digest()`.
+
 ```r title="Your turn"
 ex_6_2 <- # your code here
 ex_6_2
@@ -725,6 +793,10 @@ ex_6_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Reproducible output size comes from stating dimensions and resolution explicitly rather than relying on the current graphics device.
+Call `ggsave()` with `width = 6`, `height = 4`, `units = "in"`, and `dpi = 300`, then capture the path with `normalizePath()`.
 
 ```r title="Your turn"
 ex_6_3 <- # your code here

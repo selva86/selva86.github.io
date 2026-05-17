@@ -40,6 +40,10 @@ library(MASS)
 
 **Difficulty:** Beginner
 
+[HINTS]
+"Exactly two" points you at the probability mass at a single integer, not a running total over several counts.
+Evaluate `dpois()` with the count as the first argument and `lambda = 5`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 round(ex_1_1, 4)
@@ -70,6 +74,10 @@ round(ex_1_1, 4)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Each router needs the probability mass at the same count of four, but evaluated against its own average rate.
+Call `dpois(4, lambda = ...)` once per router and bundle them with `c(A = ..., B = ...)`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -105,6 +113,10 @@ round(ex_1_2, 4)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The full mass function is one probability evaluation repeated across every k, so a whole range of counts can be done in one shot.
+Pass `0:10` to `dpois()` with `lambda = 4`, then attach the k labels using `setNames()`.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -143,6 +155,10 @@ ex_1_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+"At most" is the cumulative probability up to a count; "more than" is the complementary upper tail of that same count.
+Use `ppois(4, lambda = 6)` and the same call with `lower.tail = FALSE`, combined via `c(at_most_4 = ..., more_than_4 = ...)`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 round(ex_2_1, 4)
@@ -177,6 +193,10 @@ round(ex_2_1, 4)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Translate each English phrase into a cumulative probability, paying attention to whether the boundary count is included.
+Use `ppois(15, lambda = 12)` for the comfortable zone and `ppois(19, lambda = 12, lower.tail = FALSE)` for "20 or more".
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -213,6 +233,10 @@ round(ex_2_2, 4)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Tracing the CDF at several cutoffs is one cumulative-probability evaluation repeated across a grid of counts.
+Pass the cutoff vector to `ppois()` with `lambda = 8`, then label the result with `setNames()`.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 round(ex_2_3, 4)
@@ -248,6 +272,10 @@ round(ex_2_3, 4)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You need to invert the cumulative probability: given a coverage target, find the smallest count that first reaches it.
+Call `qpois(0.95, lambda = 25)`, then confirm it by feeding the answer back into `ppois()`.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -281,6 +309,10 @@ cat("verify ppois(ex_3_1, 25):", round(ppois(ex_3_1, 25), 4), "\n")
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A service level is a target coverage probability, and you want the smallest count that first meets it.
+Call `qpois(0.99, lambda = 30)`, then verify the realised level with `ppois()`.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -317,6 +349,10 @@ cat("realised_service_level:", round(ppois(ex_3_2, 30), 4), "\n")
 
 **Difficulty:** Beginner
 
+[HINTS]
+Generate a batch of random Poisson draws, then average them to recover the underlying rate.
+Use `rpois(1000, lambda = 7)` and wrap the sample in `mean()`.
+
 ```r title="Your turn"
 set.seed(42)
 # your code here
@@ -350,6 +386,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The empirical probability is the fraction of simulated draws meeting the condition, set side by side with the exact upper tail.
+Take `mean(draws >= 10)` over `rpois(100000, lambda = 6)` and compare with `ppois(9, lambda = 6, lower.tail = FALSE)`.
 
 ```r title="Your turn"
 set.seed(2026)
@@ -388,6 +428,10 @@ ex_4_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+The rate vector already holds one entry per day, so a single draw can use a different rate for each element.
+Pass the `lambdas` vector straight into `rpois()` as the `lambda` argument with `n = 30`.
+
 ```r title="Your turn"
 set.seed(7)
 lambdas <- c(rep(2, 10), rep(5, 10), rep(12, 10))
@@ -423,6 +467,10 @@ sum(ex_4_3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The maximum-likelihood rate for a Poisson is simply the average of the observed counts, with no optimiser needed.
+Apply `mean()` to `counts_5_1`.
 
 ```r title="Your turn"
 counts_5_1 <- c(
@@ -467,6 +515,10 @@ ex_5_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+Build the interval from the point estimate and its standard error, scaled by the normal critical value for 95 percent.
+Compute the estimate with `mean()` and the count with `length()`, form the standard error as `sqrt(lambda_hat / n)`, and get the multiplier from `qnorm(0.975)`.
+
 ```r title="Your turn"
 # your code here using counts_5_1 from Exercise 5.1
 round(ex_5_2, 4)
@@ -505,6 +557,10 @@ round(ex_5_2, 4)
 
 **Difficulty:** Advanced
 
+[HINTS]
+A general likelihood fitter can estimate the rate for you once you tell it which distribution to assume.
+Call `fitdistr()` with `densfun = "Poisson"` and pull the named `$estimate` element from the returned object.
+
 ```r title="Your turn"
 # your code here using counts_5_1 from Exercise 5.1
 ex_5_3
@@ -539,6 +595,10 @@ ex_5_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+An exact one-sample rate test weighs an observed count against a hypothesised rate over a known exposure window.
+Call `poisson.test()` with `x = 14`, `T = 1`, `r = 8`, then read off the `$p.value`.
+
 ```r title="Your turn"
 # your code here
 round(ex_6_1, 4)
@@ -569,6 +629,10 @@ round(ex_6_1, 4)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+With two counts and two exposures the test compares their rate ratio against a null value of one.
+Call `poisson.test()` with `x = c(12, 25)`, `T = c(1000, 1000)`, `r = 1`, then read off the `$p.value`.
 
 ```r title="Your turn"
 # your code here
@@ -606,6 +670,10 @@ round(ex_6_2, 4)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The same two-sample test object carries an interval estimate for the rate ratio right alongside its p-value.
+Run `poisson.test()` with `x = c(12, 25)`, `T = c(1000, 1000)`, `conf.level = 0.95` and pull the `$conf.int` element.
 
 ```r title="Your turn"
 # your code here

@@ -50,6 +50,10 @@ options(width = 100, digits = 4)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A significant omnibus result only says at least one group differs; you need a follow-up that compares every pair while holding the overall error rate in check.
+Fit the model with `aov(weight ~ group, data = PlantGrowth)`, then pass that fit straight into `TukeyHSD()`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -97,6 +101,10 @@ ex_1_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Restrict the data to the final time point first, then compare the diet means pairwise on that slice only.
+Build the subset with `subset(ChickWeight, Time == 21)`, fit `aov(weight ~ Diet, ...)`, then call `TukeyHSD()` on the fit.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2$Diet
@@ -136,6 +144,10 @@ ex_1_2$Diet
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The Tukey result is just a matrix of rows, so keep only the rows whose adjusted p-value clears your threshold.
+Pull out `ex_1_2$Diet`, then index rows where the `"p adj"` column is below 0.05, passing `drop = FALSE` to keep the matrix shape.
+
 ```r title="Your turn"
 ex_1_3 <- # your code here
 ex_1_3
@@ -170,6 +182,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The toolkit already knows how to draw the family-wise confidence intervals for a Tukey result; you just need to ask for the picture.
+Call `plot()` directly on `ex_1_1` (add `las = 1` for readable axis labels) and assign that call to `ex_1_4`.
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -209,6 +225,10 @@ ex_1_4 <- plot(ex_1_1, las = 1)
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Instead of an all-pairs procedure tied to the ANOVA, run every pairwise t-test and apply the most conservative classical correction.
+Use `pairwise.t.test()` on `PlantGrowth$weight` and `PlantGrowth$group` with `p.adjust.method = "bonferroni"`.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -257,6 +277,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Switch to the step-down correction that keeps family-wise control but recovers more power than a flat multiplier.
+Use the same `pairwise.t.test()` call as before, but set `p.adjust.method = "holm"`.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -300,6 +324,10 @@ ex_2_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Take the single raw p-value vector and run it through three different corrections, then collect the results side by side.
+Call `p.adjust()` three times on the vector with `method` set to `"bonferroni"`, `"holm"`, and `"BH"`, and assemble the columns with `data.frame()`.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -345,6 +373,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Interval width is the upper bound minus the lower bound; find the comparison with the smallest such span.
+From `ex_1_1$group`, subtract the `"lwr"` column from the `"upr"` column, then use `which.min()` and `setNames()` to label the result.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -386,6 +418,10 @@ ex_3_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+To see how much the correction inflated things, you need the underlying p-values with no adjustment applied at all.
+Run `pairwise.t.test()` on `PlantGrowth$weight` by `group` with `p.adjust.method = "none"`.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -435,6 +471,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The chance of at least one false positive is one minus the chance of getting every test right, where each test is right with probability 0.95.
+Compute `1 - (1 - 0.05)^k` over `k <- 1:10`, then wrap `k` and the result into `data.frame()`.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -486,6 +526,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A two-way model needs each predictor treated as a grouping factor, not a number, so the post-hoc step can compare level means.
+Coerce `dose` with `as.factor()`, fit `aov(len ~ supp * dose, ...)`, then call `TukeyHSD()` on the fit.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1$dose
@@ -525,6 +569,10 @@ ex_4_1$dose
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+When an interaction is significant, hold one factor fixed and run the post-hoc comparison within that single slice of the data.
+Build `subset(ToothGrowth, supp == "VC")`, fit `aov(len ~ as.factor(dose), ...)` on it, then run `TukeyHSD()`.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -575,6 +623,10 @@ ex_4_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+The interaction comparisons are one named component of the Tukey result; keep only the rows that clear the stricter significance bar.
+Extract the component with `ex_4_1[["supp:dose"]]` (double brackets because the name has a colon), then index rows where `"p adj"` is below 0.01 with `drop = FALSE`.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -622,6 +674,10 @@ ex_4_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+When the normality assumption fails, swap both the omnibus and the pairwise tests for their rank-based counterparts.
+Run `kruskal.test(Sepal.Width ~ Species, data = iris)` for the omnibus, then `pairwise.wilcox.test()` with `p.adjust.method = "BH"`.
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -674,6 +730,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Re-run the same rank-based pairwise comparisons, but swap in the correction that controls family-wise error rather than false discovery rate.
+Repeat the `pairwise.wilcox.test()` call on `iris$Sepal.Width` by `iris$Species` with `p.adjust.method = "bonferroni"`.
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 ex_5_2
@@ -720,6 +780,10 @@ ex_5_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Fit a model with both factors and their interaction, then pull just the cell-by-cell comparisons out of the post-hoc result.
+Fit `aov(breaks ~ wool * tension, data = warpbreaks)`, run `TukeyHSD()`, and extract the `"wool:tension"` component with double brackets.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 head(ex_6_1)
@@ -759,6 +823,10 @@ head(ex_6_1)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Among the comparisons against the top dose, look for the lowest dose whose difference is not statistically significant.
+After `TukeyHSD()` on the VC-only dose model, filter the rows comparing against dose 2 (e.g. with `grep()` on the row names) for an adjusted p above 0.05, and fall back gracefully when none qualifies.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here
@@ -808,6 +876,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Combine the Tukey and Bonferroni results into one table, matching rows by pair name rather than by position, then derive a verdict column.
+Take `TukeyHSD(fit)$group` and the `$p.value` matrix from `pairwise.t.test()`, align them with a named lookup keyed on the Tukey row names, then build the frame and add `verdict` with `ifelse()`.
 
 ```r title="Your turn"
 ex_6_3 <- # your code here

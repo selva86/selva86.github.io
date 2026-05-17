@@ -173,7 +173,92 @@ def auto_inject_libraries(body):
     return body[: m.start()] + head + new_inner + tail + body[m.end():]
 
 
-def convert(md_text):
+# --- Exercise section wrapping (see _build/exercise-hub-contract.md) ---
+_EX_H3_RE = re.compile(r'^<h3>Exercise\s+(\d+(?:\.\d+)*)\b')
+
+def _detect_grade_mode(region_html, page_has_set_seed):
+    """Contract section 4: 'self-check' for plot / nondeterministic /
+    elided-output exercises, else 'output-compare'."""
+    if re.search(r'ggplot\(|(?<![a-z])plot\(|hist\(|barplot\(|boxplot\(', region_html):
+        return 'self-check'
+    if not page_has_set_seed and re.search(r'rnorm|runif|sample\(|Sys\.', region_html):
+        return 'self-check'
+    exp = re.search(
+        r'<strong>Expected (?:result|output):</strong>.*?<pre><code>(.*?)</code></pre>',
+        region_html, re.DOTALL)
+    if exp and '...' in exp.group(1):
+        return 'self-check'
+    return 'output-compare'
+
+def _apply_exercise_inner_classes(region):
+    """Add the contract's inner classes to an exercise region (list of HTML
+    chunks). See contract section 2."""
+    new = []
+    k = 0
+    while k < len(region):
+        c = region[k]
+        if k == 0 and c.startswith('<h3>'):
+            new.append('<h3 class="exercise-title">' + c[4:])
+        elif c.startswith('<p><strong>Task:'):
+            new.append('<p class="exercise-task">' + c[3:])
+        elif c.startswith(('<p><strong>Expected result:', '<p><strong>Expected output:')):
+            if k + 1 < len(region) and region[k + 1].startswith('<pre>'):
+                new.append('<div class="exercise-expected">\n' + c + '\n'
+                            + region[k + 1] + '\n</div>')
+                k += 2
+                continue
+            new.append('<div class="exercise-expected">\n' + c + '\n</div>')
+        elif c.startswith('<details>'):
+            c = '<details class="exercise-solution">' + c[9:]
+            c = c.replace('<p><strong>Explanation:',
+                          '<p class="exercise-explanation"><strong>Explanation:', 1)
+            new.append(c)
+        else:
+            new.append(c)
+        k += 1
+    return new
+
+def _wrap_exercise_sections(out, slug, body):
+    """Wrap each '### Exercise N[.N]' region in <section class="exercise">.
+    Called for EX hubs only. See _build/exercise-hub-contract.md."""
+    page_has_set_seed = 'set.seed' in body
+    result = []
+    n = len(out)
+    idx = 0
+    wrapped = 0
+    while idx < n:
+        m = _EX_H3_RE.match(out[idx])
+        if not m:
+            result.append(out[idx])
+            idx += 1
+            continue
+        ex_num = m.group(1)
+        region = [out[idx]]
+        j = idx + 1
+        while j < n and not out[j].startswith('<h2>') and not out[j].startswith('<h3>'):
+            region.append(out[j])
+            j += 1
+        region_html = '\n'.join(region)
+        grade_mode = _detect_grade_mode(region_html, page_has_set_seed)
+        diff_m = re.search(r'<strong>Difficulty:</strong>\s*([A-Za-z]+)', region_html)
+        difficulty = diff_m.group(1).lower() if diff_m else ''
+        if not difficulty:
+            print(f"  WARN: exercise {ex_num} has no Difficulty line")
+        ex_id = slug + '-ex-' + ex_num.replace('.', '-')
+        region = _apply_exercise_inner_classes(region)
+        result.append(
+            f'<section class="exercise" data-exercise-id="{ex_id}" '
+            f'data-grade-mode="{grade_mode}" data-difficulty="{difficulty}">')
+        result.extend(region)
+        result.append('</section>')
+        wrapped += 1
+        idx = j
+    if wrapped:
+        print(f"  Wrapped {wrapped} exercise(s) in <section class=\"exercise\">")
+    return result
+
+
+def convert(md_text, slug='post'):
     fm, body = parse_frontmatter(md_text)
     body = auto_inject_libraries(body)
 
@@ -354,6 +439,21 @@ def convert(md_text):
                 '<p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p>'
                 '</div>'
             )
+            continue
+
+        # Exercise hints block: [HINTS] then one hint per line until a blank
+        # line. Renders a hidden <div class="exercise-hints"> that the
+        # engagement layer lifts into a progressive hint ladder. Convention:
+        # line 1 conceptual (names no function), line 2 near-solution.
+        if line.strip() == '[HINTS]':
+            i += 1
+            hint_lines = []
+            while i < len(lines) and lines[i].strip() != '':
+                hint_lines.append(lines[i].strip())
+                i += 1
+            if hint_lines:
+                hint_ps = ''.join(f'<p>{md_inline(h)}</p>' for h in hint_lines)
+                out.append(f'<div class="exercise-hints" hidden>{hint_ps}</div>')
             continue
 
         # PSEO Decision Tree block:
@@ -664,14 +764,21 @@ def convert(md_text):
             i += 1
             continue
 
-        # Regular paragraph
+        # Regular paragraph. Stops at [HINTS] so a hint block placed directly
+        # after the **Difficulty:** line (no blank line between) is still
+        # parsed by the [HINTS] handler instead of being eaten as paragraph text.
         para_lines = []
-        while i < len(lines) and lines[i].strip() and not lines[i].startswith('#') and not lines[i].startswith('```') and not lines[i].startswith('>') and not lines[i].startswith('|') and not re.match(r'^[\-\*]\s', lines[i].strip()) and not re.match(r'^\d+\.\s', lines[i].strip()) and not lines[i].strip().startswith('<'):
+        while i < len(lines) and lines[i].strip() and not lines[i].startswith('#') and not lines[i].startswith('```') and not lines[i].startswith('>') and not lines[i].startswith('|') and not re.match(r'^[\-\*]\s', lines[i].strip()) and not re.match(r'^\d+\.\s', lines[i].strip()) and not lines[i].strip().startswith('<') and lines[i].strip() != '[HINTS]':
             para_lines.append(lines[i])
             i += 1
         if para_lines:
             text = md_inline(' '.join(l.strip() for l in para_lines))
             out.append(f'<p>{text}</p>')
+
+    # Wrap exercises in <section class="exercise"> for the engagement layer.
+    # EX hubs only — see _build/exercise-hub-contract.md.
+    if str(fm.get('post_type', '')).strip() == 'EX':
+        out = _wrap_exercise_sections(out, slug, body)
 
     # Build frontmatter for _posts
     fm_out = ['---']
@@ -718,11 +825,12 @@ if __name__ == '__main__':
     with open(sys.argv[1], 'r', encoding='utf-8') as f:
         md = f.read()
 
-    result = convert(md)
-
-    # Determine output path
     import os
     basename = os.path.splitext(os.path.basename(sys.argv[1]))[0]
+
+    result = convert(md, slug=basename)
+
+    # Determine output path
     repo_root = os.path.normpath(os.path.join(os.path.dirname(sys.argv[1]), '..'))
     outpath = os.path.join(repo_root, '_posts', basename + '.html')
     outpath = os.path.normpath(outpath)

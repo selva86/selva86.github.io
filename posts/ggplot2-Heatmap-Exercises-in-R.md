@@ -44,6 +44,10 @@ library(tibble)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A heatmap is just one colored rectangle per row of data, so map your three columns to horizontal position, vertical position, and color.
+Pass `aes(x = hour, y = day, fill = volume)` to `ggplot()` and add a tile layer.
+
 ```r title="Your turn"
 set.seed(1)
 calls <- expand.grid(
@@ -91,6 +95,10 @@ ex_1_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+Remove the missing readings first, then map day, month, and ozone onto the three heatmap channels, keeping the month axis categorical.
+Use `filter(!is.na(Ozone))` upstream and wrap the month in `factor(Month)` inside `aes()` before the tile layer.
+
 ```r title="Your turn"
 ex_1_2 <- airquality |>
   # your code here
@@ -127,6 +135,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+On a large, evenly spaced grid, draw the whole surface as a single rasterized image rather than as tens of thousands of separate rectangles.
+Map `x`, `y`, and `z` in `aes()` and add `geom_raster()` instead of the per-cell tile geom.
 
 ```r title="Your turn"
 grid_xy <- expand.grid(x = 1:200, y = 1:200) |>
@@ -165,6 +177,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The tibble is already one row per cell, so the heatmap is a direct mapping of plan, tenure band, and churn rate.
+Build `ggplot()` with `aes(x = plan, y = tenure_band, fill = churn_pct)` and add a tile layer.
 
 ```r title="Your turn"
 churn <- tibble::tribble(
@@ -233,6 +249,10 @@ ex_1_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+Replace the default color ramp with a two-color continuous scale running from a pale low end to a saturated high end.
+Add `scale_fill_gradient(low = "white", high = "firebrick")` to the existing plot.
+
 ```r title="Your turn"
 ex_2_1 <- ex_1_1 +
   # your code here
@@ -266,6 +286,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Correlations have a meaningful zero, so the color scale should pivot at the middle with opposite hues for negative and positive values.
+Add a tile layer and `scale_fill_gradient2()` with `midpoint = 0` and `limits = c(-1, 1)`.
 
 ```r title="Your turn"
 corr_long <- tibble::tribble(
@@ -319,6 +343,10 @@ ex_2_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Swap in a perceptually uniform, colorblind-safe palette and flip its direction so that dark marks the high end.
+After the tile layer, add `scale_fill_viridis_c(option = "magma", direction = -1)`.
+
 ```r title="Your turn"
 ex_2_3 <- airquality |>
   filter(!is.na(Ozone)) |>
@@ -357,6 +385,10 @@ ex_2_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+Turn the smooth gradient into a small set of discrete bands so each cell snaps to one of a few colors at named thresholds.
+Add `scale_fill_stepsn()` with a `colours` vector of band colors and `breaks = c(10, 20, 30)`.
+
 ```r title="Your turn"
 ex_2_4 <- ex_1_4 +
   # your code here
@@ -394,6 +426,10 @@ ex_2_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Rebuild the day axis so its order follows each day's total volume rather than the alphabet.
+Inside `aes()`, set the y mapping to `reorder(day, volume, sum)`.
 
 ```r title="Your turn"
 ex_3_1 <- ggplot(calls,
@@ -434,6 +470,10 @@ ex_3_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Let similarity decide the row order: cluster the wide matrix, then reuse its dendrogram leaf sequence as the factor order.
+Take `hclust(dist(expr_mat))$order`, index `rownames(expr_mat)` with it, and pass that as `levels` to `factor(gene, ...)`.
 
 ```r title="Your turn"
 set.seed(7)
@@ -489,6 +529,10 @@ ex_3_2
 
 **Difficulty:** Beginner
 
+[HINTS]
+Heatmaps read top-down like a table, so flip the discrete y-axis that ggplot2 otherwise builds from the bottom up.
+Add `scale_y_discrete(limits = rev)` to the plot, passing the bare function `rev`.
+
 ```r title="Your turn"
 ex_3_3 <- airquality |>
   filter(!is.na(Ozone)) |>
@@ -531,6 +575,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Add a second layer on top of the colored tiles that prints each cell's numeric value at its center.
+Add `geom_text(aes(label = churn_pct))` after the tile layer.
+
 ```r title="Your turn"
 ex_4_1 <- ggplot(churn,
                  aes(x = plan, y = tenure_band, fill = churn_pct)) +
@@ -567,6 +615,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Make the label color depend on how dark its cell is, so the text stays legible on both light and dark tiles.
+In `geom_text()` map `colour = churn_pct > 20`, then bind that boolean to literal colors with `scale_colour_manual()` and hide its legend.
 
 ```r title="Your turn"
 ex_4_2 <- ggplot(churn,
@@ -606,6 +658,10 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Draw an unfilled outline over just the single extreme cell, using numeric coordinates because the day axis is discrete.
+Add `geom_rect()` on the `peak` data with `xmin`/`xmax` and `ymin`/`ymax` offset by 0.5, `fill = NA`, and `inherit.aes = FALSE`.
 
 ```r title="Your turn"
 peak <- calls |>
@@ -665,6 +721,10 @@ ex_4_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Once the correlation matrix is reshaped to long form, it plots like any other three-column heatmap with a zero-centered scale.
+Add a tile layer and `scale_fill_gradient2(midpoint = 0)` to the `cor_long` data.
+
 ```r title="Your turn"
 cor_long <- cor(mtcars) |>
   as.data.frame() |>
@@ -712,6 +772,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The summarized `surv` table is already one row per cell, so map the two categories and the count, then label each tile.
+Use `aes(x = Sex, y = Class, fill = n)` with a tile layer, `geom_text(aes(label = n))`, and `scale_fill_viridis_c()`.
+
 ```r title="Your turn"
 surv <- as.data.frame(Titanic) |>
   filter(Survived == "Yes") |>
@@ -756,6 +820,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Plot a parallel value column that is blank wherever the correlation is not significant, and let the scale color those blanks with a neutral tone.
+Map `fill = corr_sig` in the tile layer and set `na.value = "grey90"` inside `scale_fill_gradient2()`.
 
 ```r title="Your turn"
 pairs_df <- expand.grid(var1 = names(mtcars), var2 = names(mtcars),
@@ -816,6 +884,10 @@ ex_5_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Split one heatmap into a small panel per cohort year so the years sit side by side under a shared color scale.
+Add `facet_wrap(~ cohort_year)` to a tile plot of `month_number` versus `cohort_month`.
+
 ```r title="Your turn"
 set.seed(2)
 retention <- expand.grid(
@@ -870,6 +942,10 @@ ex_6_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Keep the missing cells on the canvas as explicit "no data" and give them a quiet color instead of dropping them.
+Set `na.value = "grey80"` inside `scale_fill_viridis_c()`.
+
 ```r title="Your turn"
 ex_6_2 <- airquality |>
   ggplot(aes(x = Day, y = factor(Month), fill = Ozone)) +
@@ -908,6 +984,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Square the cells, strip the background clutter, and add report-ready titles and rotated axis labels.
+Chain `coord_fixed()`, `theme_minimal()`, a `theme()` that uses `element_blank()` for the grid and ticks and rotates `axis.text.x`, plus `labs()`.
 
 ```r title="Your turn"
 ex_6_3 <- ex_5_1 +

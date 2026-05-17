@@ -42,6 +42,10 @@ library(tibble)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Identify which calendar component the string lists first, second, and third, then pick the parser keyed to that exact order.
+Hand the raw string straight to `ymd()` - no format string is required.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -80,6 +84,10 @@ raw <- c("2024-03-15", "03/15/2024", "15-03-2024", "2024-04-01", "04/02/2024")
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The vector mixes three different component orderings, so you need a parser you can give several format hints to at once.
+Call `parse_date_time()` with `orders = c("ymd", "mdy", "dmy")`, listing the most specific order first.
+
 ```r title="Your turn"
 raw <- c("2024-03-15", "03/15/2024", "15-03-2024", "2024-04-01", "04/02/2024")
 ex_1_2 <- # your code here
@@ -116,6 +124,10 @@ sum(is.na(ex_1_2))
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The string carries hours, minutes, and seconds, so reach for the parser variant that captures sub-day precision.
+Use `ymd_hms()` on the string; it returns a POSIXct value in UTC by default.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -158,6 +170,10 @@ raw <- c(
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The trailing parenthetical is noise the parser can be told to tolerate rather than something you must scrub out first.
+Call `parse_date_time()` with `orders = "Ymd HMS"` and `truncated = 3`.
 
 ```r title="Your turn"
 raw <- c(
@@ -210,6 +226,10 @@ stamps <- ymd_hms(c("2024-03-15 09:00:00", "2024-07-04 14:30:00", "2024-12-31 23
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Each calendar component can be pulled out with its own dedicated accessor, one accessor per column.
+Wrap `year()`, `month()`, `day()`, and `hour()` calls inside a `tibble()`.
 
 ```r title="Your turn"
 stamps <- ymd_hms(c("2024-03-15 09:00:00", "2024-07-04 14:30:00", "2024-12-31 23:59:00"))
@@ -273,6 +293,10 @@ orders <- tibble(order_id = 1:6,
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You need two derived facts about each timestamp: the weekday name and whether that weekday lands on a weekend.
+In `mutate()`, use `wday(..., label = TRUE)` for the name and `wday(..., week_start = 1) >= 6` for the flag.
+
 ```r title="Your turn"
 orders <- tibble(order_id = 1:6,
                  placed_at = ymd_hms(c(
@@ -332,6 +356,10 @@ ex_2_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+One column needs the calendar quarter, the other needs the international standard week number, both derived from the date column.
+In `mutate()`, combine `year()` with `quarter()` for the label and use `isoweek()` for the week.
+
 ```r title="Your turn"
 ex_2_3 <- economics |>
   head(10) |>
@@ -376,6 +404,10 @@ ex_2_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+Adding a calendar span to a date leaves you with a date - no clock component appears.
+Add `days(30)` to the value returned by `ymd("2024-01-15")`.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -415,6 +447,10 @@ trials <- tibble(user = c("alice", "bob", "carol"),
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Plain addition of a one-month span fails at month ends because the target day may not exist, so you need the operator that rolls back to the last valid day.
+Combine `months(1)` with the `%m+%` operator inside `mutate()`.
 
 ```r title="Your turn"
 trials <- tibble(user = c("alice", "bob", "carol"),
@@ -456,6 +492,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Anchor the span to a real start and end, then express its length as a count of whole days.
+Divide `interval(start_d, end_d)` by `days(1)` and wrap the result in `as.integer()`.
 
 ```r title="Your turn"
 start_d <- ymd("2024-01-01")
@@ -508,6 +548,10 @@ bookings <- tibble(
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Compare every distinct pair of bookings in the same room to see whether their time spans intersect.
+Build spans with `interval()`, generate the `i < j` index pairs, and test each pair with `int_overlaps()`.
 
 ```r title="Your turn"
 bookings <- tibble(
@@ -571,6 +615,10 @@ events <- ymd_hms(c("2024-01-15 14:30:00", "2024-07-15 14:30:00"), tz = "UTC")
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Re-express the same absolute instant under a different regional clock, without shifting the moment itself.
+Call `with_tz()` with `tzone = "America/New_York"`.
+
 ```r title="Your turn"
 events <- ymd_hms(c("2024-01-15 14:30:00", "2024-07-15 14:30:00"), tz = "UTC")
 ex_4_1 <- # your code here
@@ -602,6 +650,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Turn the date into a display string by spelling out which pieces appear and in what order.
+Pass the format string `"%a, %b %d %Y"` to `format()`.
 
 ```r title="Your turn"
 d <- ymd("2024-01-15")
@@ -639,6 +691,10 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Build the regular daily series first, then test each timestamp for whether it sits inside Daylight Saving.
+Generate the sequence with `seq(..., by = "1 day")` in the New York zone, then apply `dst()` inside a `tibble()`.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -679,6 +735,10 @@ ex_4_3
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Ask for a regular run of consecutive days with a fixed start and a known count.
+Call `seq()` on `ymd("2024-03-15")` with `by = "1 day"` and `length.out = 7`.
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -723,6 +783,10 @@ today <- ymd("2024-04-01")
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Keep only rows inside a trailing window measured back from the reference date and stopping before it.
+In `filter()`, compare `ts` against `today - days(90)` and against `today`.
 
 ```r title="Your turn"
 events <- tibble(id = 1:6,
@@ -776,6 +840,10 @@ ex_5_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Roll the monthly series up to one row per calendar year, then order rows by the summarised value.
+Add a year column with `year()`, then `group_by()`, `summarise(mean(unemploy))`, and `arrange(desc(...))`.
 
 ```r title="Your turn"
 ex_5_3 <- economics |>
@@ -835,6 +903,10 @@ patients <- tibble(
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Measure the span as a fractional age that knows whether this year's birthday has passed, then floor it to completed years.
+Divide `interval(date_of_birth, encounter_dt)` by `years(1)`, then apply `trunc()` and `as.integer()`.
 
 ```r title="Your turn"
 patients <- tibble(
@@ -898,6 +970,10 @@ today <- ymd("2024-04-01")
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Assign each row one of three labels by testing the due date against the reference date in priority order, most urgent first.
+Use `case_when()` with `due_date < today` as the first branch and `due_date <= today + days(7)` as the second.
+
 ```r title="Your turn"
 invoices <- tibble(invoice_id = sprintf("INV%03d", 1:5),
                    amount   = c(1200, 850, 4500, 300, 2200),
@@ -959,6 +1035,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Lay down one row per day across the quarter first, then attach each date feature as its own column.
+Build the date series with `seq(..., by = "1 day")`, then `mutate()` with `month()`, `quarter()`, `isoweek()`, and `wday()`.
 
 ```r title="Your turn"
 ex_6_3 <- # your code here

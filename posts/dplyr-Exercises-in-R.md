@@ -21,10 +21,11 @@ difficulty: "Mixed"
 
 <p class="lead">Fifty scenario-based dplyr exercises grouped into six themed sections covering filtering, mutating, summarising, joins, window functions, and multi-step pipelines. Every problem ships with an expected result so you can verify, and solutions are hidden behind reveal toggles so you actually try first.</p>
 
-```r title="Run this once before any exercise"
+```r title="Run this once before any exercise (first run may take a moment)"
 library(dplyr)
 library(tibble)
 library(tidyr)
+library(ggplot2)   # provides the diamonds and mpg datasets
 ```
 
 ## Section 1. Filter and select (8 problems)
@@ -46,6 +47,10 @@ library(tidyr)
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Two conditions must both hold at once. `filter()` accepts several conditions, separated by a comma.
+After `filter(cyl == 4, mpg > 25)`, add `select(car, mpg)` to keep just those two columns.
 
 ```r title="Your turn"
 ex_1_1 <- mtcars |>
@@ -84,6 +89,10 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+You are matching each row against a known set of names. R has an operator for set membership.
+Use `filter(car %in% target)` to keep every row whose name is in the vector.
 
 ```r title="Your turn"
 target <- c("Mazda RX4", "Honda Civic", "Toyota Corolla")
@@ -129,6 +138,10 @@ ex_1_2
 
 **Difficulty:** Beginner
 
+[HINTS]
+`NA` cannot be tested with `==`; you need a dedicated function for detecting missing values.
+`filter(!is.na(Ozone))` keeps the rows where Ozone is present.
+
 ```r title="Your turn"
 ex_1_3 <- airquality |>
   # your code here
@@ -166,6 +179,10 @@ nrow(ex_1_3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You can pick columns by a shared name prefix instead of spelling each one out.
+Pass `starts_with("Sepal")` and `starts_with("Petal")` to `select()`, then add `Species`.
 
 ```r title="Your turn"
 ex_1_4 <- iris |>
@@ -207,6 +224,10 @@ head(ex_1_4, 3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Work out the cutoff value from the column itself, then keep the rows that beat it.
+Pass `price > median(price)` to `filter()`, then `select(carat, cut, price)`.
 
 ```r title="Your turn"
 ex_1_5 <- diamonds |>
@@ -250,6 +271,10 @@ nrow(ex_1_5)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You are testing each row for membership in a small set of allowed categories.
+Use `filter(class %in% c("pickup", "2seater"))`, then `select()` the four columns.
+
 ```r title="Your turn"
 ex_1_6 <- mpg |>
   # your code here
@@ -288,6 +313,10 @@ head(ex_1_6, 3)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Name the few columns you want gone rather than the many you want kept.
+Wrap the drop list in `select(!c(...))`, listing `disp`, `drat`, `qsec`, `carb`.
+
 ```r title="Your turn"
 ex_1_7 <- mtcars |>
   # your code here
@@ -323,6 +352,10 @@ head(ex_1_7, 3)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A row should be dropped only when every listed measurement is missing at once.
+Negate `if_all(c(Ozone, Solar.R, Wind), is.na)` inside `filter()`.
 
 ```r title="Your turn"
 ex_1_8 <- airquality |>
@@ -364,6 +397,10 @@ nrow(ex_1_8)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You need three price buckets, and each row should land in the first range it matches.
+Add a `tier` column in `mutate()` with `case_when()`, ordering the cutoffs and ending with a `TRUE` catch-all.
 
 ```r title="Your turn"
 ex_2_1 <- diamonds |>
@@ -409,6 +446,10 @@ count(ex_2_1, tier)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Derive the new ratio first, then reshape the columns and sort by it.
+Use `mutate(ppc = price / carat)`, then `select()` the four columns, then `arrange(desc(ppc))`.
+
 ```r title="Your turn"
 ex_2_2 <- diamonds |>
   # your code here
@@ -445,6 +486,10 @@ head(ex_2_2)
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+This is a two-outcome label driven by a single 0/1 condition.
+Add `transmission` in `mutate()` with `if_else(am == 1, "manual", "automatic")`.
 
 ```r title="Your turn"
 ex_2_3 <- mtcars |>
@@ -483,6 +528,10 @@ count(ex_2_3, transmission)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Apply the same rounding to a whole class of columns without naming any of them.
+Inside `mutate()`, use `across(where(is.numeric), \(x) round(x, 2))`.
+
 ```r title="Your turn"
 ex_2_4 <- iris |>
   # your code here
@@ -516,6 +565,10 @@ head(ex_2_4, 3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Three named columns need the same type conversion in a single sweep.
+Inside `mutate()`, use `across(c(cyl, gear, carb), as.factor)`.
 
 ```r title="Your turn"
 ex_2_5 <- mtcars |>
@@ -554,6 +607,10 @@ sapply(ex_2_5[c("cyl","gear","carb")], class)
 
 **Difficulty:** Beginner
 
+[HINTS]
+One sort key sets the main order while a second one breaks the ties.
+Call `arrange(desc(mpg), hp)` so mpg leads and ascending hp resolves ties.
+
 ```r title="Your turn"
 ex_2_6 <- mtcars |>
   # your code here
@@ -591,6 +648,10 @@ head(ex_2_6, 4)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+For each row, take the first value that is actually present out of the two options.
+Add `primary_contact` in `mutate()` with `coalesce(email, phone)`.
 
 ```r title="Your turn"
 contacts <- tibble(
@@ -639,6 +700,10 @@ ex_2_7
 
 **Difficulty:** Advanced
 
+[HINTS]
+You are mapping a few specific category values onto two new labels.
+Use `case_match()` inside `mutate()`, sending `c("Ideal", "Premium")` to "premium" and using `.default` for the rest.
+
 ```r title="Your turn"
 ex_2_8 <- diamonds |>
   # your code here
@@ -681,6 +746,10 @@ count(ex_2_8, cut_group)
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Split the data by engine size, then collapse each part down to one summary row.
+After `group_by(cyl)`, use `summarise(mean_mpg = mean(mpg), median_mpg = median(mpg))`.
 
 ```r title="Your turn"
 ex_3_1 <- mtcars |>
@@ -725,6 +794,10 @@ ex_3_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+You want each category's size, ranked from the biggest segment to the smallest.
+Use `count(cut, sort = TRUE)`.
+
 ```r title="Your turn"
 ex_3_2 <- diamonds |>
   # your code here
@@ -761,6 +834,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Average every measurement column per group without listing the columns by hand.
+After `group_by(Species)`, use `summarise(across(where(is.numeric), mean))`.
 
 ```r title="Your turn"
 ex_3_3 <- iris |>
@@ -803,6 +880,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Summarise on a two-variable grouping first, then drop the small segments.
+Group by `cut, color`, `summarise(mean_price = mean(price), n = n(), .groups = "drop")`, then `filter(n > 1000)`.
+
 ```r title="Your turn"
 ex_3_4 <- diamonds |>
   # your code here
@@ -842,6 +923,10 @@ nrow(ex_3_4)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A plain average treats every car equally; here heavier cars should pull harder.
+Inside `summarise()`, use `weighted.mean(mpg, w = wt)` next to a plain `mean(mpg)`.
 
 ```r title="Your turn"
 ex_3_5 <- mtcars |>
@@ -887,6 +972,10 @@ ex_3_5
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Within one summary you can total just the rows that meet a condition by indexing the vector.
+After `group_by(manufacturer)`, use `sum(cty[class == "suv"])` and `sum(cty[class != "suv"])` in `summarise()`.
+
 ```r title="Your turn"
 ex_3_6 <- mpg |>
   # your code here
@@ -929,6 +1018,10 @@ head(ex_3_6, 4)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Each summary cell must hold a single number, so ask for one percentile at a time.
+After `group_by(cut)`, call `quantile(price, 0.25)`, `quantile(price, 0.50)` and `quantile(price, 0.75)` as three columns.
 
 ```r title="Your turn"
 ex_3_7 <- diamonds |>
@@ -974,6 +1067,10 @@ ex_3_7
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Get the group counts first, then express each one as a fraction of their total.
+After `count(cut)`, use `mutate(share_pct = round(n / sum(n) * 100, 1))`.
+
 ```r title="Your turn"
 ex_3_8 <- diamonds |>
   # your code here
@@ -1009,6 +1106,10 @@ ex_3_8
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Compute the summary in long form, then spread one column out into headers.
+After `group_by(cut)` and `summarise(mean_price = mean(price))`, use `pivot_wider(names_from = cut, values_from = mean_price)`.
 
 ```r title="Your turn"
 ex_3_9 <- diamonds |>
@@ -1048,6 +1149,10 @@ ex_3_9
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You can attach the grouping to a single verb instead of declaring it as a separate step.
+Inside `summarise()`, pass `.by = cyl` rather than calling `group_by()` first.
 
 ```r title="Your turn"
 ex_3_10 <- mtcars |>
@@ -1091,6 +1196,10 @@ ex_3_10
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Keep only the customer-order pairs that have a match on both sides.
+Use `inner_join(orders, by = c("id" = "cust_id"))`.
 
 ```r title="Your turn"
 customers <- tibble(id = 1:3,        name   = c("Ada","Bob","Carol"))
@@ -1136,6 +1245,10 @@ ex_4_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Every customer must survive the join, even one who never placed an order.
+Use `left_join(orders, by = c("id" = "cust_id"))`.
+
 ```r title="Your turn"
 customers <- tibble(id = 1:3,        name   = c("Ada","Bob","Carol"))
 orders    <- tibble(cust_id = c(1,2,2,4), amount = c(100, 50, 75, 200))
@@ -1176,6 +1289,10 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want the customers who have no counterpart at all in the orders table.
+Use `anti_join(orders, by = c("id" = "cust_id"))`.
 
 ```r title="Your turn"
 customers <- tibble(id = 1:3,        name   = c("Ada","Bob","Carol"))
@@ -1218,6 +1335,10 @@ ex_4_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Filter customers by membership in the orders table, without copying order columns or duplicating rows.
+Use `semi_join(orders, by = c("id" = "cust_id"))`.
 
 ```r title="Your turn"
 customers <- tibble(id = 1:3,        name   = c("Ada","Bob","Carol"))
@@ -1264,6 +1385,10 @@ ex_4_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Keep every row from both tables, letting NAs fill the gaps on whichever side is missing.
+Use `full_join(orders, by = c("id" = "cust_id"), keep = TRUE)`.
+
 ```r title="Your turn"
 customers <- tibble(id = 1:3,        name   = c("Ada","Bob","Carol"))
 orders    <- tibble(cust_id = c(1,2,2,4), amount = c(100, 50, 75, 200))
@@ -1306,6 +1431,10 @@ ex_4_5
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The match is correct only when both key fields agree at the same time.
+Use `inner_join(shifts, by = c("date", "store"))`.
 
 ```r title="Your turn"
 staffing <- tibble(
@@ -1366,6 +1495,10 @@ ex_4_6
 
 **Difficulty:** Advanced
 
+[HINTS]
+Each salary belongs to the one bracket whose lower and upper bounds straddle it.
+Use `inner_join(brackets, by = join_by(salary >= min_income, salary < max_income))`, then `select()` the columns.
+
 ```r title="Your turn"
 payroll  <- tibble(employee = c("Ada","Bob","Carol"), salary = c(45000, 85000, 200000))
 brackets <- tibble(
@@ -1421,6 +1554,10 @@ ex_4_7
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Stack the two tables on top of each other and tag every row with where it came from.
+Call `bind_rows(mtcars = a, mpg = b, .id = "source")`.
+
 ```r title="Your turn"
 a <- mtcars |> head(3) |> select(cyl, hp)
 b <- mpg    |> head(3) |> select(cyl)
@@ -1470,6 +1607,10 @@ ex_4_8
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Rank the rows within each group, with the highest value taking position one.
+After `group_by(cyl)`, use `mutate(rank_mpg = row_number(desc(mpg)))`, then `select()` the four columns.
+
 ```r title="Your turn"
 ex_5_1 <- mtcars |>
   rownames_to_column("car") |>
@@ -1515,6 +1656,10 @@ head(filter(ex_5_1, cyl == 4))
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each row's change compares it against the previous period, so fix the order before anything else.
+After `arrange(date)`, use `mutate(delta = unemploy - lag(unemploy))`, then drop the NA row with `filter()`.
+
 ```r title="Your turn"
 ex_5_2 <- economics |>
   # your code here
@@ -1559,6 +1704,10 @@ head(ex_5_2)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A running total should restart at each group and follow the row order you set.
+After `arrange(cut, carat)` and `group_by(cut)`, use `mutate(cum_price = cumsum(price))`.
+
 ```r title="Your turn"
 ex_5_3 <- diamonds |>
   # your code here
@@ -1601,6 +1750,10 @@ head(filter(ex_5_3, cut == "Fair"))
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Within each group, keep only the handful of rows at the top of one column.
+After `group_by(cut)`, use `slice_max(price, n = 3, with_ties = FALSE)`.
+
 ```r title="Your turn"
 ex_5_4 <- diamonds |>
   # your code here
@@ -1640,6 +1793,10 @@ nrow(ex_5_4)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Order the rows so the newest record sits first, then take just the top one per id.
+Use `arrange(desc(ts))`, `group_by(id)`, then `slice_head(n = 1)`.
 
 ```r title="Your turn"
 events <- tibble(
@@ -1697,6 +1854,10 @@ ex_5_5
 
 **Difficulty:** Advanced
 
+[HINTS]
+One ranking gives every row a unique slot; the other lets ties share a slot with no gaps after them.
+Inside `mutate()`, set `rn = row_number(desc(hwy))` and `dr = dense_rank(desc(hwy))`.
+
 ```r title="Your turn"
 ex_5_6 <- mpg |>
   # your code here
@@ -1741,6 +1902,10 @@ head(arrange(ex_5_6, dr, rn), 6)
 
 **Difficulty:** Advanced
 
+[HINTS]
+A centred average needs the current value plus one neighbour on each side of it.
+After `arrange(date)`, use `mutate(ma3 = (lag(unemploy) + unemploy + lead(unemploy)) / 3)`, then drop the NA rows.
+
 ```r title="Your turn"
 ex_5_7 <- economics |>
   # your code here
@@ -1784,6 +1949,10 @@ head(ex_5_7)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Within each year you want the opening and closing reading, which depends on row order.
+After adding a `year` column and `group_by(year)`, use `summarise(first = first(unemploy), last = last(unemploy))`.
+
 ```r title="Your turn"
 ex_5_8 <- economics |>
   # your code here
@@ -1824,6 +1993,10 @@ head(ex_5_8)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+First reduce each user to whether they ever returned, then average that flag per cohort.
+Group by `signup_day, user` and `summarise(returned = any(day_visited > signup_day))`, then group by `signup_day` and take `mean(returned)`.
 
 ```r title="Your turn"
 events <- tibble(
@@ -1879,6 +2052,10 @@ ex_6_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+Outlier limits must be computed per group, then applied row by row inside that same group.
+After `group_by(cut)`, `mutate()` the `quantile(price, 0.25)` and `quantile(price, 0.75)` bounds, then `filter()` on the 1.5*IQR range.
+
 ```r title="Your turn"
 ex_6_2 <- diamonds |>
   # your code here
@@ -1921,6 +2098,10 @@ c(nrow(diamonds), nrow(ex_6_2))
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A segment qualifies only if every week-to-week step moves upward.
+Inside a per-segment `summarise()`, test `all(diff(value) > 0)`, then `filter()` the TRUE segments.
 
 ```r title="Your turn"
 metrics <- tibble(
@@ -1973,6 +2154,10 @@ ex_6_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+Build the period-over-period changes first, then pull the single biggest one.
+After `arrange(date)` and `mutate(jump = unemploy - lag(unemploy))`, use `slice_max(jump, n = 1, with_ties = FALSE)`.
+
 ```r title="Your turn"
 ex_6_4 <- economics |>
   # your code here
@@ -2011,6 +2196,10 @@ ex_6_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Rank rows by value, accumulate their share of the total, and stop at the row that crosses 80%.
+Use `cumsum()` to build `cum_share`, then `filter(cum_share <= 0.80 | lag(cum_share, default = 0) <= 0.80)`.
 
 ```r title="Your turn"
 ex_6_5 <- diamonds |>
@@ -2056,6 +2245,10 @@ nrow(ex_6_5)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Standardise the values within each group so they are comparable, then flag the extreme ones.
+After `group_by(cyl)`, `mutate()` `z_hp = (hp - mean(hp)) / sd(hp)` and `is_outlier = abs(z_hp) > 1.5`.
 
 ```r title="Your turn"
 ex_6_6 <- mtcars |>
@@ -2103,6 +2296,10 @@ filter(ex_6_6, is_outlier)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Build the two-variable summary in long form, then spread one variable across the columns.
+After `group_by(cut, color)` and `summarise(mean_price = round(mean(price)))`, use `pivot_wider(names_from = color, values_from = mean_price)`.
+
 ```r title="Your turn"
 ex_6_7 <- diamonds |>
   # your code here
@@ -2142,6 +2339,10 @@ head(ex_6_7, 2)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Count how many rows share the same key, then keep only those that are not alone.
+Use `add_count(account, amount, name = "dup_n")`, then `filter(dup_n > 1)`.
 
 ```r title="Your turn"
 txns <- tibble(

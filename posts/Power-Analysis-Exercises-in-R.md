@@ -51,6 +51,9 @@ Cohen's conventions (small, medium, large) used throughout: d = 0.2 / 0.5 / 0.8 
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Power calculations tie together four quantities; fix the three you already know and leave the one you want to learn as the unknown.
+Call pwr.t.test() with d = 0.5, sig.level = 0.05, power = 0.80, type = "two.sample", alternative = "two.sided", and leave n out.
 
 ```r title="Your turn"
 ex_1_1 <- # your code here
@@ -98,6 +101,9 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+When the sample size is already locked in by budget, the open question shifts to how often a real effect would actually be detected.
+Use pwr.t.test() with n = 30, d = 0.5, sig.level = 0.05, type = "two.sample" and power = NULL.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -145,6 +151,9 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Hold both the sample size and the desired power fixed, and ask which effect magnitude is the smallest one still reliably caught.
+Run pwr.t.test() with n = 50, power = 0.80, sig.level = 0.05, type = "two.sample" and leave the effect-size argument unspecified.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -194,6 +203,9 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Measuring the same patients before and after is not two independent groups; the design flavor changes the calculation.
+Pass type = "paired" to pwr.t.test() along with d = 0.4, power = 0.90, sig.level = 0.05, alternative = "two.sided".
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -239,6 +251,9 @@ ex_2_1
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Testing one mean against a fixed benchmark, with interest only in improvement, narrows both the design and the tail being tested.
+Set type = "one.sample" and alternative = "greater" in pwr.t.test() with d = 0.35, power = 0.80, sig.level = 0.05.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -283,6 +298,9 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+When the two arms hold different counts, a single shared sample size no longer describes the design.
+Use pwr.t2n.test() with n1 = 800, n2 = 200, d = 0.25, sig.level = 0.05, alternative = "two.sided" and power left out.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -332,6 +350,9 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+To see how power grows, evaluate it once at every candidate sample size and collect the answers into a table.
+Loop n_seq through pwr.t.test() with sapply(), pull $power from each result, and assemble a tibble() of n and power.
 
 ```r title="Your turn"
 ex_2_4 <- # your code here
@@ -385,6 +406,9 @@ ex_2_4
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Comparing several group means at once needs an effect size built for groups, not a single pairwise difference.
+Call pwr.anova.test() with k = 4, f = 0.25, sig.level = 0.05, power = 0.80 and leave n unspecified.
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -429,6 +453,9 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+With the group count and the per-group size both fixed, the only quantity still open is the detection rate.
+Use pwr.anova.test() with k = 3, n = 25, f = 0.25, sig.level = 0.05 and power = NULL.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -471,6 +498,9 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Detecting an association between two continuous variables relies on a correlation-specific effect size, not a mean difference.
+Run pwr.r.test() with r = 0.3, sig.level = 0.05, power = 0.80, alternative = "two.sided" and n left out.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -516,6 +546,9 @@ ex_3_3
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Fix the group count, the per-group size, and the desired detection rate, then ask which effect size is the floor the design can catch.
+Solve pwr.anova.test() with k = 5, n = 20, sig.level = 0.05, power = 0.80 and the effect-size argument left unspecified.
 
 ```r title="Your turn"
 ex_3_4 <- # your code here
@@ -564,6 +597,9 @@ ex_3_4
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Two rates cannot go straight into a sizing formula; they first have to be turned into a proportion-specific effect size.
+Compute the effect size with ES.h(p1 = 0.04, p2 = 0.05), then feed it to pwr.2p.test() with sig.level = 0.05, power = 0.80.
 
 ```r title="Your turn"
 ex_4_1 <- # your code here
@@ -612,6 +648,9 @@ ex_4_1
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Checking whether observed category counts match an expected ratio is a chi-square problem, and the degrees of freedom come from the number of categories.
+Call pwr.chisq.test() with w = 0.2, N = 200, df = 3, sig.level = 0.05 and power left unspecified.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -659,6 +698,9 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Rather than guessing a small/medium/large label, let the hypothesized table itself supply the effect size for the test of independence.
+Derive the effect size from the matrix with ES.w2(), then pass it to pwr.chisq.test() with df = 1, sig.level = 0.05, power = 0.80.
 
 ```r title="Your turn"
 # p_table is a 2x2 matrix of joint probabilities (rows sum to row-marginals,
@@ -715,6 +757,9 @@ ex_4_3
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A regression's explained-variance figure must be rescaled into a regression effect size before it can drive a sample-size calculation.
+Convert with f2 = R2 / (1 - R2), then call pwr.f2.test() with u = 5, that f2, sig.level = 0.05, power = 0.80.
 
 ```r title="Your turn"
 R2 <- 0.13
@@ -769,6 +814,9 @@ n_total
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+To stress-test a fixed design, recompute power at each plausible effect size and gather the pairs into a table.
+Map d_seq through pwr.t.test() with n = 60 via sapply(), extract $power, and build a tibble() of d and power.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -820,6 +868,9 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Running many tests at once inflates false positives unless the per-test threshold is tightened first.
+Divide 0.05 by 10 to get the adjusted alpha, then pass it as sig.level to pwr.t.test() with n = 100, d = 0.3, type = "two.sample".
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -867,6 +918,9 @@ pwr.t.test(n = 100, d = 0.3, sig.level = 0.05,
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+When no closed-form formula fits, estimate power by repeatedly generating data and counting how often the test rejects.
+Use replicate() to draw rnorm() samples and run t.test() each pass, then take mean(p_vals < 0.05) after set.seed(2026).
 
 ```r title="Your turn"
 ex_5_4 <- # your code here

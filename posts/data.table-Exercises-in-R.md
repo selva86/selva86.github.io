@@ -51,6 +51,9 @@ aq <- as.data.table(airquality)
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+The first slot inside the brackets is the row filter; write the condition in the table's own column namespace, no table-name prefix.
+Inside `mt[...]`, put `mpg > 25` as the first argument.
 
 ```r title="Your turn"
 ex_1_1 <- # your code here
@@ -87,6 +90,9 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Column selection happens in the second slot; wrap the names so a table comes back instead of a bare vector.
+In `j`, write `.(car, mpg)` using the `.()` list shorthand.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -118,6 +124,9 @@ ex_1_2
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+An aggregation written in the second slot collapses all rows down to a single summary row.
+In `j`, write `.(avg_mpg = mean(mpg))` to name the result column.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -153,6 +162,9 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+The row filter and the column projection are independent slots you can stack inside one set of brackets.
+Combine `mpg >= 25 & cyl == 4` in `i` with `.(car, wt)` in `j`.
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -186,6 +198,9 @@ ex_1_4
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Grouping is a third slot that splits the table before the aggregation in the second slot runs.
+Add `by = cyl` and name the column with `.(mean_mpg = mean(mpg))`.
 
 ```r title="Your turn"
 ex_1_5 <- # your code here
@@ -219,6 +234,9 @@ ex_1_5
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Each comma-separated item in the second slot is its own per-group expression evaluated independently.
+In `.()`, list `mean(mpg)`, `max(hp)` and `.N`, each named, with `by = cyl`.
 
 ```r title="Your turn"
 ex_1_6 <- # your code here
@@ -257,6 +275,9 @@ ex_1_6
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Grouping can span more than one column, giving one output row per combination of values.
+Pass both columns to `by` inside `.()`, as `by = .(cyl, am)`.
 
 ```r title="Your turn"
 ex_1_7 <- # your code here
@@ -293,6 +314,9 @@ ex_1_7
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Sorting belongs in the row slot, and a negative sign flips the direction to descending.
+Use `order(-mpg)` in `i`, then chain a `[1:6]` bracket to take the top rows.
 
 ```r title="Your turn"
 ex_1_8 <- # your code here
@@ -325,6 +349,9 @@ ex_1_8
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+One bracket can feed its result straight into the next, the way a pipe chains steps.
+After the grouped `.(mean_mpg = mean(mpg)), by = cyl`, chain a second bracket `[mean_mpg > 18]`.
 
 ```r title="Your turn"
 ex_1_9 <- # your code here
@@ -357,6 +384,9 @@ ex_1_9
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+The grouping slot accepts an arbitrary expression, not just a bare column name.
+Write `by = .(is_manual = am == 1)` to group on the logical expression directly.
 
 ```r title="Your turn"
 ex_1_10 <- # your code here
@@ -392,6 +422,9 @@ ex_1_10
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+A new column can be written straight into the table by reference, with no copy of the frame.
+On the right of `kpl :=`, put `mpg * 0.4251`.
 
 ```r title="Your turn"
 mt[, kpl := # your code here]
@@ -428,6 +461,9 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A comparison applied to a column evaluates element-wise, producing a TRUE/FALSE vector directly.
+Assign `mpg < 18` to `low_mpg` with `:=`; no conditional wrapper is needed.
 
 ```r title="Your turn"
 mt[, low_mpg := # your code here]
@@ -463,6 +499,9 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Several derived columns can be created together in a single pass over the table.
+Inside `` `:=`(...) ``, set `power_to_weight = hp / wt` and `disp_per_cyl = disp / cyl`.
 
 ```r title="Your turn"
 mt[, `:=`(
@@ -500,6 +539,9 @@ ex_2_3
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+A column can be dropped in place in constant time, no matter how large the table is.
+Assign `NULL` to `qsec` with `:=`.
 
 ```r title="Your turn"
 mt[, qsec := # your code here]
@@ -533,6 +575,9 @@ ex_2_4 <- mt
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+An update touches only the rows the filter slot selects, leaving every other row unchanged.
+Filter with `gear > 4` in `i`, then write `gear := 4` in `j`.
 
 ```r title="Your turn"
 mt[# your i filter, gear := # your replacement value]
@@ -569,6 +614,9 @@ ex_2_5[, max(gear)]
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A within-group rank needs both an update and a grouping in the same bracketed call.
+Use `frank(-hp, ties.method = "min")` as the `hp_rank :=` value, with `by = cyl`.
 
 ```r title="Your turn"
 mt[, hp_rank := # your code here, by = cyl]
@@ -600,6 +648,9 @@ ex_2_6[order(cyl, hp_rank), .(car, cyl, hp, hp_rank)][1:6]
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Renaming happens by reference and pairs old names to new names by position.
+Pass `old = c("disp", "wt")` and `new = c("displacement", "weight_klb")` to `setnames`.
 
 ```r title="Your turn"
 setnames(mt, old = # your old names, new = # your new names)
@@ -637,6 +688,9 @@ all(c("displacement", "weight_klb") %in% names(ex_2_7))
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+To transform many columns at once, iterate a function over the per-column subset of the table.
+Use `lapply(.SD, function(x) x * 10)` with `.SDcols = num_cols` and the `(num_cols) :=` form.
 
 ```r title="Your turn"
 num_cols <- # column names to convert
@@ -676,6 +730,9 @@ ex_2_8[1:3]
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+A special symbol holds the row count of the current group without referencing any column.
+Return `.(n = .N)` with `by = cyl`.
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -707,6 +764,9 @@ ex_3_1
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+With no grouping, the row-count symbol refers to the entire table.
+Return `.(total_rows = .N)` with no `by` argument.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -740,6 +800,9 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+The per-group data subset is itself a table you can return directly from the second slot.
+Return `head(.SD, 1)` with `by = cyl`.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -773,6 +836,9 @@ ex_3_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Restricting which columns enter the per-group subset lets you summarise only those columns.
+Set `audit_cols <- c("mpg", "hp", "weight_klb")` and use `lapply(.SD, mean)` in `j` with `.SDcols`.
 
 ```r title="Your turn"
 audit_cols <- # column names
@@ -811,6 +877,9 @@ ex_3_4
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Sort the whole table first, then take the leading rows of each group from the sorted order.
+With rows ordered by `-weight_klb`, return `head(.SD, 2)` with `by = cyl`.
 
 ```r title="Your turn"
 ex_3_5 <- mt[order(-weight_klb), # your code here, by = cyl]
@@ -845,6 +914,9 @@ ex_3_5
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A special symbol tags each group with a sequential integer as the groups are encountered.
+Assign `.GRP` to `grp_id` with `by = cyl`.
 
 ```r title="Your turn"
 mt[, grp_id := # your code here, by = cyl]
@@ -879,6 +951,9 @@ ex_3_6[, .(car, cyl, grp_id)][1:4]
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+One special symbol carries each group's positions back into the original table's row numbering.
+Use `.I[which.max(hp)]` as the `row_idx` expression, with `by = cyl`.
 
 ```r title="Your turn"
 ex_3_7 <- mt[, .(row_idx = # your code here), by = cyl]
@@ -912,6 +987,9 @@ ex_3_7
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Inside a grouped expression you can read back the current group's own grouping values.
+Build the label with `paste0("cyl=", .BY$cyl)`.
 
 ```r title="Your turn"
 ex_3_8 <- mt[, .(mean_mpg = mean(mpg),
@@ -986,6 +1064,9 @@ trades <- data.table(
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+In a bracket join, the table inside the brackets drives the lookup and the outer table is the source matched against.
+Write `customers[orders, on = "cust_id"]`.
 
 ```r title="Your turn"
 ex_4_1 <- # your code here
@@ -1022,6 +1103,9 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A single flag flips a left join into an inner join by discarding the unmatched rows.
+Add `nomatch = NULL` to `customers[orders, on = "cust_id"]`.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -1062,6 +1146,9 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A full outer join keeps unmatched rows from both sides, which the bracket syntax cannot express.
+Call `merge(customers, orders, by = "cust_id", all = TRUE)`.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -1094,6 +1181,9 @@ ex_4_3
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Negating the lookup table keeps the rows that fail to match instead of those that do.
+Write `orders[!customers, on = "cust_id"]`.
 
 ```r title="Your turn"
 ex_4_4 <- # your code here
@@ -1132,6 +1222,9 @@ ex_4_4
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+An update during a join reaches into the other table's columns, told apart by a name prefix.
+Assign `i.city` to `city` inside `orders[customers, ..., on = "cust_id"]`.
 
 ```r title="Your turn"
 orders[customers, city := # your code here, on = "cust_id"]
@@ -1172,6 +1265,9 @@ ex_4_5
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A range lookup matches rows with inequalities rather than equality on the join keys.
+Join with `on = .(price >= band_lo, price <= band_hi)` and select `.(price = x.price, band = i.band)`.
 
 ```r title="Your turn"
 dm_sample <- dm[1:100]
@@ -1211,6 +1307,9 @@ ex_4_6[1:5]
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A rolling join carries the last observed value forward to the requested time points.
+In the keyed `roll = TRUE` join, select `.(trade_id, date, rate)` in the `j` slot.
 
 ```r title="Your turn"
 setkey(rates, date)
@@ -1249,6 +1348,9 @@ ex_4_7
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A composite-key join must align on every shared column at the same time.
+Pass a character vector to `on`, as `sales[targets, on = c("region", "quarter")]`.
 
 ```r title="Your turn"
 sales <- data.table(
@@ -1305,6 +1407,9 @@ ex_4_8
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Reshaping wide to long stacks every non-identifier column into one variable/value pair.
+Call `melt(ir, id.vars = "Species")`.
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -1338,6 +1443,9 @@ ex_5_1[1:2]
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Pivoting long back to wide spreads one column's labels out across new columns.
+Use `dcast(ex_5_1, Species ~ variable, value.var = "value", fun.aggregate = mean)`.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -1371,6 +1479,9 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Two measurement families can be reshaped together so their values land side by side.
+Pass `measure.vars` a list of two vectors, `list(c("Temp", "Wind"), c("Ozone", "Solar.R"))`.
 
 ```r title="Your turn"
 ex_5_3 <- melt(aq,
@@ -1408,6 +1519,9 @@ ex_5_3[1:2]
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Casting with a counting aggregator turns the pivot into a cross-tabulation of group sizes.
+Set `fun.aggregate = length` in the `dcast` call.
 
 ```r title="Your turn"
 ex_5_4 <- dcast(mt, cyl ~ gear, value.var = "car", fun.aggregate = # your code here)
@@ -1441,6 +1555,9 @@ ex_5_4
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A cast can lay out more than one measurement series at once, each prefixed by its name.
+Pass `value.var = c("Temp", "Wind")` to `dcast`.
 
 ```r title="Your turn"
 ex_5_5 <- dcast(aq, Month ~ Day, value.var = # your code here, fun.aggregate = mean, na.rm = TRUE)
@@ -1474,6 +1591,9 @@ ex_5_5[, 1:5]
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Reshaping out to long and back to wide should recover the original shape unchanged.
+First `melt(..., id.vars = "car")`, then `dcast(long, car ~ variable, value.var = "value")`.
 
 ```r title="Your turn"
 long <- # your melt call
@@ -1516,6 +1636,9 @@ identical(
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Marking a sort column turns a lookup from a linear scan into a binary search.
+Call `setkey(mt, car)` before the `mt["Honda Civic"]` lookup.
 
 ```r title="Your turn"
 setkey(mt, # your column)
@@ -1550,6 +1673,9 @@ ex_6_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Sorting in place rearranges the table itself, with no copy and no returned value.
+Call `setorder(mt, -hp)` for the descending sort.
 
 ```r title="Your turn"
 setorder(mt, # your sort spec)
@@ -1582,6 +1708,9 @@ ex_6_2[1, .(car, hp)]
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A secondary index speeds repeated filters on a column without reordering the table.
+Call `setindex(mt, cyl)` before filtering with `mt[.(4), on = "cyl"]`.
 
 ```r title="Your turn"
 setindex(mt, # your index column)
@@ -1619,6 +1748,9 @@ nrow(ex_6_3)
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A vectorised multi-branch conditional checks each condition top to bottom and returns the first match.
+Assign `fcase(mpg < 18, "low", mpg >= 18 & mpg <= 25, "mid", mpg > 25, "high")` to `mpg_band`.
 
 ```r title="Your turn"
 mt[, mpg_band := # your code here]
@@ -1655,6 +1787,9 @@ ex_6_4[order(mpg), .(car, mpg, mpg_band)][1:3]
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A fast write to disk followed by a fast read should return the same number of rows.
+Write with `fwrite(mt, tmp)` and read it back with `fread(tmp)`.
 
 ```r title="Your turn"
 tmp <- tempfile(fileext = ".csv")
@@ -1690,6 +1825,9 @@ nrow(ex_6_5) == nrow(mt)
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A data.frame can be upgraded to a data.table in place, with no memory copy.
+Call `setDT(df, keep.rownames = "car")`.
 
 ```r title="Your turn"
 df <- as.data.frame(mtcars)
@@ -1725,6 +1863,9 @@ inherits(ex_6_6, "data.table")
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Assigning a table to a new name shares memory, so a deep copy is needed for true independence.
+Use `copy(mt)` before modifying the new table with `:=`.
 
 ```r title="Your turn"
 ex_6_7 <- copy(mt)
@@ -1758,6 +1899,9 @@ ex_6_7[1, mpg] != mt[1, mpg]
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Bundling several column updates into one call amortises the per-call dispatch overhead.
+In `` `:=`(...) ``, set `mpg_band_n = fmatch(mpg_band, c("low", "mid", "high"))`, `weight_t = weight_klb / 1000`, `power_idx = hp * 0.001`.
 
 ```r title="Your turn"
 mt[, `:=`(
@@ -1802,6 +1946,9 @@ all(c("mpg_band_n", "weight_t", "power_idx") %in% names(ex_6_8))
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A fast distinct-count gives the number of unique values within each group.
+Use `uniqueN(gear)` as the `n_gears` expression with `by = cyl`.
 
 ```r title="Your turn"
 ex_6_9 <- mt[, .(n_gears = # your code here), by = cyl]
@@ -1832,6 +1979,9 @@ ex_6_9
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Column order can be changed in place, moving chosen columns to the front of the table.
+Call `setcolorder(mt, c("car", "cyl", "mpg"))`.
 
 ```r title="Your turn"
 setcolorder(mt, # your column order)

@@ -48,6 +48,10 @@ library(ggplot2)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Each row needs the value sitting in the row directly above it, and the first row stays empty because nothing comes before it.
+Inside `mutate()`, create the `prev` column by calling `lag(x)`.
+
 ```r title="Your turn"
 ex_1_1 <- tibble(x = c(10, 12, 15, 14, 18)) |>
   # your code here
@@ -93,6 +97,10 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Each row needs the value sitting in the row directly below it, and the last row stays empty because nothing comes after it.
+Inside `mutate()`, create the `nxt` column by calling `lead(x)`.
 
 ```r title="Your turn"
 ex_1_2 <- tibble(x = c(10, 12, 15, 14, 18)) |>
@@ -141,6 +149,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A day-over-day change is this day's reading minus the reading recorded the day before it.
+In `mutate()`, compute `temp_change` as `Temp - lag(Temp)`, then `select()` the four columns to keep.
 
 ```r title="Your turn"
 ex_1_3 <- airquality |>
@@ -196,6 +208,10 @@ ex_1_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The lookback must reset at each chick so one chick's first visit never borrows the previous chick's last weight.
+`group_by(Chick)`, then `arrange(Time, .by_group = TRUE)`, then `mutate()` a `gain` column from `weight - lag(weight)`.
+
 ```r title="Your turn"
 ex_1_4 <- ChickWeight |>
   # your code here
@@ -247,6 +263,10 @@ ex_1_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Comparing a day with one exactly seven days earlier means looking back seven positions instead of just one.
+Pass `n = 7` to `lag(Ozone)` inside `mutate()`, then `select()` the four columns to keep.
 
 ```r title="Your turn"
 ex_1_5 <- airquality |>
@@ -301,6 +321,10 @@ ex_1_5
 
 **Difficulty:** Beginner
 
+[HINTS]
+A running total carries forward the accumulated sum of every value up to and including the current row.
+Inside `mutate()`, build the `total` column by applying `cumsum(daily)`.
+
 ```r title="Your turn"
 ex_2_1 <- tibble(daily = c(4, 7, 3, 8, 5)) |>
   # your code here
@@ -348,6 +372,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A running total stacks each month's value on top of every month that came before it.
+In `mutate()`, use `cumsum(unemploy)` for `cum_unemp`, then `select()` the three columns.
 
 ```r title="Your turn"
 ex_2_2 <- economics |>
@@ -398,6 +426,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A running maximum reports the largest value seen so far, and it should start over for each manufacturer.
+`group_by(manufacturer)`, then `mutate()` a `running_max_cty` column with `cummax(cty)`.
 
 ```r title="Your turn"
 ex_2_3 <- mpg |>
@@ -450,6 +482,10 @@ ex_2_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A running mean averages every value up to the current row, and it should restart on the first day of each month.
+`group_by(Month)`, `arrange(Day, .by_group = TRUE)`, then `mutate()` `cum_mean_temp` with `cummean(Temp)`.
 
 ```r title="Your turn"
 ex_2_4 <- airquality |>
@@ -507,6 +543,10 @@ ex_2_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+Once the rows are sorted from best to worst, each row's position in that order is its rank.
+`arrange(desc(mpg))`, then `mutate()` a `rank` column with `row_number()`.
+
 ```r title="Your turn"
 ex_3_1 <- mtcars |>
   rownames_to_column("model") |>
@@ -560,6 +600,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The ranking should restart inside each cut so a stone's position reflects its own cut, not the whole dataset.
+`group_by(cut)`, then `mutate()` a `price_rank` column with `min_rank(price)`.
+
 ```r title="Your turn"
 ex_3_2 <- diamonds |>
   # your code here
@@ -609,6 +653,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The three ranking styles only disagree on how they handle tied values, so place all three side by side.
+In a single `mutate()`, set `min = min_rank(x)`, `dense = dense_rank(x)`, and `row = row_number(x)`.
 
 ```r title="Your turn"
 ex_3_3 <- tibble(x = c(10, 10, 12, 15, 15, 20)) |>
@@ -663,6 +711,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A 0-to-1 score places each value by where it sits along the sorted distribution, from smallest to largest.
+Inside `mutate()`, build `pct_rank` by applying `percent_rank(price)`.
+
 ```r title="Your turn"
 ex_3_4 <- diamonds |>
   # your code here
@@ -712,6 +764,10 @@ ex_3_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Within each diet, order chicks from heaviest down and then keep only the first three of each group.
+`group_by(Diet)`, `arrange(desc(weight), .by_group = TRUE)`, `mutate()` a rank with `row_number()`, then `filter(rank <= 3)`.
 
 ```r title="Your turn"
 ex_3_5 <- ChickWeight |>
@@ -767,6 +823,10 @@ ex_3_5
 
 **Difficulty:** Beginner
 
+[HINTS]
+Splitting into four equally sized groups assigns every row to one of four buckets based on row count.
+Inside `mutate()`, build the `cty_quartile` column with `ntile(cty, 4)`.
+
 ```r title="Your turn"
 ex_4_1 <- mpg |>
   # your code here
@@ -815,6 +875,10 @@ ex_4_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each cut needs its own ten-bucket grid, so the bucketing has to restart for every cut.
+`group_by(cut)`, then `mutate()` a `price_decile` column with `ntile(price, 10)`.
+
 ```r title="Your turn"
 ex_4_2 <- diamonds |>
   # your code here
@@ -862,6 +926,10 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Two ways of slicing into ten groups: one returns plain integer bucket IDs, the other returns labelled intervals.
+In one `mutate()`, set `ntile_bucket = ntile(Temp, 10)` and `cut_number_bucket = cut_number(Temp, 10)`.
 
 ```r title="Your turn"
 ex_4_3 <- airquality |>
@@ -912,6 +980,10 @@ ex_4_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+For each diet you want the earliest and the latest weight once the rows sit in time order.
+`group_by(Diet)`, `arrange(Time, .by_group = TRUE)`, then `summarise()` with `first(weight)` and `last(weight)`.
+
 ```r title="Your turn"
 ex_5_1 <- ChickWeight |>
   # your code here
@@ -955,6 +1027,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The third highest value is whatever lands in position three once the values are ordered from largest down.
+`sort(decreasing = TRUE)` the vector, then pull position three with `nth(3)`.
+
 ```r title="Your turn"
 ex_5_2 <- mtcars$mpg |>
   # your code here
@@ -996,6 +1072,10 @@ ex_5_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+For each chick you need the time value sitting on the row where weight reaches its largest.
+`group_by(Chick)`, then `summarise()` `peak_time` as `Time[which.max(weight)]`.
 
 ```r title="Your turn"
 ex_5_3 <- ChickWeight |>
@@ -1043,6 +1123,10 @@ ex_5_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+For each manufacturer you want the alphabetically earliest and the alphabetically latest model name.
+`group_by(manufacturer)`, `arrange(model, .by_group = TRUE)`, then `summarise()` with `first(model)` and `last(model)`.
 
 ```r title="Your turn"
 ex_5_4 <- mpg |>
@@ -1100,6 +1184,10 @@ ex_5_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The flag should stay on only while every day so far has been windy, then switch off permanently at the first calm day.
+Inside `mutate()`, build the `windy_run` column by applying `cumall(Wind > 7)`.
+
 ```r title="Your turn"
 ex_6_1 <- airquality |>
   arrange(Month, Day) |>
@@ -1147,6 +1235,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The flag should switch on at the first alert and then stay on for every row that follows.
+Inside `mutate()`, build the `post_incident` column by applying `cumany(alert)`.
 
 ```r title="Your turn"
 ex_6_2 <- tibble(alert = c(FALSE, FALSE, TRUE, FALSE, FALSE)) |>
@@ -1198,6 +1290,10 @@ ex_6_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Normalising to the starting weight means dividing every weight by that chick's earliest recorded weight.
+`group_by(Chick)`, `arrange(Time, .by_group = TRUE)`, then `mutate()` `pct_of_start` as `weight / first(weight)`.
+
 ```r title="Your turn"
 ex_7_1 <- ChickWeight |>
   # your code here
@@ -1247,6 +1343,10 @@ ex_7_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Compare each price against the highest price seen strictly before it within the same cut.
+In `mutate()`, set `prior_max = lag(cummax(price))` and then `new_high = price > prior_max`.
 
 ```r title="Your turn"
 ex_7_2 <- diamonds |>

@@ -40,6 +40,10 @@ set.seed(2026)
 
 **Difficulty:** Beginner
 
+[HINTS]
+The phrase "exactly 5" points to the mass at a single specific count, not the chance of a whole range of counts.
+Reach for the probability-mass function: pass the count 5 as the first argument, then size = 10 and prob = 0.5.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -69,6 +73,10 @@ ex_1_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A 3 percent defect rate is the per-trial success probability, and you want the chance of one exact defective count in the batch.
+Use dbinom() with x = 2, size = 50, and prob = 0.03.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -101,6 +109,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Ask for the probability at every possible success count at once, so you have a full table of point probabilities to draw as bars.
+Build a data frame with k = 0:20 and dbinom(k, size = 20, prob = 0.3), then plot it with ggplot() and geom_col().
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -140,6 +152,10 @@ ex_1_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+"At most 2" is a cumulative range running from 0 up through 2, not the mass at a single count.
+Use pbinom() with q = 2, size = 10, prob = 0.5; the default lower tail already gives P(X <= q).
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -169,6 +185,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+"8 or more" is an upper-tail range, and because the distribution is discrete you must watch which boundary count gets included.
+Use pbinom() with lower.tail = FALSE and pass q = 7, so P(X > 7) captures P(X >= 8).
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -200,6 +220,10 @@ ex_2_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+An inclusive between-range is the cumulative probability up to the top bound minus everything strictly below the bottom bound.
+Subtract two pbinom() calls: pbinom(60, 100, 0.5) minus pbinom(39, 100, 0.5).
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 ex_2_3
@@ -230,6 +254,10 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The cumulative probability is simply the running total of the individual point probabilities up to that count.
+Combine pbinom(5, size = 12, prob = 0.3) with sum(dbinom(0:5, size = 12, prob = 0.3)) inside c(cdf = ..., pmf_sum = ...).
 
 ```r title="Your turn"
 ex_2_4 <- # your code here
@@ -268,6 +296,10 @@ ex_2_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want the smallest count whose cumulative probability reaches a target level - the inverse direction of a cumulative lookup.
+Use qbinom() with p = 0.95, size = 100, prob = 0.5.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -301,6 +333,10 @@ class(ex_3_1)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A central 95 percent interval is bounded by the two quantiles that leave 2.5 percent of probability in each tail.
+Call qbinom() twice, at p = 0.025 and p = 0.975, with size = 2000 and prob = 0.05, naming the results lower and upper.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -336,6 +372,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Compare the count predicted by theory against the same percentile read off a large simulated sample.
+Generate draws with rbinom(50000, size = 40, prob = 0.25), then pair qbinom(0.9, 40, 0.25) with quantile(samp, 0.9, type = 1).
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -374,6 +414,10 @@ ex_3_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+Each simulated flip is a 0 or a 1, and averaging those zeros and ones estimates the underlying success rate.
+Generate the trials with rbinom(n = 10000, size = 1, prob = 0.5) and take mean() of the result.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -405,6 +449,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The point estimate is just the observed success fraction, and its uncertainty shrinks with the square root of the sample size.
+Compute phat = 56 / 200 and se = sqrt(phat * (1 - phat) / 200), then combine them with c(phat = ..., se = ...).
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -442,6 +490,10 @@ ex_4_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A simulated sample's average and spread should land near the distribution's theoretical center and dispersion.
+Take mean() and var() of rbinom(5000, size = 20, prob = 0.3), and pair them with 20 * 0.3 and 20 * 0.3 * (1 - 0.3).
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -477,6 +529,10 @@ ex_4_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+A streak is a stretch of consecutive identical outcomes, so you need a way to measure runs of equal values in the simulated sequence.
+Generate outcomes with rbinom(1000, size = 1, prob = 0.85), pass them to rle(), then take max() of the lengths where values equal 1.
+
 ```r title="Your turn"
 ex_4_4 <- # your code here
 ex_4_4
@@ -511,6 +567,10 @@ ex_4_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+An exact test of a hypothesized success rate measures how surprising the observed count is, and you only need that single summary number.
+Run binom.test(40, 100, p = 0.5, alternative = "two.sided") and pull out the $p.value element.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -542,6 +602,10 @@ ex_5_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The test yields both a measure of surprise against the null and a plausible range for the true success rate.
+Run binom.test(125, 1000, p = 0.10), then read $p.value and the two entries of $conf.int into a named vector.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -577,6 +641,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+One test computes the answer exactly from the discrete distribution, the other leans on a normal approximation - compare their summary numbers.
+Pull $p.value from both binom.test(35, 100, p = 0.40) and prop.test(35, 100, p = 0.40, correct = FALSE) into a named vector.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here

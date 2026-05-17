@@ -45,6 +45,10 @@ library(datasets)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A one-sample rank test checks whether a sample's centre sits at a single hypothesized value without assuming the data are normal.
+Call wilcox.test() on mtcars$mpg and set the mu argument to 20; the two-sided alternative is already the default.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -79,6 +83,10 @@ ex_1_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A test result is just a list, so the statistic and the p-value can be pulled out individually and reassembled however you like.
+Save the test to a variable, then build c(V = unname(res$statistic), p = res$p.value).
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -115,6 +123,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+When you only care whether the centre is higher, not just different, the rejection region collapses into a single tail.
+Pass alternative = "greater" to wilcox.test() alongside mu = 9.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -155,6 +167,10 @@ ex_1_3
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+A two-sample rank test asks whether two independent groups are drawn from the same distribution.
+Subset mtcars$mpg by am == 0 and am == 1 into two vectors, then hand them to wilcox.test() as x and y.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -199,6 +215,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The same two-group comparison can be written as a response-by-group formula instead of two separate vectors.
+Use wilcox.test(mpg ~ am, data = mtcars), then check its $statistic and $p.value against ex_2_1.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -248,6 +268,10 @@ c(W = ex_2_2$statistic == ex_2_1$statistic,
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Asking for an interval estimate turns a yes/no test into a quantified estimate of the location shift between groups.
+Add conf.int = TRUE to the wilcox.test() call on the 4-cylinder and 8-cylinder mpg vectors.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 ex_2_3
@@ -294,6 +318,10 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+When the same subjects are measured twice, the pairing carries information that a pooled two-group comparison would discard.
+Pass the two subject-aligned vectors to wilcox.test() with paired = TRUE.
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -347,6 +375,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A directional paired test asks whether one measurement reliably exceeds the other within each subject.
+Combine paired = TRUE with alternative = "greater", passing bp_pre before bp_post.
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -386,6 +418,10 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A paired test only works when every subject contributes a complete pair, so subjects missing one timepoint must be dropped first.
+Use table() on Chick to keep chicks measured at both times, sort by Chick then Time, then run a paired = TRUE test.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -432,6 +468,10 @@ ex_3_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+Comparing three or more groups at once calls for a single rank-based omnibus test rather than many pairwise ones.
+Call kruskal.test() with the formula Sepal.Width ~ Species and data = iris.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -468,6 +508,10 @@ ex_4_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Two crossed factors must be merged into one grouping factor before a single omnibus test can compare every cell.
+Pass len ~ interaction(supp, dose) to kruskal.test() with data = ToothGrowth.
+
 ```r title="Your turn"
 ex_4_2 <- # your code here
 ex_4_2
@@ -503,6 +547,10 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A rank-based group comparison drops incomplete rows automatically, so missing values need no manual cleanup here.
+Run kruskal.test() with the formula Ozone ~ Month and data = airquality.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -547,6 +595,10 @@ ex_4_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+After an omnibus test flags a difference, the follow-up question is which specific group pairs actually differ.
+Use pairwise.wilcox.test() on iris$Sepal.Width and iris$Species with p.adjust.method = "bonferroni".
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -587,6 +639,10 @@ ex_5_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+A p-value reports significance but not magnitude, so an effect size has to be derived from the rank statistic itself.
+Pull W out with unname() on the test's statistic, get the two group sizes with length(), then apply 1 - (2 * W) / (n1 * n2).
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 ex_5_2
@@ -621,6 +677,10 @@ ex_5_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The omnibus statistic can be rescaled into a proportion-of-variance measure on the ranks.
+Take H from the kruskal.test object's $statistic, get n with nrow(iris), and compute H / (n - 1).
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -660,6 +720,10 @@ ex_5_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+With repeated values present, the exact reference distribution is no longer well defined and the test must approximate instead.
+Run wilcox.test(a, b) twice, toggling exact = TRUE and exact = FALSE, and wrap the exact call in suppressWarnings().
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -695,6 +759,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Under the null, every relabelling of group membership is equally likely, so shuffling labels builds a reference distribution by brute force.
+After set.seed(1), use replicate() with sample.int() to draw 5000 permuted W values and measure distances from the n1*n2/2 centre.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here
@@ -744,6 +812,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Repeated measures on the same blocks call for a rank test that compares treatments within each block.
+Filter to chicks present at all five times, then call friedman.test() with the formula weight ~ Time | Chick.
 
 ```r title="Your turn"
 ex_6_3 <- # your code here

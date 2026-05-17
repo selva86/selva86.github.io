@@ -52,6 +52,10 @@ set.seed(1)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A factor response makes the model do classification on its own; set the seed first so the bootstrap sampling is reproducible.
+Call the fitting function with the formula `Species ~ .` and `data = iris` after `set.seed(1)`; the default 500 trees needs no extra argument.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -88,6 +92,10 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+The fitted model is just a list, so any single piece of it can be pulled out on its own without re-running anything.
+After refitting, index the fit object's `confusion` element with `$`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -128,6 +136,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Train on one slice of rows and score on the rows the model never saw, so the accuracy is honest.
+Use `sample(nrow(iris), 120)` for the train index, fit on `iris[train_idx, ]`, then call `predict()` with `newdata` set to the held-out rows.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -183,6 +195,10 @@ txn <- data.frame(
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Make sure the label is stored as a factor so the model treats this as a two-class problem, not a numeric one.
+Fit with the formula `is_fraud ~ amount + hour`, `data = txn`, and `ntree = 500`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -222,6 +238,10 @@ ex_2_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+When one class is rare, you can tell the trees to treat its votes as worth more so it stops being ignored.
+Add `classwt = c(no = 1, yes = 9)` to the same fitting call.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -273,6 +293,10 @@ ex_2_2$confusion
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Ask the model for the share of votes each class received instead of the single winning label.
+Call `predict()` on the refit with `type = "prob"` to get the probability matrix.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 ex_2_3
@@ -313,6 +337,10 @@ all.equal(unname(rowSums(ex_2_3)), rep(1, nrow(ex_2_3)))
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A numeric response makes the forest switch to regression on its own; read the variance-explained line from the printout.
+Fit with the formula `mpg ~ .` and `data = mtcars` after setting the seed.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -345,6 +373,10 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Train both models on the same rows and judge them on the same untouched test rows so the comparison is fair.
+Build the split with `sample()`, fit one forest and one `lm()`, then compute `mean((y - yhat)^2)` from each model's `predict()` output.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -394,6 +426,10 @@ ex_3_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Drop the incomplete rows first, then build the residuals from out-of-bag predictions so no separate holdout is needed.
+After `na.omit()`, subtract the fit object's `predicted` element from the observed `Ozone` column.
+
 ```r title="Your turn"
 ex_3_3 <- # your code here
 ex_3_3
@@ -433,6 +469,10 @@ summary(ex_3_3)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Let a helper scan several candidate split-width settings and report the out-of-bag error for each.
+Call `tuneRF()` with `x`, `y`, `doBest = FALSE` and `plot = FALSE` so it returns the scan matrix.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -471,6 +511,10 @@ ex_4_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The forest records its running error as each tree is added, so you can inspect several tree counts from one fit.
+Fit with `ntree = 1000`, then index `fit$err.rate[, "OOB"]` at rows 50, 100, 500, and 1000.
+
 ```r title="Your turn"
 ex_4_2 <- # your code here
 ex_4_2
@@ -507,6 +551,10 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A larger minimum leaf size makes shallower trees; loop over a few values and grab each forest's final error.
+Vary the `nodesize` argument of the fitting call and read the last value of `fit$err.rate[, "OOB"]`.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -552,6 +600,10 @@ ex_4_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+Cross every split-width choice with every leaf-size choice and fit one forest per combination.
+Build the combinations with `expand.grid()`, then pass each pair as `mtry` and `nodesize` to the fitting call.
+
 ```r title="Your turn"
 ex_4_4 <- # your code here
 ex_4_4
@@ -591,6 +643,10 @@ ex_4_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Ask the model to store how much each feature reduced node impurity, then order the features by that score.
+Fit with `importance = TRUE`, pull the `MeanDecreaseGini` column via `importance(fit, type = 2)`, and `sort()` it descending.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -626,6 +682,10 @@ ex_5_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Compare the impurity-based ranking against the one that measures accuracy loss when a feature is scrambled.
+From `importance(fit)` take both the `MeanDecreaseGini` and `MeanDecreaseAccuracy` columns into a data frame.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -666,6 +726,10 @@ ex_5_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Trace how the model's score for one class shifts as a single feature sweeps across its range.
+Call `partialPlot()` with `x.var = "Petal.Length"`, `which.class = "setosa"`, and `plot = FALSE`.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -713,6 +777,10 @@ range(ex_5_3$y)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Swap to the faster compiled backend; its arguments map closely to the ones you already know.
+Call `ranger()` with the formula `Species ~ .`, `num.trees = 500`, and `importance = "impurity"`.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -745,6 +813,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Score both models on the same rows and measure how often their predicted labels line up.
+The ranger prediction lives in the `$predictions` slot of `predict(rg_fit, data = iris)`; compare it with `mean()`.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here
@@ -786,6 +858,10 @@ ex_6_2
 
 **Difficulty:** Beginner
 
+[HINTS]
+Draw the test rows class by class so each species keeps its share in both halves.
+Use `split()` on the row indices by `Species`, `sample()` within each group, then `mean(pred == test$Species)`.
+
 ```r title="Your turn"
 ex_7_1 <- # your code here
 ex_7_1
@@ -824,6 +900,10 @@ ex_7_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Recall is each class's correctly predicted count divided by how many of that class actually existed.
+Take `fit$confusion[, 1:3]`, then compute `diag(cm) / rowSums(cm)`.
 
 ```r title="Your turn"
 ex_7_2 <- # your code here

@@ -51,6 +51,9 @@ library(datasets)
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+A data frame behaves like a list of columns, so a list-returning iterator can visit each column one at a time.
+Call `lapply()` on `iris` with `class` passed directly as the function argument; no anonymous wrapper is needed.
 
 ```r title="Your turn"
 ex_1_1 <- # your code here
@@ -125,6 +128,9 @@ ex_1_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+You need a count of how many distinct entries each column holds, computed one column at a time.
+Pass `mtcars` to `lapply()` with an anonymous function that calls `length(unique(x))`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -174,6 +180,9 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Restrict the data to the four measurement columns first, then summarise each one while ignoring the gaps.
+Use `lapply()` with `quantile` over `airquality[, 1:4]` and pass `na.rm = TRUE` as a trailing argument.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -210,6 +219,9 @@ ex_1_3
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+You want one number per column collapsed into a single named vector rather than a list.
+Apply `sapply()` to `mtcars` with `mean` as the function.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -243,6 +255,9 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Each column yields two numbers, and equal-length returns stack neatly into a rectangle.
+Call `sapply()` on `airquality[, 1:4]` with `range` and `na.rm = TRUE`.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -280,6 +295,9 @@ ex_2_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Every column should produce the same five-element summary so the results line up into a matrix.
+Use `sapply()` over `mtcars` with `fivenum` as the function.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -315,6 +333,9 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+You want the column means again, but with a contract that each result is exactly one number.
+Call `vapply()` on `mtcars` with `mean` and the template `numeric(1)`.
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -347,6 +368,9 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Count the missing entries in each column and demand the count come back as a whole number.
+Use `vapply()` with an anonymous function calling `sum(is.na(x))` and the template `integer(1)`.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -380,6 +404,9 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+A named two-element template can enforce the return shape and label the output rows at the same time.
+Use `vapply()` on `airquality[, 1:4]` returning `c(min = ..., max = ...)` with `FUN.VALUE = c(min = 0, max = 0)`.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -419,6 +446,9 @@ ex_3_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Walk across each student's row and total the values you find along it.
+Use `apply()` on `scores` with `MARGIN = 1` and `sum`.
 
 ```r title="Your turn"
 scores <- matrix(
@@ -463,6 +493,9 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Spread is a per-column quantity, so iterate down the columns of a genuine matrix.
+Coerce with `as.matrix(mtcars)`, then call `apply()` with `MARGIN = 2` and `sd`.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -496,6 +529,9 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+For each row you need both the peak value and the label sitting above it.
+Use `apply()` with `MARGIN = 1` and an anonymous function built around `which.max()` and `names()`.
 
 ```r title="Your turn"
 events <- matrix(
@@ -549,6 +585,9 @@ ex_4_3
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Each column should have its own average subtracted from every one of its entries.
+Use `apply()` with `MARGIN = 2` and the anonymous function `function(x) x - mean(x)` on `as.matrix(mtcars)`.
 
 ```r title="Your turn"
 ex_4_4 <- # your code here
@@ -588,6 +627,9 @@ round(colMeans(ex_4_4), 10)
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+You need to pair the two vectors element by element and act on each matched pair.
+Use `mapply()` with `function(lo, hi) hi - lo` over `lows` and `highs`.
 
 ```r title="Your turn"
 lows  <- c(10, 20, 30, 40)
@@ -628,6 +670,9 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Three aligned parameter vectors should feed one draw per matched triple, with uneven results kept apart.
+Use `mapply()` with `rnorm`, the named `n`/`mean`/`sd` vectors, and `SIMPLIFY = FALSE`.
 
 ```r title="Your turn"
 set.seed(42)
@@ -682,6 +727,9 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Each walk pairs a length with a volatility, and the differing lengths must stay in a list.
+Use `mapply()` with `function(n, sigma) cumsum(rnorm(n, sd = sigma))`, the `n`/`sigma` vectors, and `SIMPLIFY = FALSE`.
 
 ```r title="Your turn"
 set.seed(42)
@@ -730,6 +778,9 @@ lapply(ex_5_3, length)
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Split the mileage values into buckets defined by cylinder count, then summarise each bucket.
+Use `tapply()` with `mtcars$mpg`, `mtcars$cyl`, and `mean`.
 
 ```r title="Your turn"
 ex_6_1 <- # your code here
@@ -762,6 +813,9 @@ ex_6_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Group the sepal measurements by species and average the values within each group.
+Use `tapply()` with `iris$Sepal.Length`, `iris$Species`, and `mean`.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here
@@ -797,6 +851,9 @@ ex_6_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Two grouping variables together carve the data into a grid of cells to be summarised.
+Use `tapply()` with `ChickWeight$weight` and `list(ChickWeight$Diet, ChickWeight$Time)` as the grouping argument, then `mean`.
 
 ```r title="Your turn"
 ex_6_3 <- # your code here
@@ -836,6 +893,9 @@ ex_6_3
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Within each cylinder group, compare the spread against the average to get a relative measure.
+Use `tapply()` with `mtcars$mpg`, `mtcars$cyl`, and `function(x) sd(x) / mean(x) * 100`.
 
 ```r title="Your turn"
 ex_6_4 <- # your code here

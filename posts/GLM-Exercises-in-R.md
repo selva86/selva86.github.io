@@ -54,6 +54,10 @@ library(ggplot2)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A binary 0/1 outcome like transmission type calls for the model family built for proportions, not the ordinary linear one.
+Call glm() with the formula am ~ mpg + wt, family = binomial and data = mtcars.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 summary(ex_1_1)
@@ -88,6 +92,10 @@ summary(ex_1_1)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A yes/no default is another proportion outcome, so reach for the same model family as the previous exercise and remember odds ratios are a multiplicative re-expression of the coefficient.
+Fit with glm() using family = binomial and data = loans, then exponentiate the loan_amount coefficient from coef().
 
 ```r title="Your turn"
 set.seed(42)
@@ -137,6 +145,10 @@ exp(coef(ex_1_2)["loan_amount"])
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want probabilities in [0, 1], not log-odds, so the linear predictor has to be pushed through the inverse link.
+Use predict() with newdata = newdf and type = "response", then wrap the result in round(..., 3).
+
 ```r title="Your turn"
 newdf <- data.frame(mpg = c(15, 20, 30), wt = c(4, 3, 1.8))
 ex_1_3 <- # your code here
@@ -175,6 +187,10 @@ ex_1_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Comparing a model against a smaller version of itself is a nested-model test of whether the dropped term earns its place.
+Call anova() on the reduced and full models with the argument test = "LRT".
 
 ```r title="Your turn"
 reduced <- glm(am ~ wt, family = binomial, data = mtcars)
@@ -220,6 +236,10 @@ ex_1_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+A count of warp breaks per loom run is count data, which has its own dedicated GLM family.
+Call glm() with breaks ~ wool + tension, family = poisson and data = warpbreaks.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 summary(ex_2_1)
@@ -254,6 +274,10 @@ summary(ex_2_1)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+To turn raw counts into a rate per hour, exposure has to enter the model with a fixed effect that is not estimated.
+Add offset(log(hours)) to the formula inside glm() with family = poisson.
 
 ```r title="Your turn"
 set.seed(7)
@@ -304,6 +328,10 @@ summary(ex_2_2)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Rate ratios live on the multiplicative scale, so the log-scale estimates and their standard errors both need back-transforming.
+Pull estimates and standard errors from coef(summary(ex_2_1)), then exp() the estimate and the Wald bounds estimate +/- 1.96 * SE.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 ex_2_3
@@ -347,6 +375,10 @@ ex_2_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+When the spread of counts outstrips what the count family assumes, switch to a family that estimates its own dispersion instead of fixing it at 1.
+Refit with glm() using family = quasipoisson and read the dispersion from summary(...)$dispersion.
 
 ```r title="Your turn"
 deviance_ratio <- deviance(ex_2_1) / df.residual(ex_2_1)
@@ -399,6 +431,10 @@ summary(ex_2_4)$coefficients
 
 **Difficulty:** Advanced
 
+[HINTS]
+A count model with a second variance parameter absorbs heavy overdispersion while still producing a genuine likelihood you can compare.
+Fit with MASS::glm.nb() on breaks ~ wool + tension and contrast the two models with AIC().
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 summary(ex_3_1)
@@ -431,6 +467,10 @@ c(poisson_aic = AIC(ex_2_1), nb_aic = AIC(ex_3_1))
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A strictly positive, right-skewed amount like a claim cost needs a continuous GLM family matched to that shape.
+Call glm() with family = Gamma(link = "log") and data = claims, then exp() the coefficients for multiplicative effects.
 
 ```r title="Your turn"
 set.seed(11)
@@ -488,6 +528,10 @@ round(exp(coef(ex_3_2)), 3)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Both fits share the same formula and outcome family; only the curve mapping the linear predictor to a probability differs.
+Call glm() twice, passing binomial(link = "logit") and binomial(link = "probit") as the family.
+
 ```r title="Your turn"
 ex_3_3 <- list(
   logit  = # your code here,
@@ -526,6 +570,10 @@ sapply(ex_3_3, function(m) coef(summary(m))["wt", c("Estimate","Std. Error","z v
 
 **Difficulty:** Beginner
 
+[HINTS]
+These three fit statistics are already stored as named components inside the fitted model object, so no extra computation is needed.
+Pull fit$null.deviance, fit$deviance and fit$aic into a single named c() vector.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 round(ex_4_1, 3)
@@ -563,6 +611,10 @@ round(ex_4_1, 3)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Profile-likelihood intervals trace the curvature of the likelihood rather than assuming a symmetric Wald approximation.
+Call confint() on ex_1_1 and round() the resulting matrix to three decimals.
+
 ```r title="Your turn"
 ex_4_2 <- # your code here
 ex_4_2
@@ -594,6 +646,10 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Standardised residuals whose absolute value clears a threshold flag the observations the model fits worst.
+Apply which() to the logical test abs(pr) > 2 and wrap it in sort() to get ordered row numbers.
 
 ```r title="Your turn"
 pr <- residuals(ex_2_1, type = "pearson")
@@ -627,6 +683,10 @@ length(ex_4_3)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The measure contrasts the fitted model's log-likelihood against that of an intercept-only baseline.
+Take logLik() of both fits and compute 1 - logLik(full) / logLik(null), coercing each with as.numeric().
 
 ```r title="Your turn"
 null_fit <- glm(am ~ 1, family = binomial, data = mtcars)
@@ -668,6 +728,10 @@ ex_4_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The same fitted model returns either the linear predictor or the probability depending on which scale you ask for.
+Call predict() twice with type = "link" and type = "response", binding the two vectors into a tibble.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 head(ex_5_1, 3)
@@ -700,6 +764,10 @@ head(ex_5_1, 3)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A logistic slope changes across the curve, so the effect on probability has to be averaged over every observation rather than read off once.
+Form the per-row quantity beta_wt * p * (1 - p) and collapse it with mean().
 
 ```r title="Your turn"
 p <- predict(ex_1_1, type = "response")
@@ -736,6 +804,10 @@ ex_5_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Draw the smooth fitted curve from the prediction grid, then overlay the raw 0/1 outcomes so the data is visible.
+Combine geom_line() on the grid with a jittered point layer on mtcars inside a ggplot() call, finishing with theme_minimal().
 
 ```r title="Your turn"
 grid <- data.frame(wt = seq(1.5, 5.5, length.out = 100), mpg = mean(mtcars$mpg))
@@ -783,6 +855,10 @@ ex_5_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Build the interval where it stays symmetric, then map both endpoints back to the probability scale so the band cannot escape [0, 1].
+The link-scale prediction already has se.fit = TRUE, so apply plogis() to fit and to fit +/- 1.96 * se.fit.
 
 ```r title="Your turn"
 grid <- data.frame(wt = seq(1.5, 5.5, length.out = 100), mpg = mean(mtcars$mpg))
@@ -833,6 +909,10 @@ head(ex_5_4, 3)
 
 **Difficulty:** Advanced
 
+[HINTS]
+A three-class unordered outcome needs a model that fits several logits at once against one reference category.
+Fit with nnet::multinom() on Species ~ Sepal.Length + Petal.Length and data = iris.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 coef(ex_6_1)
@@ -863,6 +943,10 @@ coef(ex_6_1)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want the full vector of class probabilities for the new flower, not just the single winning label.
+Call predict() with newdata = newflower and type = "probs", then round() to three decimals.
 
 ```r title="Your turn"
 newflower <- data.frame(Sepal.Length = 6.0, Petal.Length = 4.5)
@@ -909,6 +993,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+An ordered Likert outcome calls for a model that respects the ranking with one shared slope per predictor and a set of cutpoint thresholds.
+Fit with MASS::polr() on rating ~ age + region, data = survey and Hess = TRUE.
 
 ```r title="Your turn"
 set.seed(2026)

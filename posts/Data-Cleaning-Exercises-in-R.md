@@ -45,6 +45,10 @@ library(purrr)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A missing-value test produces a TRUE/FALSE for every single cell; you just need their grand total.
+Run `is.na()` across the whole data frame and feed the result to `sum()`, which counts each TRUE as 1.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -82,6 +86,10 @@ ex_1_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+First collapse each column to its own count of gaps, then turn that single wide row into one row per column.
+Pair `across(everything(), ...)` for the per-column count with `pivot_longer()` and `arrange(desc())`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -132,6 +140,10 @@ ex_1_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Drop a row only when the column you cannot model around is empty, and leave the other gaps alone.
+Call `drop_na()` but name the `Ozone` column explicitly so `Solar.R` gaps survive.
+
 ```r title="Your turn"
 ex_1_3 <- # your code here
 ex_1_3
@@ -170,6 +182,10 @@ sum(is.na(ex_1_3$Solar.R))
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Fill each column's gaps with a single representative number, picking the statistic that suits that column's skew.
+Inside `mutate()`, use `ifelse(is.na(...))` with `median()` for Ozone and `mean()` for Solar.R, each with `na.rm = TRUE`.
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -212,6 +228,10 @@ sum(is.na(ex_1_4))
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Carry the most recent reading forward, but never let a value bleed across a month boundary.
+After `group_by(Month)`, apply `fill()` to `Ozone` with `.direction = "down"`.
 
 ```r title="Your turn"
 ex_1_5 <- # your code here
@@ -261,6 +281,10 @@ orders <- tibble(
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Compare rows on the whole set of their values and keep every row whose combination is not unique.
+`group_by()` all three columns, then `filter(n() > 1)`.
 
 ```r title="Your turn"
 orders <- tibble(
@@ -321,6 +345,10 @@ feed <- tibble(
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Order the rows so the freshest record per customer is on top, then keep just the first of each key.
+`arrange()` by `customer_id` and `desc(updated_at)`, then `distinct(customer_id, .keep_all = TRUE)`.
+
 ```r title="Your turn"
 feed <- tibble(
   customer_id = c(1, 1, 2, 3, 3, 3),
@@ -376,6 +404,10 @@ leads <- tibble(
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Reduce each email to one canonical form before you compare, then tally how often each form appears.
+Lowercase and trim with `str_to_lower()` and `str_trim()`, then `count()` the email and `filter(n > 1)`.
 
 ```r title="Your turn"
 leads <- tibble(
@@ -439,6 +471,10 @@ labs <- tibble(
 
 **Difficulty:** Advanced
 
+[HINTS]
+Uniqueness here is defined by three columns together; keep the freshest row within each such group.
+`group_by()` the three key columns and use `slice_max()` on `processed_at` with `with_ties = FALSE`.
+
 ```r title="Your turn"
 labs <- tibble(
   patient_id   = c("P1", "P1", "P1", "P2", "P2"),
@@ -490,6 +526,10 @@ ex_2_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+Turn each text element into the number it represents.
+Apply `as.numeric()` to the character vector.
+
 ```r title="Your turn"
 raw <- c("1.5", "2.0", "3.7", "4.1")
 ex_3_1 <- # your code here
@@ -521,6 +561,10 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Hand the parser an ordered list of candidate layouts so it can match each string to whichever one fits.
+Use `parse_date_time()` with an `orders` argument such as `c("ymd", "mdy", "B d, Y")`, then wrap in `as.Date()`.
 
 ```r title="Your turn"
 raw_dates <- c("2026-01-15", "01/20/2026", "Feb 5, 2026")
@@ -555,6 +599,10 @@ ex_3_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A factor's hidden integer codes are not its labels, so route the conversion through the label text.
+Convert with `as.character()` first and then `as.numeric()`.
+
 ```r title="Your turn"
 f <- factor(c("10", "20", "30", "10"))
 ex_3_3 <- # your code here
@@ -586,6 +634,10 @@ ex_3_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Extract the numeric content of each string while discarding currency symbols and thousands separators.
+Use readr's `parse_number()` on the vector.
 
 ```r title="Your turn"
 amounts <- c("$1,234.56", "$0.99", "$10,000.00")
@@ -633,6 +685,10 @@ messy <- tibble(
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Let a type-guessing routine inspect each column and give it the most specific type that parses cleanly.
+Apply `parse_guess` column-wise with `across(everything(), ...)` inside `mutate()`.
 
 ```r title="Your turn"
 messy <- tibble(
@@ -685,6 +741,10 @@ ex_3_5
 
 **Difficulty:** Beginner
 
+[HINTS]
+Remove the surrounding whitespace first, then fold the case so equal values actually compare as equal.
+Nest `str_trim()` inside `str_to_lower()`.
+
 ```r title="Your turn"
 status <- c(" Active", "ACTIVE ", "active", "Inactive")
 ex_4_1 <- # your code here
@@ -716,6 +776,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Strip out every character that is not a digit from each string.
+Use `str_remove_all()` with the `\\D` class, optionally keeping the last 10 with `str_sub(start = -10)`.
 
 ```r title="Your turn"
 phones <- c("(415) 555-1234", "415.555.1234", "415-555-1234", "+1 415 555 1234")
@@ -750,6 +814,10 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Match exactly five digits, locked to the very end of each string.
+Use `str_extract()` with the pattern `\\d{5}$`.
 
 ```r title="Your turn"
 addresses <- c("100 Main St, San Francisco, CA 94110",
@@ -802,6 +870,10 @@ contacts <- tibble(
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Build a mapping from every raw spelling to one canonical name, then apply it across the column.
+Define a named lookup vector and splice it into `recode()` with `!!!` inside `mutate()`.
 
 ```r title="Your turn"
 contacts <- tibble(
@@ -871,6 +943,10 @@ scores <- tibble(
 
 **Difficulty:** Beginner
 
+[HINTS]
+Swap any score that falls outside the allowed bounds for a missing marker, keeping the rest of the row.
+In `mutate()`, use `ifelse()` to test `score < 0 | score > 100` and return `NA`.
+
 ```r title="Your turn"
 scores <- tibble(
   student = c("A", "B", "C", "D", "E"),
@@ -924,6 +1000,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Build the fence from the two quartiles and the gap between them, then test each value against it.
+Get `quantile()` at 0.25 and 0.75 with `na.rm = TRUE`, form the 1.5 * IQR bounds, and flag inside `mutate()`.
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 ex_5_2
@@ -965,6 +1045,10 @@ sum(ex_5_2$is_outlier, na.rm = TRUE)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Judge each value against its own group's centre and spread, not the whole column's.
+After `group_by(Month)`, `mutate()` a z-score from `mean()` and `sd()` (`na.rm = TRUE`) and flag `abs(z) > 2`.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -1017,6 +1101,10 @@ shipments <- tibble(
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A row is invalid when one date comes after the other, but a missing date must not count as invalid.
+In `mutate()`, combine `!is.na()` guards on both date columns with the `ship_date > delivery_date` comparison.
 
 ```r title="Your turn"
 shipments <- tibble(
@@ -1072,6 +1160,10 @@ ex_5_4
 
 **Difficulty:** Advanced
 
+[HINTS]
+Pull each value into the band between two percentile thresholds instead of dropping the extremes.
+Compute `quantile()` at `c(0.01, 0.99)` and apply `pmin()` and `pmax()` inside `mutate()`.
+
 ```r title="Your turn"
 ex_5_5 <- # your code here
 ex_5_5
@@ -1117,6 +1209,10 @@ raw_df <- tibble(
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Rewrite every header into one consistent lowercase, underscore-separated, punctuation-free shape.
+Use `rename_with()` with a function that chains `str_trim()`, `str_to_lower()`, and `str_replace_all()` on punctuation.
 
 ```r title="Your turn"
 raw_df <- tibble(
@@ -1184,6 +1280,10 @@ survey <- tibble(
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Reshape so each scored item becomes its own row rather than its own column.
+Use `pivot_longer()` on the q-columns with `names_to = "question"` and `values_to = "score"`.
+
 ```r title="Your turn"
 survey <- tibble(
   respondent = c("R1", "R2", "R3"),
@@ -1235,6 +1335,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Walk over each column name, emit a one-row summary for it, and stack those rows together.
+Use `map_dfr()` over `names(airquality)` returning a `tibble()` per column, with `typeof()` for the type, then `arrange(desc())`.
 
 ```r title="Your turn"
 ex_6_3 <- # your code here
@@ -1299,6 +1403,10 @@ txns <- tibble(
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Standardize the key's case and parse the amounts before any filter or dedup step relies on them.
+Key functions: `str_to_upper()` and `parse_number()` in `mutate()`, `filter()` on the amount, and `distinct()` with `.keep_all = TRUE`.
+
 ```r title="Your turn"
 library(readr)
 txns <- tibble(
@@ -1360,6 +1468,10 @@ raw <- tibble(
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+After each cleaning step, assert the data still meets its contract so a violation fails loudly.
+Clean with `str_trim()`, `as.integer()`, and `drop_na()`, then guard with `stopifnot()` on the age range and `!anyDuplicated()`.
 
 ```r title="Your turn"
 raw <- tibble(

@@ -43,6 +43,10 @@ library(ggplot2)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Always eyeball a series before modelling it; a time plot exposes trend and whether the seasonal swings grow with the level.
+Use the tidy `autoplot()` helper on `AirPassengers` directly and add a `ggplot2::labs()` title rather than hand-building a chart.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -76,6 +80,10 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+When seasonal amplitude grows with the level, compressing the scale makes those swings roughly constant in size.
+Apply `log()` straight to the `AirPassengers` ts object; it keeps the frequency and start/end attributes intact.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -112,6 +120,10 @@ head(ex_1_2)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A unit-root test decides whether the raw series can be modelled as-is or must be differenced first.
+Call `adf.test()` from tseries on `Nile`, keep the whole htest object, and read its `p-value` against 0.05.
+
 ```r title="Your turn"
 ex_1_3 <- # your code here
 ex_1_3
@@ -142,6 +154,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The count of regular differences needed for stationarity is exactly the d you plug into ARIMA(p,d,q).
+Pass `co2` to `ndiffs()` from forecast, which repeats the default KPSS test until the series is stationary.
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -177,6 +193,10 @@ ex_1_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Strip out the trend first so the correlation plots reveal the AR and MA structure that actually matters.
+Build the series with `diff(log(AirPassengers))`, then plot it with `ggAcf()` and `ggPacf()` from forecast.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -208,6 +228,10 @@ ggPacf(ex_2_1)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+An autoregressive process feeds past values forward, so synthesising one lets you confirm the partial-autocorrelation cutoff rule.
+Use `arima.sim()` with `model = list(ar = c(0.6, -0.3))` and `n = 300`.
 
 ```r title="Your turn"
 set.seed(1)
@@ -241,6 +265,10 @@ ggPacf(ex_2_2)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A moving-average process mixes only recent shocks, so its memory is short and shows up at just a few lags.
+Use `arima.sim()` with `model = list(ma = 0.7)` and `n = 300`.
 
 ```r title="Your turn"
 set.seed(2)
@@ -276,6 +304,10 @@ ggAcf(ex_2_3)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+One family leaves a clean cutoff in the partial autocorrelations; the mirror family leaves it in the ordinary autocorrelations.
+Compare `ggAcf()` and `ggPacf()` for each series, then assign a named `list()` with elements `series_a` and `series_b`.
 
 ```r title="Your turn"
 set.seed(3)
@@ -328,6 +360,10 @@ ex_2_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Fixing p, d, and q yourself fits one exact specification instead of searching the model space.
+Call `Arima()` from forecast on `Nile` with `order = c(1, 1, 1)`.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -368,6 +404,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+An automated search enumerates candidate orders for you when you do not want to read the plots by hand.
+Run `auto.arima()` on `lh` with `seasonal = FALSE` and `stepwise = FALSE` (add `approximation = FALSE` for an exact AICc).
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -404,6 +444,10 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Ranking many fixed-order fits by an information criterion is the manual version of automatic order selection.
+Loop over the grid rows with `mapply()`, fit each `Arima(WWWusage, order = c(p, 1, q))`, collect `$aicc`, and sort with `order()`.
 
 ```r title="Your turn"
 grid <- expand.grid(p = 0:3, q = 0:3)
@@ -453,6 +497,10 @@ head(ex_3_3)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A differenced series can still climb steadily, and the model must be told to estimate that linear trend.
+Call `Arima()` on `log(AirPassengers)` with `order = c(0, 1, 1)` and `include.drift = TRUE`.
+
 ```r title="Your turn"
 ex_3_4 <- # your code here
 ex_3_4
@@ -486,6 +534,10 @@ ex_3_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Just as a trend needs regular differencing, a repeating yearly cycle has its own seasonal differencing count, the D.
+Pass `log(AirPassengers)` to `nsdiffs()` from forecast.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -516,6 +568,10 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Subtracting each value from the one a full cycle earlier cancels out a repeating seasonal pattern.
+Call `diff()` on `co2` with `lag = 12`, then `autoplot()` the result.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -555,6 +611,10 @@ autoplot(ex_4_2) +
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A seasonal model layers a second set of orders, operating at the cycle length, on top of the non-seasonal ones.
+Call `Arima()` on `log(AirPassengers)` with `order = c(0, 1, 1)` and `seasonal = list(order = c(0, 1, 1), period = 12)`.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -597,6 +657,10 @@ ex_4_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Let the search decide both the regular and the seasonal orders rather than specifying them yourself.
+Run `auto.arima()` on `co2` with the default `seasonal = TRUE`, which reads the period from `frequency()`.
+
 ```r title="Your turn"
 ex_4_4 <- # your code here
 ex_4_4
@@ -633,6 +697,10 @@ ex_4_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A portmanteau test asks whether the leftover errors still carry any pattern the model failed to capture.
+Call `Box.test()` on `residuals(ex_4_3)` with `type = "Ljung"`, `lag = 24`, and `fitdf = 2`.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -667,6 +735,10 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+One diagnostic routine can bundle the residual time plot, autocorrelation plot, and white-noise test together.
+Pass the `ex_4_3` model object to `checkresiduals()` from forecast.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -707,6 +779,10 @@ ex_5_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+A model that ignores the trend leaves that trend inside the residuals, where it shows up as long-lasting correlation.
+Fit `Arima()` on `log(AirPassengers)` with `order = c(0, 0, 0)`, then plot `ggAcf(residuals(ex_5_3))`.
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 ggAcf(residuals(ex_5_3))
@@ -742,6 +818,10 @@ ggAcf(residuals(ex_5_3))
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Prediction intervals assume the errors are roughly bell-shaped, so a distributional check is warranted.
+After `qqnorm()` and `qqline()`, build a `list()` of `mean()` and `sd()` of `residuals(ex_4_3)`.
 
 ```r title="Your turn"
 qqnorm(residuals(ex_4_3))
@@ -786,6 +866,10 @@ ex_5_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A fitted model projects forward a chosen number of periods, returning point estimates plus interval bands.
+Call `forecast()` on `ex_4_3` with `h = 24`, then read `$mean` for the point path.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 head(ex_6_1$mean)
@@ -821,6 +905,10 @@ head(ex_6_1$mean)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A forecast object stores the point path and its two nested interval bands as separate components.
+Assemble a `data.frame()` from `fc$mean` and columns 1 and 2 of `fc$lower` and `fc$upper`, sliced to the first 12 rows.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here
@@ -861,6 +949,10 @@ head(ex_6_2)
 
 **Difficulty:** Advanced
 
+[HINTS]
+An honest error number comes only from data the model never saw while it was being fitted.
+Refit `Arima()` on `train`, call `forecast(fit, h = 12)`, then compute `sqrt(mean((fc$mean - test)^2))`.
+
 ```r title="Your turn"
 train <- window(log(AirPassengers), end = c(1959, 12))
 test  <- window(log(AirPassengers), start = c(1960, 1))
@@ -900,6 +992,10 @@ ex_6_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Two forecasting families can be judged head to head by their error on the same held-out window.
+Fit `auto.arima()` and `ets()` on `train`, forecast both, then `rbind()` the `accuracy(fc, test)` rows.
 
 ```r title="Your turn"
 train <- window(Nile, end = 1950)
@@ -948,6 +1044,10 @@ ex_6_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Refitting at every fresh observation mimics how a forecast is actually re-issued in production.
+Inside the loop, fit `Arima(WWWusage[1:t], order = c(3, 1, 0))`, take `forecast(fit, h = 1)$mean`, and accumulate squared errors.
 
 ```r title="Your turn"
 errors <- numeric()

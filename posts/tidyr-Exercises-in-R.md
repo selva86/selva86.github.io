@@ -58,6 +58,10 @@ library(broom)
 
 **Difficulty:** Beginner
 
+[HINTS]
+The row names are not a column yet, so promote them first; then collapse the three metric columns into one name column and one value column.
+Chain `rownames_to_column("model")`, `slice_head(n = 5)`, `select()`, then `pivot_longer()` with `names_to` and `values_to`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -108,6 +112,10 @@ ex_1_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Every measurement column should stack into a single value column while the species label stays untouched on each row.
+Call `pivot_longer()` with `cols = -Species`, `names_to = "measurement"`, and `values_to = "value"`.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -156,6 +164,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Each subject column should become a row, with the student identifier carried along into every new row.
+Call `pivot_longer()` with `cols = -student`, `names_to = "subject"`, and `values_to = "score"`.
 
 ```r title="Your turn"
 scores_wide <- tibble(
@@ -217,6 +229,10 @@ ex_1_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each header carries two facts joined by a delimiter, so the reshape can split them apart as it pivots.
+Pass a two-element vector to `names_to` and set `names_sep = "_"` inside `pivot_longer()`.
+
 ```r title="Your turn"
 camp <- tibble(
   campaign     = c("A", "B"),
@@ -275,6 +291,10 @@ ex_1_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+When a header is not a clean delimiter join, a regex with one capture group per output column can pull each piece apart.
+Call `pivot_longer()` with a three-element `names_to` and a `names_pattern` regex containing three capture groups.
 
 ```r title="Your turn"
 tb <- tibble(
@@ -338,6 +358,10 @@ ex_1_5
 
 **Difficulty:** Beginner
 
+[HINTS]
+Average the weights for each time-and-diet pair first, then lift the diet labels out into their own columns.
+After `group_by()` and `summarise(mean(...))`, call `pivot_wider()` with `names_from = Diet` and `values_from`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -380,6 +404,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Each quarter label should become a column heading, with the recorded sale dropped into the cell.
+Call `pivot_wider()` with `names_from = quarter` and `values_from = sales`.
 
 ```r title="Your turn"
 sales <- tibble(
@@ -428,6 +456,10 @@ ex_2_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Summarise the mean length per supplement-and-dose pair, then turn the doses into prefixed columns.
+Use `pivot_wider()` with `names_from = dose`, `values_from`, and `names_prefix = "dose_"`.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 ex_2_3
@@ -469,6 +501,10 @@ ex_2_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Both metrics should spread across the dates at once, producing one column group per metric.
+Call `pivot_wider()` with `names_from = date` and a vector `values_from = c(price, volume)`.
 
 ```r title="Your turn"
 prices <- tibble(
@@ -519,6 +555,10 @@ ex_2_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A glue-style template lets you dictate the exact order of the pieces in each new column name.
+Use `pivot_wider()` with `names_from = quarter`, `values_from = revenue`, and `names_glue = "{quarter}_revenue"`.
 
 ```r title="Your turn"
 rev <- tibble(
@@ -573,6 +613,10 @@ ex_2_5
 
 **Difficulty:** Beginner
 
+[HINTS]
+The single name field holds two pieces joined by a comma, so a delimiter split gives two clean columns.
+Call `separate_wider_delim()` with `delim = ", "` and `names = c("last_name", "first_name")`.
+
 ```r title="Your turn"
 roster <- tibble(full_name = c("Doe, Jane", "Smith, Aaron", "Patel, Riya"))
 
@@ -621,6 +665,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Three columns need to be glued into one date string with a separator between the parts.
+Use `unite()` with `col = "date"`, the three source columns, `sep = "-"`, and `remove = TRUE`.
+
 ```r title="Your turn"
 calendar <- tibble(
   yr = c(2026, 2026, 2026, 2026),
@@ -667,6 +715,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The code has a fixed brand-id-size structure, so a pattern with one named piece per component extracts it cleanly.
+Call `separate_wider_regex()` with a `patterns` vector naming `brand`, `sku_id`, and `size`, with unnamed strings for the hyphens.
 
 ```r title="Your turn"
 products <- tibble(sku = c("AB-1234-XL", "CD-9876-M", "EF-0042-S"))
@@ -719,6 +771,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each delimited token in the tags string should expand into its own row, with the article id recycled.
+Use `separate_longer_delim()` on the `tag` column with `delim = ";"`.
+
 ```r title="Your turn"
 articles <- tibble(
   article_id = 1:3,
@@ -766,6 +822,10 @@ ex_3_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Break each line into timestamp, level, and message by matching the fixed shape and dropping the brackets.
+Call `separate_wider_regex()` with a `patterns` vector naming `timestamp`, `level`, and `message`, plus unnamed literals for the brackets and spaces.
 
 ```r title="Your turn"
 logs <- tibble(line = c(
@@ -829,6 +889,10 @@ ex_3_5
 
 **Difficulty:** Beginner
 
+[HINTS]
+Keep only the rows where every named measurement is actually observed.
+Use `drop_na()` and list the columns `Ozone`, `Solar.R`, `Wind`, and `Temp`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 nrow(ex_4_1)
@@ -873,6 +937,10 @@ head(ex_4_1)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Each missing cell should get a default that matches its column's type, all in one call.
+Call `replace_na()` with a named list mapping `rating` to 0 and `comment` to "no comment".
 
 ```r title="Your turn"
 feedback <- tibble(
@@ -925,6 +993,10 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The blank rows below each header should inherit the last value that was actually present.
+Use `fill()` on `region` with `.direction = "down"`.
 
 ```r title="Your turn"
 report <- tibble(
@@ -980,6 +1052,10 @@ ex_4_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Build the full cross of every region and product, then put zero where no sale happened.
+Call `complete()` with `region`, `product`, and `fill = list(units = 0)`.
+
 ```r title="Your turn"
 sparse <- tibble(
   region  = c("East", "East", "West", "West"),
@@ -1034,6 +1110,10 @@ ex_4_4
 
 **Difficulty:** Advanced
 
+[HINTS]
+Insert every missing month between the first and last, carry the sensor id down, then mark unseen readings with a sentinel.
+Chain `complete(month = full_seq(month, 1))`, `fill(sensor_id, .direction = "down")`, and `replace_na(list(reading = -999))`.
+
 ```r title="Your turn"
 gappy <- tibble(
   month     = c(1, 3, 6),
@@ -1087,6 +1167,10 @@ ex_4_5
 
 **Difficulty:** Beginner
 
+[HINTS]
+Collapse the table to one row per species, tucking the matching measurements into a packed column.
+Use `nest()` with `data = -Species`.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -1132,6 +1216,10 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Pack each species into its own table, fit a model inside every row, tidy it, then flatten the coefficients back out.
+After `nest()`, use `mutate()` with `map()` to call `lm()`, `map()` again for `broom::tidy()`, then `unnest()` the tidied column.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -1185,6 +1273,10 @@ ex_5_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each element of the variable-length list should be stacked into its own row.
+Call `unnest_longer()` on the `skills` column with `values_to = "skill"`.
+
 ```r title="Your turn"
 cands <- tibble(
   candidate = 1:3,
@@ -1234,6 +1326,10 @@ ex_5_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Each named entry inside the list element should become its own typed column, keeping the row count unchanged.
+Use `unnest_wider()` on the `details` column.
 
 ```r title="Your turn"
 items <- tibble(
@@ -1291,6 +1387,10 @@ ex_5_4
 
 **Difficulty:** Advanced
 
+[HINTS]
+Fit one model per cylinder group, attach each model's predictions to its own data, then flatten the result.
+After `nest(data = -cyl)`, `map()` an `lm()`, `map2()` `broom::augment()` over model and data, then `unnest()` and `select()` `.fitted`.
+
 ```r title="Your turn"
 ex_5_5 <- # your code here
 ex_5_5
@@ -1346,6 +1446,10 @@ ex_5_5
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Stack every question column into one answer column, then discard the rows where no answer was given.
+Use `pivot_longer()` with `cols = starts_with("q")`, then `drop_na()` on `answer`.
+
 ```r title="Your turn"
 survey <- tibble(
   respondent = 1:3,
@@ -1396,6 +1500,10 @@ ex_6_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Reshape the ledger into one row per region, then add a column that sums across the quarter columns.
+After `pivot_wider()`, `mutate()` a `total` using `rowSums(across(starts_with("Q")))`.
 
 ```r title="Your turn"
 sales <- tibble(
@@ -1454,6 +1562,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Fill in every day of the range for each station, then replace gaps with that station's average reading.
+Use `complete(station, date = seq(...))`, then `group_by(station)` and `mutate(temp_c = coalesce(temp_c, mean(temp_c, na.rm = TRUE)))`.
 
 ```r title="Your turn"
 weather <- tibble(
@@ -1517,6 +1629,10 @@ ex_6_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+Stack the three metric columns into long form, then sort so the facet variable follows a predictable order.
+Use `pivot_longer()` on `c(cpu, mem, disk)`, then `arrange()` by `timestamp` and `metric`.
+
 ```r title="Your turn"
 sensors <- tibble(
   timestamp = paste0("t", 1:4),
@@ -1567,6 +1683,10 @@ ex_6_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Summarise total value and event count per user-and-type, then spread both metrics into columns with zero where an event is absent.
+After `group_by()` and `summarise(total, count)`, call `pivot_wider()` with `values_from = c(total, count)`, `names_glue`, and `values_fill = 0`.
 
 ```r title="Your turn"
 events <- tibble(

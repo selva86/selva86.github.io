@@ -46,6 +46,10 @@ library(stringr)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Collapse the ten game rows into a single summary row, taking the average of each stat.
+Use summarise() with mean() wrapped in round(..., 1), naming the output columns ppg, rpg, apg.
+
 ```r title="Your turn"
 player_log <- tibble(
   game = 1:10,
@@ -110,6 +114,10 @@ ex_1_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+For each game, count how many of the three stat categories cleared 10, then check whether that count reached two.
+In mutate(), use rowSums(across(c(pts, reb, ast), ~ .x >= 10)) >= 2 to build the logical column.
+
 ```r title="Your turn"
 ex_1_2 <- player_log |>
   # your code here
@@ -161,6 +169,10 @@ ex_1_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Apply the efficiency formula to each player row, then order the table so the best player appears first.
+Use mutate(ts = round(pts / (2 * (fga + 0.44 * fta)), 3)) followed by arrange(desc(ts)).
 
 ```r title="Your turn"
 season <- tribble(
@@ -224,6 +236,10 @@ ex_1_3
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Each game row holds two teams, so reshape into one row per team per game before counting outcomes.
+Use bind_rows() on a home slice and an away slice, then group_by(team) and summarise() wins and losses; arrange(desc(win_pct)).
 
 ```r title="Your turn"
 games <- tribble(
@@ -306,6 +322,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Carry points scored and points allowed per team, total each, and sort on record first then on differential.
+Compute summarise(point_diff = sum(pf) - sum(pa)) and use arrange(desc(win_pct), desc(point_diff)).
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -365,6 +385,10 @@ ex_2_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Compute the win rate for home games and for road games separately, then combine the two results per team.
+Use group_by(team = home) and group_by(team = away) with mean(), then full_join() the two by team.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 ex_2_3
@@ -418,6 +442,10 @@ ex_2_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Tally wins for every team-opponent pair, then reshape that long table into a wide grid with opponents as columns.
+Use group_by(team, opp) with summarise(wins = sum(win)), then pivot_wider(names_from = opp, values_from = wins) and set the diagonal to NA.
 
 ```r title="Your turn"
 ex_2_4 <- # your code here
@@ -473,6 +501,10 @@ ex_2_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Apply the points-based win-expectation formula to each team row, then order the result best-first.
+In mutate(), compute pf^13.91 / (pf^13.91 + pa^13.91) wrapped in round(..., 3), then arrange(desc(...)).
 
 ```r title="Your turn"
 teams <- tribble(
@@ -534,6 +566,10 @@ ex_3_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+Derive each team's expected score from the rating gap, then nudge the ratings by the difference between actual and expected outcomes.
+Compute expected = 1 / (1 + 10^((R_opp - R_self)/400)), apply R + K * (actual - expected) with K = 20, and assemble a two-row tibble().
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -585,6 +621,10 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Walk the schedule game by game, updating both teams' ratings after each result before moving to the next.
+Loop with for (i in seq_len(nrow(games))) over a named ratings vector, updating each entry per iteration, then build a tibble() and arrange(desc(final_elo)).
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -644,6 +684,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Attach each opponent's win percentage to the schedule rows, then average those values within each team.
+Use left_join() with by = c("opp" = "team"), then group_by(team) and summarise(sos = round(mean(win_pct), 3)).
+
 ```r title="Your turn"
 ex_3_4 <- # your code here
 ex_3_4
@@ -694,6 +738,10 @@ ex_3_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Reduce each lead value to just its direction, drop the ties, and count how often the direction flips.
+Apply sign() to the vector, keep only the non-zero entries, then use sum(diff(signs) != 0).
+
 ```r title="Your turn"
 home_lead <- c(0, 2, 5, 7, 4, -1, -3, -2, 1, 4, 6, 3, -2, -5, -1, 2, 5, 8)
 
@@ -729,6 +777,10 @@ ex_4_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Fit a logistic regression of the win outcome on score margin and time remaining, then score one new game situation.
+Call glm(home_won ~ margin + seconds_left, family = binomial), then predict(..., newdata = ..., type = "response").
 
 ```r title="Your turn"
 set.seed(42)
@@ -786,6 +838,10 @@ ex_4_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+From the fifth position onward, total the current value and the four before it, leaving the first four positions empty.
+Pad with four NA_real_ values, then use sapply(5:n, function(i) sum(poss[(i-4):i])).
+
 ```r title="Your turn"
 poss <- c(2, 0, -2, 2, 2, -1, 3, 0, -1, -1, 0, 2, 3, -2, 2, -2, 3, 0, 2, 3)
 
@@ -828,6 +884,10 @@ ex_4_3
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Rescale each counting stat onto a shared 36-minute denominator for every player.
+Use transmute() with round(stat * 36 / mp, 1) for the pts, reb, and ast columns.
 
 ```r title="Your turn"
 roster <- tribble(
@@ -892,6 +952,10 @@ ex_5_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Build each player's possession-ending events, then scale that against the team total and the player's minutes share.
+In mutate(), compute player_poss = fga + 0.44 * fta + tov, apply the usage formula, then arrange(desc(usage)).
 
 ```r title="Your turn"
 usage_input <- tribble(
@@ -960,6 +1024,10 @@ ex_5_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Group the attempts by court zone and summarize the attempts, the makes, and the make rate for each.
+Use group_by(zone) with summarise(attempts = n(), makes = sum(made), fg_pct = round(makes / attempts, 3)), then arrange(zone).
+
 ```r title="Your turn"
 shots <- tibble(
   zone = c(rep("paint", 18), rep("mid_range", 12),
@@ -1026,6 +1094,10 @@ ex_5_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Standardize each stat within the candidate pool so different units compare, then add the standardized values into one ranking number.
+Write a z-score helper (x - mean(x)) / sd(x), apply it per stat in mutate(), sum into composite, and arrange(desc(composite)).
 
 ```r title="Your turn"
 free_agents <- tribble(
@@ -1107,6 +1179,10 @@ ex_6_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+Pair every one of our positions with every one of theirs, then subtract their defense from our offense.
+Use expand_grid() on the two position vectors, left_join() each efficiency table, mutate(edge = off_eff - def_eff), and arrange(desc(edge)).
+
 ```r title="Your turn"
 ours <- tibble(pos = c("PG","SG","PF","SF","C"),
                off_eff = c(110, 112, 105, 115, 108))
@@ -1177,6 +1253,10 @@ head(ex_6_2, 10)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Compute the trailing five-game minutes total separately for each player, then flag totals above the threshold.
+Call group_by(player) before the rolling window, then mutate() roll_5_mp as the NA-padded trailing sum and at_risk = roll_5_mp > 175.
 
 ```r title="Your turn"
 minutes <- tibble(

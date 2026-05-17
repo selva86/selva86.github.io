@@ -79,6 +79,10 @@ The `visit_score` of `0` for patient 8 is a deliberate sentinel: in this fiction
 
 **Difficulty:** Beginner
 
+[HINTS]
+A logical test that marks each cell as missing or not can be totalled, since a TRUE counts as one.
+Wrap the whole data frame in is.na() and pass that result straight into sum().
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -109,6 +113,10 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+You want one count for each column rather than a single grand total, so collapse the logical grid down its columns.
+Feed is.na(airquality) into colSums() to get a named integer vector.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -141,6 +149,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The average of a column of TRUE and FALSE values is already the missing rate expressed as a proportion.
+Apply colMeans() to the logical matrix, multiply by 100, and round() to 2 decimals.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -178,6 +190,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+First flag which rows are fully complete, then invert that flag and turn the surviving positions into numbers.
+Negate complete.cases(airquality) and pass it to which().
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -218,6 +234,10 @@ head(ex_2_1, 10)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Combine two separate missingness tests so both must hold at once, then use that to pick rows.
+Subset airquality with is.na(airquality$Ozone) & !is.na(airquality$Solar.R) in the row slot of the [ , ] brackets.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -263,6 +283,10 @@ head(ex_2_2, 3)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A whole-frame missingness test already returns something the same shape as the original data.
+Call is.na() on the entire airquality data frame and keep the logical matrix it returns.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -315,6 +339,10 @@ head(ex_2_3, 5)
 
 **Difficulty:** Beginner
 
+[HINTS]
+One base function removes every row that is not fully complete in a single step.
+Pass airquality straight into na.omit().
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 nrow(ex_3_1)
@@ -354,6 +382,10 @@ nrow(ex_3_1)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want to target a single named column for dropping, not every column at once.
+Use drop_na() with Ozone passed as its argument.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -395,6 +427,10 @@ sum(is.na(ex_3_2$Solar.R))
 
 **Difficulty:** Advanced
 
+[HINTS]
+Keep rows by stating the condition they must satisfy rather than the one that disqualifies them.
+Use filter() with the condition !is.na(Wind).
+
 ```r title="Your turn"
 ex_3_3 <- # your code here
 nrow(ex_3_3)
@@ -431,6 +467,10 @@ nrow(ex_3_3)
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Overwrite only the missing slots of the vector by selecting exactly those positions on the left of an assignment.
+Index the vector with is.na() on the left side and assign round(mean(..., na.rm = TRUE), 2).
 
 ```r title="Your turn"
 ex_4_1 <- # your code here
@@ -471,6 +511,10 @@ any(is.na(ex_4_1))
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Fill the gaps with a center value that resists skew, touching only the missing positions.
+Assign median(..., na.rm = TRUE) into the slots picked out by is.na().
+
 ```r title="Your turn"
 ex_4_2 <- # your code here
 sum(is.na(ex_4_2))
@@ -507,6 +551,10 @@ median(ex_4_2)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+There is no ready-made statistical-mode function, so build the most-frequent category from a frequency count.
+Take names(sort(table(clinic$diagnosis), decreasing = TRUE))[1] and assign it into the is.na() slots.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -555,6 +603,10 @@ sum(is.na(ex_4_3))
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Carry each last seen value forward into the gaps, but keep one month from bleeding into the next.
+After group_by(Month), call fill(Ozone, .direction = "down") and then ungroup().
 
 ```r title="Your turn"
 ex_4_4 <- # your code here
@@ -610,6 +662,10 @@ ex_4_4 |> filter(Month == 5) |> head(10)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Compute the replacement separately within each month so the seasonal differences survive.
+Inside group_by(Month) |> mutate(), swap NAs using ifelse(is.na(Ozone), median(Ozone, na.rm = TRUE), Ozone).
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -672,6 +728,10 @@ sum(is.na(ex_5_1$Ozone))
 
 **Difficulty:** Advanced
 
+[HINTS]
+List the keep-the-observed-value rule before the fill rules so real data is never overwritten.
+Group by arm, then mutate() with case_when() putting !is.na(weight_kg) ~ weight_kg as the first branch.
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 ex_5_2 |> select(patient_id, arm, weight_kg)
@@ -728,6 +788,10 @@ sum(is.na(ex_5_2$weight_kg))
 
 **Difficulty:** Advanced
 
+[HINTS]
+Convert the disguised missing code into a real gap first, then fill that gap like any other.
+Assign NA where the value equals 0, then assign median(..., na.rm = TRUE) into the is.na() slots.
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 ex_5_3
@@ -771,6 +835,10 @@ any(is.na(ex_5_3))
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Capture the missingness snapshot before you change anything, then stash it alongside the cleaned data.
+Save colSums(is.na(airquality)) first, impute inside mutate() with ifelse(), then attach it via attr(ex_6_1, "na_before") <-.
 
 ```r title="Your turn"
 ex_6_1 <- # your code here
@@ -823,6 +891,10 @@ nrow(ex_6_1)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Build each cleaned version separately, then assemble their row counts into one small table.
+Compute nrow(na.omit(...)) plus the mean and median imputations with across(c(Ozone, Solar.R), ...), then collect into a tibble() with strategy and rows_retained columns.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here
@@ -878,6 +950,10 @@ ex_6_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Count the missing values per column, then reshape that single wide row into a tall, sortable table.
+Chain summarise(across(everything(), ~ sum(is.na(.x)))), pivot_longer(), a mutate() for the percentage, and arrange(desc(n_missing)).
 
 ```r title="Your turn"
 ex_6_3 <- # your code here

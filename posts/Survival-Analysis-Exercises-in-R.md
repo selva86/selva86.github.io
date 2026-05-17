@@ -50,6 +50,9 @@ lung <- lung |>
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+A survival response bundles the follow-up duration and the event flag into one object so downstream models can tell deaths apart from observations that were censored.
+Call `Surv()` with `time = lung$time` and `event = lung$status`; it auto-detects the 1/2 coding, so no recoding is needed.
 
 ```r title="Your turn"
 ex_1_1 <- # your code here
@@ -83,6 +86,9 @@ head(ex_1_1, 10)
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+A single overall cohort curve ignores every covariate, so the formula's right-hand side carries no predictors at all.
+Use `survfit()` with the formula `Surv(time, status) ~ 1` and `data = lung`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -120,6 +126,9 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+To pull the step-function estimate at specific horizons, you query the already-fitted curve rather than refitting anything.
+Pass `times = c(182, 365)` to `summary()` on the fitted survfit object.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -161,6 +170,9 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Putting a grouping factor on the right-hand side of the formula produces one curve per level.
+Use `survfit()` with the formula `Surv(time, status) ~ sex` and `data = lung`.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -201,6 +213,9 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+The log-rank test compares observed versus expected event counts across the groups, summed over every event time.
+Use `survdiff()` with the formula `Surv(time, status) ~ sex` and keep the default `rho = 0`.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -244,6 +259,9 @@ ex_2_2
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+To compare groups within bands of a possible confounder, the test must pool event times inside each band rather than across the whole cohort.
+Add `strata(ph.ecog)` to the `survdiff()` formula alongside `sex`, and run it on `lung_complete`.
 
 ```r title="Your turn"
 lung_complete <- lung |> filter(!is.na(ph.ecog))
@@ -293,6 +311,9 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+The Cox model expresses risk as a hazard ratio while leaving the baseline hazard completely unspecified.
+Fit it with `coxph()` using the formula `Surv(time, status) ~ sex` and `data = lung`.
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -336,6 +357,9 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Adding the other covariates to the model lets you see whether an effect survives adjustment for competing prognostic factors.
+Fit `coxph()` with the formula `Surv(time, status) ~ sex + age + ph.ecog` on `lung_3`.
 
 ```r title="Your turn"
 lung_3 <- lung |> filter(ph.ecog != 3, !is.na(ph.ecog))
@@ -378,6 +402,9 @@ round(summary(ex_3_2)$coefficients, 3)
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Hazard ratios live on the exponential scale, and a manuscript table wants them as a flat data frame of estimates with their bounds.
+Call `broom::tidy()` with `exponentiate = TRUE` and `conf.int = TRUE`, then keep the five columns.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -417,6 +444,9 @@ ex_3_3
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+When a covariate breaks proportional hazards, you can absorb it as a separate baseline hazard per level instead of estimating one coefficient for it.
+Wrap `ph.ecog` in `strata()` inside the `coxph()` formula, keeping `sex` and `age` as ordinary covariates.
 
 ```r title="Your turn"
 ex_3_4 <- # your code here
@@ -456,6 +486,9 @@ round(summary(ex_3_4)$coefficients, 3)
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Testing the proportional hazards assumption checks whether each covariate's effect stays constant over follow-up time.
+Apply `cox.zph()` to the fitted multivariable model `ex_3_2`.
 
 ```r title="Your turn"
 ex_4_1 <- # your code here
@@ -493,6 +526,9 @@ ex_4_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+The visual companion to the PH test plots residuals against transformed time, so a sloped or curved smooth flags a violation.
+Pass the `cox.zph` result `ex_4_1` to `ggcoxzph()`.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -528,6 +564,9 @@ ex_4_2 <- ggcoxzph(ex_4_1)
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+To judge whether a covariate enters linearly, you inspect residuals from a model that has not yet used that covariate at all.
+Fit a null `coxph()` (right-hand side `~ 1`) on `lung_3`, then call `residuals()` with `type = "martingale"`.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -575,6 +614,9 @@ round(head(ex_4_3), 4)
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A parametric model assumes a distributional shape for survival time, which is exactly what makes extrapolation beyond the observed window possible.
+Use `flexsurvreg()` with the formula `Surv(time, status) ~ sex` and `dist = "weibull"`.
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -612,6 +654,9 @@ ex_5_1
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Choosing between two distributions comes down to whether the extra shape parameter buys enough fit to justify its degree of freedom.
+Fit `flexsurvreg()` twice with `dist = "exp"` and `dist = "weibull"`, then collect each model's `$AIC` and `$loglik` into a `tibble()`.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -661,6 +706,9 @@ ex_5_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A risk table simply reshapes the fitted curve's estimates at a handful of chosen days into report-ready columns.
+Evaluate `summary()` at `times = c(0, 100, 200, 400, 600)` and lift `$time`, `$n.risk`, `$n.event`, `$surv`, `$lower`, and `$upper` into a `tibble()`.
 
 ```r title="Your turn"
 ex_6_1 <- # your code here
@@ -711,6 +759,9 @@ ex_6_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A publication figure layers confidence bands, censoring marks, an embedded test p-value, and a risk table onto the survival curves.
+Call `ggsurvplot()` on `fit_sex` with `conf.int = TRUE`, `pval = TRUE`, `risk.table = TRUE`, and `censor.shape = "+"`.
 
 ```r title="Your turn"
 fit_sex <- survfit(Surv(time, status) ~ sex, data = lung)
@@ -757,6 +808,9 @@ ex_6_2 <- ggsurvplot(
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Individual prognosis comes from evaluating the model's survival curve for a specific covariate profile at the time horizon you care about.
+Call `survfit()` on the Cox model with `newdata = newpts`, then read the survival estimate from `summary(..., times = 365)$surv`.
 
 ```r title="Your turn"
 newpts <- tibble::tibble(

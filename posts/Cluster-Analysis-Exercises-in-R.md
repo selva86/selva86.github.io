@@ -44,6 +44,9 @@ library(mclust)
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Clustering depends on a random starting point, so pin the randomness down and run the fit many times so the best of those runs is kept.
+Call kmeans() on iris_scaled with centers = 3 and nstart = 25, immediately after set.seed(101).
 
 ```r title="Your turn"
 iris_scaled <- scale(iris[, 1:4])
@@ -87,6 +90,9 @@ ex_1_1$size
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Every quantity you need is already stored inside the fitted object - you only have to reach in and bundle the three pieces together.
+Build a list() holding ex_1_1$centers, ex_1_1$withinss, and ex_1_1$tot.withinss, wrapping each one in round().
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -128,6 +134,9 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+A two-way count of the cluster labels against the known species shows how well the unsupervised groups recover the true classes.
+Pass ex_1_1$cluster and iris$Species to table(), naming the two arguments Cluster and Species.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -175,6 +184,9 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Fit the same model twice - once on the raw columns and once after putting every column on a common footing - then compare what changed.
+Run kmeans() on USArrests and on scale(USArrests) with centers = 3, then combine the rounded tot.withinss values and a table() of the two cluster vectors into a list().
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -216,6 +228,9 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Pick only the genuinely continuous columns by hand, put them on a common scale, group the cars, and keep their names attached to the result.
+Subset mtcars to the six continuous columns, scale() them, fit kmeans() with centers = 4 and nstart = 50, then setNames() the cluster vector with rownames(mtcars).
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -255,6 +270,9 @@ head(ex_2_2, 8)
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+The algorithm cannot run with gaps in the data, so fill the holes first, then standardise, then cluster - the order matters.
+Replace NA cells with median(..., na.rm = TRUE), scale() the numeric columns, fit kmeans() with centers = 3, then assemble a data.frame() of Month and the cluster vector.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -294,6 +312,9 @@ head(ex_2_3, 5)
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Refit the model across a sweep of cluster counts and watch how fast the leftover spread shrinks as more groups are added.
+Use sapply() over 1:10, pulling $tot.withinss from each kmeans() fit, then setNames() the result by k.
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -328,6 +349,9 @@ round(ex_3_1, 2)
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+For each candidate cluster count, measure how cleanly points sit in their own group versus the nearest rival group, then average that over all points.
+Loop k over 2:8 with sapply(), and for each fit take mean() of the sil_width column from silhouette(km$cluster, d_us).
 
 ```r title="Your turn"
 us_scaled <- scale(USArrests)
@@ -374,6 +398,9 @@ round(ex_3_2, 3)
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Compare the model's compactness against what featureless random data would produce, so extra clusters have to earn their place.
+Call clusGap() with FUN = kmeans, K.max = 8, and B = 50, then pull the gap and SE.sim columns out of its $Tab into a data.frame().
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -413,6 +440,9 @@ ex_3_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Hold the random seed fixed and vary only the number of restarts to see how quickly the loss stops improving.
+Use sapply() over c(1, 5, 25, 100), calling set.seed(42) then kmeans(..., nstart = n)$tot.withinss inside, and setNames() the result.
 
 ```r title="Your turn"
 ex_4_1 <- # your code here
@@ -454,6 +484,9 @@ round(ex_4_1, 2)
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Resample the rows many times, recluster each draw, and count how often each pair of states lands together to expose unstable boundaries.
+Loop with sample.int(..., replace = TRUE), refit kmeans() with centers = 3, assign full-data labels via max.col() on distances to km_b$centers, accumulate a co-membership matrix, and divide by B.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -504,6 +537,9 @@ ex_4_2[1:4, 1:4]
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Turn the scaled data into pairwise distances, grow a merge tree from them, then slice that tree at the height that yields three groups.
+Feed dist() into hclust() with method = "ward.D2", then cut the tree with cutree() at k = 3.
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -549,6 +585,9 @@ head(ex_5_1, 12)
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Keep the distance matrix constant and swap only the rule for merging branches to see how much the partition depends on that choice.
+lapply() over the four method strings, calling cutree(hclust(d_us, method = m), k = 3) for each, then bind the label vectors into a data.frame().
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -584,6 +623,9 @@ sapply(ex_5_2, function(v) as.integer(table(v)))
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Measure how faithfully each merge tree reproduces the original pairwise distances, and favour the linkage that distorts them least.
+For each method, correlate d_us with cophenetic(hclust(d_us, method = m)) using cor() inside sapply().
 
 ```r title="Your turn"
 us_scaled <- scale(USArrests)
@@ -632,6 +674,9 @@ round(ex_5_3, 3)
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Score how much two independently produced partitions agree once the agreement expected by pure chance is discounted.
+Pass ex_1_1$cluster and ward_lab to adjustedRandIndex(), then combine the rounded score with a table() confusion matrix into a list().
 
 ```r title="Your turn"
 # Refit ward.D2 on the same iris scaled data so labels are comparable
@@ -676,6 +721,9 @@ class(ex_6_2)
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Compress the four measurements onto two summary axes so the cluster shapes show up in a single scatter plot.
+Call fviz_cluster() on ex_1_1 with data = iris_scaled and geom = "point", then add a ggplot2::labs() layer for the title.
 
 ```r title="Your turn"
 iris_scaled <- scale(iris[, 1:4])
@@ -721,6 +769,9 @@ class(ex_6_2)
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Group around actual representative observations instead of averaged centers, then check how closely that agrees with the mean-based method.
+Fit pam() with k = 3 and kmeans() with centers = 3, then collect rownames()[pm$id.med], table(pm$clustering), and adjustedRandIndex() into a list().
 
 ```r title="Your turn"
 us_scaled <- scale(USArrests)

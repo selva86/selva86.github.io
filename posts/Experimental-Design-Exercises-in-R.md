@@ -48,6 +48,10 @@ set.seed(2026)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Build a source vector that already holds five copies of each treatment label, then shuffle it - balance comes from the source, not from the random draw.
+Use `rep(..., each = 5)` to repeat the three labels and wrap that in a single `sample()` call with no `replace` argument.
+
 ```r title="Your turn"
 set.seed(11)
 ex_1_1 <- # your code here
@@ -99,6 +103,10 @@ table(ex_1_1)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Shuffle the three treatments separately inside each block, never in one pass across all twelve rows.
+Walk the four blocks with `lapply()`, call `sample()` on the three labels each time, `unlist()` the result, and build a `tibble()` with a `rep(1:4, each = 3)` block column.
+
 ```r title="Your turn"
 set.seed(12)
 ex_1_2 <- # your code here
@@ -147,6 +155,10 @@ ex_1_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each row is the base sequence of treatments rotated one more position than the row above it.
+Generate rotated index vectors with modular arithmetic `(0:3 + i) %% 4 + 1` inside `sapply()`, then transpose the result with `t()`.
+
 ```r title="Your turn"
 ex_1_3 <- # your code here
 ex_1_3
@@ -188,6 +200,10 @@ ex_1_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+Dose is stored as a number, so it has to be treated as a categorical grouping before the means can be compared.
+Call `aov()` with the formula `len ~ factor(dose)` and `data = ToothGrowth`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 summary(ex_2_1)
@@ -222,6 +238,10 @@ summary(ex_2_1)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Check whether the three dose groups share roughly the same spread before trusting the ANOVA p-value.
+Call `bartlett.test()` with `len ~ factor(dose)` and `data = ToothGrowth`.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -262,6 +282,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Take the model that was already fitted and ask for every pairwise mean difference with multiplicity-adjusted intervals.
+Pass the fitted object `ex_2_1` directly into `TukeyHSD()`.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -317,6 +341,10 @@ rcbd_data <- tibble(
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Add the block grouping as a second factor so its variability is separated out from the treatment effect.
+Fit `aov()` with the formula `yield ~ treatment + block` and `data = rcbd_data`, with no interaction term.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 summary(ex_3_1)
@@ -350,6 +378,10 @@ summary(ex_3_1)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Pull the block and residual mean squares out of the fitted model, then plug them into the efficiency formula given in the task.
+Get the ANOVA table with `summary(ex_3_1)[[1]]`, index its `"Mean Sq"` column for the `block` and `Residuals` rows, and evaluate the RE expression with `b <- 4` and `t <- 3`.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -389,6 +421,10 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Add the squared fitted values as an extra predictor to probe for a hidden multiplicative block-by-treatment interaction.
+Fit `aov()` with `yield ~ treatment + block + I(fit^2)` on `rcbd_data`, where `fit` comes from `fitted(ex_3_1)`.
 
 ```r title="Your turn"
 fit <- fitted(ex_3_1)
@@ -448,6 +484,10 @@ latin_data <- tibble(
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Include both the row gradient and the column gradient as factors so each nuisance source is removed from the residual.
+Fit `aov()` with the formula `yield ~ paste + row + col` and `data = latin_data`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 summary(ex_4_1)
@@ -483,6 +523,10 @@ summary(ex_4_1)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Fit the same response three times, adding one nuisance factor at a time, and collect each model's leftover variance.
+Build the three `aov()` models (`paste`, `paste + row`, `paste + row + col`), read `["Residuals", "Mean Sq"]` from each `summary()[[1]]`, and combine them with a named `c()` inside `round()`.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -529,6 +573,10 @@ ex_4_2
 
 **Difficulty:** Beginner
 
+[HINTS]
+Split the data by every wool-and-tension combination and average the breaks within each group.
+Pipe `warpbreaks` through `group_by(wool, tension)` then `summarise(mean_breaks = mean(breaks), .groups = "drop")`.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -574,6 +622,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Estimate the two main effects and their joint dependence together in a single model.
+Call `aov()` with the crossed formula `breaks ~ wool * tension` and `data = warpbreaks`.
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 summary(ex_5_2)
@@ -611,6 +663,10 @@ summary(ex_5_2)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Draw one profile line per supplement, with dose on the x-axis and the mean tooth length on the y-axis.
+Use `interaction.plot()` with `x.factor = factor(ToothGrowth$dose)`, `trace.factor = ToothGrowth$supp`, `response = ToothGrowth$len`, and `fun = mean`.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -657,6 +713,10 @@ ex_5_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Fit a separate wool comparison inside each tension level and collect the three resulting p-values.
+Loop the `levels()` of tension with `sapply()`, subset the data per level, pull `[1, "Pr(>F)"]` from `summary(aov(breaks ~ wool, ...))[[1]]`, and assemble a `tibble()`.
 
 ```r title="Your turn"
 ex_5_4 <- # your code here
@@ -712,6 +772,10 @@ ex_5_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Solve for the per-group sample size given the effect size, the significance level, and the target power.
+Call `power.t.test()` with `delta = 0.5`, `sd = 1`, `sig.level = 0.05`, `power = 0.80`, and `type = "two.sample"`.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -763,6 +827,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Compute achieved power from the group count, the per-arm n, and the two variance components - the calculation wants variances, not standard deviations.
+Call `power.anova.test()` with `groups = 4`, `n = 15`, `between.var = 1.2^2`, `within.var = 3^2`, and `sig.level = 0.05`.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here
@@ -817,6 +885,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Build a balanced arm sequence inside each age stratum and then shuffle it, never mixing patients across strata.
+Write a helper that does `rep(arms, length.out = n)` then `sample()`, and apply it per stratum with `group_by(stratum)` and `mutate(arm = ...)`.
 
 ```r title="Your turn"
 set.seed(71)
@@ -898,6 +970,10 @@ sp_data$yield <- c(
 
 **Difficulty:** Advanced
 
+[HINTS]
+Tell the model that water lives at the whole-plot level so each effect is tested against its own error stratum.
+Fit `aov()` with `yield ~ water * fert + Error(rep/water)` and `data = sp_data`.
+
 ```r title="Your turn"
 ex_7_2 <- # your code here
 summary(ex_7_2)
@@ -943,6 +1019,10 @@ summary(ex_7_2)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Lay out every factor combination with three replicates, add the known effects plus random noise, then fit the crossed model.
+Build the grid with `expand.grid()`, add the response using named effect vectors indexed by `as.character(...)` plus `rnorm(..., sd = 1.5)`, and fit `aov(y ~ temp * catalyst, ...)`.
 
 ```r title="Your turn"
 set.seed(73)

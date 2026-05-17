@@ -48,6 +48,10 @@ set.seed(42)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Each variant needs three numbers - how many users, how many converted, and the share that converted - so the ten rows have to collapse down to one row per variant.
+Group by `variant`, then summarise with `n()` for users, `sum(converted)` for conversions, and `mean(converted)` for the rate.
+
 ```r title="Setup data"
 experiment <- tibble(
   user_id  = 1:10,
@@ -108,6 +112,10 @@ ex_1_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+A binary converted/not-converted outcome compared across two groups calls for a test on proportions rather than means.
+Pass `x = c(4800, 5250)` and `n = c(50000, 50000)` and set `correct = FALSE` to get the classic z-test.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -151,6 +159,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Counts arranged as a two-row, two-column grid let you test whether variant and outcome are associated.
+Build the grid with `matrix(..., nrow = 2)`, then pass it to `chisq.test()` with `correct = FALSE` so the statistic matches Exercise 1.2.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -199,6 +211,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+When only an improvement in one direction is actionable, the test should look in just that single direction.
+Call `prop.test()` with `alternative = "greater"` and list the treatment counts first in `x` and `n`.
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -249,6 +265,10 @@ ex_1_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Two sets of per-user dollar amounts call for a comparison of average values between the groups.
+Pass `aov_control` and `aov_treatment` to `t.test()`; its default already performs the Welch (unequal-variance) version.
 
 ```r title="Setup data"
 aov_control   <- c(50, 62, 71, 45, 39, 58, 64, 49, 77, 70)
@@ -301,6 +321,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The classic Student version of the test assumes both groups share the same spread.
+Re-run `t.test(aov_control, aov_treatment)` adding `var.equal = TRUE`.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -343,6 +367,10 @@ ex_2_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A long right tail breaks the symmetry the test expects, so the values need reshaping before they are compared.
+Wrap each vector in `log1p()` and feed the transformed values to `t.test()`.
 
 ```r title="Setup data"
 set.seed(42)
@@ -395,6 +423,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Sizing an experiment means solving for the user count given a baseline rate, a target rate, the desired power, and the significance level.
+Call `power.prop.test()` with `p1 = 0.10`, `p2 = 0.11`, `power = 0.80`, `sig.level = 0.05`, then read `$n`.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -445,6 +477,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Some power tools describe the effect as a single standardized number instead of two raw proportions.
+Use `pwr::pwr.2p.test()` with `h = 0.05`, `power = 0.80`, `sig.level = 0.05`, `alternative = "two.sided"`.
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -494,6 +530,10 @@ ex_3_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+With the user count fixed, flip the usual question and solve instead for the smallest effect you could still detect.
+Call `power.prop.test()` with `n = 8000`, `p1 = 0.10`, `power = 0.80` and leave `p2 = NULL` so it solves for that slot.
+
 ```r title="Your turn"
 ex_3_3 <- # your code here
 ```
@@ -541,6 +581,10 @@ cat(sprintf("Absolute MDE: %.4f\nRelative MDE: %.1f%%\n", abs_mde, rel_mde * 100
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A confidence interval for a difference is the difference itself, plus and minus a margin built from the combined uncertainty of both estimates.
+Compute the standard error with `sqrt()` using the SE formula, then add `c(-1.96, 1.96) * se` to the difference in proportions.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -575,6 +619,10 @@ ex_4_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+When you cannot assume a tidy distribution, resampling the observed data many times builds the interval empirically.
+Resample each group with `sample(x, length(x), replace = TRUE)`, compute the relative lift across many replicates, then take `quantile(boots, c(0.025, 0.975))`.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -618,6 +666,10 @@ unname(ex_4_2)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A baseline-free measure puts a one-point lift onto a standardized scale you can compare across experiments.
+Call `pwr::ES.h(0.10, 0.11)` and wrap the result in `round(..., 4)`.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -660,6 +712,10 @@ ex_4_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Four variants mean many head-to-head tests, and each extra comparison inflates the chance of a false win unless the p-values are adjusted.
+Use `pairwise.prop.test()` with the four counts, the four sample sizes, and `p.adjust.method = "bonferroni"`.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -699,6 +755,10 @@ ex_5_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Running ten tests at once needs the raw p-values rescaled to control the share of discoveries that are false.
+Apply `p.adjust()` to `raw_p` with `method = "BH"`.
 
 ```r title="Setup data"
 raw_p <- c(0.001, 0.004, 0.009, 0.020, 0.050, 0.090, 0.175, 0.400, 0.630, 0.900)
@@ -750,6 +810,10 @@ cat("adj  < 0.05:", sum(ex_5_2  < 0.05), "\n")
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Two corrections that control the same error rate can still differ in how much they shrink each individual p-value.
+Call `p.adjust()` on `raw_p` twice - once with `method = "bonferroni"`, once with `method = "holm"` - and assemble both columns into a tibble.
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 ex_5_3
@@ -790,6 +854,10 @@ ex_5_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+To show drift over time you first need a running total of successes and of trials, then a separate line for each variant.
+Per group, take `cumsum()` of success and trials to get the daily rate, then build the chart with `ggplot()` and `geom_line()`, mapping `color = variant`.
 
 ```r title="Setup data"
 set.seed(42)
@@ -844,6 +912,10 @@ ex_6_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+Looking at the experiment many times means splitting one total error budget across all of those looks.
+Divide the family-wise alpha `0.05` by the number of looks, `7`.
+
 ```r title="Your turn"
 ex_6_2 <- # your code here
 ex_6_2
@@ -878,6 +950,10 @@ round(ex_6_2, 6)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Checking whether an observed split matches an intended split is a test of counts against expected probabilities.
+Pass the observed counts `c(24200, 25800)` to `chisq.test()` with `p = c(0.5, 0.5)`.
+
 ```r title="Your turn"
 ex_6_3 <- # your code here
 ex_6_3
@@ -911,6 +987,10 @@ ex_6_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+To check a test's false-positive rate, run it many times on data where no real difference exists and tally how often it still flags significance.
+Use `replicate()` to repeatedly draw counts with `rbinom()` and run `prop.test(..., correct = FALSE)`, then take `mean(p < 0.05)`.
 
 ```r title="Your turn"
 ex_6_4 <- # your code here

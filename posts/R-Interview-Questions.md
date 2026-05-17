@@ -50,6 +50,10 @@ These warm-ups cover the questions every first-round screen leads with: atomic t
 
 **Difficulty:** Beginner
 
+[HINTS]
+Storage type is a deeper property than class; think about how R holds each value in memory, and remember a name can be attached to every element.
+Call typeof() on each of the four values and assemble them with c() using name = value pairs.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -86,6 +90,10 @@ ex_1_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+A comparison applied to a whole vector gives you a same-length TRUE/FALSE mask that you can use to index.
+Build the condition x > 20 and pass it inside the brackets x[ ].
+
 ```r title="Your turn"
 x <- c(10, 22, 7, 35, 18, 4, 41)
 ex_1_2 <- # your code here
@@ -119,6 +127,10 @@ ex_1_2
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+R can coerce text to numbers directly, turning anything unparseable into a missing value with a warning rather than an error.
+Apply as.numeric() to vals so the non-numeric strings become NA automatically.
 
 ```r title="Your turn"
 vals <- c("12.5", "8", "NA", "abc", "17")
@@ -155,6 +167,10 @@ ex_1_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A data frame behaves like a list of columns, so you can walk each column, tally its missing entries, then order the tally.
+Combine sapply() over the columns with sum(is.na(...)) per column, then wrap the result in sort(decreasing = TRUE).
+
 ```r title="Your turn"
 ex_1_4 <- # your code here
 ex_1_4
@@ -186,6 +202,10 @@ ex_1_4
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Each of the three objects reports a different structural category when you ask what kind of thing it is.
+Call class() on v, l, and d, then bundle the three strings with c() using names.
 
 ```r title="Your turn"
 ex_1_5 <- # your code here
@@ -221,6 +241,10 @@ ex_1_5
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Arithmetic in R applies across an entire sequence at once, so no loop is needed.
+Apply the ^ operator with exponent 2 to the sequence (1:10).
+
 ```r title="Your turn"
 ex_1_6 <- # your code here
 ex_1_6
@@ -250,6 +274,10 @@ ex_1_6
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A factor stores integer codes behind text labels, so converting straight to numbers gives the codes, not the labels; you need to recover the labels first.
+Wrap the factor in as.character() first, then pass that to as.numeric().
 
 ```r title="Your turn"
 f <- factor(c("10", "20", "30", "10"))
@@ -283,6 +311,10 @@ ex_1_7
 
 **Difficulty:** Beginner
 
+[HINTS]
+You want the index positions of the matching elements, not the elements themselves.
+Pass the condition y > 10 to which().
+
 ```r title="Your turn"
 y <- c(5, 12, 8, 19, 3, 22, 14)
 ex_1_8 <- # your code here
@@ -314,6 +346,10 @@ ex_1_8
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+One symbol is reserved for binding a name to a value, the other for passing a value to a named parameter inside a call.
+Use a <- 5, then call mean() passing the vector through the x = argument.
 
 ```r title="Your turn"
 a <- # your code here
@@ -354,6 +390,10 @@ The wrangling round is where most candidates either shine or stall. Expect group
 
 **Difficulty:** Beginner
 
+[HINTS]
+Keep only the rows that satisfy both conditions at the same time.
+Use filter() with the two conditions cyl == 6 and mpg > 20 separated by a comma.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -391,6 +431,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Collapse the data so each cylinder count becomes a single summary row, then order those rows.
+Chain group_by(cyl), summarise(mean_mpg = mean(mpg)), and arrange(cyl).
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -434,6 +478,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Assign each row to one of three labelled bands based on where its price falls, then tally the bands.
+Use mutate() with case_when() for the three price thresholds, then count() the new tier column.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -482,6 +530,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want a per-group maximum added as a column, but scoped to a single verb rather than a persistent grouping.
+Call mutate(gear_max_mpg = max(mpg), .by = gear), then take head().
+
 ```r title="Your turn"
 ex_2_4 <- # your code here
 ex_2_4
@@ -525,6 +577,10 @@ ex_2_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Match each order to its customer record, keeping only rows that exist in both tables.
+Use inner_join() on the two tibbles with by = "customer_id".
 
 ```r title="Your turn"
 orders <- tibble::tibble(customer_id = c(1, 2, 1, 4), amount = c(99.9, 45, 150, 22))
@@ -573,6 +629,10 @@ ex_2_5
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Reshape so the three month columns collapse into one month column and one revenue column.
+Call pivot_longer() with cols = jan:mar, names_to = "month", and values_to = "revenue".
 
 ```r title="Your turn"
 wide <- tibble::tibble(id = 1:2, jan = c(100, 80), feb = c(150, 90), mar = c(200, 110))
@@ -623,6 +683,10 @@ ex_2_6
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Assign a within-group rank by descending mileage, then keep only the highest-ranked rows in each group.
+Use mutate() with row_number(desc(mpg)) and .by = cyl, then filter rk <= 2 and arrange by cyl and rk.
+
 ```r title="Your turn"
 ex_2_7 <- # your code here
 ex_2_7
@@ -671,6 +735,10 @@ ex_2_7
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Pick the single highest-horsepower row inside each gear group, keeping every column.
+Use slice_max() on hp with n = 1 and by = gear.
+
 ```r title="Your turn"
 ex_2_8 <- # your code here
 ex_2_8
@@ -714,6 +782,10 @@ ex_2_8
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Compute a running total of amount that restarts for each customer, so sort the rows before accumulating.
+After arranging, use mutate() with cumsum(amount) and .by = customer_id.
 
 ```r title="Your turn"
 orders <- tibble::tibble(
@@ -769,6 +841,10 @@ ex_2_9
 
 **Difficulty:** Advanced
 
+[HINTS]
+Keep the rows of the first table that have no counterpart in the second.
+Call anti_join() with expected, actual, and by = "customer_id".
+
 ```r title="Your turn"
 expected <- tibble::tibble(customer_id = 1:5, name = c("Alice", "Bob", "Carol", "Dan", "Eve"))
 actual <- tibble::tibble(customer_id = c(1, 2, 4), visited = TRUE)
@@ -812,6 +888,10 @@ Mid-level R interviewers love this section because it splits candidates by comfo
 
 **Difficulty:** Beginner
 
+[HINTS]
+A data frame is a list of columns, so an apply-style iterator can walk each column and simplify the per-column results.
+Call sapply() over mtcars with mean as the function.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -849,6 +929,10 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want the output kept as a list of the same length, not collapsed into a vector.
+Call lapply() over nums with sum.
 
 ```r title="Your turn"
 nums <- list(a = 1:3, b = 4:6, c = 7:9)
@@ -890,6 +974,10 @@ ex_3_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Production code wants a guaranteed return shape, so the iterator should assert each result is a single number.
+Call vapply() over mtcars with mean and FUN.VALUE = numeric(1).
+
 ```r title="Your turn"
 ex_3_3 <- # your code here
 ex_3_3
@@ -920,6 +1008,10 @@ ex_3_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You need to walk two vectors in parallel, feeding one element from each into the operation per step.
+Use mapply() with a two-argument function computing x^y, passing a and b.
 
 ```r title="Your turn"
 a <- c(1, 2, 3, 4)
@@ -955,6 +1047,10 @@ ex_3_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+The tidyverse offers a type-stable iterator that guarantees a double back from every column.
+Call map_dbl() over mtcars with median.
 
 ```r title="Your turn"
 ex_3_5 <- # your code here
@@ -992,6 +1088,10 @@ ex_3_5
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Fold the list of tibbles together two at a time, threading the growing result forward as the accumulator.
+Call Reduce() with a binary function that runs full_join(x, y, by = "id") over dfs.
 
 ```r title="Your turn"
 dfs <- list(
@@ -1039,6 +1139,10 @@ ex_3_6
 
 **Difficulty:** Advanced
 
+[HINTS]
+The returned function must remember a private value between calls, so it has to live in and write back to the environment where it was created.
+Inside make_counter() define n <- 0 and return a function that does n <<- n + 1 then returns n.
+
 ```r title="Your turn"
 make_counter <- function() {
   # your code here
@@ -1081,6 +1185,10 @@ ex_3_7
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A function that builds other functions captures its argument, so pin that argument's value before returning the inner function.
+Inside power_of(n) call force(n) and return function(x) x^n.
 
 ```r title="Your turn"
 power_of <- function(n) {
@@ -1128,6 +1236,10 @@ Stats-track interviewers cycle through summary stats, regression interpretation,
 
 **Difficulty:** Beginner
 
+[HINTS]
+Three standard one-variable summaries, each labelled, bundled together into one vector.
+Compute mean(), median(), and sd() of mtcars$mpg and combine them with c() using names.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -1167,6 +1279,10 @@ ex_4_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A single call gives the pairwise linear association across all numeric columns; then trim the decimals.
+Apply cor() to mtcars and wrap it in round(, 2).
+
 ```r title="Your turn"
 ex_4_2 <- # your code here
 ex_4_2
@@ -1200,6 +1316,10 @@ ex_4_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Fit the model, then pull out the slope estimate and trim its decimals.
+Fit lm(mpg ~ wt, data = mtcars), extract coef(fit)[["wt"]], and round to 4.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -1230,6 +1350,10 @@ ex_4_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Compare the two transmission groups' mileage and read the significance figure off the result object.
+Run t.test(mpg ~ am, data = mtcars) and round its $p.value to 5.
 
 ```r title="Your turn"
 ex_4_4 <- # your code here
@@ -1262,6 +1386,10 @@ ex_4_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Cross-tabulate the two categorical variables into counts, then test whether they are independent.
+Build the table with table(mtcars$am, mtcars$vs), pass it to chisq.test(), and round $p.value to 4.
+
 ```r title="Your turn"
 ex_4_5 <- # your code here
 ex_4_5
@@ -1293,6 +1421,10 @@ ex_4_5
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Resample the data with replacement many times, recompute the mean each time, then read the empirical 2.5 and 97.5 percentiles.
+Use replicate() around mean(sample(..., replace = TRUE)) and pass the results to quantile() with probs = c(0.025, 0.975).
 
 ```r title="Your turn"
 set.seed(42)
@@ -1327,6 +1459,10 @@ ex_4_6
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Fit a binary-outcome model, then predict for the new car on the probability scale, not the log-odds scale.
+Fit glm() with family = binomial, then call predict() with the new data and type = "response".
 
 ```r title="Your turn"
 ex_4_7 <- # your code here
@@ -1363,6 +1499,10 @@ ex_4_7
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Predict the mean response for the three new weights and ask the prediction function for an interval band around each.
+Call predict() on the lm fit with the newdata frame and interval = "confidence".
 
 ```r title="Your turn"
 ex_4_8 <- # your code here
@@ -1404,6 +1544,10 @@ Visualisation rounds rarely ask you to design a perfect chart; they ask whether 
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Map weight and mileage to the axes, then stack the raw points and a smoothing curve as two layers.
+Build ggplot() with aes(x = wt, y = mpg), then add geom_point() and geom_smooth(method = "loess").
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -1437,6 +1581,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The grouping variable is stored as a number but must be treated as a discrete category for the boxes to separate.
+In aes() map x to factor(cyl) and y to mpg, then add geom_boxplot().
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 ex_5_2
@@ -1468,6 +1616,10 @@ ex_5_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Split the scatter into one panel per cylinder value, arranged in a single row.
+Add facet_wrap(~ cyl, nrow = 1) to the geom_point() scatter.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -1502,6 +1654,10 @@ ex_5_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Tally cars per class first, then re-level the category so the tallest bar comes first.
+Use count() on class, then in aes() wrap x in reorder(class, -count) and add geom_col().
+
 ```r title="Your turn"
 ex_5_4 <- # your code here
 ex_5_4
@@ -1535,6 +1691,10 @@ ex_5_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Every text annotation on a plot can be set together in one place.
+Add labs() with the title, subtitle, x, and y arguments.
 
 ```r title="Your turn"
 ex_5_5 <- # your code here
@@ -1574,6 +1734,10 @@ ex_5_5
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A histogram needs an explicit bar width so the bins are interpretable in the data's units.
+Add geom_histogram(binwidth = 2) to a plot with aes(x = mpg).
+
 ```r title="Your turn"
 ex_5_6 <- # your code here
 ex_5_6
@@ -1605,6 +1769,10 @@ ex_5_6
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Map the cylinder category to colour, then override the default palette with your own three colours.
+In aes() set colour = factor(cyl) and add scale_colour_manual() with a named values vector.
 
 ```r title="Your turn"
 ex_5_7 <- # your code here
@@ -1638,6 +1806,10 @@ ex_5_7
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Generate a temporary file path, write the plot to it at the requested size and resolution, then keep that path.
+Get a path from tempfile(fileext = ".png"), call ggsave() with width, height, and dpi, and store the path.
 
 ```r title="Your turn"
 p <- ggplot(mtcars, aes(x = wt, y = mpg)) + geom_point()
@@ -1679,6 +1851,10 @@ The final round at senior interviews. Microbenchmarking, profiling, error handli
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Run both expressions many times and read the middle timing of each resulting distribution.
+Call microbenchmark() with both expressions, times = 100 and unit = "us", then take summary(bm)$median.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -1717,6 +1893,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The slow version regrows its result vector every iteration; the fix is to create the full-size vector once before the loop.
+In fast_sum() set out <- integer(n), assign out[i] <- i inside the loop, then return sum(out).
 
 ```r title="Your turn"
 slow_sum <- function(n) {
@@ -1767,6 +1947,10 @@ ex_6_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Wrap the risky conversion so a failure returns a missing value of the right type instead of stopping execution.
+In safe_as_date() use tryCatch() with an error handler that returns as.Date(NA).
+
 ```r title="Your turn"
 safe_as_date <- function(x) {
   # your code here
@@ -1802,6 +1986,10 @@ ex_6_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Attach a class tag to a list, then write a specially-named printing function that R will dispatch to automatically.
+In money() set class(obj) <- "money"; define print.money() to cat() the amount and currency.
 
 ```r title="Your turn"
 money <- function(amount, currency) {
@@ -1855,6 +2043,10 @@ ex_6_4
 
 **Difficulty:** Advanced
 
+[HINTS]
+Use the bracket syntax that does grouped aggregation in a single pass over a large table.
+Build a data.table and use dt[, .(total = sum(value)), by = id], then chain order(id).
+
 ```r title="Your turn"
 set.seed(1)
 ex_6_5 <- # your code here
@@ -1895,6 +2087,10 @@ ex_6_5
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Open the connection, read it, and guarantee it is closed whether the read succeeds or fails.
+In read_with_cleanup() open with file(path, "r") and use tryCatch() with a finally = close(con) clause.
 
 ```r title="Your turn"
 read_with_cleanup <- function(path) {
@@ -1939,6 +2135,10 @@ ex_6_6
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The wrapper must remember past results in a private store, looking up the cache before recomputing anything.
+In memoise() create a cache with new.env(), and in the returned function check exists(), get(), and assign() keyed by as.character(x).
 
 ```r title="Your turn"
 memoise <- function(f) {

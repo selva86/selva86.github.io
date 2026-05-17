@@ -51,6 +51,10 @@ The exercises assume `Boston` from `MASS` (506 rows, 13 numeric predictors, `med
 
 **Difficulty:** Beginner
 
+[HINTS]
+glmnet needs a numeric matrix, not a formula, and the converter inserts one extra constant column that must be removed.
+Call model.matrix(medv ~ ., Boston) and subset it with [, -1] to drop the intercept column.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 dim(ex_1_1)
@@ -89,6 +93,10 @@ head(ex_1_1[, 1:5], 3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Ridge is the pure L2 penalty, so the mixing parameter sits at the ridge end of its 0-to-1 range.
+Pass alpha = 0 to glmnet(x, y, ...).
 
 ```r title="Your turn"
 x <- model.matrix(medv ~ ., Boston)[, -1]
@@ -131,6 +139,10 @@ dim(coef(ex_1_2))
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Switching from ridge to lasso means moving the mixing parameter to the opposite end of its range.
+Fit with alpha = 1, then read the coefficients at the target penalty via coef(model, s = 0.5).
+
 ```r title="Your turn"
 ex_1_3 <- # your code here
 ex_1_3$lambda[1:3]
@@ -170,6 +182,10 @@ sum(coef(ex_1_3, s = 0.5)[-1, ] == 0)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The plotting method for a fitted path can put the penalty on a log scale and label each curve at the edge.
+Call plot() on the model with xvar = "lambda" and label = TRUE, then assign the fitted model itself to ex_2_1.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ```
@@ -206,6 +222,10 @@ head(ex_2_1$beta[, 80:82], 3)
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+The coefficient extractor returns a sparse column that has to be flattened into a plain numeric vector before the intercept is removed.
+Wrap coef(ex_1_3, s = 0.1) in as.numeric() and drop the first element with [-1].
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -257,6 +277,10 @@ round(ex_2_2[1:5], 4)
 
 **Difficulty:** Advanced
 
+[HINTS]
+Extract both coefficient sets at the same penalty, line them up by predictor, and order rows by how large the lasso values are.
+Build a tibble() with coef(..., s = 0.5) columns and sort it using arrange(desc(abs(lasso))).
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 ```
@@ -304,6 +328,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Cross-validation runs the whole penalty path under repeated folds and returns two principled penalty choices.
+Call cv.glmnet(x, y, alpha = 1, nfolds = 10); the result object carries $lambda.min and $lambda.1se.
+
 ```r title="Your turn"
 set.seed(42)
 ex_3_1 <- # your code here
@@ -345,6 +373,10 @@ ex_3_1$nzero[match(c(ex_3_1$lambda.min, ex_3_1$lambda.1se), ex_3_1$lambda)]
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Fit only on the training rows, then score predictions on the untouched holdout to get an honest error figure.
+Refit cv.glmnet on the train slice and use predict(..., newx = x_te, s = "lambda.min") and "lambda.1se", then average the squared residuals.
 
 ```r title="Your turn"
 set.seed(99)
@@ -401,6 +433,10 @@ ex_3_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The cross-validation loss can be switched away from squared error to one that weights every miss linearly.
+Add type.measure = "mae" to the cv.glmnet() call.
+
 ```r title="Your turn"
 set.seed(7)
 ex_3_3 <- # your code here
@@ -443,6 +479,10 @@ ex_3_3$lambda.1se
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Pull the coefficients at the conservative penalty and tally the ones the penalty did not pin to zero.
+Take coef(ex_3_1, s = "lambda.1se")[-1, ] and sum() the entries that are != 0.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -477,6 +517,10 @@ ex_4_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Fit the penalty on the simulated data and read off which predictor positions kept a non-zero coefficient.
+Run cv.glmnet(X_sim, y_sim, alpha = 1), take coef(..., s = "lambda.min")[-1, ], and apply which(. != 0).
 
 ```r title="Your turn"
 set.seed(123)
@@ -527,6 +571,10 @@ length(ex_4_2)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Take the variable names the penalty kept, then estimate those variables again with no shrinkage applied.
+Build a formula from the selected names and pass it to lm(..., data = Boston).
+
 ```r title="Your turn"
 selected <- # variables with non-zero coefficient at lambda.1se
 ex_4_3 <- # OLS refit on those columns
@@ -568,6 +616,10 @@ coef(ex_4_3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Fit the mixed penalty alongside the two pure penalties and read each one's best cross-validated error.
+Run cv.glmnet at alpha values of 0, 0.5, and 1, then take min(fit$cvm) from each into a tibble().
 
 ```r title="Your turn"
 set.seed(42)
@@ -622,6 +674,10 @@ ex_5_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+There is no closed form for the best L1/L2 blend, so sweep the mix across a grid and keep each run's lowest error.
+Loop over seq(0, 1, by = 0.1), fit cv.glmnet per alpha, and collect min(fit$cvm) and fit$lambda.min.
+
 ```r title="Your turn"
 alphas <- seq(0, 1, by = 0.1)
 ex_5_2 <- # your code here
@@ -671,6 +727,10 @@ ex_5_2$alpha[which.min(ex_5_2$cv_mse_min)]
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+With near-duplicate columns, compare how a pure L1 penalty and a blended penalty share out the common signal.
+Fit cv.glmnet once at alpha = 1 and once at a lower alpha such as 0.3, then put both coef(..., s = "lambda.min") sets in a tibble().
 
 ```r title="Your turn"
 set.seed(2)
@@ -733,6 +793,10 @@ ex_5_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Fit on the training rows, predict on the held-out rows, and take the root of the mean squared error.
+Use cv.glmnet on the train slice, predict(..., newx = x_te, s = "lambda.min"), then sqrt(mean((y_te - pred)^2)).
+
 ```r title="Your turn"
 set.seed(11)
 train_idx <- sample(nrow(Boston), 0.8 * nrow(Boston))
@@ -776,6 +840,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Build an unregularised model on the same training rows and score it on the same holdout for a fair head-to-head.
+Fit lm(medv ~ ., data = train_df), predict() on the test frame, and put both RMSE values in a tibble().
 
 ```r title="Your turn"
 set.seed(11)
@@ -825,6 +893,10 @@ ex_6_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Fit once letting the package scale columns internally and once scaling them yourself, then back-transform and compare.
+Run glmnet with default scaling and again with scale(x) plus standardize = FALSE, divide by attr(., "scaled:scale"), and take max(abs(...)).
 
 ```r title="Your turn"
 ex_6_3 <- # your code here

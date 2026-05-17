@@ -51,6 +51,10 @@ library(tibble)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A list, unlike an atomic vector, can hold values of different kinds side by side, so each field keeps its own type.
+Pass four named arguments to `list()` - `name`, `age`, `skills`, `employed` - and keep the three skills wrapped in `c()`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -104,6 +108,10 @@ ex_1_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+You need three separate facts about the list: how many elements it has, what they are called, and what kind each one is.
+Build a `list()` whose elements are `length()`, `names()`, and `sapply(ex_1_1, class)`.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -153,6 +161,10 @@ ex_1_2
 
 **Difficulty:** Beginner
 
+[HINTS]
+An empty container can gain elements one at a time, each assignment naming a fresh slot.
+Write three lines assigning into `ex_1_3$alpha`, `ex_1_3$beta`, and `ex_1_3$gamma`.
+
 ```r title="Your turn"
 ex_1_3 <- list()
 # your code here
@@ -201,6 +213,10 @@ ex_1_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You can pick elements in a new order and relabel them without recomputing any of the stored values.
+Index `raw` with `c("c", "a", "b")` to reorder, then wrap that in `setNames()` with `c("C", "A", "B")`.
+
 ```r title="Your turn"
 raw <- list(a = 1, b = 2, c = 3)
 ex_1_4 <- # your code here
@@ -247,6 +263,10 @@ ex_1_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+One indexing style keeps the wrapper around the result, the other hands you the bare value held inside it.
+Use `box["fruit"]` for the length-one sublist and `box[["fruit"]]` for the raw string.
 
 ```r title="Your turn"
 box <- list(fruit = "apple", count = 7, fresh = TRUE)
@@ -297,6 +317,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Selecting several fields at once keeps the result the same shape as the container you started from.
+Pass the character vector `c("r2", "rmse", "n")` inside single brackets on `res`.
+
 ```r title="Your turn"
 res <- list(model = "lm", r2 = 0.84, rmse = 1.2, n = 200, fitted_at = "2026-05-13")
 ex_2_2 <- # your code here
@@ -340,6 +364,10 @@ ex_2_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+One accessor treats the name you hand it literally, the other evaluates the variable to a name first.
+Capture `res$target` and `res[[target]]` as the two named elements inside a `list()`.
+
 ```r title="Your turn"
 target <- "rmse"
 ex_2_3 <- # your code here
@@ -379,6 +407,10 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A single descent can walk several levels deep when you hand it the whole path at once.
+Pass the vector `c("a", "b", "c")` to `tree[[ ]]` in one call.
 
 ```r title="Your turn"
 tree <- list(a = list(b = list(c = 42, d = 99), e = "leaf"))
@@ -423,6 +455,10 @@ class(ex_2_4)
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+You can overwrite one field of a record while every other field stays exactly as it was.
+Assign the new value `6543L` to `cfg[["port"]]`.
 
 ```r title="Your turn"
 cfg <- list(host = "localhost", port = 5432L, ssl = FALSE)
@@ -474,6 +510,10 @@ ex_3_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Dropping a field is different from blanking it - the slot itself should disappear and the length shrink.
+Assign `NULL` to `cfg[["debug"]]`.
 
 ```r title="Your turn"
 cfg <- list(host = "localhost", port = 5432L, ssl = FALSE, debug = TRUE)
@@ -528,6 +568,10 @@ length(ex_3_2)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Layering a patch over defaults means matching keys are overwritten while brand-new keys are appended.
+Call `modifyList()` with `base` as the first argument and `patch` as the second.
 
 ```r title="Your turn"
 base  <- list(host = "localhost", port = 5432L, ssl = FALSE)
@@ -587,6 +631,10 @@ ex_3_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+Applying one summary to every column gives you one result per column, gathered back into a container.
+Call `lapply()` with `mtcars` as the input and `mean` as the function.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -627,6 +675,10 @@ head(ex_4_1, 3)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+When every per-column result is a single number, the collection can collapse to a plain named vector.
+Call `sapply()` with `mtcars` and `mean`.
+
 ```r title="Your turn"
 ex_4_2 <- # your code here
 ex_4_2
@@ -665,6 +717,10 @@ length(ex_4_2)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You can demand up front that every iteration return the exact shape you expect, failing loudly otherwise.
+Call `vapply()` with `mtcars`, `mean`, and `FUN.VALUE = numeric(1)`.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -702,6 +758,10 @@ ex_4_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Two aligned collections can be walked together, combining one element from each at every step.
+Call `Map()` with the multiplication operator `` `*` `` over `quantities` and `prices`.
 
 ```r title="Your turn"
 quantities <- list(apples = 3, bananas = 5, cherries = 12)
@@ -759,6 +819,10 @@ ex_4_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+A record can contain other records, giving you a structure that is two levels deep.
+Nest an inner `list()` with `region` and `items` inside an outer `list()` under the names `alice` and `bob`.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -805,6 +869,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+To summarise each sub-record you reach into one of its fields and measure that field alone.
+Call `sapply()` over `ex_5_1` with the lambda `\(x) length(x$items)`.
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 ex_5_2
@@ -836,6 +904,10 @@ ex_5_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Several separate vectors can be poured into one long vector, with names tracking where each piece came from.
+Call `unlist()` on `chunks`.
 
 ```r title="Your turn"
 chunks <- list(a = 1:3, b = 10:12, c = 100:102)
@@ -879,6 +951,10 @@ ex_5_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+You can transform every leaf of a tree while leaving its branching shape completely intact.
+Call `rapply()` with the rounding lambda `\(v) round(v, 1)`, `classes = "numeric"`, and `how = "replace"`.
 
 ```r title="Your turn"
 tree <- list(a = list(x = 1.234, y = 5.678), b = list(z = 9.012))
@@ -927,6 +1003,10 @@ ex_5_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Keeping only the sub-records that pass a test discards the rest and preserves the structure of what remains.
+Call `Filter()` with the predicate `\(x) x$r2 > 0.60` over `runs`.
 
 ```r title="Your turn"
 runs <- list(
@@ -981,6 +1061,10 @@ ex_5_5
 
 **Difficulty:** Beginner
 
+[HINTS]
+A column-oriented collection of equal-length pieces already has the shape of a table.
+Call `as.data.frame()` on `cols`.
+
 ```r title="Your turn"
 cols <- list(id = 1:3, name = c("Ada", "Ben", "Cleo"), score = c(91, 84, 77))
 ex_6_1 <- # your code here
@@ -1018,6 +1102,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Each row-shaped record must first become a one-row table before they can all be stacked into one frame.
+Turn each record into a frame with `lapply(rows, as.data.frame)`, then stack them with `do.call(rbind, ...)`.
 
 ```r title="Your turn"
 rows <- list(
@@ -1063,6 +1151,10 @@ ex_6_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A fitted model is itself a container, so the part you want is just one named element of it.
+Index `fit` with `[["coefficients"]]`.
+
 ```r title="Your turn"
 fit <- lm(mpg ~ wt, data = mtcars)
 ex_6_3 <- # your code here
@@ -1102,6 +1194,10 @@ ex_6_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A named set of values can be turned into a tidy two-column table of names beside values.
+Flatten the list with `unlist()` first, then pass the result to `enframe()`.
 
 ```r title="Your turn"
 counts <- list(monday = 12, tuesday = 7, wednesday = 22, thursday = 5, friday = 19)

@@ -50,6 +50,10 @@ library(caret)
 
 **Difficulty:** Beginner
 
+[HINTS]
+XGBoost's low-level trainer does not accept a raw data frame - the predictors and the target have to be packaged into its own optimized data container first.
+Wrap `as.matrix(mtcars[, -1])` with `label = mtcars$mpg` in `xgb.DMatrix()`, then pass that to `xgb.train()` with `params = list(objective = "reg:squarederror")`, `nrounds = 100`, and `verbose = 0`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -97,6 +101,10 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+The target is a 0/1 outcome, so the objective and the evaluation metric both have to switch away from the regression defaults.
+Build the DMatrix from `as.matrix(mtcars[, c("mpg","hp","wt")])` with `label = mtcars$am`, then set `objective = "binary:logistic"` and `eval_metric = "logloss"` inside `params`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -146,6 +154,10 @@ ex_1_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A three-way outcome needs a multiclass objective, and the class labels must be zero-indexed integers rather than a factor.
+Set `objective = "multi:softprob"` with `num_class = 3` in `params`, and convert the label with `as.integer(iris$Species) - 1L` before building the DMatrix.
+
 ```r title="Your turn"
 ex_1_3 <- # your code here
 ex_1_3
@@ -191,6 +203,10 @@ ex_1_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Multiclass predictions come back as one long flat vector, so you have to fold it into a per-observation-by-class layout yourself.
+Call `predict()` on `ex_1_3` for the first three rows, then pass the result to `matrix()` with `ncol = 3` and `byrow = TRUE`.
+
 ```r title="Your turn"
 ex_1_4 <- # your code here
 ex_1_4
@@ -232,6 +248,10 @@ ex_1_4
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+A slower learner shrinks each tree's step, so it needs proportionally more iterations to reach a comparable fit.
+Add `eta = 0.05` to `params` and raise `nrounds` to 300 in the `xgb.train()` call.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -278,6 +298,10 @@ ex_2_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+Shallower trees can only capture lower-order interactions, which caps how much any single tree can overfit.
+Add `max_depth = 3` to `params` and set `nrounds = 200`.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -320,6 +344,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Holding out part of the data lets the trainer watch when the held-out score stops improving and halt on its own instead of running every round.
+Build train and validation DMatrices from a `sample()` row index, pass both via `watchlist = list(train = ..., val = ...)`, and set `early_stopping_rounds = 20` with `nrounds = 500`.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -371,6 +399,10 @@ ex_2_3$best_score
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A fitted model carries a per-iteration record of its train and validation scores that you can subset like any ordinary table.
+Coerce `ex_2_3$evaluation_log` with `as.data.frame()`, then filter rows where `iter %in% c(1, 5, 10, ex_2_3$best_iteration)`.
+
 ```r title="Your turn"
 ex_2_4 <- # your code here
 ex_2_4
@@ -411,6 +443,10 @@ ex_2_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+An unbiased error estimate comes from rotating each slice of the data through the held-out role rather than scoring on the same rows you trained on.
+Call `xgb.cv()` with `nfold = 5`, `nrounds = 200`, and `early_stopping_rounds = 20`, then read `min(...$evaluation_log$test_rmse_mean)`.
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -455,6 +491,10 @@ min(ex_3_1$evaluation_log$test_rmse_mean)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A tuning search needs every combination of the candidate settings laid out in advance, plus a resampling scheme to score each one.
+Build the search space with `expand.grid()` (all seven xgbTree columns), set `trainControl(method = "cv", number = 5)`, and call `train(mpg ~ ., method = "xgbTree", tuneGrid = ...)`.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -509,6 +549,10 @@ ex_3_2$bestTune
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+You need to sweep one regularization setting across several values and compare the cross-validated error each value produces.
+Loop over `c(1, 5, 20)` with `sapply()`, calling `xgb.cv()` each time with `min_child_weight = m`, and collect `min(cv$evaluation_log$test_rmse_mean)`.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -566,6 +610,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Training each tree on a random fraction of the rows injects the kind of randomness that bagging relies on for regularization.
+Add `subsample = 0.7` to `params`, and call `set.seed(11)` right before `xgb.train()` because row sampling is the randomness source.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -606,6 +654,10 @@ ex_4_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Showing each tree only a random share of the columns is the random-forest trick for decorrelating the trees in an ensemble.
+Add `colsample_bytree = 0.5` to `params` alongside `eta = 0.1`, with `nrounds = 200`.
+
 ```r title="Your turn"
 ex_4_2 <- # your code here
 ex_4_2
@@ -645,6 +697,10 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Two separate penalties can shrink the leaf scores - one that can drive them to exactly zero and one that just dampens them.
+Add `alpha = 1` (the L1 penalty) and `lambda = 5` (the L2 penalty) to `params`.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -699,6 +755,10 @@ ex_4_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A trained model can report how much each feature contributed to loss reduction across all the splits that used it.
+Call `xgb.importance(model = ex_1_1)` and save the returned table.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -733,6 +793,10 @@ ex_5_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A single prediction can be decomposed into additive per-feature contributions plus a baseline term.
+Call `predict()` on `ex_1_1` with `predcontrib = TRUE`, then take the first row of the returned matrix.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -773,6 +837,10 @@ ex_5_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The importance bar plot also hands back the underlying ranked table invisibly, and that table is what you want to keep.
+Pass `xgb.importance(model = ex_1_1)` to `xgb.plot.importance()` with `top_n = 5` and assign its return value.
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 ex_5_3
@@ -812,6 +880,10 @@ ex_5_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Persisting a model and reading it back should reproduce identical predictions if the round-trip is lossless.
+Write the booster with `xgb.save()` to a `tempfile()`, reload it with `xgb.load()`, then compare with `max(abs(predict(...) - predict(...)))`.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -847,6 +919,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+XGBoost can train directly on a column-compressed sparse representation without ever expanding it into a dense matrix.
+Convert with `Matrix(as.matrix(mtcars[, -1]), sparse = TRUE)`, feed that into `xgb.DMatrix()`, then fit and check `ex_6_2$nfeatures`.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here
@@ -889,6 +965,10 @@ ex_6_2$nfeatures
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A business rule that one feature must only ever push predictions in one direction can be baked into the trees as a hard constraint.
+Add `monotone_constraints = c(0, 0, 0, 0, -1, 0, 0, 0, 0, 0)` to `params`, alongside `eta = 0.1` and `nrounds = 200`.
 
 ```r title="Your turn"
 ex_6_3 <- # your code here

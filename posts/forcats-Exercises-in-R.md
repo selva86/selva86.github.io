@@ -44,6 +44,10 @@ library(tidyr)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A numeric column holding only a few distinct values is really categorical - convert it so each value becomes a discrete level.
+Wrap `mtcars$cyl` in `factor()` with no extra arguments to get the default alphanumeric level order.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -75,6 +79,10 @@ ex_1_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+An ordinal scale needs you to spell out the quality ranking yourself, since alphabetical order would scramble the grades.
+Call `factor()` on `unique(diamonds$clarity)` with an explicit `levels =` vector and `ordered = TRUE`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -118,6 +126,10 @@ ex_1_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want a tidy frequency table of each category, biggest first.
+Use `fct_count()` on `diamonds$cut` with its `sort = TRUE` argument.
+
 ```r title="Your turn"
 ex_1_3 <- # your code here
 ex_1_3
@@ -155,6 +167,10 @@ ex_1_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+If you restrict the allowed categories up front, anything outside that allowlist is coerced to missing automatically.
+Pass `responses` to `factor()` with `levels = c("Yes", "No", "Maybe")` so the stray lowercase entry drops to NA.
 
 ```r title="Setup for Exercise 1.4"
 responses <- c("Yes", "No", "yes", "Maybe", "No", "Yes")
@@ -194,6 +210,10 @@ ex_1_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+You want level order to follow the sequence values first appear in the column, not the alphabet.
+Apply `fct_inorder()` to `mpg$class`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 head(ex_2_1)
@@ -230,6 +250,10 @@ levels(ex_2_1)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Order the categories so the most common one leads and the rarest trails.
+Apply `fct_infreq()` to `mpg$manufacturer`.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 levels(ex_2_2)
@@ -262,6 +286,10 @@ levels(ex_2_2)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A regression's intercept comes from whichever category sits first, so you need to promote one category to the front.
+Use `fct_relevel()` on `ChickWeight$Diet`, naming `"4"` as the level to move first.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 levels(ex_2_3)
@@ -291,6 +319,10 @@ levels(ex_2_3)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Rank the categories by a numeric summary computed within each one so plot order tracks the metric.
+Call `fct_reorder()` with `iris$Species`, `iris$Sepal.Length`, and `median` as the summarising function.
 
 ```r title="Your turn"
 ex_2_4 <- # your code here
@@ -325,6 +357,10 @@ levels(ex_2_4)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+You need two separate transforms of the same factor - one that flips the order end to end, one that rotates it by a position - bundled together.
+Build a named `list()` using `fct_rev()` for the `reversed` element and `fct_shift(..., n = 1)` for the `shifted` element.
 
 ```r title="Your turn"
 ex_2_5 <- # your code here
@@ -365,6 +401,10 @@ lapply(ex_2_5, levels)
 
 **Difficulty:** Beginner
 
+[HINTS]
+You are only relabelling categories, not regrouping them, so the underlying data stays put.
+Use `fct_recode()` on `PlantGrowth$group` with `"NewName" = "oldname"` pairs.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 levels(ex_3_1)
@@ -402,6 +442,10 @@ levels(ex_3_1)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Several categories need to merge into a smaller set of named groups by domain logic.
+Use `fct_collapse()` on `diamonds$cut`, mapping each new tier name to a vector of old level names.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -449,6 +493,10 @@ fct_count(ex_3_2)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You want one category turned into missing values without losing any rows.
+Use `fct_recode()` on `diamonds$cut` with `NULL = "Fair"` as the mapping.
+
 ```r title="Your turn"
 ex_3_3 <- # your code here
 fct_count(ex_3_3)
@@ -489,6 +537,10 @@ fct_count(ex_3_3)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Map the values you understand to clean categories and route everything else to missing.
+Call `fct_collapse()` on `factor(raw)` with `Yes`/`No` mappings and `other_level = NA`.
 
 ```r title="Setup for Exercise 3.4"
 raw <- c("y", "Y", "yes", "n", "N", "no", "NA", "maybe", "?")
@@ -543,6 +595,10 @@ fct_count(ex_3_4)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Keep a fixed number of the biggest categories and sweep the rest into a catch-all bucket.
+Use `fct_lump_n()` on `mpg$manufacturer` with `n = 5`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 fct_count(ex_4_1, sort = TRUE)
@@ -588,6 +644,10 @@ fct_count(ex_4_1, sort = TRUE)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Collapse any category that falls below a share-of-total threshold rather than an absolute count.
+Use `fct_lump_prop()` on `mpg$class` with `prop = 0.10`.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -636,6 +696,10 @@ fct_count(ex_4_2, sort = TRUE)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Keep only categories that clear a minimum observation count and lump the rest.
+Use `fct_lump_min()` on `diamonds$color` with `min = 1000`.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 fct_count(ex_4_3)
@@ -681,6 +745,10 @@ fct_count(ex_4_3)
 
 **Difficulty:** Advanced
 
+[HINTS]
+You want to lump by an explicit named allowlist rather than by frequency.
+Use `fct_other()` on `mpg$manufacturer` with `keep = c("toyota", "ford", "honda")`.
+
 ```r title="Your turn"
 ex_4_4 <- # your code here
 fct_count(ex_4_4, sort = TRUE)
@@ -721,6 +789,10 @@ fct_count(ex_4_4, sort = TRUE)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Reorder the bars by count without mutating the data behind the plot.
+Inside `ggplot(mpg, aes(x = ...))`, wrap `class` in `fct_infreq()` and add `geom_bar()`.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -757,6 +829,10 @@ ex_5_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Order the boxes so the plotted categories climb with the median value you are showing.
+Inside `aes()`, set `x = fct_reorder(class, hwy)` with `y = hwy` and add `geom_boxplot()`.
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 ex_5_2
@@ -790,6 +866,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Order levels by where each series ends up at the far-right of the plot so a legend matches the lines.
+Use `fct_reorder2()` on `panel$series` keyed by `panel$x` and `panel$y`.
 
 ```r title="Setup for Exercise 5.3"
 panel <- tibble(
@@ -831,6 +911,10 @@ levels(ex_5_3)
 
 **Difficulty:** Advanced
 
+[HINTS]
+After flipping the axes the largest bar lands at the bottom, so the frequency order needs to be flipped back.
+Compose `fct_rev()` around `fct_infreq(class)` inside `aes()`, then add `geom_bar()` and `coord_flip()`.
+
 ```r title="Your turn"
 ex_5_4 <- # your code here
 ex_5_4
@@ -868,6 +952,10 @@ ex_5_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+Filtering rows leaves behind empty categories that still clutter tables and plots.
+Apply `fct_drop()` to `setosa_only$Species`.
+
 ```r title="Your turn"
 setosa_only <- iris[iris$Species == "setosa", ]
 ex_6_1 <- # your code here
@@ -899,6 +987,10 @@ levels(ex_6_1)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You need to register a category that no row holds yet so future data has a place to land.
+Use `fct_expand()` on `arms`, adding `"Placebo"`.
 
 ```r title="Setup for Exercise 6.2"
 arms <- factor(c("A", "B", "A", "C", "B", "C"))
@@ -939,6 +1031,10 @@ levels(ex_6_2)
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Turn missing answers into a visible category so they stop disappearing from summaries.
+Use `fct_na_value_to_level()` on `responses_na` with `level = "Missing"`.
 
 ```r title="Setup for Exercise 6.3"
 responses_na <- factor(c("Yes", "No", NA, "Maybe", "Yes", "Yes", "No", NA))
@@ -983,6 +1079,10 @@ fct_count(ex_6_3)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Two factors with mismatched category sets need a shared, common set before they can stack.
+Pass `list(q1, q2)` to `fct_unify()`.
 
 ```r title="Setup for Exercise 6.4"
 q1 <- factor(c("Good", "Fair", "Excellent"))
@@ -1030,6 +1130,10 @@ lapply(ex_6_4, levels)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Chain the bucketing, missing-value handling, and final lumping as three separate, auditable steps.
+Pipe `nps_raw` through `fct_collapse()`, then `fct_na_value_to_level(level = "NoResponse")`, then `fct_other(drop = "Passive")`.
 
 ```r title="Setup for Exercise 7.1"
 nps_raw <- factor(
@@ -1082,6 +1186,10 @@ fct_count(ex_7_1)
 
 **Difficulty:** Advanced
 
+[HINTS]
+Moving a category to the front of the level order shifts which group the model's intercept represents.
+Set `cw$Diet` with `fct_relevel(cw$Diet, "3")` before fitting the `lm()`.
+
 ```r title="Your turn"
 cw <- ChickWeight
 cw$Diet <- # your code here
@@ -1124,6 +1232,10 @@ round(coef(ex_7_2), 3)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Within each group, take the top performers and order them so the leader ranks first.
+After `group_by(quarter)`, use `slice_max(units, n = 3)`, then `mutate()` brand with `fct_reorder(brand, units, .desc = TRUE)`, then `ungroup()` and `arrange()`.
 
 ```r title="Setup for Exercise 7.3"
 sales <- tibble(

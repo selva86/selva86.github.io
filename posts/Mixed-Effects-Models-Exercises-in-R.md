@@ -54,6 +54,10 @@ library(tibble)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Each subject has their own baseline reaction time, so the model should estimate one shared trend over nights while letting every subject's starting level float.
+Call `lmer()` with the formula `Reaction ~ Days + (1 | Subject)` and `data = sleepstudy`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -96,6 +100,10 @@ ex_1_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+The intraclass correlation is the fraction of leftover variability that lives between subjects rather than within them.
+Pull the variance components from `VarCorr(ex_1_1)`, square the subject `"stddev"` attribute and the residual `"sc"` attribute, then form the ratio.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -135,6 +143,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want each subject's estimated deviation from the average intercept, then the subjects ordered from the most negative deviation upward.
+Extract the conditional modes with `ranef(ex_1_1)$Subject`, coerce with `as.data.frame()`, keep the row names as a `Subject` column, and `arrange()` ascending.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -187,6 +199,10 @@ tail(ex_1_3, 1)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Let the rate of decline differ from subject to subject, not just the baseline level.
+Fit `lmer()` with the formula `Reaction ~ Days + (Days | Subject)` on `sleepstudy`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -226,6 +242,10 @@ ex_2_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+The random-effects structure already stores how baseline and slope move together as a correlation; you just need to read it out.
+Take `attr(VarCorr(ex_2_1)$Subject, "correlation")` and grab the off-diagonal element `[1, 2]`.
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -262,6 +282,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Compare the simpler and richer fits to test whether the two extra slope parameters earn their keep.
+Pass `ex_1_1` and `ex_2_1` to `anova()`, which refits both with ML automatically before the likelihood ratio test.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -313,6 +337,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each chick gets its own growth trajectory while diet enters as a single population-level effect.
+Fit `lmer()` with the formula `weight ~ Time + Diet + (Time | Chick)` and `data = ChickWeight`.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -357,6 +385,10 @@ ex_3_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Reused class labels are not the same classroom across schools, so the grouping has to express that classes sit inside schools.
+Use the slash notation `(1 | school_id/class_id)` in the `lmer()` formula `score ~ 1 + ...`.
 
 ```r title="Your turn"
 set.seed(7)
@@ -416,6 +448,10 @@ ex_3_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Subjects and items each contribute their own variability and neither one is nested inside the other.
+Add two separate grouping terms `(1 | subj) + (1 | item)` to the `lmer()` formula `rating ~ condition + ...`.
+
 ```r title="Your turn"
 set.seed(11)
 psy <- tibble(
@@ -472,6 +508,10 @@ ex_3_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+Testing a fixed effect needs log-likelihoods that are comparable across models with different mean structures.
+Fit both the null and full models with `lmer(..., REML = FALSE)`, then compare them with `anova(mod_null, mod_full)`.
+
 ```r title="Your turn"
 mod_null <- # null fit
 mod_full <- # full fit
@@ -513,6 +553,10 @@ ex_4_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Base lme4 withholds p-values for fixed effects; a companion package supplies the approximate degrees of freedom needed for them.
+Load `lmerTest`, refit the random-slope model, then pull `summary(fit_lt)$coefficients`.
+
 ```r title="Your turn"
 library(lmerTest)
 fit_lt <- # refit with lmerTest::lmer
@@ -549,6 +593,10 @@ ex_4_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A resampling-based interval is more honest than a Wald interval when the sampling distribution is skewed.
+Call `confint()` on `ex_2_1` with `parm = "Days"`, `method = "boot"`, `nsim = 200`, and `seed = 1`.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -596,6 +644,10 @@ ex_4_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A patient who is compliant tends to stay compliant across visits, so the binary outcome needs a per-patient random term.
+Fit `glmer()` with the formula `adherence ~ arm + (1 | patient)` and `family = binomial`.
 
 ```r title="Your turn"
 set.seed(3)
@@ -654,6 +706,10 @@ ex_5_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Counts have to be turned into rates so that deeply sequenced samples do not get systematically higher coefficients.
+Fit `glmer()` with `hits ~ tissue + (1 | sample) + offset(log(read_total))` and `family = poisson`.
 
 ```r title="Your turn"
 set.seed(19)
@@ -714,6 +770,10 @@ ex_5_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Poisson assumes the variance equals the mean, so measure how far the spread of the residuals departs from that.
+Sum the squared Pearson residuals from `residuals(ex_5_2, type = "pearson")` and divide by `df.residual(ex_5_2)`.
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 ex_5_3
@@ -749,6 +809,10 @@ ex_5_3
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+A trustworthy fit shows residuals scattered evenly around zero with no funnel shape or curve across the fitted range.
+Build a tibble of `fitted(ex_2_1)` and `resid(ex_2_1)`, then `ggplot()` with `geom_point()`, `geom_hline(yintercept = 0)`, and `geom_smooth(se = FALSE)`.
 
 ```r title="Your turn"
 ex_6_1 <- # your code here
@@ -789,6 +853,10 @@ ex_6_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+The population-average curve ignores subject-specific deviations and reflects what the typical subject would do.
+Call `predict()` on `ex_2_1` with `newdata = data.frame(Days = 0:9)` and `re.form = NA`.
+
 ```r title="Your turn"
 ex_6_2 <- # your code here
 ex_6_2
@@ -822,6 +890,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Separate the variability explained by the fixed predictors alone from the variability explained once random effects are added in.
+Call `MuMIn::r.squaredGLMM(ex_2_1)` and read the `R2m` and `R2c` columns of the returned matrix.
 
 ```r title="Your turn"
 ex_6_3 <- # your code here

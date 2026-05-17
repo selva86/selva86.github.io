@@ -62,6 +62,10 @@ dbWriteTable(con, "customers", customers)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Before writing any query, you need to discover which tables the connection already exposes.
+Pass the `con` object as the only argument to the DBI table-listing call.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -91,6 +95,10 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Create the table first, then ask the database whether it now exists.
+Build the rows with `dbWriteTable(con, "audit_log", ...)`, then check with `dbExistsTable(con, "audit_log")`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -124,6 +132,10 @@ ex_1_2
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+You want the column names of a table without reading any of its rows.
+Pass `con` and the table name `"orders"` to the DBI field-listing call.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -163,6 +175,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Reference the remote table and apply the row condition, but stop before pulling anything into R.
+Build `tbl(con, "orders")` then `filter(qty > 3)`, and do not append a collect call.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -205,6 +221,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You want to inspect the SQL text the pipeline compiles to before it ever runs.
+Chain `filter(qty > 3)` and `select(order_id, product, qty)`, then pipe the lazy query into `show_query()`.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -256,6 +276,10 @@ ex_2_2 |> show_query()
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Derive the new column inside the database, then bring the finished table back into R memory.
+Use `mutate(revenue = qty * unit_price)` followed by `collect()`.
+
 ```r title="Your turn"
 ex_2_3 <- # your code here
 ex_2_3
@@ -298,6 +322,10 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Collapse the rows per product into one total, then sort the results highest-first.
+Chain `group_by(product)`, `summarise(total_revenue = sum(qty * unit_price))`, `arrange(desc(total_revenue))`, and `collect()`.
 
 ```r title="Your turn"
 ex_2_4 <- # your code here
@@ -346,6 +374,10 @@ ex_2_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Capture what kind of object the query is before and after it is pulled into memory.
+Apply `class()` to the lazy tbl and to its `collect()`ed version, wrapping both in `list(lazy = ..., local = ...)`.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -389,6 +421,10 @@ ex_3_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+Limit the rows at the database so only a tiny preview ever crosses into R.
+Use `head(n = 3)` before `collect()`.
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -426,6 +462,10 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Persist the aggregation inside the database session so later queries can reuse it.
+Pipe the grouped summary into `compute(name = "rev_by_cust", temporary = TRUE)`, then call `dbListTables(con)`.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -471,6 +511,10 @@ ex_3_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Match every order to its customer record, keeping only the rows that pair up on both sides.
+Use `inner_join()` on the two `tbl()` references with `by = "customer_id"`, then `arrange(order_id)` and `collect()`.
 
 ```r title="Your turn"
 ex_4_1 <- # your code here
@@ -522,6 +566,10 @@ ex_4_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Keep every customer even when no matching order exists, filling the gaps with missing values.
+Use `left_join()` with `customers` as the left input and `by = "customer_id"`, then `arrange(customer_id)` and `collect()`.
+
 ```r title="Your turn"
 ex_4_2 <- # your code here
 ex_4_2
@@ -565,6 +613,10 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Keep only the customers whose key never appears anywhere on the orders side.
+Use `anti_join(tbl(con, "customers"), tbl(con, "orders"), by = "customer_id")`, then `collect()`.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -619,6 +671,10 @@ ex_4_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Number the rows inside each product group, ordered from the largest quantity down.
+Inside `group_by(product)`, use `mutate(rk = row_number(desc(qty)))`, then `ungroup()`, `arrange(product, rk)`, and `collect()`.
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -669,6 +725,10 @@ ex_5_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Build a running total that accumulates revenue along the order timeline.
+Set the ordering with `window_order(order_date)`, then `mutate(revenue = qty * unit_price, cum_rev = cumsum(revenue))`.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -723,6 +783,10 @@ ex_5_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+For each customer, look back one row in date order to the prior order's quantity.
+Inside `group_by(customer_id)` with `window_order(order_date)`, use `mutate(prev_qty = lag(qty))`.
+
 ```r title="Your turn"
 ex_5_3 <- # your code here
 ex_5_3
@@ -767,6 +831,10 @@ ex_5_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Total revenue for each customer-product pair, then keep only each customer's highest-grossing pair.
+After `group_by(customer_id, product) |> summarise(total_rev = sum(qty * unit_price))`, add `mutate(rk = row_number(desc(total_rev)))` and `filter(rk == 1)`.
 
 ```r title="Your turn"
 ex_5_4 <- # your code here
@@ -820,6 +888,10 @@ ex_5_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Send a finished SQL statement straight to the database and take back its rows as a data frame.
+Call `dbGetQuery(con, "SELECT region, COUNT(*) AS n FROM customers GROUP BY region ORDER BY region")`.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -859,6 +931,10 @@ ex_6_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Send the customer id as bound data, never as text spliced into the statement.
+Use `dbSendQuery()` with a `?` placeholder, then `dbBind(rs, list(101L))`, `dbFetch(rs)`, and `dbClearResult(rs)`.
 
 ```r title="Your turn"
 ex_6_2 <- # your code here
@@ -901,6 +977,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Inject a vendor-specific date function the translator does not recognise straight into the generated query.
+Inside `mutate()`, wrap the literal `strftime('%Y', order_date)` in `sql()`, then `head(3)` and `collect()`.
 
 ```r title="Your turn"
 ex_6_3 <- # your code here

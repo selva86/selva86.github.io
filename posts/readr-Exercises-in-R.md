@@ -46,6 +46,10 @@ library(tibble)
 
 **Difficulty:** Beginner
 
+[HINTS]
+readr can treat a literal string as if it were a file, so you do not have to write anything to disk first.
+Reach for read_csv() and wrap the string in I() so it is read as data rather than a path.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -85,6 +89,10 @@ ex_1_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+Tab-separated data needs a reader that splits each line on tabs instead of commas.
+Use read_tsv() and pass the literal string through I().
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -122,6 +130,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+When the separator is neither a comma nor a tab, you need the general-purpose delimited reader and must state the separator yourself.
+Call read_delim() with delim = ";" and wrap the string in I().
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -164,6 +176,10 @@ ex_1_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Some locales use a comma for the decimal point and a semicolon between columns, and there is a dedicated reader for exactly that combination.
+Use read_csv2() (not read_csv) on the I()-wrapped string.
+
 ```r title="Your turn"
 ex_1_4 <- # your code here
 ex_1_4
@@ -203,6 +219,10 @@ ex_1_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+Write the data to a throwaway file, then read it straight back in and keep only the opening rows.
+Pair write_csv() with read_csv(), using tempfile() for the path and head(3) for the slice.
+
 ```r title="Your turn"
 ex_1_5 <- # your code here
 ex_1_5
@@ -239,6 +259,10 @@ ex_1_5
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+You can hand the reader an explicit schema up front instead of letting it guess each column.
+Pass col_types = cols(id = col_integer(), amount = col_double()) to read_csv().
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -284,6 +308,10 @@ ex_2_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+An identifier with leading zeros must stay text, or the zeros are lost the moment it is read as a number.
+Set col_types = cols(cust_id = col_character()) in read_csv().
+
 ```r title="Your turn"
 ex_2_2 <- # your code here
 ex_2_2
@@ -324,6 +352,10 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A day-first date string will not be recognized unless you describe the exact layout of the text.
+Use col_types with col_date(format = "%d/%m/%Y") for the sold_on column.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -366,6 +398,10 @@ ex_2_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You can drop a sensitive column while the file is being read, so its values never enter memory.
+Pass col_types = cols(email = col_skip()) to read_csv().
+
 ```r title="Your turn"
 ex_2_4 <- # your code here
 ex_2_4
@@ -407,6 +443,10 @@ ex_2_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+The reader prints a column-type summary by default, and that message can be turned off.
+Add show_col_types = FALSE to the read_csv() call.
+
 ```r title="Your turn"
 ex_2_5 <- # your code here
 ex_2_5
@@ -447,6 +487,10 @@ ex_2_5
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Tell the reader which literal token in the file is meant to stand in for a missing value.
+Pass na = "N/A" to read_csv().
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -493,6 +537,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The missing-value setting can recognize several tokens at once, not just a single one.
+Pass na = c("", ".", "NULL") to read_csv().
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -537,6 +585,10 @@ ex_3_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+When a fixed number of metadata lines sit above the real header, you can jump past them before parsing starts.
+Pass skip = 3 to read_csv().
+
 ```r title="Your turn"
 ex_3_3 <- # your code here
 ex_3_3
@@ -578,6 +630,10 @@ ex_3_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Lines that begin with a marker character can be dropped wherever they appear, not only at the top of the file.
+Pass comment = "#" to read_csv().
 
 ```r title="Your turn"
 ex_3_4 <- # your code here
@@ -624,6 +680,10 @@ ex_3_4
 
 **Difficulty:** Beginner
 
+[HINTS]
+You can stop the reader after just a handful of rows to get a fast preview of a large file.
+Build the CSV with format_csv(head(diamonds, 20)) and pass n_max = 5 to read_csv().
+
 ```r title="Your turn"
 ex_3_5 <- # your code here
 ex_3_5
@@ -656,6 +716,10 @@ ex_3_5
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A dedicated helper pulls the numeric value out of a noisy string, ignoring currency symbols and grouping marks.
+Apply parse_number() to the character vector.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -686,6 +750,10 @@ ex_4_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+The same numeric-extraction helper strips a trailing percent sign, leaving the value as-is rather than dividing it.
+Apply parse_number() to the vector of percent strings.
+
 ```r title="Your turn"
 ex_4_2 <- # your code here
 ex_4_2
@@ -715,6 +783,10 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A month-name-first date needs a parser that is told the precise pattern of the string.
+Call parse_date() with format = "%b %d, %Y".
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -749,6 +821,10 @@ ex_4_3
 
 **Difficulty:** Advanced
 
+[HINTS]
+An ISO timestamp that already carries a UTC offset can be parsed without any extra format argument.
+Apply parse_datetime() to the vector and let its default ISO 8601 format handle the offset.
+
 ```r title="Your turn"
 ex_4_4 <- # your code here
 ex_4_4
@@ -781,6 +857,10 @@ ex_4_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Turning text into a category while enforcing a known, ordered set of values needs a parser, not plain conversion.
+Call parse_factor() with levels = c("low", "medium", "high").
 
 ```r title="Your turn"
 ex_4_5 <- # your code here
@@ -818,6 +898,10 @@ ex_4_5
 
 **Difficulty:** Advanced
 
+[HINTS]
+When a comma plays the role of the decimal point, the parser must be told about that regional convention.
+Call parse_double() with locale = locale(decimal_mark = ",").
+
 ```r title="Your turn"
 ex_5_1 <- # your code here
 ex_5_1
@@ -851,6 +935,10 @@ ex_5_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+An unusual thousands separator must be declared so the parser knows which character to strip.
+Call parse_number() with locale = locale(grouping_mark = "'").
+
 ```r title="Your turn"
 ex_5_2 <- # your code here
 ex_5_2
@@ -883,6 +971,10 @@ ex_5_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Month names written in another language require the parser to switch its name table to that language.
+Call parse_date() with format = "%d %B %Y" and locale = locale(date_names = "fr").
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -920,6 +1012,10 @@ ex_5_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Bytes that are not UTF-8 must be read with the source encoding declared, or the accented characters come back garbled.
+Call read_csv() with locale = locale(encoding = "latin1").
 
 ```r title="Your turn"
 ex_5_4 <- # your code here
@@ -960,6 +1056,10 @@ ex_5_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+You can choose the literal text used for missing values when writing, then inspect the file as plain lines to confirm it.
+Write with write_csv(..., na = "NA_VAL") and read it back with read_lines().
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -992,6 +1092,10 @@ ex_6_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+One writer prepends an encoding marker so spreadsheets render accents correctly; the other writes none.
+Write the tibble once with write_csv() and once with write_excel_csv(), then compare the first bytes with readBin().
 
 ```r title="Your turn"
 ex_6_2 <- # your code here
@@ -1037,6 +1141,10 @@ ex_6_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Rows that fail to parse are recorded as diagnostics attached to the result, ready to be pulled out.
+Read with col_types = cols(value = col_double()), then call problems() on the returned tibble.
+
 ```r title="Your turn"
 ex_6_3 <- # your code here
 ex_6_3
@@ -1073,6 +1181,10 @@ ex_6_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A streaming reader processes the file in batches, running your own code on each batch instead of loading it all at once.
+Use read_csv_chunked() with a SideEffectChunkCallback and chunk_size = 25.
 
 ```r title="Your turn"
 ex_6_4 <- # your code here

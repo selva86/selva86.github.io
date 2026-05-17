@@ -45,6 +45,10 @@ set.seed(2026)
 
 **Difficulty:** Beginner
 
+[HINTS]
+The empirical probability is just the fraction of tosses that landed heads, so simulate every toss first and then count.
+Draw the tosses with `sample(c("H","T"), size = 5000, replace = TRUE)`, then take `mean()` of the logical `tosses == "H"`.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -76,6 +80,10 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Each replicate is one experiment of four rolls, and you only care whether a six showed up at all, not how many.
+Wrap `sample(1:6, size = 4, replace = TRUE)` inside `replicate(20000, ...)` with `any(rolls == 6)`, then take the `mean()`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -112,6 +120,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Simulate the count of defective parts across many batches, then summarise how those counts spread out.
+Use `rbinom(5000, size = 50, prob = 0.04)` and combine `mean()`, `sd()`, and `mean(defects == 0)` into a named vector.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -152,6 +164,10 @@ ex_1_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+An "at least" probability is the upper tail, so you want the complement of the cumulative probability up to one below your threshold.
+Call `pbinom()` with `q = 9`, `size = 100`, `prob = 0.08`, and `lower.tail = FALSE`.
+
 ```r title="Your turn"
 ex_2_1 <- # your code here
 ex_2_1
@@ -181,6 +197,10 @@ ex_2_1
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+"Three or more" is the upper tail, so set the cutoff one below three and ask for the probability above it.
+Use `ppois(2, lambda = 1.5, lower.tail = FALSE)` and wrap it in `round(..., 4)`.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -220,6 +240,10 @@ ex_2_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Compare the share of simulated draws at or below each value with the model's cumulative probability at that same value.
+Simulate with `rgeom(10000, prob = 0.3)`, get the theoretical side from `pgeom(k, prob = 0.3)`, and assemble a `data.frame` with the rounded differences.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -273,6 +297,10 @@ ex_2_3
 
 **Difficulty:** Beginner
 
+[HINTS]
+A central interval probability is the difference between the cumulative probabilities at its two endpoints.
+Use `pnorm(1.96)` for the left tail and `pnorm(1.96) - pnorm(-1.96)` for the central mass, stored in a named vector.
+
 ```r title="Your turn"
 ex_3_1 <- # your code here
 ex_3_1
@@ -308,6 +336,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+One part asks for an upper-tail probability, and the other asks for the value with half the mass below it.
+Combine `pexp(8, rate = 0.2, lower.tail = FALSE)` and `qexp(0.5, rate = 0.2)` into a named numeric vector.
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -342,6 +374,10 @@ ex_3_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Read the cutoff straight from the sorted data, then ask where the same cutoff sits under a fitted normal model.
+After dropping missing values with `na.omit()`, use `quantile(w, probs = 0.95)` and `qnorm(0.95, mean = mean(w), sd = sd(w))`.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -380,6 +416,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Each replicate fills a room with random birthdays and checks whether any date repeats.
+Inside `replicate(30000, ...)`, test `any(duplicated(sample(1:365, 25, replace = TRUE)))` and take the `mean()`.
+
 ```r title="Your turn"
 ex_4_1 <- # your code here
 ex_4_1
@@ -414,6 +454,10 @@ ex_4_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Each trial places the car, makes a guess, opens a losing door, and records whether keeping the guess wins and whether the other door wins.
+Use `replicate()` with `setdiff()` to find Monty's door and the switch door, then `rowMeans()` the stay/switch matrix.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -458,6 +502,10 @@ ex_4_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Collapse the table down to sex-by-survival counts, then divide each sex's survivors by that sex's total.
+Slice the adults with `Titanic[, , "Adult", ]`, sum over class with `apply(..., c("Sex","Survived"), sum)`, and divide survivors by row totals.
+
 ```r title="Your turn"
 ex_4_3 <- # your code here
 ex_4_3
@@ -496,6 +544,10 @@ round(ex_4_3, 5)
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Track how the running average of the rolls settles down as more and more rolls accumulate.
+Build the running average with `cumsum(rolls) / seq_along(rolls)` and index it at positions 10, 100, 500, and 2000.
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -536,6 +588,10 @@ round(ex_5_1, 3)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Updating a Beta prior with binomial data simply adds the observed successes and failures to the prior counts.
+Form `post_a` and `post_b` by adding successes and failures to the prior, then get the interval from `qbeta(c(0.025, 0.975), post_a, post_b)`.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -581,6 +637,10 @@ round(ex_5_2, 5)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A predictive value weighs how often a test result is correct against how often that result occurs at all, given the rare base rate.
+Compute the marginal `p_pos` and `p_neg` first, then divide `sens * prev` and `spec * (1 - prev)` by them.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here

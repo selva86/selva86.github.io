@@ -50,6 +50,10 @@ set.seed(42)
 
 **Difficulty:** Beginner
 
+[HINTS]
+A bare character string is just text in R; you need a typed sequence container that validates the bases and unlocks operations like reverse complement and translation.
+Pass the raw string straight into the `DNAString()` constructor.
+
 ```r title="Your turn"
 ex_1_1 <- # your code here
 ex_1_1
@@ -82,6 +86,10 @@ ex_1_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+The reverse primer reads the opposite strand 5' to 3', so you need both the complement of every base and a flip of their order.
+Wrap the string in `DNAString()`, then pass that to `reverseComplement()`, which does the flip and the complement in one pass.
+
 ```r title="Your turn"
 ex_1_2 <- # your code here
 ex_1_2
@@ -112,6 +120,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+GC content is just the share of bases that are G or C, so you need a per-base count and the total sequence length to divide by.
+Use `letterFrequency(seq, c("G", "C"))`, `sum()` the result, and divide by `length(seq)`.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -148,6 +160,10 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Multiple sequences need a set-style container rather than a single-sequence one, and the sample ids should ride along from the input vector automatically.
+Pass the named character vector to `DNAStringSet()`.
 
 ```r title="Your turn"
 reads <- c(s1 = "ATGGCATG", s2 = "TTGCGACC", s3 = "CCGATAGA")
@@ -193,6 +209,10 @@ ex_1_4
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+An interval table needs three pieces: which chromosome, where each interval sits and how wide it is, and which strand it lies on.
+Call `GRanges()` with `seqnames`, a `ranges` built from `IRanges(start = ..., width = ...)`, and `strand`.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -240,6 +260,10 @@ ex_2_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+You want every query-subject index pair that shares at least one base, not the filtered intervals themselves.
+Call `findOverlaps()` with peakset A as the query and peakset B as the subject.
+
 ```r title="Your turn"
 peaks_A <- GRanges("chr1", IRanges(c(100, 700, 1500), c(300, 900, 1800)))
 peaks_B <- GRanges("chr1", IRanges(c(250, 1600, 2100), c(400, 1900, 2300)))
@@ -283,6 +307,10 @@ ex_2_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+Each peak must become a uniform-width window that keeps its midpoint fixed while both edges move outward.
+Call `resize()` with `width = 500` and `fix = "center"`.
+
 ```r title="Your turn"
 peaks <- GRanges("chr1", IRanges(c(100, 800, 2000), c(150, 820, 2030)))
 ex_2_3 <- # your code here
@@ -325,6 +353,10 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+A count table is genes in rows and samples in columns; the values fill in one column at a time, which is why the vector is laid out sample by sample.
+Call `matrix()` with `nrow = 4`, `ncol = 4`, and a `dimnames` list of the gene names and sample names.
 
 ```r title="Your turn"
 counts_vec <- c(10, 100, 0, 500,
@@ -377,6 +409,10 @@ ex_3_1
 
 **Difficulty:** Intermediate
 
+[HINTS]
+A gene's total reads across all samples decides whether it stays, so turn that threshold test into a logical vector you can subset rows with.
+Compute `rowSums(ex_3_1)`, compare it `>= 10`, and use the resulting logical vector to index the matrix rows.
+
 ```r title="Your turn"
 ex_3_2 <- # your code here
 ex_3_2
@@ -414,6 +450,10 @@ ex_3_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Each sample's counts must be rescaled by its own library size so columns become comparable, then lifted onto a per-million scale.
+Get per-sample totals with `colSums()`, divide column-wise using the `t(t(x) / v)` transpose trick (or `sweep(..., 2, ...)`), and multiply by 1e6.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -456,6 +496,10 @@ round(ex_3_3, 2)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The modelling object bundles three inputs: the count matrix, the per-sample metadata, and the formula describing the comparison.
+Call `DESeqDataSetFromMatrix()` with `countData = ex_3_2`, `colData = coldata`, and `design = ~ condition`.
 
 ```r title="Your turn"
 coldata <- data.frame(
@@ -510,6 +554,10 @@ ex_4_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Significance is decided by the adjusted p-value, and missing adjusted values should be excluded before ranking from strongest to weakest evidence.
+Pipe `de_res` through `filter(!is.na(padj), padj < 0.05)` then `arrange(padj)`.
 
 ```r title="Your turn"
 de_res <- tibble(
@@ -566,6 +614,10 @@ ex_4_2
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Fold change is the ratio of treated to control expression, expressed on a base-2 log scale so that a doubling reads as one unit.
+Use `mutate()` to add `log2fc = log2(treat_mean / ctrl_mean)`.
+
 ```r title="Your turn"
 group_means <- tibble(
   gene       = c("g1", "g2", "g3", "g4"),
@@ -615,6 +667,10 @@ ex_4_3
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A volcano plot puts effect size on the x axis and strength of evidence on the y axis, with points coloured by whether they clear the significance cutoff.
+Build a `ggplot()` with `aes(x = log2FoldChange, y = -log10(padj), color = padj < 0.05)` and add `geom_point()`.
 
 ```r title="Your turn"
 de_res <- tibble(
@@ -667,6 +723,10 @@ ex_5_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+Keep only the genes that vary most across samples, then draw a row-scaled heatmap so the colours show relative rather than absolute expression.
+Compute per-row variance with `apply(cpm_mat, 1, var)`, take the top 20 with `order(..., decreasing = TRUE)`, and pass that subset to `pheatmap()` with `scale = "row"`.
+
 ```r title="Your turn"
 cpm_mat <- matrix(rnorm(50 * 6, mean = 10, sd = 2), nrow = 50,
                   dimnames = list(paste0("g", 1:50),
@@ -712,6 +772,10 @@ ex_5_2 <- pheatmap(cpm_mat[top_idx, ],
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Rank the terms by their adjusted significance, keep just the term name and that value, then trim down to the leading five rows.
+Pipe through `arrange(p.adjust)`, `select(Description, p.adjust)`, and `slice(1:5)`.
 
 ```r title="Your turn"
 enrich_df <- tibble(
@@ -776,6 +840,10 @@ ex_5_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+For each sample you need three numbers: its total reads, how many genes were detected, and the typical size of a nonzero count.
+Build a `tibble()` using `colSums()` for library size, `colSums(ex_3_1 > 0)` for detected genes, and `apply(ex_3_1, 2, ...)` taking a median over nonzero values.
+
 ```r title="Your turn"
 ex_6_1 <- # your code here
 ex_6_1
@@ -822,6 +890,10 @@ ex_6_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+BED uses 0-based half-open coordinates, so the start coordinate shifts down by one while the end stays as is.
+Build a `tibble()` using the `seqnames()`, `start()`, `end()`, and `strand()` accessors, subtracting `1L` from the start.
+
 ```r title="Your turn"
 ex_6_2 <- # your code here
 ex_6_2
@@ -867,6 +939,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Each peak needs the closest gene and the gap to it, which is a nearest-neighbour search between the two interval sets.
+Call `distanceToNearest()` on the peaks and TSS, then attach `gene_id` and `distance` via `mcols()`, indexing the genes with `subjectHits()`.
 
 ```r title="Your turn"
 tss <- GRanges("chr1", IRanges(c(800, 5200, 11000), width = 1),

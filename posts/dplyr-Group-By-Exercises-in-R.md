@@ -45,6 +45,9 @@ library(slider)
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Think of splitting the table into one bucket per cylinder count, then collapsing each bucket down to a single average.
+Pipe `mtcars` into `group_by(cyl)`, then a `summarise()` that sets `mean_mpg = mean(mpg)`.
 
 ```r title="Your turn"
 ex_1_1 <- # your code here
@@ -91,6 +94,9 @@ ex_1_1
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+You want one row per unique pairing of the two keys, with a tally of how many cars fall in each pairing.
+Group by both `gear` and `carb`, count rows with `n()` inside `summarise()`, then `arrange(desc(n))`.
 
 ```r title="Your turn"
 ex_1_2 <- # your code here
@@ -137,6 +143,9 @@ campaigns <- tibble(
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Total the numerator and the denominator within each campaign first, then form the rate from those totals - never average the per-day rates.
+Group by `campaign`, then `summarise()` with `sum(impressions)` and `sum(clicks)`, derive `ctr` from them, and `arrange(desc(ctr))`.
 
 ```r title="Your turn"
 ex_1_3 <- # your code here
@@ -179,6 +188,9 @@ ex_1_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Apply the same averaging to every numeric column at once instead of spelling each column name out.
+Group by `Species`, then `summarise(across(where(is.numeric), mean), n = n())`.
 
 ```r title="Your turn"
 ex_1_4 <- # your code here
@@ -217,6 +229,9 @@ ex_1_4
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Each percentile is just a single number per group, so each one can become its own summary column.
+Group by `cut`, then `summarise()` three columns with `quantile(price, 0.25)`, `quantile(price, 0.50)`, and `quantile(price, 0.75)`.
 
 ```r title="Your turn"
 ex_1_5 <- # your code here
@@ -263,6 +278,9 @@ ex_1_5
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Cross the two keys, average within each cell, and make sure nothing stays grouped once you are done.
+Group by `cut, color`, then `summarise(mean_price = mean(price), .groups = "drop")`.
 
 ```r title="Your turn"
 ex_2_1 <- # your code here
@@ -302,6 +320,9 @@ ex_2_1
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Group and aggregate in one single step so that no grouping survives past that step.
+Call `summarise()` with `mean(hwy)` and the `.by = manufacturer` argument, with no separate `group_by()`.
 
 ```r title="Your turn"
 ex_2_2 <- # your code here
@@ -342,6 +363,9 @@ ex_2_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+After collapsing on two keys, you need a way to inspect which keys still cling to the result.
+Group by `cyl, am`, run `summarise()` with `.groups = "keep"`, then call `group_vars()` on the output.
 
 ```r title="Your turn"
 ex_2_3 <- # your code here
@@ -392,6 +416,9 @@ trades <- tibble(
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+P and L is additive across trades, so total it within each book-and-strategy cell rather than averaging.
+Group by `book, strategy`, then `summarise(pnl = sum(pnl), .groups = "drop")`.
 
 ```r title="Your turn"
 ex_2_4 <- # your code here
@@ -433,6 +460,9 @@ ex_2_4
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Build the same per-cut count twice using two different grouping styles, then inspect the grouping state each one leaves behind.
+One result uses `group_by(cut)` then `summarise(n = n(), .groups = "drop")`; the other uses `summarise(n = n(), .by = cut)`; check both with `group_vars()`.
 
 ```r title="Your turn"
 ex_2_5_a <- # your code here
@@ -479,6 +509,9 @@ group_vars(ex_2_5_b)
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Broadcast a group-level average back onto every row without collapsing the table down.
+Group by `cyl`, then `mutate(mpg_group_mean = mean(mpg))` and `ungroup()` at the end.
 
 ```r title="Your turn"
 ex_3_1 <- # your code here
@@ -520,6 +553,9 @@ head(ex_3_1)
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Pull the highest few rows within each cylinder bucket, and first promote the row labels so the cars stay identifiable.
+Use `rownames_to_column("model")`, group by `cyl`, then `slice_max(mpg, n = 3)`.
 
 ```r title="Your turn"
 ex_3_2 <- # your code here
@@ -570,6 +606,9 @@ doses <- tibble(
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Keep only the earliest record for each patient - exactly one row apiece, even when two dates tie.
+Group by `patient_id`, then `slice_min(dose_date, n = 1, with_ties = FALSE)` and `ungroup()`.
 
 ```r title="Your turn"
 ex_3_3 <- # your code here
@@ -608,6 +647,9 @@ ex_3_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Drop or keep entire manufacturers based on how many records each one has.
+Group by `manufacturer`, then `filter(n() >= 4)` and `ungroup()`.
 
 ```r title="Your turn"
 ex_3_4 <- # your code here
@@ -646,6 +688,9 @@ count(ex_3_4, manufacturer)
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Center and scale each value against its own species' average and spread, not the global ones.
+Group by `Species`, then `mutate()` a new column using the `mean()` and `sd()` of `Sepal.Length`.
 
 ```r title="Your turn"
 ex_3_5 <- # your code here
@@ -689,6 +734,9 @@ head(ex_3_5)
 ```
 
 **Difficulty:** Beginner
+[HINTS]
+Give each car a position inside its cylinder bucket, with the count restarting at every bucket.
+Group by `cyl`, then `mutate(rank_in_cyl = row_number(desc(mpg)))`.
 
 ```r title="Your turn"
 ex_4_1 <- # your code here
@@ -738,6 +786,9 @@ prices <- tibble(
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Within each ticker, in date order, compare each day's price against the day immediately before it.
+Group by `ticker`, `arrange(date, .by_group = TRUE)`, then `mutate(change = price - lag(price))`.
 
 ```r title="Your turn"
 ex_4_2 <- # your code here
@@ -780,6 +831,9 @@ ex_4_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Within each month, in day order, accumulate a running total of ozone that resets when the month changes.
+Drop the NA `Ozone` rows, group by `Month`, `arrange(Day, .by_group = TRUE)`, then `mutate()` with `cumsum(Ozone)`.
 
 ```r title="Your turn"
 ex_4_3 <- # your code here
@@ -821,6 +875,9 @@ ex_4_3
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Rank prices inside each cut with no gaps left after ties, then keep only the top few ranks.
+Group by `cut`, `mutate(price_rank = dense_rank(desc(price)))`, then `filter(price_rank <= 3)`.
 
 ```r title="Your turn"
 ex_4_4 <- # your code here
@@ -862,6 +919,9 @@ ex_4_4
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+For each chick, grab the earliest and the latest weight, and the difference between them is the gain.
+Group by `Chick`, `arrange(Time, .by_group = TRUE)`, then `summarise()` with `first(weight)` and `last(weight)`.
 
 ```r title="Your turn"
 ex_4_5 <- # your code here
@@ -908,6 +968,9 @@ ex_4_5
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Make sure no grouping lingers from the summary step before you compute the ranking across the whole result.
+Group by `Diet`, `summarise(mean_w = mean(weight), .groups = "drop")`, then `mutate()` with `row_number(desc(mean_w))`.
 
 ```r title="Your turn"
 ex_5_1 <- # your code here
@@ -956,6 +1019,9 @@ events <- tibble(
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Count the unique users in each month, not the raw login rows, since one user can log in many times.
+Group by `month`, then `summarise(active_users = n_distinct(user_id))` and `arrange(month)`.
 
 ```r title="Your turn"
 ex_5_2 <- # your code here
@@ -995,6 +1061,9 @@ ex_5_2
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Collapse each cut into a count, a minimum, and a single yes/no on whether any price is impossible.
+Group by `cut`, then `summarise()` with `n()`, `min(price)`, and `any(price < 0)`.
 
 ```r title="Your turn"
 ex_5_3 <- # your code here
@@ -1040,6 +1109,9 @@ ex_5_3
 ```
 
 **Difficulty:** Advanced
+[HINTS]
+Slide a five-row window along each ticker's price series, averaging the values inside it as it moves.
+Group by `ticker`, `arrange(date, .by_group = TRUE)`, then `mutate()` with `slider::slide_dbl(price, mean, .before = 4, .complete = TRUE)`.
 
 ```r title="Your turn"
 ex_5_4 <- # your code here
@@ -1081,6 +1153,9 @@ ex_5_4
 ```
 
 **Difficulty:** Intermediate
+[HINTS]
+Average the weight in every diet-and-time cell, and carry the chick count alongside each average.
+Group by `Diet, Time`, then `summarise(mean_w = mean(weight), n = n(), .groups = "drop")`.
 
 ```r title="Your turn"
 ex_5_5 <- # your code here

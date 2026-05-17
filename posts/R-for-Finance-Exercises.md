@@ -52,6 +52,10 @@ library(broom)
 
 **Difficulty:** Beginner
 
+[HINTS]
+Both return definitions compare each price to the one immediately before it, so the very first row has no prior price and must come out missing.
+Add two columns inside `mutate()`; use `lag(price)` for the prior close, then `price / lag(price) - 1` for the simple return and `log(price / lag(price))` for the log return.
+
 ```r title="Your turn"
 prices <- tibble(
   date  = as.Date(c("2024-01-02","2024-01-03","2024-01-04","2024-01-05","2024-01-08","2024-01-09")),
@@ -103,6 +107,10 @@ ex_1_1
 
 **Difficulty:** Beginner
 
+[HINTS]
+Wealth grows multiplicatively, so each day's balance is the previous balance scaled by one plus that day's return.
+Use `cumprod()` on `1 + daily_ret`, and prepend a `1` with `c()` so the running path starts at the $10,000 opening balance.
+
 ```r title="Your turn"
 daily_ret <- c(0.0075, -0.0049, -0.0100, 0.0160, 0.0100, -0.0050, 0.0080, 0.0089, -0.0109, 0.0058)
 ex_1_2 <- # your code here
@@ -139,6 +147,10 @@ ex_1_2
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Returns inside a calendar month combine multiplicatively, not by addition, so each month's figure is the compounded growth across all of its days.
+Derive a month key with `format(date, "%Y-%m-01")`, then `group_by()` it and `summarise()` with `prod(1 + ret) - 1`.
 
 ```r title="Your turn"
 set.seed(42)
@@ -194,6 +206,10 @@ ex_1_3
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+Plotting wants one row per observation, so the four price columns should collapse into a single value column tagged by which series each value came from.
+Use `pivot_longer()` with `names_to = "series"` and `values_to = "value"`, then set a `factor()` with explicit `levels` to keep open/high/low/close in order.
 
 ```r title="Your turn"
 ohlc <- tibble(
@@ -257,6 +273,10 @@ ex_1_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+An anomalous move is one that sits far from the typical spread of the whole series, measured in multiples of that spread.
+Inside `mutate()`, compare `abs(ret)` against `3 * sd(ret)` to produce the logical `is_outlier` column.
+
 ```r title="Your turn"
 set.seed(7)
 ret <- c(rnorm(29, 0, 0.01), -0.0782)
@@ -310,6 +330,10 @@ tail(ex_1_5, 2)
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Volatility on any given day should look only at a fixed trailing window of recent returns, and lifting a daily figure to a yearly one uses the square root of the number of trading days.
+Use `zoo::rollapplyr()` with `width = 30`, `FUN = sd`, and `fill = NA`, then multiply the result by `sqrt(252)`.
+
 ```r title="Your turn"
 set.seed(11)
 ret <- rnorm(100, 0, 0.011)
@@ -356,6 +380,10 @@ ex_2_1 |> slice(c(1:2, 29:31, 99:100))
 
 **Difficulty:** Advanced
 
+[HINTS]
+Historical VaR reads a loss threshold straight off the empirical distribution of past returns and reports it as a positive number of dollars.
+Take `quantile(ret, probs = 0.05)`, negate it, and multiply by the notional.
+
 ```r title="Your turn"
 set.seed(2026)
 ret <- rnorm(250, 0.0003, 0.011)
@@ -392,6 +420,10 @@ ex_2_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Parametric VaR assumes a Normal shape, so it needs only the average return, the spread of returns, and a confidence multiplier drawn from that distribution.
+Compute `mean()` and `sd()` of the returns, get the multiplier with `qnorm(0.99)`, and form `-(mu - z * sig)` before scaling by the notional.
 
 ```r title="Your turn"
 set.seed(2026)
@@ -435,6 +467,10 @@ ex_2_3
 ```
 
 **Difficulty:** Intermediate
+
+[HINTS]
+Drawdown measures how far below its running high-water mark the portfolio has fallen, so you first need that running peak at every point in time.
+Build the peak with `cummax(wealth)` and the drawdown as `wealth / peak - 1`, then `slice_min()` on it and `transmute()` the two output columns.
 
 ```r title="Your turn"
 set.seed(99)
@@ -484,6 +520,10 @@ ex_2_4
 
 **Difficulty:** Advanced
 
+[HINTS]
+Expected Shortfall averages only the returns living in the extreme tail beyond the cutoff, rather than reading a single threshold off the distribution.
+Find the 1% point with `quantile(ret, 0.01)`, take `mean()` of the returns at or below it, negate, and scale by the notional.
+
 ```r title="Your turn"
 set.seed(5)
 ret <- rt(500, df = 6) * 0.011
@@ -523,6 +563,10 @@ ex_2_5
 ```
 
 **Difficulty:** Beginner
+
+[HINTS]
+An equal-weight portfolio earns the plain average of its holdings' returns on each day.
+Use `rowMeans()` across the four ticker columns, picking them out first with `select()`.
 
 ```r title="Your turn"
 rets <- tibble(
@@ -568,6 +612,10 @@ ex_3_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Portfolio variance is not a simple weighted sum of variances; it folds in every pairwise covariance through a quadratic combination of the weights.
+Form the quadratic `t(w) %*% Sigma %*% w` and wrap it in `as.numeric()` to get a single scalar.
 
 ```r title="Your turn"
 Sigma <- matrix(c(
@@ -615,6 +663,10 @@ ex_3_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+A rebalance trades the portfolio all the way back to its fixed targets, so wherever the weights drifted to during the month does not affect the post-rebalance answer.
+The result is simply `target_w` itself; you can compute the drifted weights as `target_w * (1 + month1_drift)` normalized by their `sum()` to see the trade list.
+
 ```r title="Your turn"
 month1_drift <- c(equity = 0.082, bonds = -0.015)
 target_w     <- c(equity = 0.60, bonds = 0.40)
@@ -657,6 +709,10 @@ ex_3_3
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Sharpe compares the average return earned above the risk-free rate to the volatility of those excess returns, then lifts the daily figure to an annual one.
+Convert the annual rate with `rf_annual / 252`, subtract it from the returns, and compute `mean(excess) / sd(excess) * sqrt(252)`.
+
 ```r title="Your turn"
 set.seed(31)
 port_ret <- rnorm(250, 0.0006, 0.010)
@@ -696,6 +752,10 @@ ex_3_4
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Total portfolio risk can be split so each asset owns a share of it, and those shares add back up to the whole portfolio variance.
+Compute the marginal term `Sigma %*% w`, multiply it elementwise by `w`, and coerce the result with `as.numeric()`.
 
 ```r title="Your turn"
 Sigma <- matrix(c(
@@ -747,6 +807,10 @@ ex_3_5
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Information ratio is a Sharpe-style figure where the yardstick is the benchmark rather than cash, built from the return earned over that benchmark.
+Form the active return `strategy_ret - bench_ret`, then take its `mean()` over its `sd()`, scaled by `sqrt(252)`.
+
 ```r title="Your turn"
 set.seed(101)
 strategy_ret <- rnorm(252, 0.0005, 0.010)
@@ -787,6 +851,10 @@ ex_4_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Tracking error is the annualized spread of the active return stream, and reporting it in basis points just rescales a small decimal into a readable unit.
+From `active`, compute `sd(active) * sqrt(252) * 10000` and `mean(active) * 252 * 10000` inside a one-row `tibble()`.
 
 ```r title="Your turn"
 set.seed(101)
@@ -833,6 +901,10 @@ ex_4_2
 
 **Difficulty:** Beginner
 
+[HINTS]
+Split the trades into winners and losers, then summarise how often you win and how big a typical win is relative to a typical loss.
+Subset `pnl[pnl > 0]` and `pnl[pnl < 0]`, then build a named vector using `length()` ratios and `mean()` of each side.
+
 ```r title="Your turn"
 pnl <- c(120, -45, 80, 250, -200, -55, 100, 60, -80, 150, -30, 90, -65, 110, 75)
 ex_4_3 <- # your code here
@@ -871,6 +943,10 @@ round(ex_4_3, 4)
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Sortino swaps Sharpe's two-sided spread for a one-sided one that counts only the volatility of below-target outcomes.
+Use `pmin(ret - target, 0)` to keep just the downside, take `sqrt(mean(downside^2))` for the deviation, then `mean(ret - target) / dd * sqrt(252)`.
 
 ```r title="Your turn"
 set.seed(58)
@@ -912,6 +988,10 @@ ex_4_4
 
 **Difficulty:** Intermediate
 
+[HINTS]
+Beta is the sensitivity of the stock to the market, which is exactly the slope of a straight-line fit of one return series on the other.
+Fit `lm(stock ~ mkt)` and pull the `mkt` slope out of `coef()`.
+
 ```r title="Your turn"
 set.seed(8)
 mkt   <- rnorm(252, 0.0004, 0.008)
@@ -952,6 +1032,10 @@ ex_5_1
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+The three-factor model explains fund returns with three drivers at once, and the leftover intercept is the style-adjusted skill term.
+Fit `lm(fund_x ~ mkt_rf + smb + hml, data = ff)`, then read the intercept and three slopes from `coef()` into a one-row tibble.
 
 ```r title="Your turn"
 set.seed(202)
@@ -1015,6 +1099,10 @@ ex_5_2
 
 **Difficulty:** Advanced
 
+[HINTS]
+A time-varying beta recomputes the same stock-versus-market sensitivity over each trailing window as that window slides forward.
+Pass an index vector to `zoo::rollapplyr()` with width 60 and a helper that returns `cov(mkt, stock) / var(mkt)` for the slice.
+
 ```r title="Your turn"
 set.seed(13)
 mkt   <- rnorm(250, 0.0004, 0.008)
@@ -1072,6 +1160,10 @@ ex_5_3 |> slice(c(1, 59:61, 249:250))
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+A daily risk line derives the running metrics across the whole history first, then reports only the figures as of the most recent day.
+Build columns with `mutate()` (`rollapplyr` for vol, `cumprod`/`cummax` for drawdown), compute VaR with `quantile()`, then `slice_tail(n = 1)` and `transmute()`.
 
 ```r title="Your turn"
 set.seed(73)
@@ -1144,6 +1236,10 @@ ex_6_1
 
 **Difficulty:** Advanced
 
+[HINTS]
+First collapse the book down to one figure per day to locate the worst day, then return to the line items belonging to that single day.
+`group_by(date)` and `summarise(sum(weight_usd * ret))`, `slice_min()` then `pull()` the date, then `filter()` back to it and `arrange()` by `pnl_usd`.
+
 ```r title="Your turn"
 set.seed(21)
 n <- 30
@@ -1210,6 +1306,10 @@ ex_6_2
 ```
 
 **Difficulty:** Advanced
+
+[HINTS]
+Each holding's gap from its target is converted into basis points, and only the holdings that breach the tolerance band are kept.
+Compute `(current_w - target_w) * 10000`, assign BUY/SELL with `case_when()` against the +/- 200 thresholds, and `filter()` out the unflagged rows.
 
 ```r title="Your turn"
 holdings <- tibble(
