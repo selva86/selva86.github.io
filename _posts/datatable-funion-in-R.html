@@ -1,0 +1,363 @@
+---
+title: "data.table funion() in R: Fast Set Union of Tables"
+description: "Learn data.table funion() in R to compute the set union of two tables, returning every unique row. Covers funion syntax, the all argument, and common pitfalls."
+keywords: "data.table funion, funion function R, data.table funion examples, R set union data.table, funion vs union, data.table set operations, combine data.tables unique rows"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "funion()|data.table funion|data.table::funion()|funion|fast set union in R"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>data.table funion() in R: Fast Set Union of Tables</h1>
+
+<p class="lead">The data.table funion() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> computes the fast set union of two tables, returning every unique row found in either one. It is the row-wise equivalent of SQL's UNION.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>funion(x, y)<span class="qa-cmt">                         # union, duplicate rows removed</span>
+funion(x, y, all = TRUE)<span class="qa-cmt">             # union all, duplicate rows kept</span>
+funion(funion(x, y), z)<span class="qa-cmt">              # union of three tables, nested</span>
+fintersect(x, y)<span class="qa-cmt">                     # rows present in BOTH tables</span>
+fsetdiff(x, y)<span class="qa-cmt">                       # rows in x but not in y</span>
+fsetequal(x, y)<span class="qa-cmt">                      # TRUE if both hold the same rows</span>
+union(v1, v2)<span class="qa-cmt">                        # base R union for plain vectors</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is funion() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">combine two tables, drop duplicates</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">funion(x, y)</text><text x="125" y="126" class="branch-label">combine two tables, keep every row</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">funion(x, y, all = TRUE)</text><text x="125" y="182" class="branch-label">stack many tables fast</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">rbindlist(list(x, y, z))</text><text x="125" y="238" class="branch-label">rows common to both tables</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">fintersect(x, y)</text><text x="125" y="294" class="branch-label">rows in one table but not the other</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">fsetdiff(x, y)</text><text x="125" y="350" class="branch-label">drop duplicate rows within one table</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">unique(x)</text></svg></div>
+
+<h2>What funion() does</h2>
+
+<p><strong>funion() returns the set union of two tables, every distinct row that appears in <code>x</code>, <code>y</code>, or both.</strong> You pass two data.tables with the same columns. The function stacks their rows and, by default, removes any duplicate so each unique row appears once.</p>
+
+<p>It is data.table's answer to merging two record sets without double-counting overlaps. A typical case is combining two monthly extracts where some customers appear in both files. Base R's <code>union()</code> only works on vectors, so it cannot deduplicate multi-column rows. <code>funion()</code> fills that gap and runs as compiled C code, which matters once the tables grow large.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>funion() compares whole rows, not single columns.</strong> Two rows count as duplicates only when every column value is equal. This mirrors SQL's <code>UNION</code>: the deduplication runs over the full row, so a table with five columns is compared across all five at once.</div></div>
+
+<h2>funion() syntax</h2>
+
+<p><strong>The call takes two tables and one optional <code>all</code> flag.</strong> The signature is <code>funion(x, y, all = FALSE)</code>. Here <code>x</code> and <code>y</code> are the two tables to combine, and <code>all</code> controls whether duplicate rows survive into the result.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td>First data.table</td>
+</tr>
+<tr>
+<td><code>y</code></td>
+<td>Second data.table, same column names and types as <code>x</code></td>
+</tr>
+<tr>
+<td><code>all</code></td>
+<td><code>FALSE</code> (default) drops duplicate rows; <code>TRUE</code> keeps them (UNION ALL)</td>
+</tr>
+</tbody>
+</table>
+
+<p>The function returns a new data.table and never modifies <code>x</code> or <code>y</code> in place. Unlike SQL, data.table preserves row order: rows of <code>x</code> come first, then the new rows from <code>y</code>.</p>
+
+<div class="webr-container" data-block-title="The funion call shape">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The funion call shape</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+dt1 &lt;- data.table(id = 1:3, city = c(&quot;NYC&quot;, &quot;LA&quot;, &quot;Chicago&quot;))
+dt2 &lt;- data.table(id = 3:5, city = c(&quot;Chicago&quot;, &quot;Miami&quot;, &quot;Boston&quot;))
+funion(dt1, dt2)
+#&gt;       id    city
+#&gt;    &lt;int&gt;  &lt;char&gt;
+#&gt; 1:     1     NYC
+#&gt; 2:     2      LA
+#&gt; 3:     3 Chicago
+#&gt; 4:     4   Miami
+#&gt; 5:     5  Boston</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The shared row <code>(3, Chicago)</code> appears once. The result holds five rows, not six.</p>
+
+<h2>funion() examples</h2>
+
+<p><strong>These four examples move from a plain union to a real deduplication task.</strong> Each block builds on the <code>dt1</code> and <code>dt2</code> tables created above, so run them in order.</p>
+
+<p>The default call removes duplicates. Switch <code>all = TRUE</code> when you want a straight UNION ALL that keeps every copy.</p>
+
+<div class="webr-container" data-block-title="Union all keeps duplicate rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Union all keeps duplicate rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">funion(dt1, dt2, all = TRUE)
+#&gt;       id    city
+#&gt;    &lt;int&gt;  &lt;char&gt;
+#&gt; 1:     1     NYC
+#&gt; 2:     2      LA
+#&gt; 3:     3 Chicago
+#&gt; 4:     3 Chicago
+#&gt; 5:     4   Miami
+#&gt; 6:     5  Boston</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Chicago row now appears twice, once from each table. Use this when you need the combined row count to equal <code>nrow(x) + nrow(y)</code>.</p>
+
+<p>A common job is merging two overlapping snapshots into one clean table. Here two weekly extracts share members, and <code>funion()</code> collapses them to the distinct set.</p>
+
+<div class="webr-container" data-block-title="Deduplicate two weekly extracts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Deduplicate two weekly extracts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">week1 &lt;- data.table(user = c(&quot;amy&quot;, &quot;ben&quot;, &quot;cara&quot;),
+                     plan = c(&quot;pro&quot;, &quot;free&quot;, &quot;pro&quot;))
+week2 &lt;- data.table(user = c(&quot;ben&quot;, &quot;cara&quot;, &quot;dan&quot;),
+                     plan = c(&quot;free&quot;, &quot;pro&quot;, &quot;free&quot;))
+combined &lt;- funion(week1, week2)
+nrow(combined)
+#&gt; [1] 4
+combined
+#&gt;      user    plan
+#&gt;    &lt;char&gt;  &lt;char&gt;
+#&gt; 1:    amy     pro
+#&gt; 2:    ben    free
+#&gt; 3:   cara     pro
+#&gt; 4:    dan    free</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Six input rows collapse to four because <code>ben</code> and <code>cara</code> appear identically in both weeks.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>funion() beats <code>unique(rbind(x, y))</code> on large data.</strong> Both produce the same deduplicated result, but <code>funion()</code> runs the stack and the deduplication in one optimized C pass, so it scales better as row counts climb into the millions.</div></div>
+
+<p>You can also union subsets pulled from the same source. This example converts the built-in <code>mtcars</code> dataset to a data.table and unions two filtered views.</p>
+
+<div class="webr-container" data-block-title="Union two filtered subsets">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Union two filtered subsets</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt &lt;- as.data.table(mtcars, keep.rownames = &quot;model&quot;)
+high_mpg &lt;- dt[mpg &gt; 30, .(model, mpg, cyl)]
+four_cyl &lt;- dt[cyl == 4, .(model, mpg, cyl)]
+nrow(high_mpg)
+#&gt; [1] 4
+nrow(four_cyl)
+#&gt; [1] 11
+nrow(funion(high_mpg, four_cyl))
+#&gt; [1] 11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every high-mpg car is also a 4-cylinder car, so the union deduplicates the four overlapping rows down to the 11 distinct ones.</p>
+
+<h2>funion vs union vs rbindlist</h2>
+
+<p><strong>Pick <code>funion()</code> for a two-table deduplicated combine, and <code>rbindlist()</code> for fast raw stacking of many tables.</strong> The three functions overlap, but each is tuned for a different job.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Operation</th>
+<th>Removes duplicates?</th>
+<th>Inputs</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>funion(x, y)</code></td>
+<td>Yes</td>
+<td>Two data.tables</td>
+<td>Distinct union of two tables</td>
+</tr>
+<tr>
+<td><code>funion(x, y, all = TRUE)</code></td>
+<td>No</td>
+<td>Two data.tables</td>
+<td>UNION ALL of two tables</td>
+</tr>
+<tr>
+<td><code>rbindlist(list(x, y, z))</code></td>
+<td>No</td>
+<td>Many tables in a list</td>
+<td>Fast stacking, no dedup</td>
+</tr>
+<tr>
+<td><code>unique(rbind(x, y))</code></td>
+<td>Yes</td>
+<td>data.frames</td>
+<td>Small data, base R only</td>
+</tr>
+<tr>
+<td><code>union(v1, v2)</code></td>
+<td>Yes</td>
+<td>Two vectors</td>
+<td>Single-column sets</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is simple. Combining exactly two tables and want unique rows? Use <code>funion()</code>. Stacking three or more tables, or speed matters more than deduplication? Use <code>rbindlist()</code> and call <code>unique()</code> afterward only if needed.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The equivalent of <code>funion(x, y)</code> is <code>pd.concat([x, y]).drop_duplicates()</code>, and <code>funion(x, y, all = TRUE)</code> is a plain <code>pd.concat([x, y])</code>.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most funion() errors trace back to column shape or input type.</strong> These three mistakes account for nearly every failure.</p>
+
+<p>The columns of <code>x</code> and <code>y</code> must share the same names and types. A mismatch raises an error rather than guessing an alignment.</p>
+
+<div class="webr-container" data-block-title="Column names must match">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Column names must match</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt_a &lt;- data.table(id = 1:2, name = c(&quot;Ann&quot;, &quot;Bob&quot;))
+dt_b &lt;- data.table(id = 3:4, city = c(&quot;Rome&quot;, &quot;Oslo&quot;))
+funion(dt_a, dt_b)
+#&gt; Error in funion(dt_a, dt_b): x and y must have the same column names</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fix is to rename the columns so both tables describe the same fields before calling <code>funion()</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>funion() combines exactly two tables per call.</strong> Passing a third table is an unused-argument error. For three or more tables, nest the calls as <code>funion(funion(x, y), z)</code>, or use <code>unique(rbindlist(list(x, y, z)))</code>.</div></div>
+
+<p>Both inputs must be data.tables. A plain data.frame is not accepted, so convert it first with <code>as.data.table()</code>.</p>
+
+<div class="webr-container" data-block-title="Inputs must be data.tables">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inputs must be data.tables</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df1 &lt;- data.frame(id = 1:2, city = c(&quot;NYC&quot;, &quot;LA&quot;))
+funion(as.data.table(df1), dt2)
+#&gt;       id    city
+#&gt;    &lt;int&gt;  &lt;char&gt;
+#&gt; 1:     1     NYC
+#&gt; 2:     2      LA
+#&gt; 3:     3 Chicago
+#&gt; 4:     4   Miami
+#&gt; 5:     5  Boston</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Union two data.tables of stock keeping units, keeping every row including duplicates. Save the result to <code>ex_union</code>.</p>
+<div class="webr-container" data-block-title="Your turn: union all of two tables">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: union all of two tables</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_q1 &lt;- data.table(sku = c(&quot;A1&quot;, &quot;B2&quot;), qty = c(5L, 3L))
+ex_q2 &lt;- data.table(sku = c(&quot;B2&quot;, &quot;C3&quot;), qty = c(3L, 7L))
+ex_union &lt;- # your code here
+
+ex_union
+#&gt; Expected: 4 rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_union &lt;- funion(ex_q1, ex_q2, all = TRUE)
+nrow(ex_union)
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> With <code>all = TRUE</code>, funion() keeps every row from both tables, so the identical <code>(B2, 3)</code> row appears twice and the result has four rows. Dropping <code>all = TRUE</code> would deduplicate it down to three.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p><strong>funion() is one of four data.table set operations.</strong> The others handle the remaining ways to compare two row sets.</p>
+
+<ul>
+
+<li><a href="datatable-fintersect-in-R.html">fintersect()</a> returns rows present in both tables.</li>
+
+<li><a href="datatable-fsetdiff-in-R.html">fsetdiff()</a> returns rows in the first table but not the second.</li>
+
+<li><code>fsetequal()</code> tests whether two tables hold exactly the same rows.</li>
+
+<li><a href="datatable-rbindlist-in-R.html">rbindlist()</a> stacks many tables fast without removing duplicates.</li>
+
+<li><a href="datatable-uniqueN-in-R.html">uniqueN()</a> counts the distinct rows or values in a table.</li>
+
+</ul>
+
+<p>For the full reference, see the <a href="https://rdatatable.gitlab.io/data.table/reference/setops.html">data.table set operations documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between funion and union in R?</strong></p>
+
+<p>Base R's <code>union()</code> works on vectors and returns the distinct combined values of a single dimension. data.table's <code>funion()</code> works on whole tables and deduplicates across every column at once. If you call <code>union()</code> on two data.tables, data.table dispatches to <code>funion()</code> automatically, so the two names point to the same row-wise behavior for data.tables.</p>
+
+<p><strong>Does funion remove duplicate rows?</strong></p>
+
+<p>Yes, by default. With <code>all = FALSE</code> (the default), <code>funion()</code> returns each distinct row only once, even if it appeared in both input tables. Pass <code>all = TRUE</code> to keep every copy, which gives the equivalent of SQL's <code>UNION ALL</code> and makes the result row count equal <code>nrow(x) + nrow(y)</code>.</p>
+
+<p><strong>What does the all argument do in funion?</strong></p>
+
+<p>The <code>all</code> argument controls duplicate handling. When <code>all = FALSE</code>, duplicate rows are collapsed to one. When <code>all = TRUE</code>, all copies are retained, including rows duplicated within a single input table. Use <code>TRUE</code> when row counts must be preserved, for example when each row represents a separate transaction.</p>
+
+<p><strong>Can funion <a class="auto-link" href="R-Joins.html" title="R Joins With Visual Diagrams: Pick the Right Join Every Time">combine data</a>.tables with different columns?</strong></p>
+
+<p>No. <code>funion()</code> requires both tables to have the same column names and the same column types. A mismatch raises an error rather than attempting an alignment. Rename or <a class="auto-link" href="dplyr-relocate-in-R.html" title="dplyr relocate() in R: Reorder Columns Easily">reorder columns</a> so the two tables describe identical fields before calling <code>funion()</code>.</p>
+
+<p><strong>Is funion faster than rbind?</strong></p>
+
+<p>For a deduplicated union, <code>funion()</code> is faster than <code>unique(rbind(x, y))</code> because it combines the stack and the deduplication into one optimized C pass. If you only need to stack tables without removing duplicates, <code>rbindlist()</code> is the fastest option and also accepts more than two tables at once.</p>
