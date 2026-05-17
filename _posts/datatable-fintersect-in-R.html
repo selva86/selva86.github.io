@@ -1,0 +1,352 @@
+---
+title: "data.table fintersect() in R: Set Intersection of Tables"
+description: "Learn data.table fintersect() in R to find rows present in both tables. Covers fintersect syntax, the all argument, whole-row matching, and common pitfalls."
+keywords: "data.table fintersect, fintersect function R, data.table fintersect examples, R intersect data.table rows, fintersect vs intersect, data.table set operations, common rows two data.tables"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "fintersect()|data.table fintersect|data.table::fintersect()|fintersect|set intersection in R"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>data.table fintersect() in R: Set Intersection of Tables</h1>
+
+<p class="lead">The data.table fintersect() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> returns the set intersection of two tables, every row that appears in both. It is the row-wise equivalent of SQL's INTERSECT.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>fintersect(x, y)<span class="qa-cmt">                     # rows present in BOTH tables</span>
+fintersect(x, y, all = TRUE)<span class="qa-cmt">         # keep duplicate matching rows</span>
+fintersect(fintersect(x, y), z)<span class="qa-cmt">      # intersection of three tables</span>
+nrow(fintersect(x, y))<span class="qa-cmt">               # count of common rows</span>
+funion(x, y)<span class="qa-cmt">                         # all unique rows from either</span>
+fsetdiff(x, y)<span class="qa-cmt">                       # rows in x but not in y</span>
+intersect(v1, v2)<span class="qa-cmt">                    # base R intersect for vectors</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is fintersect() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">rows common to both tables</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">fintersect(x, y)</text><text x="125" y="126" class="branch-label">rows in either table, deduped</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">funion(x, y)</text><text x="125" y="182" class="branch-label">rows in x but not in y</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">fsetdiff(x, y)</text><text x="125" y="238" class="branch-label">keep x rows matching y on a key</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">x[y, on = &quot;id&quot;, nomatch = 0]</text><text x="125" y="294" class="branch-label">test if two tables are equal</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">fsetequal(x, y)</text><text x="125" y="350" class="branch-label">overlap of one column only</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">intersect(x$col, y$col)</text></svg></div>
+
+<h2>What fintersect() does</h2>
+
+<p><strong>fintersect() returns the set intersection of two tables, every distinct row that appears in both <code>x</code> and <code>y</code>.</strong> You pass two data.tables with the same columns. The function keeps only the rows whose values match across every column in both inputs, and by default returns each such row once.</p>
+
+<p>It is data.table's tool for finding the overlap between two record sets. A typical case is spotting customers who appear in both a January and a February export. Base R's <code>intersect()</code> only works on vectors, so it cannot compare multi-column rows. <code>fintersect()</code> fills that gap and runs as compiled C code, which matters once the tables grow large.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>fintersect() compares whole rows, not single columns.</strong> Two rows match only when every column value is equal. A record that exists in both tables but differs in even one field is excluded. This mirrors SQL's <code>INTERSECT</code>, where the comparison spans the full row.</div></div>
+
+<h2>fintersect() syntax</h2>
+
+<p><strong>The call takes two tables and one optional <code>all</code> flag.</strong> The signature is <code>fintersect(x, y, all = FALSE)</code>. Here <code>x</code> and <code>y</code> are the tables to compare, and <code>all</code> controls how duplicate matching rows are counted.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td>First data.table</td>
+</tr>
+<tr>
+<td><code>y</code></td>
+<td>Second data.table, same column names and types as <code>x</code></td>
+</tr>
+<tr>
+<td><code>all</code></td>
+<td><code>FALSE</code> (default) returns each common row once; <code>TRUE</code> keeps the minimum number of copies found in either table</td>
+</tr>
+</tbody>
+</table>
+
+<p>The function returns a new data.table and never modifies <code>x</code> or <code>y</code> in place. Result rows follow the order they appear in <code>x</code>.</p>
+
+<div class="webr-container" data-block-title="The fintersect call shape">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The fintersect call shape</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+dt1 &lt;- data.table(id = 1:4, city = c(&quot;NYC&quot;, &quot;LA&quot;, &quot;Chicago&quot;, &quot;Miami&quot;))
+dt2 &lt;- data.table(id = 3:6, city = c(&quot;Chicago&quot;, &quot;Miami&quot;, &quot;Boston&quot;, &quot;Denver&quot;))
+fintersect(dt1, dt2)
+#&gt;       id    city
+#&gt;    &lt;int&gt;  &lt;char&gt;
+#&gt; 1:     3 Chicago
+#&gt; 2:     4   Miami</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Only <code>(3, Chicago)</code> and <code>(4, Miami)</code> exist in both tables, so the result holds two rows.</p>
+
+<h2>fintersect() examples</h2>
+
+<p><strong>These four examples move from a plain intersection to a real retention task.</strong> The first two build on the <code>dt1</code> and <code>dt2</code> tables above, so run them in order.</p>
+
+<p>The default call returns each shared row once. Switch <code>all = TRUE</code> when you want to keep duplicate matches.</p>
+
+<div class="webr-container" data-block-title="The all argument keeps duplicate matches">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The all argument keeps duplicate matches</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">a &lt;- data.table(x = c(&quot;p&quot;, &quot;p&quot;, &quot;q&quot;, &quot;r&quot;))
+b &lt;- data.table(x = c(&quot;p&quot;, &quot;p&quot;, &quot;q&quot;, &quot;s&quot;))
+fintersect(a, b)
+#&gt;         x
+#&gt;    &lt;char&gt;
+#&gt; 1:      p
+#&gt; 2:      q
+fintersect(a, b, all = TRUE)
+#&gt;         x
+#&gt;    &lt;char&gt;
+#&gt; 1:      p
+#&gt; 2:      p
+#&gt; 3:      q</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With <code>all = TRUE</code>, <code>p</code> appears twice because it occurs twice in both tables, while <code>q</code> appears once. The default call drops the repeat.</p>
+
+<p>A common job is finding records that survived unchanged between two snapshots. Here two monthly extracts share users, and <code>fintersect()</code> returns the ones whose plan did not change.</p>
+
+<div class="webr-container" data-block-title="Find users retained without change">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find users retained without change</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">jan &lt;- data.table(user = c(&quot;amy&quot;, &quot;ben&quot;, &quot;cara&quot;, &quot;dan&quot;),
+                   plan = c(&quot;pro&quot;, &quot;free&quot;, &quot;pro&quot;, &quot;free&quot;))
+feb &lt;- data.table(user = c(&quot;ben&quot;, &quot;cara&quot;, &quot;dan&quot;, &quot;eve&quot;),
+                   plan = c(&quot;free&quot;, &quot;pro&quot;, &quot;pro&quot;, &quot;free&quot;))
+fintersect(jan, feb)
+#&gt;      user    plan
+#&gt;    &lt;char&gt;  &lt;char&gt;
+#&gt; 1:    ben    free
+#&gt; 2:   cara     pro</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>dan</code> appears in both months but upgraded from free to pro, so the row differs and is excluded. Only <code>ben</code> and <code>cara</code> match on every column.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Wrap fintersect() in <code>nrow()</code> to count the overlap.</strong> <code>nrow(fintersect(x, y))</code> gives the number of shared rows in one expression, a fast way to measure how much two tables overlap without inspecting the result.</div></div>
+
+<p>You can also intersect subsets pulled from the same source. This example converts the built-in <code>mtcars</code> dataset to a data.table and intersects two filtered views.</p>
+
+<div class="webr-container" data-block-title="Intersect two filtered subsets">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Intersect two filtered subsets</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt &lt;- as.data.table(mtcars, keep.rownames = &quot;model&quot;)
+high_mpg &lt;- dt[mpg &gt; 25, .(model, mpg, cyl)]
+four_cyl &lt;- dt[cyl == 4, .(model, mpg, cyl)]
+nrow(high_mpg)
+#&gt; [1] 6
+nrow(four_cyl)
+#&gt; [1] 11
+nrow(fintersect(high_mpg, four_cyl))
+#&gt; [1] 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every car with mpg above 25 also has four cylinders, so all six high-mpg rows survive the intersection.</p>
+
+<h2>fintersect vs intersect vs merge</h2>
+
+<p><strong>Pick <code>fintersect()</code> for whole-row overlap of two tables, and a join when you need to match on a key.</strong> The functions overlap, but each answers a different question.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Operation</th>
+<th>Compares</th>
+<th>Inputs</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fintersect(x, y)</code></td>
+<td>Every column</td>
+<td>Two data.tables</td>
+<td>Rows identical across all columns</td>
+</tr>
+<tr>
+<td><code>intersect(v1, v2)</code></td>
+<td>Single values</td>
+<td>Two vectors</td>
+<td>Overlap of one column</td>
+</tr>
+<tr>
+<td><code>merge(x, y)</code></td>
+<td>Join keys</td>
+<td>Tables or frames</td>
+<td>Inner join that combines columns</td>
+</tr>
+<tr>
+<td><code>x[y, on = &quot;id&quot;, nomatch = 0]</code></td>
+<td>Key columns only</td>
+<td>data.tables</td>
+<td>Keep <code>x</code> rows that match <code>y</code> on a key</td>
+</tr>
+<tr>
+<td><code>fsetdiff(x, y)</code></td>
+<td>Every column</td>
+<td>Two data.tables</td>
+<td>Rows in <code>x</code> but not in <code>y</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is short. Comparing complete rows of two tables with identical columns? Use <code>fintersect()</code>. Matching on a key while keeping columns from both sides? Use <code>merge()</code> or a data.table join.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The equivalent of <code>fintersect(x, y)</code> is <code>x.merge(y).drop_duplicates()</code>, an inner merge across all shared columns followed by deduplication.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most fintersect() errors trace back to column shape or input type.</strong> These three mistakes cause nearly every failure.</p>
+
+<p>The columns of <code>x</code> and <code>y</code> must share the same names and types. A mismatch raises an error rather than guessing an alignment.</p>
+
+<div class="webr-container" data-block-title="Column names must match">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Column names must match</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt_a &lt;- data.table(id = 1:2, name = c(&quot;Ann&quot;, &quot;Bob&quot;))
+dt_b &lt;- data.table(id = 1:2, city = c(&quot;Rome&quot;, &quot;Oslo&quot;))
+fintersect(dt_a, dt_b)
+#&gt; Error in fintersect(dt_a, dt_b): x and y must have the same column names</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fix is to rename the columns so both tables describe the same fields before calling <code>fintersect()</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>fintersect() compares exactly two tables per call.</strong> Passing a third table is an unused-argument error. For three or more tables, nest the calls as <code>fintersect(fintersect(x, y), z)</code>.</div></div>
+
+<p>Both inputs must be data.tables. A plain data.frame is rejected, so convert it first with <code>as.data.table()</code>.</p>
+
+<div class="webr-container" data-block-title="Inputs must be data.tables">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inputs must be data.tables</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df1 &lt;- data.frame(id = 3:4, city = c(&quot;Chicago&quot;, &quot;Miami&quot;))
+fintersect(as.data.table(df1), dt2)
+#&gt;       id    city
+#&gt;    &lt;int&gt;  &lt;char&gt;
+#&gt; 1:     3 Chicago
+#&gt; 2:     4   Miami</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Find the rows common to two data.tables of stock keeping units, keeping duplicate matches. Save the result to <code>ex_common</code>.</p>
+<div class="webr-container" data-block-title="Your turn: intersect two tables">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: intersect two tables</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_q1 &lt;- data.table(sku = c(&quot;A1&quot;, &quot;A1&quot;, &quot;B2&quot;), grade = c(&quot;x&quot;, &quot;x&quot;, &quot;y&quot;))
+ex_q2 &lt;- data.table(sku = c(&quot;A1&quot;, &quot;A1&quot;, &quot;C3&quot;), grade = c(&quot;x&quot;, &quot;x&quot;, &quot;z&quot;))
+ex_common &lt;- # your code here
+
+ex_common
+#&gt; Expected: 2 rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_common &lt;- fintersect(ex_q1, ex_q2, all = TRUE)
+nrow(ex_common)
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The row <code>(A1, x)</code> occurs twice in both tables, so <code>all = TRUE</code> keeps both copies. The <code>(B2, y)</code> and <code>(C3, z)</code> rows have no match and are dropped.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p><strong>fintersect() is one of four data.table set operations.</strong> The others cover the remaining ways to compare two row sets.</p>
+
+<ul>
+
+<li><a href="datatable-funion-in-R.html">funion()</a> returns every distinct row from either table.</li>
+
+<li><a href="datatable-fsetdiff-in-R.html">fsetdiff()</a> returns rows in the first table but not the second.</li>
+
+<li><code>fsetequal()</code> tests whether two tables hold exactly the same rows.</li>
+
+<li><a href="datatable-merge-in-R.html">merge()</a> joins two tables on a key and combines their columns.</li>
+
+<li><a href="datatable-uniqueN-in-R.html">uniqueN()</a> counts the distinct rows or values in a table.</li>
+
+</ul>
+
+<p>For the full reference, see the <a href="https://rdatatable.gitlab.io/data.table/reference/setops.html">data.table set operations documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between fintersect and intersect in R?</strong></p>
+
+<p>Base R's <code>intersect()</code> works on vectors and returns the shared values of a single dimension. data.table's <code>fintersect()</code> works on whole tables and compares every column at once. If you call <code>intersect()</code> on two data.tables, data.table dispatches to <code>fintersect()</code> automatically, so both names give the same row-wise result for data.tables.</p>
+
+<p><strong>Does fintersect remove duplicate rows?</strong></p>
+
+<p>By default yes. <code>fintersect(x, y)</code> returns each shared row exactly once, even if it appears several times in the inputs. Pass <code>all = TRUE</code> to keep duplicates: the result then holds each common row the minimum number of times it appears in either <code>x</code> or <code>y</code>, matching SQL's <code>INTERSECT ALL</code> behavior.</p>
+
+<p><strong>Why does fintersect return zero rows?</strong></p>
+
+<p>An empty result means no row matches across every column. Because <code>fintersect()</code> compares the full row, a small difference in one field, such as a trailing space, a different column type, or a rounding gap in a numeric value, blocks a match. Inspect both tables with <code>str()</code> to confirm the types and values line up.</p>
+
+<p><strong>Is fintersect faster than merge for finding common rows?</strong></p>
+
+<p>For finding rows identical across all columns, <code>fintersect()</code> is both faster and clearer than an inner <code>merge()</code> on every column. <code>merge()</code> is built to join on a key and <a class="auto-link" href="tidyr-unite-in-R.html" title="tidyr unite() in R: Combine Columns Into One">combine columns</a> from both sides, which adds work you do not need when you only want the overlap. Reach for <code>merge()</code> when you need columns from both tables, not just the shared rows.</p>
