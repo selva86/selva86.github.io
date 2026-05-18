@@ -1,0 +1,311 @@
+---
+title: "parsnip fit_xy() in R: Train Models With X/Y Matrices"
+description: "Learn parsnip fit_xy() in R, the matrix interface for fitting tidymodels. See syntax, examples, how it differs from fit(), plus common pitfalls to avoid."
+keywords: "parsnip fit_xy, fit_xy function R, parsnip fit_xy examples, R fit_xy vs fit, tidymodels fit_xy, fit_xy matrix interface"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "fit_xy()|parsnip fit_xy|parsnip::fit_xy()|fit_xy|fit_xy function"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>parsnip fit_xy() in R: Train Models With X/Y Matrices</h1>
+
+<p class="lead">The parsnip <code>fit_xy()</code> function trains a tidymodels model from a predictor matrix <code>x</code> and an outcome <code>y</code>, skipping the formula interface that <code>fit()</code> uses.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>fit_xy(spec, x = preds, y = outcome)<span class="qa-cmt">         # core matrix-interface call</span>
+fit_xy(spec, x = df[-1], y = df$target)<span class="qa-cmt">      # split predictors from a frame</span>
+fit_xy(spec, x = as.matrix(preds), y = y)<span class="qa-cmt">    # pass a numeric matrix</span>
+fit_xy(spec, x = preds, y = factor(labels))<span class="qa-cmt">  # classification outcome</span>
+fit_xy(spec, x, y, case_weights = w)<span class="qa-cmt">         # weighted fit</span>
+predict(model_fit, new_data = preds)<span class="qa-cmt">         # score new rows</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is fit_xy() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">predictors already a matrix or data frame</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">fit_xy(spec, x, y)</text><text x="125" y="126" class="branch-label">need formula transforms like log(x)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">fit(spec, y ~ log(x), data)</text><text x="125" y="182" class="branch-label">want recipe preprocessing steps</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">workflow() |&gt; add_recipe(rec)</text><text x="125" y="238" class="branch-label">predict on fresh rows</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">predict(model_fit, new_data)</text><text x="125" y="294" class="branch-label">fit many models together</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">workflow_map(wf_set, &quot;fit_resamples&quot;)</text><text x="125" y="350" class="branch-label">inspect the underlying engine model</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">extract_fit_engine(model_fit)</text></svg></div>
+
+<h2>What fit_xy() does</h2>
+
+<p><strong>fit_xy() is the matrix interface to model fitting in parsnip.</strong> You hand it a model specification, a data frame or matrix of predictor columns (<code>x</code>), and a vector of outcome values (<code>y</code>). It returns a fitted <code>model_fit</code> object, exactly the kind that <code>fit()</code> returns. Only the data handoff changes.</p>
+
+<p><strong>The function exists because not every workflow starts with a formula.</strong> Sometimes the predictors already sit in a clean numeric matrix, the output of a recipe, or a feature-engineering step. Writing a formula just so parsnip can take it apart again is wasted work. <code>fit_xy()</code> lets you skip that round trip.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>fit() and fit_xy() build the same model object.</strong> They differ only in the data handoff: <code>fit()</code> derives predictors from a formula, while <code>fit_xy()</code> takes them directly. Pick the interface that matches the shape of the data you already have.</div></div>
+
+<p>The example below splits <code>mtcars</code> into a predictor frame and an outcome vector, the two pieces <code>fit_xy()</code> expects.</p>
+
+<div class="webr-container" data-block-title="Load parsnip and split predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load parsnip and split predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(parsnip)
+
+# Predictors as a data frame, outcome as a vector
+x_train &lt;- mtcars[, c(&quot;hp&quot;, &quot;wt&quot;, &quot;cyl&quot;)]
+y_train &lt;- mtcars$mpg
+
+head(x_train, 3)
+#&gt;                hp    wt cyl
+#&gt; Mazda RX4     110 2.620   6
+#&gt; Mazda RX4 Wag 110 2.875   6
+#&gt; Datsun 710     93 2.320   4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The predictor frame holds three columns and no outcome. The outcome lives in its own vector. That separation is the whole idea behind the matrix interface.</p>
+
+<h2>fit_xy() syntax and arguments</h2>
+
+<p><strong>The signature is short and positional.</strong> <code>fit_xy(object, x, y, case_weights = NULL, control = control_parsnip(), ...)</code>. The first three arguments carry all the information the model needs.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>object</code></td>
+<td>A parsnip model specification, such as <code>linear_reg()</code> or <code>rand_forest()</code>.</td>
+</tr>
+<tr>
+<td><code>x</code></td>
+<td>A data frame or matrix of predictor columns, with no outcome column.</td>
+</tr>
+<tr>
+<td><code>y</code></td>
+<td>A vector or one-column data frame of outcomes. A factor for classification.</td>
+</tr>
+<tr>
+<td><code>case_weights</code></td>
+<td>Optional vector of per-row weights, for engines that support them.</td>
+</tr>
+<tr>
+<td><code>control</code></td>
+<td>A <code>control_parsnip()</code> object that toggles verbosity and logging.</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Predictors go in x, the outcome goes in y.</strong> With the data already split, fitting is one call. The block below fits an ordinary <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a> with the <code>lm</code> engine.</p>
+
+<div class="webr-container" data-block-title="Fit a linear model with fit_xy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a linear model with fit_xy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lm_spec &lt;- linear_reg() |&gt; set_engine(&quot;lm&quot;)
+
+lm_fit &lt;- fit_xy(lm_spec, x = x_train, y = y_train)
+lm_fit
+#&gt; parsnip model object
+#&gt;
+#&gt; Call:
+#&gt; stats::lm(formula = ..y ~ ., data = data)
+#&gt;
+#&gt; Coefficients:
+#&gt; (Intercept)           hp           wt          cyl
+#&gt;    38.75179     -0.01804     -3.16697     -0.94162</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>parsnip wraps the predictors and outcome into an internal formula (<code>..y ~ .</code>) and passes them to <code>lm</code>. The fitted object is a <code>model_fit</code>, ready for <code>predict()</code>.</p>
+
+<h2>Fit models with fit_xy(): two more examples</h2>
+
+<p><strong>fit_xy() works for classification, not just regression.</strong> Switch the specification, set the mode, and pass a factor outcome. The block below trains a random forest on <code>iris</code> and scores three rows.</p>
+
+<div class="webr-container" data-block-title="Fit and predict a classifier">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit and predict a classifier</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rf_spec &lt;- rand_forest(trees = 100) |&gt;
+  set_engine(&quot;ranger&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+rf_fit &lt;- fit_xy(rf_spec, x = iris[, 1:4], y = iris$Species)
+
+predict(rf_fit, new_data = iris[c(1, 51, 101), 1:4])
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 setosa
+#&gt; 2 versicolor
+#&gt; 3 virginica</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reuse one model specification across both interfaces.</strong> A spec like <code>linear_reg() |&gt; set_engine(&quot;lm&quot;)</code> is just a blueprint for a model. You can pass the same object to <code>fit()</code> or <code>fit_xy()</code> without redefining it.</div></div>
+
+<p>The outcome <code>y</code> is the <code>Species</code> factor, so parsnip knows each class. <code>predict()</code> then returns a tibble with a <code>.pred_class</code> column, one prediction per supplied row.</p>
+
+<h2>fit_xy() vs fit(): the formula difference</h2>
+
+<p><strong>The split comes down to formula preprocessing.</strong> <code>fit()</code> reads a formula, so it can build dummy variables, interactions, and inline transforms like <code>log(hp)</code>. <code>fit_xy()</code> runs no formula, so it takes the predictor columns exactly as you supply them.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Aspect</th>
+<th><code>fit()</code></th>
+<th><code>fit_xy()</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Input</td>
+<td><code>formula</code> plus <code>data</code></td>
+<td><code>x</code> predictors plus <code>y</code> outcome</td>
+</tr>
+<tr>
+<td>Formula preprocessing</td>
+<td>Applied (dummies, <code>log()</code>, interactions)</td>
+<td>None; predictors used as-is</td>
+</tr>
+<tr>
+<td>Dummy variables</td>
+<td>Created from factors via the formula</td>
+<td>Left to the engine's default encoding</td>
+</tr>
+<tr>
+<td>Best for</td>
+<td>Transforms expressed in a formula</td>
+<td>Predictors already in matrix form</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>fit_xy() does not expand factors the way a formula does.</strong> Because no formula runs, <a class="auto-link" href="Dummy-Variables-in-R.html" title="Dummy Variables in R: What lm() Does With Factor Predictors Under the Hood">factor predictors</a> are passed straight to the engine. If the engine needs numeric columns, convert factors to indicator columns yourself before calling fit_xy().</div></div>
+
+<p>When no formula transforms are involved, both interfaces produce identical coefficients. The check below confirms it.</p>
+
+<div class="webr-container" data-block-title="fit_xy and fit agree without formula terms">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">fit_xy and fit agree without formula terms</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">xy_fit &lt;- fit_xy(lm_spec, x = x_train, y = y_train)
+fm_fit &lt;- fit(lm_spec, mpg ~ hp + wt + cyl, data = mtcars)
+
+all.equal(coef(xy_fit$fit), coef(fm_fit$fit), check.attributes = FALSE)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>See the <a href="https://parsnip.tidymodels.org/reference/fit.html">parsnip reference for fit_xy()</a> for the full argument list and engine notes.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Forgetting to set the mode.</strong> A bare <code>rand_forest()</code> has no mode, and <code>fit_xy()</code> cannot reliably guess it from the outcome. Call <code>set_mode(&quot;classification&quot;)</code> or <code>set_mode(&quot;regression&quot;)</code> on the specification before fitting, or the call errors.</p>
+
+<p><strong>Expecting a formula to apply.</strong> <code>fit_xy()</code> ignores formulas entirely. A predictor you intend to transform, such as <code>log(hp)</code>, must be built as a real column before the call. Use <code>fit()</code> instead when you want formula transforms computed for you.</p>
+
+<p><strong>Mismatched columns at predict time.</strong> <code>predict()</code> expects <code>new_data</code> to carry the same predictor column names that appeared in <code>x</code>. Rename or reorder new data to match the training predictors, or prediction fails with a column error.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>fit_xy()</code> to fit a <code>linear_reg()</code> model that predicts <code>qsec</code> from <code>hp</code> and <code>wt</code> in <code>mtcars</code>. Save the fitted model to <code>ex_fit</code>.</p>
+<div class="webr-container" data-block-title="Your turn: fit with fit_xy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit with fit_xy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: predict qsec from hp and wt
+ex_spec &lt;- linear_reg() |&gt; set_engine(&quot;lm&quot;)
+ex_fit  &lt;- # your code here
+
+ex_fit
+#&gt; Expected: a model_fit object with 3 coefficients</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_spec &lt;- linear_reg() |&gt; set_engine(&quot;lm&quot;)
+ex_fit  &lt;- fit_xy(ex_spec, x = mtcars[, c(&quot;hp&quot;, &quot;wt&quot;)], y = mtcars$qsec)
+length(coef(ex_fit$fit))
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> fit_xy() takes the predictor columns as <code>x</code> and the outcome vector as <code>y</code>, so no formula is needed. The fitted <code>lm</code> has three coefficients: an intercept plus one per predictor.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<ul>
+
+<li><a href="parsnip-fit-in-R.html">fit()</a> is the formula interface counterpart of fit_xy().</li>
+
+<li><a href="parsnip-predict-in-R.html">predict()</a> scores new data from a fitted model.</li>
+
+<li><a href="parsnip-set_engine-in-R.html">set_engine()</a> chooses the computational engine.</li>
+
+<li><a href="parsnip-set_mode-in-R.html">set_mode()</a> declares regression or classification.</li>
+
+<li><a href="parsnip-extract_fit_engine-in-R.html">extract_fit_engine()</a> reaches the underlying engine object.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between fit() and fit_xy() in parsnip?</strong></p>
+
+<p><code>fit()</code> takes a formula and a data frame, reading the outcome and predictors from the formula and applying any preprocessing the formula describes, such as dummy variables and interactions. <code>fit_xy()</code> takes the predictors and outcome as separate objects, <code>x</code> and <code>y</code>, and applies no formula preprocessing. Both return the same <code>model_fit</code> object. Choose <code>fit()</code> when transformations live in a formula, and <code>fit_xy()</code> when your predictors are already a clean matrix or data frame.</p>
+
+<p><strong>Does fit_xy() create dummy variables for factor predictors?</strong></p>
+
+<p>Not on its own. Because <code>fit_xy()</code> runs no formula, factor columns are passed straight to the modeling engine. Some engines, such as ranger, accept factors directly. Others, such as glmnet or xgboost, need a fully numeric matrix and will error. The safe approach is to convert factors to indicator columns before calling <code>fit_xy()</code>, or to use a recipe with <code>step_dummy()</code> inside a workflow so the encoding is explicit and reproducible.</p>
+
+<p><strong>Can I use fit_xy() with a recipe or workflow?</strong></p>
+
+<p>Recipes and workflows use their own fitting path. A workflow built with <code>add_recipe()</code> and <code>add_model()</code> is fitted with <code>fit()</code>, not <code>fit_xy()</code>; the recipe handles preprocessing and produces the predictor matrix internally. Use <code>fit_xy()</code> for the simpler case of a standalone model specification with predictors you have already prepared yourself.</p>
+
+<p><strong>Why does fit_xy() fail for some models?</strong></p>
+
+<p><code>fit_xy()</code> relies on the engine supporting a non-formula interface. A few model and engine combinations only register a formula method, so parsnip raises an error stating that <code>fit_xy()</code> is not available. The fix is to call <code>fit()</code> with a formula instead. You can also check parsnip's documentation or run <code>show_engines()</code> to see which interfaces an engine exposes before committing to one.</p>
+
+<p><strong>Should x be a matrix or a data frame in fit_xy()?</strong></p>
+
+<p>Either works for most engines. A data frame keeps column names, which makes <code>predict()</code> and model summaries easier to read, so it is the better default. Use a matrix only when the engine specifically expects one, such as glmnet. parsnip converts between the two as the engine requires, but starting from a named data frame gives the clearest output and the safest <code>predict()</code> behavior later.</p>
+
+{% endraw %}
