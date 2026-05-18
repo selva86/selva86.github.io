@@ -1,0 +1,294 @@
+---
+title: "recipes step_interact() in R: Add Interaction Terms"
+description: "Learn how recipes step_interact() in R adds interaction terms to a tidymodels preprocessing recipe, with runnable examples for numeric and dummy variables."
+keywords: "recipes step_interact, step_interact function R, recipes step_interact examples, R interaction terms recipe, tidymodels interaction terms, step_interact tidymodels, add interaction terms recipe R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_interact()|recipes step_interact|recipes::step_interact()|step_interact in R|recipes interaction step|step_interact terms"
+auto_link_case_sensitive: true
+fr_parent: "Linear-Regression.html"
+---
+<!-- md2html:generated -->
+
+<h1>recipes step_interact() in R: Add Interaction Terms</h1>
+
+<p class="lead">The recipes step_interact() function adds <a class="auto-link" href="Interaction-Effects-in-R.html" title="Interaction Effects in R: Add Them, Test Them, and Actually Understand the Output">interaction terms</a> to a tidymodels <a class="auto-link" href="recipes-recipe-in-R.html" title="recipes recipe() in R: Build a Preprocessing Blueprint">preprocessing recipe</a>, multiplying two or more predictors into new model-ready columns. It lets a recipe capture combined effects without writing interactions by hand.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_interact(~ disp:hp)<span class="qa-cmt">                      # two-way numeric interaction</span>
+step_interact(~ disp:hp:wt)<span class="qa-cmt">                   # three-way interaction</span>
+step_interact(~ (disp + hp + wt)^2)<span class="qa-cmt">           # all pairwise interactions</span>
+step_interact(~ disp:starts_with(&quot;cyl_&quot;))<span class="qa-cmt">     # numeric x dummy columns</span>
+step_interact(~ disp:hp, sep = &quot;.x.&quot;)<span class="qa-cmt">         # custom name separator</span>
+step_interact(~ disp:hp, keep_original_cols = FALSE)<span class="qa-cmt">  # drop originals</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_interact() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">build interaction terms between predictors</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_interact(~ a:<a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a></text><text x="125" y="126" class="branch-label">convert factors to dummy columns</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_dummy(all_nominal_predictors())</text><text x="125" y="182" class="branch-label">add squared or polynomial terms</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_poly(x, degree = 2)</text><text x="125" y="238" class="branch-label">create ratios or custom math</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_mutate(ratio = a / b)</text><text x="125" y="294" class="branch-label">center and scale predictors</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">step_normalize(all_numeric_predictors())</text><text x="125" y="350" class="branch-label">spline basis expansion for curves</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">step_ns(x, deg_free = 4)</text></svg></div>
+
+<h2>What step_interact() does</h2>
+
+<p><strong>step_interact() multiplies predictors into new columns.</strong> It is a recipe step from the <code>recipes</code> package that takes a one-sided formula of interaction terms and appends one product column per term. The new columns become predictors a model can use to learn combined effects.</p>
+
+<p>An interaction means the effect of one predictor depends on the value of another. A car's horsepower may matter more for heavy cars than light ones. step_interact() encodes that as <code>wt * hp</code> so a linear model can fit a single coefficient for the combination.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>An interaction term is just a product column.</strong> step_interact() does not change your model. It engineers a feature equal to the elementwise product of its inputs, so a plain linear model can fit a coefficient for the joint effect.</div></div>
+
+<h2>step_interact() syntax and arguments</h2>
+
+<p><strong>The function signature is short but the formula carries the work.</strong> You call it inside a recipe pipeline after defining roles with <code>recipe()</code>.</p>
+
+<div class="webr-container" data-block-title="step_interact signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">step_interact signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">step_interact(
+  recipe,
+  terms,                      # one-sided formula of interactions
+  role = &quot;predictor&quot;,         # role assigned to new columns
+  sep = &quot;_x_&quot;,                # separator in new column names
+  keep_original_cols = TRUE   # keep the input columns
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>terms</code> argument is the only one you must set. It is a one-sided formula such as <code>~ disp:hp</code>, where the colon <code>:</code> marks an interaction. You can list several interactions separated by <code>+</code>, and you can use selector functions like <code>starts_with()</code> on the right-hand side.</p>
+
+<p><code>sep</code> controls how the new column is named. With the default, <code>disp</code> interacted with <code>hp</code> becomes <code>disp_x_hp</code>. <code>keep_original_cols</code> keeps the input predictors alongside the new product, which you almost always want.</p>
+
+<h2>step_interact() examples by use case</h2>
+
+<p><strong>Start with a two-way numeric interaction.</strong> Load <code>recipes</code>, declare a recipe, add the step, then <code>prep()</code> and <code>bake()</code> to see the result.</p>
+
+<div class="webr-container" data-block-title="Two-way numeric interaction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-way numeric interaction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+rec &lt;- recipe(mpg ~ disp + hp + wt, data = mtcars) |&gt;
+  step_interact(terms = ~ disp:hp)
+
+baked &lt;- rec |&gt; prep() |&gt; bake(new_data = NULL)
+names(baked)
+#&gt; [1] &quot;disp&quot;      &quot;hp&quot;        &quot;wt&quot;        &quot;mpg&quot;       &quot;disp_x_hp&quot;
+head(baked$disp_x_hp, 3)
+#&gt; [1] 17600 17600 10044</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The new <code>disp_x_hp</code> column equals <code>disp</code> times <code>hp</code> for every row. The first car has <code>disp = 160</code> and <code>hp = 110</code>, so its interaction value is <code>17600</code>.</p>
+
+<p><strong>Use the <code>^2</code> shortcut for all pairwise interactions.</strong> Wrapping a sum of predictors in <code>(...)^2</code> expands to every two-way pair without listing them.</p>
+
+<div class="webr-container" data-block-title="All pairwise interactions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">All pairwise interactions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_all &lt;- recipe(mpg ~ disp + hp + wt, data = mtcars) |&gt;
+  step_interact(terms = ~ (disp + hp + wt)^2)
+
+names(prep(rec_all) |&gt; bake(new_data = NULL))
+#&gt; [1] &quot;disp&quot;      &quot;hp&quot;        &quot;wt&quot;        &quot;mpg&quot;
+#&gt; [5] &quot;disp_x_hp&quot; &quot;disp_x_wt&quot; &quot;hp_x_wt&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Interact a numeric predictor with dummy variables.</strong> Categorical columns must be turned into dummies first with <code>step_dummy()</code>, then referenced with a selector because their names change.</p>
+
+<div class="webr-container" data-block-title="Numeric x dummy interaction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Numeric x dummy interaction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cars &lt;- transform(mtcars, cyl = factor(cyl))
+
+rec_dummy &lt;- recipe(mpg ~ disp + cyl, data = cars) |&gt;
+  step_dummy(cyl) |&gt;
+  step_interact(terms = ~ disp:starts_with(&quot;cyl_&quot;))
+
+names(prep(rec_dummy) |&gt; bake(new_data = NULL))
+#&gt; [1] &quot;disp&quot;          &quot;cyl_X6&quot;        &quot;cyl_X8&quot;        &quot;mpg&quot;
+#&gt; [5] &quot;disp_x_cyl_X6&quot; &quot;disp_x_cyl_X8&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>step_dummy()</code> creates <code>cyl_X6</code> and <code>cyl_X8</code>, so <code>starts_with(&quot;cyl_&quot;)</code> catches both and produces one interaction per dummy.</p>
+
+<p><strong>Rename the output with <code>sep</code>.</strong> A custom separator helps when downstream code expects formula-style names.</p>
+
+<div class="webr-container" data-block-title="Custom separator for column names">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Custom separator for column names</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_sep &lt;- recipe(mpg ~ disp + hp, data = mtcars) |&gt;
+  step_interact(terms = ~ disp:hp, sep = &quot;:&quot;)
+
+names(prep(rec_sep) |&gt; bake(new_data = NULL))
+#&gt; [1] &quot;disp&quot;    &quot;hp&quot;      &quot;mpg&quot;     &quot;disp:hp&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>step_interact() vs other ways to build interactions</h2>
+
+<p><strong>A model formula and step_interact() reach the same place by different routes.</strong> The recipe approach keeps preprocessing reproducible and portable across model engines.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Where it runs</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_interact(~ a:b)</code></td>
+<td>recipe, before fitting</td>
+<td>tidymodels workflows, reusable preprocessing</td>
+</tr>
+<tr>
+<td><code>lm(y ~ a*b)</code></td>
+<td>model formula</td>
+<td>quick base R models, no recipe</td>
+</tr>
+<tr>
+<td><code>step_mutate(ab = a*b)</code></td>
+<td>recipe</td>
+<td>custom math beyond plain products</td>
+</tr>
+<tr>
+<td><code>step_poly(x, degree = 2)</code></td>
+<td>recipe</td>
+<td>curvature in a single predictor</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use step_interact() when you build a tidymodels workflow and want preprocessing bundled with the model. Reach for a model formula only for one-off base R fits.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python scikit-learn?</strong> The equivalent of step_interact() is <code>PolynomialFeatures(interaction_only=True)</code> inside a <code>Pipeline</code>, which also generates product columns before the estimator sees the data.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Ordering and naming cause most step_interact() errors.</strong> Three mistakes show up repeatedly.</p>
+
+<p>First, placing <code>step_interact()</code> before <code>step_dummy()</code>. A factor cannot be multiplied, so the recipe fails at <code>prep()</code>. Always dummy-encode categorical predictors first.</p>
+
+<p>Second, referencing a factor by its original name. After <code>step_dummy(cyl)</code> the column <code>cyl</code> no longer exists, so <code>~ disp:cyl</code> finds nothing. Use <code>starts_with(&quot;cyl_&quot;)</code> to target the dummies.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A misspelled term silently drops the interaction.</strong> If the right-hand side of <code>terms</code> names a column that does not exist at that point in the recipe, no error is raised and no interaction column appears. Check <code>names()</code> of the baked data to confirm the column is there.</div></div>
+
+<p>Third, using <code>*</code> instead of <code>:</code>. In <code>step_interact()</code> the colon means interaction; a bare variable name adds no product. Stick to <code>:</code> for pairs and <code>^2</code> for full pairwise expansion.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a recipe on mtcars predicting mpg from hp and wt, then add the interaction between hp and wt. Save the baked data to ex_baked.</p>
+<div class="webr-container" data-block-title="Your turn: interact hp and wt">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: interact hp and wt</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: add the hp-by-wt interaction
+ex_baked &lt;- # your code here
+
+names(ex_baked)
+#&gt; Expected: includes &quot;hp_x_wt&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_baked &lt;- recipe(mpg ~ hp + wt, data = mtcars) |&gt;
+  step_interact(terms = ~ hp:wt) |&gt;
+  prep() |&gt;
+  bake(new_data = NULL)
+names(ex_baked)
+#&gt; [1] &quot;hp&quot;      &quot;wt&quot;      &quot;mpg&quot;     &quot;hp_x_wt&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The colon in <code>~ hp:wt</code> marks the interaction, and <code>step_interact()</code> appends the product column <code>hp_x_wt</code>. Calling <code>prep()</code> then <code>bake()</code> evaluates the recipe and returns the engineered data frame.</p>
+
+</details>
+</section>
+
+<h2>Related recipes functions</h2>
+
+<p>These steps pair naturally with step_interact() in a preprocessing recipe:</p>
+
+<ul>
+
+<li><code>step_dummy()</code> converts factors to dummy columns, a required precursor for categorical interactions.</li>
+
+<li><code>step_poly()</code> adds polynomial terms to capture curvature in one predictor.</li>
+
+<li><code>step_normalize()</code> centers and scales predictors, often run after interactions.</li>
+
+<li><code>step_mutate()</code> builds arbitrary derived columns when a plain product is not enough.</li>
+
+<li><code>recipe()</code> defines the variable roles every step operates on.</li>
+
+</ul>
+
+<p>See the official <a href="https://recipes.tidymodels.org/reference/step_interact.html">step_interact() reference</a> for the full argument list.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between <code>:</code> and <code>*</code> in step_interact()?</strong></p>
+
+<p>In the <code>terms</code> formula, the colon <code>:</code> creates the interaction term only, which is what step_interact() exists to do. The <code>(a + b)^2</code> form expands to all main pairs. Unlike a model formula, you do not use <code>*</code> here, because the original predictors are already kept by <code>keep_original_cols</code>. Stick with <code>:</code> for explicit pairs and <code>^2</code> for full pairwise expansion.</p>
+
+<p><strong>Do I need step_dummy() before step_interact()?</strong></p>
+
+<p>Yes, for any categorical predictor. step_interact() multiplies columns, and a factor cannot be multiplied. Run <code>step_dummy()</code> first to turn the factor into numeric 0/1 dummy columns, then interact those dummies with other predictors. Numeric-only interactions need no dummy step.</p>
+
+<p><strong>How are the new interaction columns named?</strong></p>
+
+<p>By default the names join the input columns with <code>_x_</code>, so <code>disp</code> and <code>hp</code> produce <code>disp_x_hp</code>. Change this with the <code>sep</code> argument, for example <code>sep = &quot;:&quot;</code> gives <code>disp:hp</code>. Consistent naming matters when downstream code selects columns by pattern.</p>
+
+<p><strong>Can step_interact() create three-way interactions?</strong></p>
+
+<p>Yes. Write <code>~ disp:hp:wt</code> to multiply all three predictors into a single column. You can also combine terms, such as <code>~ disp:hp + disp:wt</code>, to add several interactions in one step. Each distinct term on the right-hand side becomes its own new column.</p>
+
+<p><strong>Does step_interact() keep the original predictors?</strong></p>
+
+<p>Yes, because <code>keep_original_cols</code> defaults to <code>TRUE</code>. The recipe returns both the input columns and the new product columns, which is what most models need. Set <code>keep_original_cols = FALSE</code> only when you want the interaction column to replace its inputs entirely.</p>
