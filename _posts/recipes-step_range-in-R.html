@@ -1,0 +1,361 @@
+---
+title: "recipes step_range() in R: Scale Predictors to a 0-1 Range"
+description: "recipes step_range() in R rescales numeric predictors to a fixed interval, 0 to 1 by default. Syntax, min/max arguments, clipping, examples, and pitfalls."
+keywords: "recipes step_range, step_range function R, recipes step_range examples, R rescale predictors, tidymodels step_range, min-max scaling recipe R, normalize range R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_range()|recipes step_range|recipes::step_range()|step_range|rescale numeric predictors"
+auto_link_case_sensitive: true
+fr_parent: "caret-preProcess-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>recipes step_range() in R: Scale Predictors to a 0-1 Range</h1>
+
+<p class="lead">The <code>recipes</code> <code>step_range()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> rescales each numeric predictor to a fixed interval, 0 to 1 by default, using the minimum and maximum learned from the training set. You add it to a <code>recipe()</code>, estimate the ranges with <code>prep()</code>, and apply them with <code>bake()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_range(rec, all_numeric_predictors())<span class="qa-cmt">            # rescale all predictors to 0-1</span>
+step_range(rec, mpg, hp)<span class="qa-cmt">                             # rescale named columns</span>
+step_range(rec, all_numeric(), min = -1, max = 1)<span class="qa-cmt">    # custom target range</span>
+step_range(rec, contains(&quot;score&quot;))<span class="qa-cmt">                   # rescale by name pattern</span>
+step_range(rec, all_numeric_predictors(), clipping = FALSE)<span class="qa-cmt">  # allow out-of-range output</span>
+prep(rec) |&gt; bake(new_data = NULL)<span class="qa-cmt">                   # estimate ranges, then apply</span>
+tidy(prep(rec), number = 1)<span class="qa-cmt">                          # inspect the learned min/max</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_range() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">squeeze predictors into a fixed 0-1 interval</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_range(rec, all_numeric_predictors())</text><text x="125" y="126" class="branch-label">want mean 0 and SD 1 instead</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_normalize(rec, all_numeric_predictors())</text><text x="125" y="182" class="branch-label">only divide by the standard deviation</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_scale(rec, all_numeric_predictors())</text><text x="125" y="238" class="branch-label">only subtract the mean</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_center(rec, all_numeric_predictors())</text><text x="125" y="294" class="branch-label">fix skew before rescaling</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">step_YeoJohnson(rec, all_numeric_predictors())</text><text x="125" y="350" class="branch-label">drop constant columns first</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">step_zv(rec, all_predictors())</text></svg></div>
+
+<h2>What step_range() does in R</h2>
+
+<p><strong>step_range() linearly rescales a column so its smallest value becomes the target minimum and its largest becomes the target maximum.</strong> During <code>prep()</code> it records the minimum and maximum of each selected column. During <code>bake()</code> it applies the formula <code>(x - min) / (max - min)</code>, then stretches the result to the requested interval. With the defaults, every column lands between 0 and 1.</p>
+
+<p>This transformation is often called min-max scaling or normalization. It is useful when a model expects bounded inputs, when you want predictors on a common 0-to-1 footing for plotting, or when an algorithm such as a neural network trains more smoothly on a compact range. Unlike standardizing, it preserves the exact shape of the distribution and simply relabels the axis.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The minimum and maximum are learned once, on training data only.</strong> <code>step_range()</code> stores the training extremes inside the prepped recipe. When you <code>bake()</code> new data, it reuses those stored values, so test rows are rescaled with training statistics and no information leaks across the split.</div></div>
+
+<h2>step_range() syntax and arguments</h2>
+
+<p><strong>step_range() attaches a rescaling operation to a recipe.</strong> You pass the recipe first, then a set of columns selected with tidyselect helpers.</p>
+
+<div class="webr-container" data-block-title="The step_range skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The step_range skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+recipe(mpg ~ ., data = mtcars) |&gt;
+  step_range(all_numeric_predictors())
+#&gt; -- Recipe ---------------------------------------------------------------
+#&gt; -- Inputs
+#&gt; Number of variables by role
+#&gt; outcome:    1
+#&gt; predictor: 10
+#&gt; -- Operations
+#&gt; * Range scaling to [0,1] for: all_numeric_predictors()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments you will actually touch:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>recipe</code></td>
+<td>The recipe object the step is added to.</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Columns to rescale, chosen with selectors like <code>all_numeric_predictors()</code>.</td>
+</tr>
+<tr>
+<td><code>min</code></td>
+<td>Lower bound of the target interval. Default <code>0</code>.</td>
+</tr>
+<tr>
+<td><code>max</code></td>
+<td>Upper bound of the target interval. Default <code>1</code>.</td>
+</tr>
+<tr>
+<td><code>clipping</code></td>
+<td>If <code>TRUE</code> (default), new data outside the training range is clamped to <code>[min, max]</code>.</td>
+</tr>
+<tr>
+<td><code>ranges</code></td>
+<td>Filled in by <code>prep()</code>; holds the estimated minimum and maximum per column.</td>
+</tr>
+<tr>
+<td><code>skip</code></td>
+<td>If <code>TRUE</code>, the step is ignored when baking new data. Leave <code>FALSE</code> for rescaling.</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Rescaling predictors: worked examples</h2>
+
+<p><strong>Build the recipe, prep it, then bake.</strong> A recipe is just a plan until <code>prep()</code> estimates the statistics from data. The first example rescales every numeric predictor in <code>mtcars</code> to the default 0-to-1 range.</p>
+
+<div class="webr-container" data-block-title="Rescale predictors to 0-1">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rescale predictors to 0-1</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec &lt;- recipe(mpg ~ ., data = mtcars) |&gt;
+  step_range(all_numeric_predictors())
+
+ranged &lt;- prep(rec) |&gt; bake(new_data = NULL)
+round(head(ranged[c(&quot;hp&quot;, &quot;wt&quot;, &quot;mpg&quot;)]), 2)
+#&gt;     hp   wt  mpg
+#&gt; 1 0.20 0.28 21.0
+#&gt; 2 0.20 0.35 21.0
+#&gt; 3 0.14 0.21 22.8
+#&gt; 4 0.20 0.44 21.4
+#&gt; 5 0.43 0.49 18.7
+#&gt; 6 0.19 0.50 18.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The outcome <code>mpg</code> is untouched because <code>all_numeric_predictors()</code> excludes it. To confirm the step worked, check the range of each result column.</p>
+
+<div class="webr-container" data-block-title="Verify the rescaled ranges">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Verify the rescaled ranges</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sapply(ranged[c(&quot;hp&quot;, &quot;wt&quot;, &quot;disp&quot;)], range)
+#&gt;      hp wt disp
+#&gt; [1,]  0  0    0
+#&gt; [2,]  1  1    1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every column now runs from exactly 0 to 1. To see the learned extremes, call <code>tidy()</code> on the prepped recipe with the step number.</p>
+
+<div class="webr-container" data-block-title="Inspect the learned min and max">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the learned min and max</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prepped &lt;- prep(rec)
+tidy(prepped, number = 1)[1:3, ]
+#&gt; # A tibble: 3 x 4
+#&gt;   terms   min   max id
+#&gt;   &lt;chr&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 cyl     4      8   range_AbC12
+#&gt; 2 disp   71.1  472. range_AbC12
+#&gt; 3 hp     52    335  range_AbC12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>min</code> and <code>max</code> arguments change the target interval. Setting <code>min = -1</code> and <code>max = 1</code> rescales each column into a symmetric range around zero, a layout many neural network and signal-processing pipelines prefer.</p>
+
+<div class="webr-container" data-block-title="Rescale to a custom range">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rescale to a custom range</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_pm1 &lt;- recipe(mpg ~ ., data = mtcars) |&gt;
+  step_range(all_numeric_predictors(), min = -1, max = 1)
+
+scaled_pm1 &lt;- prep(rec_pm1) |&gt; bake(new_data = NULL)
+round(sapply(scaled_pm1[c(&quot;hp&quot;, &quot;wt&quot;)], range), 2)
+#&gt;      hp wt
+#&gt; [1,] -1 -1
+#&gt; [2,]  1  1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fourth example shows <code>clipping</code> in action. A new observation whose <code>hp</code> exceeds the training maximum of 335 would scale above 1, but with <code>clipping = TRUE</code> the output is clamped to the interval.</p>
+
+<div class="webr-container" data-block-title="Clipping keeps new data inside the range">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Clipping keeps new data inside the range</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">new_car &lt;- mtcars[1, ]
+new_car$hp &lt;- 400        # above the training max of 335
+
+bake(prepped, new_data = new_car)$hp
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With <code>clipping = FALSE</code>, the same row would return about 1.23, because the linear formula is applied without a bound. Clipping is the safer default for production scoring, where stray extreme values should not push a predictor outside its trained interval.</p>
+
+<h2>step_range() vs step_normalize() vs step_scale()</h2>
+
+<p><strong>Pick the step that matches the transformation you need.</strong> Range scaling, normalizing, and scaling are related but distinct, and recipes gives each its own step.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What it does</th>
+<th>Resulting column</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_range()</code></td>
+<td>Rescales to a fixed interval</td>
+<td>Bounded, default 0 to 1</td>
+</tr>
+<tr>
+<td><code>step_normalize()</code></td>
+<td>Centers and scales together</td>
+<td>Mean 0, SD 1, unbounded</td>
+</tr>
+<tr>
+<td><code>step_scale()</code></td>
+<td>Divides by the standard deviation</td>
+<td>SD 1, original center</td>
+</tr>
+<tr>
+<td><code>step_center()</code></td>
+<td>Subtracts the mean</td>
+<td>Mean 0, original spread</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>step_range()</code> when you need predictors inside hard bounds, for example before a model that assumes inputs in <code>[0, 1]</code>. Reach for <code>step_normalize()</code> instead when an algorithm cares about spread relative to the mean, such as <a class="auto-link" href="Ridge-and-Lasso-Regression-in-R.html" title="Ridge and Lasso in R: How Penalised Regression Shrinks Coefficients and Selects Variables">regularized regression</a> or <a class="auto-link" href="PCA-in-R.html" title="PCA in R: Reduce Dimensions, Visualise Structure, and Understand What prcomp() Returns">principal component analysis</a>. The two are not interchangeable: range scaling is bounded but sensitive to outliers, while normalizing is unbounded but robust to a single extreme value stretching the column.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reduce skew before you rescale.</strong> Run <code>step_YeoJohnson()</code> or <code>step_BoxCox()</code> first when predictors are heavily skewed, then rescale. Squeezing a skewed column into 0-to-1 leaves the shape exactly as lopsided as before, with most points bunched near one edge.</div></div>
+
+<h2>Common pitfalls with step_range()</h2>
+
+<p><strong>Watch your <a class="auto-link" href="dplyr-select-in-R.html" title="dplyr select() in R: Choose, Rename and Reorder Columns">column selection</a> and your outliers.</strong> The most frequent mistakes come from rescaling the wrong columns or ignoring how a single extreme value behaves.</p>
+
+<ol>
+
+<li><strong>Rescaling the outcome.</strong> <code>all_numeric()</code> includes the response variable. Use <code>all_numeric_predictors()</code> so the model still trains and predicts on the original target scale.</li>
+
+<li><strong>Forgetting to prep.</strong> Calling <code>bake()</code> on a recipe that was never prepped throws an error, because the minimum and maximum have not been estimated yet.</li>
+
+<li><strong><a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">Outlier</a> domination.</strong> One extreme value sets the maximum, so every other observation gets squashed near 0. Range scaling has no defense against outliers the way standardizing partly does; inspect or cap extremes first.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never compute the minimum and maximum on the full dataset before splitting.</strong> Rescaling with extremes that saw the test rows leaks information and inflates your performance estimate. Always wrap range scaling in a recipe and let <code>prep()</code> use training data only.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Rescale only the <code>hp</code> and <code>wt</code> columns of <code>mtcars</code> to a 0-to-1 range in a recipe, prep it, and save the baked result to <code>ex_ranged</code>.</p>
+<div class="webr-container" data-block-title="Your turn: rescale two columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rescale two columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: rescale hp and wt only
+ex_rec &lt;- recipe(mpg ~ ., data = mtcars) |&gt;
+  step_range(# your code here)
+
+ex_ranged &lt;- # your code here
+
+round(range(ex_ranged$hp), 6)
+#&gt; Expected: 0 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec &lt;- recipe(mpg ~ ., data = mtcars) |&gt;
+  step_range(hp, wt)
+
+ex_ranged &lt;- prep(ex_rec) |&gt; bake(new_data = NULL)
+round(range(ex_ranged$hp), 6)
+#&gt; [1] 0 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Passing bare column names to <code>step_range()</code> limits the step to just <code>hp</code> and <code>wt</code>. After <code>prep()</code> learns their training minimum and maximum and <code>bake()</code> applies the linear formula, the <code>hp</code> column runs from 0 to 1.</p>
+
+</details>
+</section>
+
+<h2>Related recipes steps</h2>
+
+<p><strong>step_range() is one of several recipes preprocessing steps.</strong> These pair naturally with it in a tidymodels workflow:</p>
+
+<ul>
+
+<li><a href="recipes-step_normalize-in-R.html">step_normalize()</a> centers and scales to mean 0 and SD 1.</li>
+
+<li><a href="recipes-step_scale-in-R.html">step_scale()</a> divides each column by its standard deviation.</li>
+
+<li><a href="recipes-step_center-in-R.html">step_center()</a> subtracts the mean only.</li>
+
+<li><a href="recipes-step_YeoJohnson-in-R.html">step_YeoJohnson()</a> reduces skew before rescaling.</li>
+
+<li><a href="recipes-step_zv-in-R.html">step_zv()</a> drops zero-variance columns that cannot be rescaled.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The equivalent of <code>step_range()</code> is scikit-learn's <code>MinMaxScaler</code>, or <code>(df - df.min()) / (df.max() - df.min())</code>. The recipes version differs by learning the extremes on training data and reapplying them automatically, with optional clipping for new data.</div></div>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between step_range() and step_normalize()?</strong></p>
+
+<p><code>step_range()</code> rescales a column to a fixed interval, 0 to 1 by default, using the training minimum and maximum. The result is bounded but sensitive to outliers, since one extreme value sets an endpoint. <code>step_normalize()</code> instead subtracts the mean and divides by the standard deviation, leaving the column with mean 0 and SD 1. Its output is unbounded but more robust to a single extreme value. Choose <code>step_range()</code> for hard bounds and <code>step_normalize()</code> when spread relative to the mean matters.</p>
+
+<p><strong>What does the clipping argument do in step_range()?</strong></p>
+
+<p>The <code>clipping</code> argument controls what happens when new data falls outside the range learned from training. With <code>clipping = TRUE</code>, the default, any baked value below <code>min</code> or above <code>max</code> is clamped to that bound, so a predictor never leaves its trained interval. With <code>clipping = FALSE</code>, the linear formula is applied without limits, so out-of-range inputs can produce values below 0 or above 1. Keep clipping on for production scoring, where stray extreme values should not escape the interval.</p>
+
+<p><strong>What range does step_range() scale to by default?</strong></p>
+
+<p>By default <code>step_range()</code> rescales each selected column to the interval from 0 to 1, because <code>min = 0</code> and <code>max = 1</code>. You can change the target interval by passing different values, for example <code>min = -1, max = 1</code> for a symmetric range around zero. The transformation is linear: the column minimum maps to <code>min</code>, the column maximum maps to <code>max</code>, and every value in between is placed proportionally.</p>
+
+<p><strong>When should I use step_range() instead of step_scale()?</strong></p>
+
+<p>Use <code>step_range()</code> when a model or downstream step needs inputs inside hard bounds, such as a neural network expecting values in <code>[0, 1]</code> or a plot that compares predictors on a common axis. Use <code>step_scale()</code> when you want unit variance while keeping each column's original mean, which suits distance-based and penalized models. Range scaling fixes the endpoints; scaling fixes the spread. They answer different needs and should not be swapped casually.</p>
+
+{% endraw %}
