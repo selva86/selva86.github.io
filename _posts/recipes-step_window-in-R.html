@@ -1,0 +1,349 @@
+---
+title: "recipes step_window() in R: Smooth Numeric Predictors"
+description: "recipes step_window() in R computes moving-window statistics like a rolling mean or median on a numeric column. Learn the size, statistic and names arguments."
+keywords: "recipes step_window, step_window function R, recipes step_window examples, R moving average recipe, rolling window preprocessing R, step_window tidymodels, smooth column R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_window()|recipes step_window|recipes::step_window()|step_window|moving window recipe"
+auto_link_case_sensitive: true
+fr_parent: "caret-preProcess-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>recipes step_window() in R: Smooth Numeric Predictors</h1>
+
+<p class="lead">The <code>recipes</code> <code>step_window()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> computes a moving-window statistic, such as a rolling mean or median, across a numeric column to smooth out short-term noise. You add it to a <code>recipe()</code>, register it with <code>prep()</code>, and apply it with <code>bake()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_window(rec, units)<span class="qa-cmt">                        # 3-point moving mean, in place</span>
+step_window(rec, units, size = 5)<span class="qa-cmt">              # wider 5-point window</span>
+step_window(rec, units, statistic = &quot;median&quot;)<span class="qa-cmt">  # rolling median, robust to spikes</span>
+step_window(rec, units, statistic = &quot;sum&quot;)<span class="qa-cmt">     # rolling sum over the window</span>
+step_window(rec, units, names = &quot;units_ma&quot;)<span class="qa-cmt">    # new column, keep the original</span>
+step_window(rec, units, na_rm = FALSE)<span class="qa-cmt">         # let NA propagate into windows</span>
+prep(rec) |&gt; bake(new_data = NULL)<span class="qa-cmt">             # learn, then apply</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_window() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">smooth a noisy series with a moving average</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_window(rec, units)</text><text x="125" y="126" class="branch-label">copy a past value as a feature</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_lag(rec, units, lag = 1)</text><text x="125" y="182" class="branch-label"><a class="auto-link" href="tidyr-replace_na-in-R.html" title="tidyr replace_na() in R: Replace NA With a Value">fill NA</a> gaps with a rolling statistic</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_impute_roll(rec, units)</text><text x="125" y="238" class="branch-label">extract calendar parts from a date</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_date(rec, week)</text><text x="125" y="294" class="branch-label">rescale a column to mean zero</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">step_normalize(rec, units)</text><text x="125" y="350" class="branch-label">apply a custom rolling formula</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">step_mutate(rec, ...)</text></svg></div>
+
+<h2>What step_window() does in R</h2>
+
+<p><strong>step_window() replaces a column with its own moving-window summary.</strong> Raw measurements often jitter from week to week even when the underlying trend is smooth. <code>step_window()</code> slides a fixed-width window along a numeric column and, at every row, replaces the value with a statistic computed from the values inside that window. The default statistic is the mean, so the column becomes a moving average of itself.</p>
+
+<p>It belongs to the <code>recipes</code> package, the feature-engineering layer of tidymodels. The window is center-justified: for a window of <code>size = 3</code>, the smoothed value at a row is the statistic of that row plus its immediate neighbour on each side. The first and last rows have no full window, so they reuse the first and last complete window values respectively. That keeps the output the same length as the input with no <code>NA</code> cells.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>step_window() overwrites the column unless you ask it not to.</strong> With no <code>names</code> argument, the smoothed values replace the original column in place. Supply <code>names</code> and the step instead creates fresh columns and leaves the source untouched. Decide which you want before you prep the recipe.</div></div>
+
+<h2>step_window() syntax and arguments</h2>
+
+<p><strong>step_window() attaches a windowing operation to a recipe.</strong> You pass the recipe first, then the numeric columns to smooth, named directly or chosen with a selector such as <code>all_numeric_predictors()</code>.</p>
+
+<div class="webr-container" data-block-title="The step_window skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The step_window skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+sales &lt;- data.frame(
+  week  = as.Date(&quot;2024-01-01&quot;) + 7 * 0:7,
+  units = c(120, 150, 135, 165, 150, 180, 165, 195)
+)
+
+recipe(units ~ week, data = sales) |&gt;
+  step_window(units, size = 3)
+#&gt; -- Recipe ----------------------------------------------------------------
+#&gt; -- Inputs
+#&gt; Number of variables by role
+#&gt; outcome:   1
+#&gt; predictor: 1
+#&gt; -- Operations
+#&gt; * Moving window: units</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments you will actually touch:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>recipe</code></td>
+<td>The recipe object the step is added to.</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Numeric columns to smooth, named or chosen with a selector.</td>
+</tr>
+<tr>
+<td><code>size</code></td>
+<td>Window width. Must be an odd integer of 3 or more. Default <code>3</code>.</td>
+</tr>
+<tr>
+<td><code>statistic</code></td>
+<td>Window summary: <code>&quot;mean&quot;</code>, <code>&quot;median&quot;</code>, <code>&quot;sum&quot;</code>, <code>&quot;min&quot;</code>, <code>&quot;max&quot;</code>, <code>&quot;sd&quot;</code>, <code>&quot;var&quot;</code> or <code>&quot;prod&quot;</code>. Default <code>&quot;mean&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>na_rm</code></td>
+<td>Drop <code>NA</code> inside each window before computing. Default <code>TRUE</code>.</td>
+</tr>
+<tr>
+<td><code>names</code></td>
+<td>Optional new column names. Supply this to keep the originals.</td>
+</tr>
+<tr>
+<td><code>keep_original_cols</code></td>
+<td>Keep the source columns when <code>names</code> is set. Default <code>TRUE</code>.</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>The size and statistic arguments shape the smoothing.</strong> A larger <code>size</code> averages over more rows and produces a flatter line, while <code>statistic</code> swaps the mean for a median, sum, or spread measure. Both are common targets for tuning when the smoothing window itself is a model hyperparameter.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>step_window() needs the RcppRoll package.</strong> The rolling math is delegated to RcppRoll, so install it once with <code>install.packages(&quot;RcppRoll&quot;)</code>. If it is missing, <code>prep()</code> stops with a message naming the package rather than smoothing the column.</div></div>
+
+<h2>step_window() examples</h2>
+
+<p><strong>Build the recipe, prep it, then bake.</strong> A recipe is only a plan until <code>prep()</code> registers the steps and <code>bake()</code> applies them. This recipe smooths <code>units</code> with the default 3-point moving mean.</p>
+
+<div class="webr-container" data-block-title="Smooth a column in place">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Smooth a column in place</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec &lt;- recipe(units ~ week, data = sales) |&gt;
+  step_window(units, size = 3)
+
+baked &lt;- prep(rec) |&gt; bake(new_data = NULL)
+baked
+#&gt; # A tibble: 8 x 2
+#&gt;   week       units
+#&gt;   &lt;date&gt;     &lt;dbl&gt;
+#&gt; 1 2024-01-01   135
+#&gt; 2 2024-01-08   135
+#&gt; 3 2024-01-15   150
+#&gt; 4 2024-01-22   150
+#&gt; 5 2024-01-29   165
+#&gt; 6 2024-02-05   165
+#&gt; 7 2024-02-12   180
+#&gt; 8 2024-02-19   180</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The zigzag in the raw <code>units</code> figures is gone, leaving a clean rising trend. Notice the column is still called <code>units</code>: the smoothed values replaced the originals. To keep both, pass the <code>names</code> argument.</p>
+
+<div class="webr-container" data-block-title="Keep the original column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keep the original column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_named &lt;- recipe(units ~ week, data = sales) |&gt;
+  step_window(units, size = 3, names = &quot;units_ma&quot;)
+
+prep(rec_named) |&gt; bake(new_data = NULL)
+#&gt; # A tibble: 8 x 3
+#&gt;   week       units units_ma
+#&gt;   &lt;date&gt;     &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 2024-01-01   120      135
+#&gt; 2 2024-01-08   150      135
+#&gt; 3 2024-01-15   135      150
+#&gt; 4 2024-01-22   165      150
+#&gt; 5 2024-01-29   150      165
+#&gt; 6 2024-02-05   180      165
+#&gt; 7 2024-02-12   165      180
+#&gt; 8 2024-02-19   195      180</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now <code>units</code> keeps its raw values and <code>units_ma</code> carries the moving average alongside it. The <code>size</code> and <code>statistic</code> arguments change how aggressively the column is smoothed.</p>
+
+<div class="webr-container" data-block-title="Wider window and a different statistic">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wider window and a different statistic</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">recipe(units ~ week, data = sales) |&gt;
+  step_window(units, size = 5, statistic = &quot;median&quot;, names = &quot;units_med&quot;) |&gt;
+  prep() |&gt;
+  bake(new_data = NULL)
+#&gt; # A tibble: 8 x 3
+#&gt;   week       units units_med
+#&gt;   &lt;date&gt;     &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 2024-01-01   120       150
+#&gt; 2 2024-01-08   150       150
+#&gt; 3 2024-01-15   135       150
+#&gt; 4 2024-01-22   165       150
+#&gt; 5 2024-01-29   150       165
+#&gt; 6 2024-02-05   180       165
+#&gt; 7 2024-02-12   165       165
+#&gt; 8 2024-02-19   195       165</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A <code>size = 5</code> window spans five rows, and <code>statistic = &quot;median&quot;</code> reports the middle value instead of the average. The median ignores how far an <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a> sits from the centre, so a single spike moves it far less than it moves a mean.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for the median when spikes are noise, not signal.</strong> A promotion week or a data-entry error can drag a moving mean off course for several rows. <code>statistic = &quot;median&quot;</code> reports the central value of each window, so one extreme point barely shifts the smoothed line.</div></div>
+
+<h2>step_window() vs step_lag() vs slider</h2>
+
+<p><strong>Pick the tool that matches whether you want an aggregate, a copy, or raw control.</strong> A window summarises nearby rows, a lag copies one past row, and a manual rolling call trades convenience for flexibility.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>What it produces</th>
+<th>New data handling</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_window()</code></td>
+<td>Rolling statistic such as a moving mean or median</td>
+<td><code>bake()</code> reapplies the window to new rows</td>
+</tr>
+<tr>
+<td><code>step_lag()</code></td>
+<td>Shifted copies of a column as past-value features</td>
+<td><code>bake()</code> reapplies the shift to new rows</td>
+</tr>
+<tr>
+<td><code>slider::slide_dbl()</code></td>
+<td>Any rolling computation you write by hand</td>
+<td>You rerun the <code>mutate()</code> on every new dataset</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>step_window()</code> when a smoothed trend matters more than any single observation. Reach for <code>step_lag()</code> when the exact past value is the feature you need. Drop down to <code>slider</code> only for a rolling computation that <code>statistic</code> cannot express.</p>
+
+<h2>Common pitfalls with step_window()</h2>
+
+<p><strong>Most failures trace back to window size or row order.</strong> Watch these three traps when adding the step.</p>
+
+<ol>
+
+<li><strong>Even or too-small window.</strong> <code>size</code> must be an odd integer of 3 or more. Passing <code>size = 4</code> or <code>size = 2</code> throws an error before the recipe preps, because a center-justified window has no defined midpoint without an odd width.</li>
+
+<li><strong>Unsorted data.</strong> The window slides by row position, not by date. If the rows are not already in time order, the moving average mixes unrelated periods. Sort with <code>arrange(week)</code> before you build the recipe.</li>
+
+<li><strong>Mixing several series in one frame.</strong> <code>step_window()</code> has no group awareness. With stacked panels, such as sales for many stores, the window straddles the boundary between stores. Smooth each series separately or filter to one before applying the step.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A large window quietly leaks the future.</strong> A center-justified window uses rows on both sides of the current one, so a wide <code>size</code> blends in values that come after each point. For honest <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a> features, prefer <code>step_lag()</code> or a trailing window, since <code>step_window()</code> peeks ahead by design.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add <code>step_window()</code> to a recipe on the <code>sales</code> data so it creates a 5-point moving mean of <code>units</code> in a new column called <code>units_avg5</code>, then bake it. Save the result to <code>ex_smoothed</code>.</p>
+<div class="webr-container" data-block-title="Your turn: build a 5-point mean">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build a 5-point mean</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: 5-point moving mean of units
+ex_rec &lt;- recipe(units ~ week, data = sales) |&gt;
+  step_window(# your code here)
+
+ex_smoothed &lt;- # your code here
+names(ex_smoothed)
+#&gt; Expected: week, units, units_avg5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec &lt;- recipe(units ~ week, data = sales) |&gt;
+  step_window(units, size = 5, statistic = &quot;mean&quot;, names = &quot;units_avg5&quot;)
+
+ex_smoothed &lt;- prep(ex_rec) |&gt; bake(new_data = NULL)
+names(ex_smoothed)
+#&gt; [1] &quot;week&quot;       &quot;units&quot;      &quot;units_avg5&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Setting <code>names = &quot;units_avg5&quot;</code> tells <code>step_window()</code> to write a new column rather than overwrite <code>units</code>. With <code>size = 5</code> and the default <code>statistic = &quot;mean&quot;</code>, that column holds a five-row moving average.</p>
+
+</details>
+</section>
+
+<h2>Related recipes steps</h2>
+
+<p><strong>step_window() is one of several recipes steps for time-based predictors.</strong> These pair naturally with it in a tidymodels workflow:</p>
+
+<ul>
+
+<li><a href="recipes-step_lag-in-R.html">step_lag()</a> creates shifted copies of a column as past-value features.</li>
+
+<li><a href="recipes-step_date-in-R.html">step_date()</a> extracts month, day-of-week, and year from a date.</li>
+
+<li><a href="recipes-step_impute_roll-in-R.html">step_impute_roll()</a> fills <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> with a rolling-window statistic.</li>
+
+<li><a href="recipes-step_normalize-in-R.html">step_normalize()</a> centers and scales a numeric column.</li>
+
+<li><a href="recipes-recipe-in-R.html">recipe()</a> is the starting point every step is added to.</li>
+
+</ul>
+
+<p>See the <a href="https://recipes.tidymodels.org/reference/step_window.html">official step_window() reference</a> for the full argument list.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does step_window() do in R?</strong></p>
+
+<p><code>step_window()</code> is a recipes step that computes a moving-window statistic across a numeric column. At every row it slides a fixed-width window, summarises the values inside with a statistic such as the mean or median, and uses that as the row's value. The default is a 3-point moving mean. You add it to a <code>recipe()</code>, register it with <code>prep()</code>, and apply it with <code>bake()</code>. By default it replaces the column in place, keeping the output the same length as the input.</p>
+
+<p><strong>What window sizes can step_window() use?</strong></p>
+
+<p>The <code>size</code> argument must be an odd integer of 3 or more. Odd widths are required because the window is center-justified: each smoothed value sits at the midpoint of its window, and only an odd count of rows has a true middle. Common choices are <code>3</code>, <code>5</code>, and <code>7</code>. A larger <code>size</code> produces a flatter, less responsive line and is often tuned as a hyperparameter.</p>
+
+<p><strong>Does step_window() replace the original column?</strong></p>
+
+<p>Yes, by default. With no <code>names</code> argument, the smoothed values overwrite the source column and the role stays unchanged. To keep the raw column, pass <code>names</code> with one new name per selected column. The step then writes those new columns and leaves the originals in place, controlled by <code>keep_original_cols</code>, which defaults to <code>TRUE</code>.</p>
+
+<p><strong>Why does step_window() need RcppRoll?</strong></p>
+
+<p>The rolling calculations are delegated to the RcppRoll package, which implements them in compiled C++ for speed. <code>recipes</code> lists RcppRoll as a suggested dependency rather than a hard one, so it is not installed automatically. If you call <code>step_window()</code> without it, <code>prep()</code> stops with a message telling you to run <code>install.packages(&quot;RcppRoll&quot;)</code>. Install it once and the step works normally.</p>
+
+</content>
+
+</invoke>
+
+{% endraw %}
