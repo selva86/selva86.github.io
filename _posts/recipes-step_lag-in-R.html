@@ -1,0 +1,343 @@
+---
+title: "recipes step_lag() in R: Create Lagged Predictors"
+description: "recipes step_lag() in R creates lagged copies of a column as new predictors for time-series models. Learn the lag argument, prefix, default, prep and bake."
+keywords: "recipes step_lag, step_lag function R, recipes step_lag examples, R lagged predictors, step_lag tidymodels, lag features R, create lag variables R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_lag()|recipes step_lag|recipes::step_lag()|step_lag|lagged predictors"
+auto_link_case_sensitive: true
+fr_parent: "caret-preProcess-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>recipes step_lag() in R: Create Lagged Predictors</h1>
+
+<p class="lead">The <code>recipes</code> <code>step_lag()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> creates lagged copies of a column, shifting its values down by one or more rows so past observations become new predictor columns. You add it to a <code>recipe()</code>, register it with <code>prep()</code>, and apply it with <code>bake()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_lag(rec, units, lag = 1)<span class="qa-cmt">              # one lag column</span>
+step_lag(rec, units, lag = 1:3)<span class="qa-cmt">            # lags 1, 2 and 3</span>
+step_lag(rec, units, lag = c(1, 4))<span class="qa-cmt">        # last week and four weeks back</span>
+step_lag(rec, units, prefix = &quot;back_&quot;)<span class="qa-cmt">     # custom column prefix</span>
+step_lag(rec, units, default = 0)<span class="qa-cmt">          # fill leading gaps with 0</span>
+prep(rec) |&gt; bake(new_data = NULL)<span class="qa-cmt">         # learn, then apply</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_lag() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">shift a column back in time</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_lag(rec, units, lag = 1)</text><text x="125" y="126" class="branch-label">rolling mean or sum over a window</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_window(rec, units)</text><text x="125" y="182" class="branch-label">extract month, weekday, year from a date</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_date(rec, week)</text><text x="125" y="238" class="branch-label">flag named holidays on a date</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_holiday(rec, week)</text><text x="125" y="294" class="branch-label">drop rows with NA from leading lags</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">step_naomit(rec, all_predictors())</text><text x="125" y="350" class="branch-label">compute a change instead of a copy</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">step_mutate(rec, chg = units - lag(units))</text></svg></div>
+
+<h2>What step_lag() does in R</h2>
+
+<p><strong>step_lag() turns past values into present-day predictors.</strong> Time-series models learn from history: last week's sales help predict this week's. A raw measurement column carries no memory, because each row stands alone. <code>step_lag()</code> copies a column and shifts it down by a fixed number of rows, so the value from <code>lag</code> rows ago lands next to the current row.</p>
+
+<p>It belongs to the <code>recipes</code> package, the feature-engineering layer of tidymodels. The new column is named <code>&lt;prefix&gt;&lt;lag&gt;_&lt;variable&gt;</code>. With the default <code>prefix = &quot;lag_&quot;</code>, lagging a <code>units</code> column by 1 produces a column called <code>lag_1_units</code>. The shift opens up empty cells at the top of the column, since the first row has nothing before it, and those cells are filled with <code>NA</code> by default.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>step_lag() shifts by row position, not by date.</strong> It does not read a date column or check spacing between rows. It simply moves values down by <code>lag</code> positions in the order the rows arrive. Sorting the data correctly before the recipe runs is your job, not the step's.</div></div>
+
+<h2>step_lag() syntax and arguments</h2>
+
+<p><strong>step_lag() attaches a lagging operation to a recipe.</strong> You pass the recipe first, then the columns to lag, named directly or chosen with a selector such as <code>all_numeric_predictors()</code>.</p>
+
+<div class="webr-container" data-block-title="The step_lag skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The step_lag skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+sales &lt;- data.frame(
+  week  = as.Date(&quot;2024-01-01&quot;) + 7 * 0:7,
+  units = c(120, 135, 150, 128, 142, 160, 155, 170)
+)
+
+recipe(units ~ week, data = sales) |&gt;
+  step_lag(units, lag = 1)
+#&gt; -- Recipe ----------------------------------------------------------------
+#&gt; -- Inputs
+#&gt; Number of variables by role
+#&gt; outcome:   1
+#&gt; predictor: 1
+#&gt; -- Operations
+#&gt; * Lagging:  units</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments you will actually touch:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>recipe</code></td>
+<td>The recipe object the step is added to.</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Columns to lag, named or chosen with a selector.</td>
+</tr>
+<tr>
+<td><code>lag</code></td>
+<td>Integer vector of shift amounts. Default <code>1</code>. One new column per value.</td>
+</tr>
+<tr>
+<td><code>prefix</code></td>
+<td>String prepended to new column names. Default <code>&quot;lag_&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>default</code></td>
+<td>Value used for the empty leading cells. Default <code>NA</code>.</td>
+</tr>
+<tr>
+<td><code>keep_original_cols</code></td>
+<td>If <code>TRUE</code> (default), the source column stays in the output.</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>The lag argument is the one you will always set.</strong> A single integer makes one lagged column, while a vector like <code>1:3</code> or <code>c(1, 4)</code> makes one column per value. Lagging the outcome itself is the standard trick of autoregressive <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a>, and the new lagged column is given the <code>predictor</code> role automatically.</p>
+
+<h2>step_lag() examples</h2>
+
+<p><strong>Build the recipe, prep it, then bake.</strong> A recipe is only a plan until <code>prep()</code> registers the steps and <code>bake()</code> applies them. This recipe shifts <code>units</code> down by one row.</p>
+
+<div class="webr-container" data-block-title="Lag one column and bake">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lag one column and bake</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec &lt;- recipe(units ~ week, data = sales) |&gt;
+  step_lag(units, lag = 1)
+
+baked &lt;- prep(rec) |&gt; bake(new_data = NULL)
+baked
+#&gt; # A tibble: 8 x 3
+#&gt;   week       units lag_1_units
+#&gt;   &lt;date&gt;     &lt;dbl&gt;       &lt;dbl&gt;
+#&gt; 1 2024-01-01   120          NA
+#&gt; 2 2024-01-08   135         120
+#&gt; 3 2024-01-15   150         135
+#&gt; 4 2024-01-22   128         150
+#&gt; 5 2024-01-29   142         128
+#&gt; 6 2024-02-05   160         142
+#&gt; 7 2024-02-12   155         160
+#&gt; 8 2024-02-19   170         155</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The new <code>lag_1_units</code> column holds each week's prior value. Row two reads <code>120</code>, the units figure from row one, and the first row is <code>NA</code> because no earlier week exists. Pass a vector to <code>lag</code> to build several shifted columns in one call.</p>
+
+<div class="webr-container" data-block-title="Create several lags at once">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create several lags at once</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">multi &lt;- recipe(units ~ week, data = sales) |&gt;
+  step_lag(units, lag = 1:3) |&gt;
+  prep() |&gt;
+  bake(new_data = NULL)
+
+multi
+#&gt; # A tibble: 8 x 5
+#&gt;   week       units lag_1_units lag_2_units lag_3_units
+#&gt;   &lt;date&gt;     &lt;dbl&gt;       &lt;dbl&gt;       &lt;dbl&gt;       &lt;dbl&gt;
+#&gt; 1 2024-01-01   120          NA          NA          NA
+#&gt; 2 2024-01-08   135         120          NA          NA
+#&gt; 3 2024-01-15   150         135         120          NA
+#&gt; 4 2024-01-22   128         150         135         120
+#&gt; 5 2024-01-29   142         128         150         135
+#&gt; 6 2024-02-05   160         142         128         150
+#&gt; 7 2024-02-12   155         160         142         128
+#&gt; 8 2024-02-19   170         155         160         142</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each value of <code>lag</code> produces its own column, and deeper lags leave more <code>NA</code> cells at the top. The <code>default</code> argument replaces those empty cells with a value you choose, which keeps every row usable.</p>
+
+<div class="webr-container" data-block-title="Fill the leading gap with default">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fill the leading gap with default</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">filled &lt;- recipe(units ~ week, data = sales) |&gt;
+  step_lag(units, lag = 1, default = 0) |&gt;
+  prep() |&gt;
+  bake(new_data = NULL)
+
+head(filled, 3)
+#&gt; # A tibble: 3 x 3
+#&gt;   week       units lag_1_units
+#&gt;   &lt;date&gt;     &lt;dbl&gt;       &lt;dbl&gt;
+#&gt; 1 2024-01-01   120           0
+#&gt; 2 2024-01-08   135         120
+#&gt; 3 2024-01-15   150         135</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now row one carries <code>0</code> instead of <code>NA</code>. Choose the fill value carefully, because a constant like <code>0</code> is a real number the model will treat as data, not as missing.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for seasonal lags, not just lag 1.</strong> Weekly data often repeats every four or five weeks, and monthly data every twelve. Passing <code>lag = c(1, 4)</code> builds both a short-term and a seasonal feature in one step, which usually beats a single lag for forecasting accuracy.</div></div>
+
+<h2>step_lag() vs lag() vs step_window()</h2>
+
+<p><strong>Pick the tool that matches how the feature must travel to new data.</strong> A lag is a copy, a window is an aggregate, and only a recipe step reapplies cleanly when fresh rows arrive.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>What it produces</th>
+<th>New data handling</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_lag()</code></td>
+<td>Shifted copies of a column inside a recipe</td>
+<td><code>bake()</code> reapplies the shift to new rows</td>
+</tr>
+<tr>
+<td><code>dplyr::lag()</code></td>
+<td>A shifted vector, computed once outside any recipe</td>
+<td>You rerun the <code>mutate()</code> on every new dataset</td>
+</tr>
+<tr>
+<td><code>step_window()</code></td>
+<td>Rolling aggregate such as a moving mean or sum</td>
+<td><code>bake()</code> reapplies the window to new rows</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>step_lag()</code> when the exact past value matters, such as last month's revenue. Reach for <code>step_window()</code> when a smoothed trend matters more than any single point. Use <code>dplyr::lag()</code> only for quick exploration, since it lives outside the recipe and will not follow your model to production.</p>
+
+<h2>Common pitfalls with step_lag()</h2>
+
+<p><strong>Most failures trace back to row order or the new NA cells.</strong> Watch these three traps when adding the step.</p>
+
+<ol>
+
+<li><strong>Unsorted data.</strong> <code>step_lag()</code> shifts by position, so rows must already be in time order. Sort with <code>arrange(week)</code> or <code>data[order(data$week), ]</code> before you build the recipe, or the lags pair up the wrong observations.</li>
+
+<li><strong>Leading <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">NA values</a>.</strong> The first <code>max(lag)</code> rows always contain <code>NA</code>. Many engines reject <code>NA</code>, so either set a <code>default</code> or add <code>step_naomit(all_predictors())</code> to drop those rows before fitting.</li>
+
+<li><strong>Mixing several series in one frame.</strong> <code>step_lag()</code> has no group awareness. With stacked panels, such as sales for many stores, the lag bleeds the tail of one store into the head of the next. Lag each series in its own recipe, or filter to one series first.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>step_lag() never sorts the data for you.</strong> If the rows are shuffled, the step still runs without error and still produces a <code>lag_1_units</code> column, but every lagged value is meaningless. There is no warning. Always sort by your time column before the recipe sees the data.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add <code>step_lag()</code> to a recipe on the <code>sales</code> data so it creates lags 1 and 2 of <code>units</code>, then bake it. Save the result to <code>ex_lagged</code>.</p>
+<div class="webr-container" data-block-title="Your turn: build two lags">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build two lags</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: lag units by 1 and 2
+ex_rec &lt;- recipe(units ~ week, data = sales) |&gt;
+  step_lag(# your code here)
+
+ex_lagged &lt;- # your code here
+names(ex_lagged)
+#&gt; Expected: week, units, lag_1_units, lag_2_units</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec &lt;- recipe(units ~ week, data = sales) |&gt;
+  step_lag(units, lag = 1:2)
+
+ex_lagged &lt;- prep(ex_rec) |&gt; bake(new_data = NULL)
+names(ex_lagged)
+#&gt; [1] &quot;week&quot;        &quot;units&quot;       &quot;lag_1_units&quot; &quot;lag_2_units&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Passing <code>lag = 1:2</code> tells <code>step_lag()</code> to build one shifted column per value, so <code>units</code> gains both a one-step and a two-step lagged copy. <code>prep()</code> registers the step and <code>bake()</code> applies it.</p>
+
+</details>
+</section>
+
+<h2>Related recipes steps</h2>
+
+<p><strong>step_lag() is one of several recipes steps for time-based predictors.</strong> These pair naturally with it in a tidymodels workflow:</p>
+
+<ul>
+
+<li><a href="recipes-step_window-in-R.html">step_window()</a> computes a rolling mean or sum over a moving window.</li>
+
+<li><a href="recipes-step_date-in-R.html">step_date()</a> extracts month, day-of-week, and year from a date.</li>
+
+<li><a href="recipes-step_holiday-in-R.html">step_holiday()</a> flags named holidays on a date column.</li>
+
+<li><a href="recipes-step_naomit-in-R.html">step_naomit()</a> drops rows left with NA after lagging.</li>
+
+<li><a href="recipes-recipe-in-R.html">recipe()</a> is the starting point every step is added to.</li>
+
+</ul>
+
+<p>See the <a href="https://recipes.tidymodels.org/reference/step_lag.html">official step_lag() reference</a> for the full argument list.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The closest equivalent is <code>df[&quot;units&quot;].shift(1)</code>, which shifts a Series by one row. The recipes version differs by packaging the shift inside a recipe, so the same lag is recomputed whenever <code>bake()</code> runs on new data.</div></div>
+
+<h2>FAQ</h2>
+
+<p><strong>What does step_lag() do in R?</strong></p>
+
+<p><code>step_lag()</code> is a recipes step that adds lagged copies of one or more columns to a dataset. It shifts a column's values down by a fixed number of rows so that a past observation sits beside the current one, which is how time-series models gain memory. You add it to a <code>recipe()</code>, register it with <code>prep()</code>, and apply it with <code>bake()</code>. New columns are named <code>lag_&lt;n&gt;_&lt;variable&gt;</code> by default, and the first rows hold <code>NA</code> because no earlier value exists.</p>
+
+<p><strong>How do I create multiple lag features at once?</strong></p>
+
+<p>Pass a vector to the <code>lag</code> argument. <code>step_lag(rec, units, lag = 1:3)</code> builds three columns, lagged by one, two, and three rows. A non-contiguous vector works too: <code>lag = c(1, 12)</code> pairs a short-term lag with a seasonal one for monthly data. Each value in the vector becomes its own column, named with the matching number, so one call can generate a whole block of lagged predictors.</p>
+
+<p><strong>Why does step_lag() produce NA values?</strong></p>
+
+<p>The shift opens empty cells at the top of every lagged column. A lag of 1 leaves the first row with no prior value, a lag of 3 leaves the first three rows empty, and so on. By default those cells are filled with <code>NA</code>. To avoid them, set the <code>default</code> argument to a numeric fill value, or add <code>step_naomit()</code> to your recipe to drop the incomplete leading rows before the model is fit.</p>
+
+<p><strong>Does step_lag() sort the data by date?</strong></p>
+
+<p>No. <code>step_lag()</code> shifts values strictly by row position and never inspects a date column. If your rows are out of order, the step still runs and still produces lagged columns, but the values are paired incorrectly and the feature is useless. Always sort the data by its time column, with <code>dplyr::arrange()</code> or <code>order()</code>, before you build and prep the recipe.</p>
+
+</content>
+
+</invoke>
+
+{% endraw %}
