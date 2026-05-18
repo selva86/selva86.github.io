@@ -1,0 +1,310 @@
+---
+title: "parsnip bag_mars() in R: Build Bagged MARS Models"
+description: "Learn how parsnip bag_mars() builds bagged MARS ensembles in R. Load the baguette engine, fit regression and classification models, and read importance."
+keywords: "bag_mars, bag_mars R, baguette bag_mars, bagged MARS R, bag_mars tidymodels, bag_mars example, parsnip bag_mars"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "bag_mars()|parsnip bag_mars|baguette::bag_mars()|bagged MARS|bagged MARS ensemble"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>parsnip bag_mars() in R: Build Bagged MARS Models</h1>
+
+<p class="lead">bag_mars() defines a bagged ensemble of MARS (Multivariate Adaptive <a class="auto-link" href="Polynomial-and-Spline-Regression-in-R.html" title="Polynomial and Spline Regression in R: Model Curvature Without Transforming Variables">Regression Splines</a>) models in R. It fits many MARS models on bootstrap samples and averages them, which trims the variance of a single spline fit.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>bag_mars(mode = &quot;regression&quot;)<span class="qa-cmt">                   # regression ensemble</span>
+bag_mars(mode = &quot;classification&quot;)<span class="qa-cmt">               # classification ensemble</span>
+bag_mars() |&gt; set_engine(&quot;earth&quot;)<span class="qa-cmt">               # set the engine</span>
+bag_mars() |&gt; set_engine(&quot;earth&quot;, times = 25)<span class="qa-cmt">   # 25 bagged members</span>
+bag_mars(prod_degree = 2)<span class="qa-cmt">                        # allow 2-way interactions</span>
+bag_mars(num_terms = 10)<span class="qa-cmt">                         # cap retained model terms</span>
+bag_mars(prune_method = &quot;none&quot;)<span class="qa-cmt">                  # skip backward pruning</span>
+fit(spec, mpg ~ ., data = mtcars)<span class="qa-cmt">                # fit the spec</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is bag_mars() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">nonlinear fit, want a stable ensemble</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">bag_mars(mode = &quot;regression&quot;)</text><text x="125" y="126" class="branch-label">single MARS model, easier to read</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">mars(mode = &quot;regression&quot;)</text><text x="125" y="182" class="branch-label">bagged decision trees instead</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">bag_tree(mode = &quot;regression&quot;)</text><text x="125" y="238" class="branch-label">random forest of trees</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">rand_forest(trees = 500)</text><text x="125" y="294" class="branch-label">gradient boosted trees</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">boost_tree(mode = &quot;regression&quot;)</text><text x="125" y="350" class="branch-label">plain linear relationship</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">linear_reg()</text></svg></div>
+
+<h2>What bag_mars() does</h2>
+
+<p><strong>bag_mars() wraps MARS in a bagging ensemble.</strong> A single MARS model builds piecewise-linear hinge functions to capture nonlinear relationships, but it can be unstable: small changes in the data shift the chosen knots. Bagging fixes that by fitting the model on many bootstrap resamples and averaging the predictions.</p>
+
+<p>The function comes from the <strong>baguette</strong> package, a parsnip extension. It returns a model specification, not a fitted model, so you pair it with <code>set_engine()</code> and <code>fit()</code> like any other parsnip spec. The only engine is <code>earth</code>, the package that implements MARS.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>baguette is a separate install.</strong> bag_mars() lives in the baguette package, not parsnip itself. Run <code>install.packages(&quot;baguette&quot;)</code> and load it with <code>library(baguette)</code> before defining a spec, or parsnip cannot find the model.</div></div>
+
+<h2>bag_mars() syntax and arguments</h2>
+
+<p><strong>The signature has four model arguments plus an engine.</strong> Every argument defaults to <code>NULL</code>, which means the underlying <code>earth</code> engine picks a sensible value.</p>
+
+<div class="webr-container" data-block-title="bag_mars signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">bag_mars signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bag_mars(
+  mode = &quot;unknown&quot;,
+  num_terms = NULL,
+  prod_degree = NULL,
+  prune_method = NULL,
+  engine = &quot;earth&quot;
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>What it controls</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mode</code></td>
+<td><code>&quot;regression&quot;</code> or <code>&quot;classification&quot;</code>. Required before fitting.</td>
+</tr>
+<tr>
+<td><code>num_terms</code></td>
+<td>Number of model terms (hinge functions) kept in each member.</td>
+</tr>
+<tr>
+<td><code>prod_degree</code></td>
+<td>Highest interaction degree: 1 is additive, 2 allows pairwise terms.</td>
+</tr>
+<tr>
+<td><code>prune_method</code></td>
+<td>Pruning passed to earth, such as <code>&quot;backward&quot;</code> or <code>&quot;none&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>engine</code></td>
+<td>Always <code>&quot;earth&quot;</code>. The number of bagged members is set here.</td>
+</tr>
+</tbody>
+</table>
+
+<p>The count of bagged models is not a main argument. You pass it to <code>set_engine()</code> as <code>times</code>, which defaults to 11.</p>
+
+<h2>Fit a bagged MARS model: regression and classification</h2>
+
+<p><strong>Build the spec, <a class="auto-link" href="parsnip-set_engine-in-R.html" title="parsnip set_engine() in R: Choose the Model Engine">set the engine</a>, then call fit().</strong> This regression example predicts <code>mpg</code> from every other column of <code>mtcars</code> using a 25-member ensemble.</p>
+
+<div class="webr-container" data-block-title="Fit a regression ensemble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a regression ensemble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+library(baguette)
+
+bag_spec &lt;- bag_mars(mode = &quot;regression&quot;) |&gt;
+  set_engine(&quot;earth&quot;, times = 25)
+
+mars_fit &lt;- bag_spec |&gt;
+  fit(mpg ~ ., data = mtcars)
+
+predict(mars_fit, new_data = mtcars[1:3, ])
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  22.3
+#&gt; 2  22.1
+#&gt; 3  25.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Switching to classification needs only a different <code>mode</code>. The <code>earth</code> engine handles factor outcomes by fitting a <a class="auto-link" href="GLM-Exercises-in-R.html" title="GLM Exercises in R: 10 Poisson, Binomial & Gamma Practice Problems, Solved Step-by-Step">generalized linear model</a> on the spline basis.</p>
+
+<div class="webr-container" data-block-title="Fit a classification ensemble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a classification ensemble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cls_fit &lt;- bag_mars(mode = &quot;classification&quot;) |&gt;
+  set_engine(&quot;earth&quot;, times = 25) |&gt;
+  fit(Species ~ ., data = iris)
+
+predict(cls_fit, new_data = iris[c(1, 60, 120), ])
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 setosa
+#&gt; 2 versicolor
+#&gt; 3 virginica</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Bagging buys stability, not a new model class.</strong> Each ensemble member is still a MARS model. Averaging 25 of them cancels the knot-placement noise of any single fit, so predictions move less when the training data changes.</div></div>
+
+<h2>Read aggregated variable importance</h2>
+
+<p><strong>baguette aggregates importance across every member.</strong> The fitted object stores a tidy table at <code>$fit$imp</code>, with the mean importance and its standard error over the bootstrap members.</p>
+
+<div class="webr-container" data-block-title="Aggregated variable importance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Aggregated variable importance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mars_fit$fit$imp
+#&gt; # A tibble: 10 x 4
+#&gt;   term  value std.error  used
+#&gt;   &lt;chr&gt; &lt;dbl&gt;     &lt;dbl&gt; &lt;int&gt;
+#&gt; 1 wt     61.2      2.84    25
+#&gt; 2 disp   24.7      3.10    22
+#&gt; 3 hp     18.5      2.41    19
+#&gt; 4 qsec    9.3      1.88    14
+#&gt; 5 am      4.1      1.02     8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>used</code> column counts how many of the 25 members kept that predictor. A variable used in only a few members is a weak signal worth dropping.</p>
+
+<h2>bag_mars() vs mars() vs rand_forest()</h2>
+
+<p><strong>Choose bag_mars() when a single MARS fit is too jumpy.</strong> All three handle nonlinear relationships, but they trade interpretability for stability differently.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Model</th>
+<th>Captures nonlinearity by</th>
+<th>Best when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mars()</code></td>
+<td>Hinge functions, one model</td>
+<td>You want a readable, fast spline model</td>
+</tr>
+<tr>
+<td><code>bag_mars()</code></td>
+<td>Bagging many MARS fits</td>
+<td>Single MARS is unstable on your data</td>
+</tr>
+<tr>
+<td><code>rand_forest()</code></td>
+<td>Bagging many decision trees</td>
+<td>Relationships are step-like or high-order</td>
+</tr>
+</tbody>
+</table>
+
+<p>If a plain <code>mars()</code> model already gives stable cross-validated error, the ensemble adds compute for little gain. Reach for <code>bag_mars()</code> when resampling shows the single fit swinging between folds.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most bag_mars() errors.</strong> Each has a quick fix.</p>
+
+<ul>
+
+<li><strong>Forgetting baguette.</strong> <code>library(baguette)</code> must run before <code>bag_mars()</code>. Loading only <code>tidymodels</code> triggers a "<a class="auto-link" href="R-Common-Errors.html" title="50 Most Common R Error Messages: What They Mean & How to Fix Them">could not find function</a>" error.</li>
+
+<li><strong>Setting times in the wrong place.</strong> <code>times</code> is an engine argument. Pass it inside <code>set_engine(&quot;earth&quot;, times = 25)</code>, not inside <code>bag_mars()</code>.</li>
+
+<li><strong>Skipping the mode.</strong> A spec left at <code>mode = &quot;unknown&quot;</code> fails at <code>fit()</code>. Set <code>mode = &quot;regression&quot;</code> or <code>mode = &quot;classification&quot;</code> explicitly.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>More members is not always better.</strong> Past roughly 25 to 50 members the variance reduction flattens while fit time keeps climbing. Tune <code>times</code> on a resample rather than setting it to a large number by reflex.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a 30-member bagged MARS regression on <code>mtcars</code> predicting <code>hp</code> from <code>disp</code>, <code>wt</code>, and <code>cyl</code>. Save the fitted model to <code>ex_fit</code>.</p>
+<div class="webr-container" data-block-title="Your turn: bagged MARS on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: bagged MARS on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: build, set engine, fit
+ex_fit &lt;- # your code here
+
+predict(ex_fit, new_data = mtcars[1:3, ])
+#&gt; Expected: a 3-row tibble with a .pred column</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- bag_mars(mode = &quot;regression&quot;) |&gt;
+  set_engine(&quot;earth&quot;, times = 30) |&gt;
+  fit(hp ~ disp + wt + cyl, data = mtcars)
+
+predict(ex_fit, new_data = mtcars[1:3, ])
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  116.
+#&gt; 2  112.
+#&gt; 3   97.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>bag_mars()</code> defines the spec, <code>set_engine(&quot;earth&quot;, times = 30)</code> requests 30 bagged members, and <code>fit()</code> trains them on the formula. <code>predict()</code> returns one averaged prediction per row.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<ul>
+
+<li><a href="parsnip-mars-in-R.html">parsnip mars()</a> defines a single, unbagged MARS model.</li>
+
+<li><a href="parsnip-bag_tree-in-R.html">parsnip bag_tree()</a> bags decision trees instead of splines.</li>
+
+<li><a href="parsnip-rand_forest-in-R.html">parsnip rand_forest()</a> builds a random forest ensemble.</li>
+
+<li><a href="parsnip-boost_tree-in-R.html">parsnip boost_tree()</a> fits gradient boosted trees.</li>
+
+<li><a href="parsnip-fit-in-R.html">parsnip fit()</a> trains any model spec on a data frame.</li>
+
+</ul>
+
+<p>See the official <a href="https://baguette.tidymodels.org/reference/bag_mars.html">baguette bag_mars() reference</a> for the full argument list.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What package provides bag_mars()?</strong> bag_mars() ships in the baguette package, a parsnip model extension maintained by the tidymodels team. parsnip itself does not include it. Install baguette with <code>install.packages(&quot;baguette&quot;)</code> and load it alongside <code>library(tidymodels)</code>. Once loaded, bag_mars() behaves like any built-in parsnip spec and works inside workflows and recipes.</p>
+
+<p><strong>How many models does bag_mars() bag?</strong> The ensemble size is the <code>times</code> engine argument, which defaults to 11. Set it with <code>set_engine(&quot;earth&quot;, times = 25)</code>. More members reduce variance, but the benefit flattens after roughly 25 to 50 fits while training time keeps growing. Tune <code>times</code> on a resample if compute is a concern.</p>
+
+<p><strong>Can bag_mars() do classification?</strong> Yes. Set <code>mode = &quot;classification&quot;</code> and pass a factor outcome. The earth engine fits a generalized linear model on the MARS spline basis for class probabilities. Use <code>predict(fit, new_data, type = &quot;prob&quot;)</code> for probabilities or the default <code>type = &quot;class&quot;</code> for hard labels.</p>
+
+<p><strong>bag_mars() vs mars(): which should I use?</strong> Start with <code>mars()</code>. It is faster and easier to inspect. Move to <code>bag_mars()</code> only when cross-validation shows the single MARS model swinging between resamples. Bagging averages away that knot-selection noise at the cost of extra compute and a less directly interpretable model.</p>
+
+{% endraw %}
