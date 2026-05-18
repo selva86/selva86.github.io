@@ -1,0 +1,341 @@
+---
+title: "recipes step_date() in R: Extract Date Features for Modeling"
+description: "recipes step_date() in R turns a Date column into year, month, and day-of-week predictors. Learn the syntax, the features argument, prep and bake, and pitfalls."
+keywords: "recipes step_date, step_date function R, recipes step_date examples, R date features, step_date tidymodels, date feature engineering R, extract date parts R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_date()|recipes step_date|recipes::step_date()|step_date|date features"
+auto_link_case_sensitive: true
+fr_parent: "caret-preProcess-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>recipes step_date() in R: Extract Date Features for Modeling</h1>
+
+<p class="lead">The <code>recipes</code> <code>step_date()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> turns a Date column into calendar features such as year, month, and day-of-week so a model can learn from them. You add it to a <code>recipe()</code>, then apply it with <code>prep()</code> and <code>bake()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_date(rec, order_date)<span class="qa-cmt">                              # default: dow, month, year</span>
+step_date(rec, order_date, features = c(&quot;year&quot;))<span class="qa-cmt">        # year only</span>
+step_date(rec, order_date, features = c(&quot;doy&quot;,&quot;week&quot;))<span class="qa-cmt">  # day-of-year and week</span>
+step_date(rec, order_date, label = FALSE)<span class="qa-cmt">               # numeric month and dow</span>
+step_date(rec, order_date, abbr = FALSE)<span class="qa-cmt">                # full names like Monday</span>
+step_date(rec, all_date_predictors())<span class="qa-cmt">                   # every date column</span>
+prep(rec) |&gt; bake(new_data = NULL)<span class="qa-cmt">                       # learn, then apply</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_date() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">extract calendar parts from a date</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_date(rec, order_date)</text><text x="125" y="126" class="branch-label">flag holidays and special days</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_holiday(rec, order_date)</text><text x="125" y="182" class="branch-label">build lagged values of a column</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_lag(rec, sales, lag = 1)</text><text x="125" y="238" class="branch-label">compute rolling window statistics</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_window(rec, sales, size = 3)</text><text x="125" y="294" class="branch-label">encode the new month and dow factors</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">step_dummy(rec, all_nominal_predictors())</text><text x="125" y="350" class="branch-label">drop the leftover Date column</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">step_rm(rec, order_date)</text></svg></div>
+
+<h2>What step_date() does in R</h2>
+
+<p><strong>step_date() expands a single Date column into several predictor columns.</strong> A raw date carries information a model cannot read directly: seasonality lives in the month, weekly patterns live in the <a class="auto-link" href="lubridate-wday-in-R.html" title="lubridate wday() in R: Day-of-Week From Dates">day of week</a>, and long-term trend lives in the year. <code>step_date()</code> pulls those parts into their own columns so a regression or tree can use them.</p>
+
+<p>By default it extracts three features, <code>dow</code>, <code>month</code>, and <code>year</code>, and names the new columns <code>&lt;variable&gt;_&lt;feature&gt;</code>. A column called <code>order_date</code> becomes <code>order_date_dow</code>, <code>order_date_month</code>, and <code>order_date_year</code>. The day-of-week and month columns come back as factors with readable labels, while the year is an integer.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>step_date() is deterministic, so prep() learns nothing from the data.</strong> Unlike <code>step_dummy()</code> or <code>step_normalize()</code>, the calendar parts of a date do not depend on the training set. <code>prep()</code> still has to run to register the step, but the same date always produces the same features whether it appears in training or test data.</div></div>
+
+<h2>step_date() syntax and arguments</h2>
+
+<p><strong>step_date() attaches a date-expansion operation to a recipe.</strong> You pass the recipe first, then the date columns to expand, chosen by name or with the <code>all_date_predictors()</code> selector.</p>
+
+<div class="webr-container" data-block-title="The step_date skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The step_date skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+sales &lt;- data.frame(
+  order_date = as.Date(&quot;2023-01-15&quot;) + c(0, 40, 95, 160, 250, 320),
+  revenue    = c(120, 230, 90, 310, 175, 260)
+)
+
+recipe(revenue ~ order_date, data = sales) |&gt;
+  step_date(order_date)
+#&gt; -- Recipe ---------------------------------------------------------------
+#&gt; -- Inputs
+#&gt; Number of variables by role
+#&gt; outcome:   1
+#&gt; predictor: 1
+#&gt; -- Operations
+#&gt; * Date features from: order_date</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments you will actually touch:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>recipe</code></td>
+<td>The recipe object the step is added to.</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Date columns to expand, named or selected with <code>all_date_predictors()</code>.</td>
+</tr>
+<tr>
+<td><code>features</code></td>
+<td>Character vector of parts to extract. Default <code>c(&quot;dow&quot;, &quot;month&quot;, &quot;year&quot;)</code>.</td>
+</tr>
+<tr>
+<td><code>abbr</code></td>
+<td>If <code>TRUE</code> (default), labels are short, like <code>Mon</code> and <code>Jan</code>.</td>
+</tr>
+<tr>
+<td><code>label</code></td>
+<td>If <code>TRUE</code> (default), <code>dow</code> and <code>month</code> are factors; <code>FALSE</code> makes them numeric.</td>
+</tr>
+<tr>
+<td><code>ordinal</code></td>
+<td>If <code>TRUE</code>, the <code>dow</code> and <code>month</code> factors are ordered. Default <code>FALSE</code>.</td>
+</tr>
+<tr>
+<td><code>keep_original_cols</code></td>
+<td>If <code>TRUE</code> (default), the source Date column stays in the output.</td>
+</tr>
+</tbody>
+</table>
+
+<p>The <code>features</code> argument accepts <code>year</code>, <code>doy</code> (<a class="auto-link" href="lubridate-yday-in-R.html" title="lubridate yday() in R: Day-of-Year From Dates">day of year</a>), <code>week</code>, <code>decimal</code> (decimal date), <code>semester</code>, <code>quarter</code>, <code>dow</code>, <code>month</code>, and <code>mday</code> (day of month).</p>
+
+<h2>Extracting date features: worked examples</h2>
+
+<p><strong>Build the recipe, prep it, then bake.</strong> A recipe is a plan until <code>prep()</code> registers the steps and <code>bake()</code> applies them. This example uses the default three features on the <code>order_date</code> column.</p>
+
+<div class="webr-container" data-block-title="Extract the default date features">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract the default date features</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec &lt;- recipe(revenue ~ order_date, data = sales) |&gt;
+  step_date(order_date)
+
+prep(rec) |&gt; bake(new_data = NULL)
+#&gt; # A tibble: 6 x 5
+#&gt;   order_date revenue order_date_dow order_date_month order_date_year
+#&gt;   &lt;date&gt;       &lt;dbl&gt; &lt;fct&gt;          &lt;fct&gt;                      &lt;int&gt;
+#&gt; 1 2023-01-15     120 Sun            Jan                         2023
+#&gt; 2 2023-02-24     230 Fri            Feb                         2023
+#&gt; 3 2023-04-20      90 Thu            Apr                         2023
+#&gt; 4 2023-06-24     310 Sat            Jun                         2023
+#&gt; 5 2023-09-22     175 Fri            Sep                         2023
+#&gt; 6 2023-12-01     260 Fri            Dec                         2023</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three new columns appear and <code>order_date</code> is kept, because <code>keep_original_cols</code> defaults to <code>TRUE</code>. To pull different parts, pass a <code>features</code> vector. Here we ask for day of year, week number, quarter, and the decimal date.</p>
+
+<div class="webr-container" data-block-title="Choose features with the features argument">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Choose features with the features argument</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_feat &lt;- recipe(revenue ~ order_date, data = sales) |&gt;
+  step_date(order_date,
+            features = c(&quot;doy&quot;, &quot;week&quot;, &quot;quarter&quot;, &quot;decimal&quot;))
+
+prep(rec_feat) |&gt; bake(new_data = NULL) |&gt;
+  subset(select = -c(order_date, revenue))
+#&gt; # A tibble: 6 x 4
+#&gt;   order_date_doy order_date_week order_date_quarter order_date_decimal
+#&gt;            &lt;int&gt;           &lt;int&gt; &lt;fct&gt;                           &lt;dbl&gt;
+#&gt; 1             15               3 Q1                              2023.
+#&gt; 2             55               8 Q1                              2023.
+#&gt; 3            110              16 Q2                              2023.
+#&gt; 4            175              25 Q2                              2023.
+#&gt; 5            265              38 Q3                              2023.
+#&gt; 6            335              48 Q4                              2023.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>By default <code>dow</code> and <code>month</code> arrive as factors. Many engines, especially <code>glmnet</code> and <code>xgboost</code>, want numeric input, so set <code>label = FALSE</code> to get integers instead.</p>
+
+<div class="webr-container" data-block-title="Return numeric month and day-of-week">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Return numeric month and day-of-week</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_num &lt;- recipe(revenue ~ order_date, data = sales) |&gt;
+  step_date(order_date, features = c(&quot;month&quot;, &quot;dow&quot;), label = FALSE)
+
+prep(rec_num) |&gt; bake(new_data = NULL) |&gt;
+  subset(select = c(order_date_month, order_date_dow))
+#&gt; # A tibble: 6 x 2
+#&gt;   order_date_month order_date_dow
+#&gt;              &lt;int&gt;          &lt;int&gt;
+#&gt; 1                1              1
+#&gt; 2                2              6
+#&gt; 3                4              5
+#&gt; 4                6              7
+#&gt; 5                9              6
+#&gt; 6               12              6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use all_date_predictors() when several columns hold dates.</strong> If a data frame has both an <code>order_date</code> and a <code>ship_date</code>, <code>step_date(rec, all_date_predictors())</code> expands both in one call. The selector picks only columns of class <code>Date</code> or <code>POSIXct</code>, so you never accidentally feed a numeric column to the step.</div></div>
+
+<h2>step_date() vs lubridate vs base R</h2>
+
+<p><strong>Pick the tool that matches where the work happens.</strong> All three extract calendar parts, but only <code>step_date()</code> keeps the logic inside a reusable recipe.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Where it fits</th>
+<th>New data handling</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_date()</code></td>
+<td>tidymodels recipes</td>
+<td>Reapplied automatically by <code>bake()</code></td>
+</tr>
+<tr>
+<td><code>lubridate::month()</code> etc.</td>
+<td>ad hoc <a class="auto-link" href="dplyr-mutate-rename.html" title="dplyr mutate() and rename(): Create & Modify Columns (8 Examples)">dplyr mutate</a></td>
+<td>You rewrite the <code>mutate()</code> for each dataset</td>
+</tr>
+<tr>
+<td><code>format(x, &quot;%m&quot;)</code></td>
+<td>base R, no packages</td>
+<td>Manual, returns character strings</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>step_date()</code> when the feature extraction belongs to a modeling pipeline, because the recipe travels with the workflow and applies the exact same transformation to test and production data. Reach for <code>lubridate</code> inside a one-off <code>mutate()</code> during exploration, and use base <code>format()</code> only when you cannot add a dependency.</p>
+
+<h2>Common pitfalls with step_date()</h2>
+
+<p><strong>Most failures trace back to column type or to the leftover Date column.</strong> Watch these three traps when adding the step.</p>
+
+<ol>
+
+<li><strong>Passing a character column.</strong> <code>step_date()</code> needs class <code>Date</code> or <code>POSIXct</code>. A column of strings like <code>&quot;2023-01-15&quot;</code> triggers an error. Convert it first with <code>as.Date()</code>, or add <code>step_mutate()</code> ahead of <code>step_date()</code>.</li>
+
+<li><strong>Feeding the Date column to the model.</strong> Because <code>keep_original_cols</code> defaults to <code>TRUE</code>, <code>order_date</code> survives baking. Most engines reject the <code>Date</code> class, so add <code>step_rm(order_date)</code> after <code>step_date()</code> once the features exist.</li>
+
+<li><strong>Expecting numbers but getting factors.</strong> With the default <code>label = TRUE</code>, <code>dow</code> and <code>month</code> are factors. A linear or boosted model needs numeric input, so either set <code>label = FALSE</code> or follow with <code>step_dummy()</code>.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A two-digit year is not a Date.</strong> Reading a CSV can leave a date stored as an integer like <code>20230115</code> or as a character. <code>step_date()</code> does not parse those; it errors instead. Confirm the column with <code>class()</code> before building the recipe, and parse with <code>lubridate::ymd()</code> if needed.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add <code>step_date()</code> to a recipe on the <code>sales</code> data so it extracts only the <code>month</code> and <code>year</code>, then bake it. Save the result to <code>ex_dated</code>.</p>
+<div class="webr-container" data-block-title="Your turn: extract month and year">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: extract month and year</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: extract month and year only
+ex_rec &lt;- recipe(revenue ~ order_date, data = sales) |&gt;
+  step_date(# your code here)
+
+ex_dated &lt;- # your code here
+names(ex_dated)
+#&gt; Expected: order_date, revenue, order_date_month, order_date_year</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec &lt;- recipe(revenue ~ order_date, data = sales) |&gt;
+  step_date(order_date, features = c(&quot;month&quot;, &quot;year&quot;))
+
+ex_dated &lt;- prep(ex_rec) |&gt; bake(new_data = NULL)
+names(ex_dated)
+#&gt; [1] &quot;order_date&quot;       &quot;revenue&quot;          &quot;order_date_month&quot; &quot;order_date_year&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>features</code> argument restricts the extraction to the two parts you name. The original <code>order_date</code> column stays because <code>keep_original_cols</code> is <code>TRUE</code> by default.</p>
+
+</details>
+</section>
+
+<h2>Related recipes steps</h2>
+
+<p><strong>step_date() is one of several recipes steps for time-based predictors.</strong> These pair naturally with it in a tidymodels workflow:</p>
+
+<ul>
+
+<li><a href="recipes-step_holiday-in-R.html">step_holiday()</a> flags whether each date is a named holiday.</li>
+
+<li><a href="recipes-step_lag-in-R.html">step_lag()</a> creates lagged copies of a column for time-series features.</li>
+
+<li><a href="recipes-step_window-in-R.html">step_window()</a> computes rolling statistics over a moving window.</li>
+
+<li><a href="recipes-step_dummy-in-R.html">step_dummy()</a> converts the new month and dow factors into 0/1 columns.</li>
+
+<li><a href="recipes-step_rm-in-R.html">step_rm()</a> removes the original Date column once the features exist.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The equivalent of <code>step_date()</code> is reading the <code>.dt</code> accessor, as in <code>df[&quot;order_date&quot;].dt.month</code> and <code>.dt.dayofweek</code>. The recipes version differs by packaging the extraction inside a recipe so the same features are produced for any new data.</div></div>
+
+<h2>FAQ</h2>
+
+<p><strong>What does step_date() do in R?</strong></p>
+
+<p><code>step_date()</code> is a recipes step that expands a Date column into separate calendar features. By default it extracts the day of week, month, and year, creating columns named <code>&lt;variable&gt;_dow</code>, <code>&lt;variable&gt;_month</code>, and <code>&lt;variable&gt;_year</code>. You add it to a <code>recipe()</code>, register it with <code>prep()</code>, and apply it with <code>bake()</code>. Because calendar parts are deterministic, the step needs no training data to compute its output.</p>
+
+<p><strong>What features can step_date() extract?</strong></p>
+
+<p>The <code>features</code> argument accepts any of <code>year</code>, <code>doy</code> (day of year), <code>week</code>, <code>decimal</code> (decimal date), <code>semester</code>, <code>quarter</code>, <code>dow</code> (day of week), <code>month</code>, and <code>mday</code> (day of month). The default is <code>c(&quot;dow&quot;, &quot;month&quot;, &quot;year&quot;)</code>. Pass a character vector to choose others, for example <code>features = c(&quot;quarter&quot;, &quot;week&quot;)</code>. Each requested feature becomes one new column appended to the data.</p>
+
+<p><strong>Does step_date() keep the original date column?</strong></p>
+
+<p>Yes. The <code>keep_original_cols</code> argument defaults to <code>TRUE</code>, so the source Date column remains in the baked output alongside the new feature columns. This is convenient for inspection but causes errors when the data reaches a model, because most engines cannot handle the <code>Date</code> class. Add <code>step_rm()</code> after <code>step_date()</code> to drop the original column before fitting.</p>
+
+<p><strong>What is the difference between step_date() and step_holiday()?</strong></p>
+
+<p><code>step_date()</code> extracts general calendar parts such as month and day of week from a date. <code>step_holiday()</code> answers a narrower question: it creates 0/1 indicator columns marking whether each date falls on a named holiday, like <code>LaborDay</code> or <code>NewYearsDay</code>. They are complementary, so a typical recipe runs <code>step_date()</code> first for seasonality, then <code>step_holiday()</code> for special-day effects, then <code>step_rm()</code> to discard the raw date.</p>
+
+</content>
+
+</invoke>
+
+{% endraw %}
