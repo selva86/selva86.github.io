@@ -1,0 +1,362 @@
+---
+title: "recipes step_log() in R: Log-Transform Skewed Predictors"
+description: "recipes step_log() in R applies a log transformation to numeric predictors. Syntax, base and offset arguments, signed logs, examples, and common pitfalls."
+keywords: "recipes step_log, step_log function R, recipes step_log examples, log transformation recipe R, step_log tidymodels, recipe log transform predictors, R log transform skew"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_log()|recipes step_log|recipes::step_log()|step_log|log transformation recipe"
+auto_link_case_sensitive: true
+fr_parent: "caret-preProcess-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>recipes step_log() in R: Log-Transform Skewed Predictors</h1>
+
+<p class="lead">The <code>recipes</code> <code>step_log()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> applies a log transformation to numeric predictors, compressing right-skewed columns so a model sees a more symmetric spread. You add it to a <code>recipe()</code>, finalize it with <code>prep()</code>, and apply it with <code>bake()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_log(rec, all_numeric_predictors())<span class="qa-cmt">              # natural log of all predictors</span>
+step_log(rec, disp, hp)<span class="qa-cmt">                              # log named columns</span>
+step_log(rec, all_numeric_predictors(), base = 10)<span class="qa-cmt">   # log base 10</span>
+step_log(rec, all_numeric_predictors(), base = 2)<span class="qa-cmt">    # log base 2</span>
+step_log(rec, units, offset = 1)<span class="qa-cmt">                     # add 1 first, handles zeros</span>
+step_log(rec, amt, signed = TRUE)<span class="qa-cmt">                    # signed log, handles negatives</span>
+prep(rec) |&gt; bake(new_data = NULL)<span class="qa-cmt">                   # apply the transform</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_log() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">compress a right-skewed predictor</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_log(rec, all_numeric_predictors())</text><text x="125" y="126" class="branch-label">find the best power transform automatically</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_BoxCox(rec, all_numeric_predictors())</text><text x="125" y="182" class="branch-label"><a class="auto-link" href="dplyr-mutate-rename.html" title="dplyr mutate() and rename(): Create & Modify Columns (8 Examples)">transform columns</a> with zeros or negatives</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_YeoJohnson(rec, all_numeric_predictors())</text><text x="125" y="238" class="branch-label">take the square root instead</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_sqrt(rec, all_numeric_predictors())</text><text x="125" y="294" class="branch-label">rescale to mean 0 and SD 1</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">step_normalize(rec, all_numeric_predictors())</text><text x="125" y="350" class="branch-label">apply any custom expression</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">step_mutate(rec, x = log1p(x))</text></svg></div>
+
+<h2>What step_log() does in R</h2>
+
+<p><strong>step_log() replaces each selected column with its logarithm.</strong> During <code>bake()</code> it applies <code>log(x, base)</code> to every value, optionally adding an <code>offset</code> first. The default base is the natural constant <code>e</code>, so a plain <code>step_log()</code> call produces natural logs. The outcome variable is left alone when you <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">select columns</a> with <code>all_numeric_predictors()</code>.</p>
+
+<p>Logging is the standard fix for a right-skewed predictor, where most values cluster low and a long tail stretches high. The transformation pulls that tail in, turning multiplicative spacing into additive spacing. Counts, prices, incomes, and population sizes are common candidates. Models that assume roughly symmetric inputs, such as <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a>, often fit better once a heavy tail is logged.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>step_log() is a static transformation, not a learned one.</strong> Unlike <code>step_normalize()</code> or <code>step_BoxCox()</code>, it estimates nothing from the training set. The formula <code>log(x, base)</code> is fixed, so <code>prep()</code> only records which columns to touch. That makes the step fast and perfectly reproducible, but it also means a zero or negative value in new data will silently produce <code>-Inf</code> or <code>NaN</code>.</div></div>
+
+<h2>step_log() syntax and arguments</h2>
+
+<p><strong>step_log() attaches a logarithm operation to a recipe.</strong> You pass the recipe first, then the columns to transform, chosen with tidyselect helpers or bare names.</p>
+
+<div class="webr-container" data-block-title="The step_log skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The step_log skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+library(tibble)
+
+recipe(mpg ~ ., data = mtcars) |&gt;
+  step_log(all_numeric_predictors())
+#&gt; -- Recipe ---------------------------------------------------------------
+#&gt; -- Inputs
+#&gt; Number of variables by role
+#&gt; outcome:    1
+#&gt; predictor: 10
+#&gt; -- Operations
+#&gt; * Log transformation on: all_numeric_predictors()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments you will actually touch:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>recipe</code></td>
+<td>The recipe object the step is added to.</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Columns to transform, chosen with selectors or bare names.</td>
+</tr>
+<tr>
+<td><code>base</code></td>
+<td>Base of the logarithm. Default <code>exp(1)</code>, the natural log.</td>
+</tr>
+<tr>
+<td><code>offset</code></td>
+<td>Constant added to each value before the log. Default <code>0</code>.</td>
+</tr>
+<tr>
+<td><code>signed</code></td>
+<td>If <code>TRUE</code>, uses <code>sign(x) * log(abs(x))</code>; values in <code>(-1, 1)</code> map to <code>0</code>.</td>
+</tr>
+<tr>
+<td><code>columns</code></td>
+<td>Filled in by <code>prep()</code>; the resolved column names.</td>
+</tr>
+<tr>
+<td><code>skip</code></td>
+<td>If <code>TRUE</code>, the step is ignored when baking new data. Leave <code>FALSE</code>.</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Log-transforming predictors: worked examples</h2>
+
+<p><strong>Build the recipe, prep it, then bake.</strong> A recipe is a plan until <code>prep()</code> finalizes it. The first example takes the natural log of every numeric predictor in <code>mtcars</code>.</p>
+
+<div class="webr-container" data-block-title="Log-transform numeric predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Log-transform numeric predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec &lt;- recipe(mpg ~ ., data = mtcars) |&gt;
+  step_log(all_numeric_predictors())
+
+logged &lt;- prep(rec) |&gt; bake(new_data = NULL)
+round(head(logged[c(&quot;hp&quot;, &quot;wt&quot;, &quot;disp&quot;)]), 2)
+#&gt;     hp   wt disp
+#&gt; 1 4.70 0.96 5.08
+#&gt; 2 4.70 1.06 5.08
+#&gt; 3 4.53 0.84 4.68
+#&gt; 4 4.70 1.17 5.55
+#&gt; 5 5.16 1.24 5.89
+#&gt; 6 4.65 1.24 5.42</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The outcome <code>mpg</code> keeps its original scale because <code>all_numeric_predictors()</code> excludes it. To log specific columns in a different base, name them and set <code>base</code>. Base 10 maps each order of magnitude to one unit, which many readers find easier to interpret.</p>
+
+<div class="webr-container" data-block-title="Log base 10 instead of natural log">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Log base 10 instead of natural log</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec10 &lt;- recipe(mpg ~ ., data = mtcars) |&gt;
+  step_log(disp, hp, base = 10)
+
+baked10 &lt;- prep(rec10) |&gt; bake(new_data = NULL)
+round(head(baked10[c(&quot;disp&quot;, &quot;hp&quot;)]), 3)
+#&gt;    disp    hp
+#&gt; 1 2.204 2.041
+#&gt; 2 2.204 2.041
+#&gt; 3 2.033 1.968
+#&gt; 4 2.412 2.041
+#&gt; 5 2.556 2.243
+#&gt; 6 2.352 2.021</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>offset</code> argument adds a constant before the log, the standard trick for columns that contain zeros. The log of zero is undefined, so <code>step_log(offset = 1)</code> behaves like the <code>log1p()</code> function and keeps every row finite.</p>
+
+<div class="webr-container" data-block-title="Use offset to handle zeros">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use offset to handle zeros</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales &lt;- tibble(units = c(0, 1, 5, 20, 100))
+
+rec_off &lt;- recipe(~ units, data = sales) |&gt;
+  step_log(units, offset = 1)
+
+prep(rec_off) |&gt; bake(new_data = NULL)
+#&gt; # A tibble: 5 x 1
+#&gt;   units
+#&gt;   &lt;dbl&gt;
+#&gt; 1 0
+#&gt; 2 0.693
+#&gt; 3 1.79
+#&gt; 4 3.04
+#&gt; 5 4.62</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For columns that also hold negative values, set <code>signed = TRUE</code>. The signed log takes <code>sign(x) * log(abs(x))</code> and maps any value between -1 and 1 to 0, so the result stays finite across the whole real line.</p>
+
+<div class="webr-container" data-block-title="Signed log for negative values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Signed log for negative values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">balance &lt;- tibble(amt = c(-100, -1, 0, 1, 100))
+
+rec_signed &lt;- recipe(~ amt, data = balance) |&gt;
+  step_log(amt, signed = TRUE)
+
+prep(rec_signed) |&gt; bake(new_data = NULL)
+#&gt; # A tibble: 5 x 1
+#&gt;     amt
+#&gt;   &lt;dbl&gt;
+#&gt; 1 -4.61
+#&gt; 2  0
+#&gt; 3  0
+#&gt; 4  0
+#&gt; 5  4.61</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>step_log() vs step_BoxCox() vs step_YeoJohnson()</h2>
+
+<p><strong>Pick the step that matches your data and your goal.</strong> All three reduce skew, but they differ in how much they estimate and what input values they tolerate.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What it does</th>
+<th>Handles zeros or negatives</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_log()</code></td>
+<td>Applies a fixed <code>log(x, base)</code></td>
+<td>Only with <code>offset</code> or <code>signed</code></td>
+</tr>
+<tr>
+<td><code>step_BoxCox()</code></td>
+<td>Estimates the best power transform</td>
+<td>No, needs strictly positive data</td>
+</tr>
+<tr>
+<td><code>step_YeoJohnson()</code></td>
+<td>Estimates a power transform</td>
+<td>Yes, defined for all real values</td>
+</tr>
+<tr>
+<td><code>step_sqrt()</code></td>
+<td>Applies a fixed square root</td>
+<td>Needs non-negative data</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>step_log()</code> when you already know a log makes sense and you want a transformation that is fast, fixed, and easy to explain. Reach for <code>step_BoxCox()</code> or <code>step_YeoJohnson()</code> when you would rather let the data choose the exponent, and <code>step_YeoJohnson()</code> specifically when the column has zeros or negatives. The estimated steps are more flexible but harder to communicate, since the fitted power is rarely a round number.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Choose the base for interpretability, not just habit.</strong> Base 2 turns each unit of the logged column into a doubling, which suits engagement counts and biological growth. Base 10 lines up with orders of magnitude, handy for prices and populations. The natural log is the default and is fine for modeling, since base only rescales the column by a constant.</div></div>
+
+<h2>Common pitfalls with step_log()</h2>
+
+<p><strong>Most step_log() bugs trace back to invalid inputs or the wrong column set.</strong> Because the transformation is static, recipes will not warn you before producing a broken column.</p>
+
+<ol>
+
+<li><strong>Zeros and negatives.</strong> <code>log(0)</code> is <code>-Inf</code> and <code>log(-1)</code> is <code>NaN</code>. A predictor with either value needs <code>offset</code> to shift it positive or <code>signed = TRUE</code> to use the signed variant.</li>
+
+<li><strong>Transforming the outcome by accident.</strong> <code>all_numeric()</code> includes the response variable. Use <code>all_numeric_predictors()</code> so the model still trains and predicts on the untransformed target.</li>
+
+<li><strong>New data with unexpected values.</strong> Training data may be all positive while a later batch contains a zero. <code>step_log()</code> will not error; it will quietly emit <code>-Inf</code> and corrupt the prediction. Validate new data or build the offset in from the start.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A logged column with <code>-Inf</code> will not stop the pipeline.</strong> <code>bake()</code> returns the infinite value, the model receives it, and the failure surfaces far downstream as an unexplained <code>NA</code> prediction. Inspect the range of every logged predictor right after <code>prep()</code>.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Log-transform the <code>disp</code> column of <code>mtcars</code> using base 10 in a recipe, prep it, and save the baked result to <code>ex_logged</code>.</p>
+<div class="webr-container" data-block-title="Your turn: log base 10">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: log base 10</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: log10 transform disp
+ex_rec &lt;- recipe(mpg ~ ., data = mtcars) |&gt;
+  step_log(# your code here)
+
+ex_logged &lt;- # your code here
+
+round(head(ex_logged$disp, 3), 3)
+#&gt; Expected: first values near 2.204</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec &lt;- recipe(mpg ~ ., data = mtcars) |&gt;
+  step_log(disp, base = 10)
+
+ex_logged &lt;- prep(ex_rec) |&gt; bake(new_data = NULL)
+round(head(ex_logged$disp, 3), 3)
+#&gt; [1] 2.204 2.204 2.033</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Passing <code>disp</code> and <code>base = 10</code> limits the step to one column and switches the logarithm base. After <code>prep()</code> and <code>bake()</code>, the <code>disp</code> values are replaced by their base-10 logs, so the first entry of 160 becomes about 2.204.</p>
+
+</details>
+</section>
+
+<h2>Related recipes steps</h2>
+
+<p><strong>step_log() is one of several recipes transformation steps.</strong> These pair naturally with it in a tidymodels workflow:</p>
+
+<ul>
+
+<li><a href="recipes-step_BoxCox-in-R.html">step_BoxCox()</a> estimates the best power transform for positive data.</li>
+
+<li><a href="recipes-step_YeoJohnson-in-R.html">step_YeoJohnson()</a> estimates a power transform that allows zeros and negatives.</li>
+
+<li><a href="recipes-step_sqrt-in-R.html">step_sqrt()</a> applies a fixed square-root transform.</li>
+
+<li><a href="recipes-step_normalize-in-R.html">step_normalize()</a> centers and scales to mean 0 and SD 1.</li>
+
+<li><a href="recipes-recipe-in-R.html">recipe()</a> creates the preprocessing object every step attaches to.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The equivalent of <code>step_log()</code> is <code>np.log(df)</code>, or <code>np.log1p(df)</code> when the column contains zeros. The recipes version differs by attaching the transform to a reusable recipe, so the same logic runs on training and new data without copy-pasting.</div></div>
+
+<h2>FAQ</h2>
+
+<p><strong>What does step_log() do in the recipes package?</strong></p>
+
+<p><code>step_log()</code> adds a log transformation to a recipe. When you <code>bake()</code> the prepped recipe, every value in the selected columns is replaced by <code>log(x, base)</code>, optionally after adding an <code>offset</code>. The default base is <code>e</code>, the natural log. It is most often used to compress right-skewed numeric predictors so models that assume symmetric inputs fit more reliably. Because it is a static transform, it estimates nothing from the data and runs identically on training and new rows.</p>
+
+<p><strong>How do I take a log transform of zeros with step_log()?</strong></p>
+
+<p>The log of zero is <code>-Inf</code>, so a column with zeros needs the <code>offset</code> argument. Setting <code>step_log(units, offset = 1)</code> adds 1 to every value before the log, exactly like the <code>log1p()</code> function, which keeps zero rows finite at <code>log(1) = 0</code>. If the column also has negative values, use <code>signed = TRUE</code> instead, which applies <code>sign(x) * log(abs(x))</code> and maps values between -1 and 1 to 0.</p>
+
+<p><strong>Should I use step_log() or step_BoxCox()?</strong></p>
+
+<p>Use <code>step_log()</code> when you already know a log is appropriate and want a fixed, transparent transformation that is easy to explain to others. Use <code>step_BoxCox()</code> when you would rather let the data choose the exponent automatically. Box-Cox estimates a power that best symmetrizes each column, which can fit better but produces a non-round exponent that is harder to communicate. Box-Cox also requires strictly positive data, while <code>step_log()</code> can handle zeros and negatives through <code>offset</code> and <code>signed</code>.</p>
+
+<p><strong>Does step_log() transform the outcome variable?</strong></p>
+
+<p>Not if you select columns with <code>all_numeric_predictors()</code>, which excludes the response. If you use <code>all_numeric()</code> instead, the outcome is included and gets logged too, which is rarely what you want. To log the response on purpose, name it explicitly and remember that predictions then come back on the log scale and must be exponentiated to return to the original units.</p>
+
+</content>
+
+</invoke>
