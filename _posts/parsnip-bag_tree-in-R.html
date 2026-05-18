@@ -1,0 +1,350 @@
+---
+title: "parsnip bag_tree() in R: Build Bagged Tree Models"
+description: "Learn how parsnip bag_tree() defines bagged decision tree ensembles in R. Load the baguette engine, fit models, and read aggregated variable importance."
+keywords: "parsnip bag_tree, bag_tree function R, parsnip bag_tree examples, bagged decision tree R, bag_tree tidymodels, baguette bag_tree"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "bag_tree()|parsnip bag_tree|parsnip::bag_tree()|bagged decision tree|tidymodels bagged trees"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>parsnip bag_tree() in R: Build Bagged Tree Models</h1>
+
+<p class="lead">The parsnip bag_tree() function defines a bagged decision tree model in R, an ensemble that fits many trees on bootstrap samples and averages them to cut variance.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>bag_tree()<span class="qa-cmt">                                    # bare spec, mode unset</span>
+bag_tree(mode = &quot;classification&quot;)<span class="qa-cmt">             # set mode inline</span>
+bag_tree(tree_depth = 5)<span class="qa-cmt">                      # cap how deep each tree grows</span>
+bag_tree(min_n = 10)<span class="qa-cmt">                          # minimum rows to split a node</span>
+bag_tree(cost_complexity = 0.01)<span class="qa-cmt">              # pruning penalty per tree</span>
+bag_tree() |&gt; set_engine(&quot;rpart&quot;, times = 25)<span class="qa-cmt"> # 25 bootstrap trees</span>
+bag_tree() |&gt; set_mode(&quot;regression&quot;)<span class="qa-cmt">          # bagged regression trees</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is bag_tree() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">bagged trees to cut variance</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">bag_tree() |&gt; set_engine(&quot;rpart&quot;)</text><text x="125" y="126" class="branch-label">one interpretable tree</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code"><a class="auto-link" href="parsnip-decision_tree-in-R.html" title="parsnip decision_tree() in R: Build Tree-Based Models">decision_tree()</a></text><text x="125" y="182" class="branch-label">many de-correlated trees</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">rand_forest()</text><text x="125" y="238" class="branch-label">sequential boosted trees</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code"><a class="auto-link" href="parsnip-boost_tree-in-R.html" title="parsnip boost_tree() in R: Define Gradient Boosting Models">boost_tree()</a></text><text x="125" y="294" class="branch-label">bagged MARS instead of trees</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">bag_mars()</text><text x="125" y="350" class="branch-label">straight-line numeric outcome</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">linear_reg()</text></svg></div>
+
+<h2>What bag_tree() does</h2>
+
+<p><strong>bag_tree() declares a bagged ensemble, it does not train one.</strong> The function returns a model specification: an engine-agnostic description of a bagging model. Bagging, short for bootstrap aggregating, draws many resamples of your data, fits one tree per resample, and averages their predictions. No data touches the spec until you call <code>fit()</code>.</p>
+
+<p>A single decision tree is unstable, because a small change in the training rows can reshuffle every split. Bagging fixes that. By averaging dozens of trees grown on different bootstrap samples, the ensemble keeps the flexibility of trees while smoothing out the noise that makes one tree erratic.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Bagging trades readability for stability.</strong> One decision tree gives you if-then rules you can follow by eye. A bagged ensemble gives you a more accurate prediction but no single readable tree, only aggregated <a class="auto-link" href="Variable-Selection-and-Importance-With-R.html" title="Feature Selection and Variable Importance">variable importance</a>. Reach for <code>bag_tree()</code> when you want a sturdier model than one tree and do not need the rule list.</div></div>
+
+<h2>bag_tree() syntax and arguments</h2>
+
+<p><strong>bag_tree() needs the baguette package for its engine.</strong> The constructor lives in parsnip, but the fitting backend is registered by the baguette extension package. Load both, or the fit will fail with an engine error.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>What it controls</th>
+<th>Typical range</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tree_depth</code></td>
+<td>Maximum depth each tree can grow</td>
+<td>1 to 15</td>
+</tr>
+<tr>
+<td><code>min_n</code></td>
+<td>Minimum data points needed to split a node</td>
+<td>2 to 40</td>
+</tr>
+<tr>
+<td><code>cost_complexity</code></td>
+<td>Penalty that prunes weak splits per tree</td>
+<td>0 to 0.1</td>
+</tr>
+<tr>
+<td><code>class_cost</code></td>
+<td>Cost of misclassifying the minority class</td>
+<td>1 to 10</td>
+</tr>
+<tr>
+<td><code>times</code></td>
+<td>Number of bootstrap trees, set in <code>set_engine()</code></td>
+<td>11 to 100</td>
+</tr>
+</tbody>
+</table>
+
+<p>You build a spec by piping the constructor into <code>set_engine()</code> and <code>set_mode()</code>. The <code>times</code> argument is engine-specific, so it goes inside <code>set_engine()</code>.</p>
+
+<div class="webr-container" data-block-title="Define a bagged tree spec">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define a bagged tree spec</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(parsnip)
+library(baguette)
+
+bag_spec &lt;- bag_tree(tree_depth = 5, min_n = 10) |&gt;
+  set_engine(&quot;rpart&quot;, times = 25) |&gt;
+  set_mode(&quot;classification&quot;)
+
+bag_spec
+#&gt; Bagged Decision Tree Model Specification (classification)
+#&gt;
+#&gt; Main Arguments:
+#&gt;   tree_depth = 5
+#&gt;   min_n = 10
+#&gt;
+#&gt; Engine-Specific Arguments:
+#&gt;   times = 25
+#&gt;
+#&gt; Computational engine: rpart</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The printed spec lists your tree controls and the bootstrap count. Nothing is fitted yet, so this object stays cheap to copy and reuse.</p>
+
+<h2>Fit a bagged tree: classification and regression</h2>
+
+<p><strong>The same spec fits classification and regression by switching the mode.</strong> Pass a formula and a data frame to <code>fit()</code>, then call <code>predict()</code> on new rows. Here is a bagged classification ensemble on the built-in <code>iris</code> dataset.</p>
+
+<div class="webr-container" data-block-title="Fit a bagged classification model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a bagged classification model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bag_fit &lt;- bag_spec |&gt;
+  fit(Species ~ ., data = iris)
+
+predict(bag_fit, iris[c(1, 60, 130), ])
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 setosa
+#&gt; 2 versicolor
+#&gt; 3 virginica</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fitted object holds all 25 trees and predicts a tidy tibble. For a numeric target, rebuild the spec in regression mode and fit against <code>mtcars</code>.</p>
+
+<div class="webr-container" data-block-title="Fit a bagged regression model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a bagged regression model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">reg_spec &lt;- bag_tree() |&gt;
+  set_engine(&quot;rpart&quot;, times = 25) |&gt;
+  set_mode(&quot;regression&quot;)
+
+reg_fit &lt;- reg_spec |&gt; fit(mpg ~ ., data = mtcars)
+predict(reg_fit, mtcars[1:3, ])
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  21.3
+#&gt; 2  21.1
+#&gt; 3  25.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Regression bags return <code>.pred</code> instead of <code>.pred_class</code>. Each prediction is the average across the 25 bootstrap trees, which is why the numbers are smoother than a single tree would give.</p>
+
+<h2>Read aggregated variable importance</h2>
+
+<p><strong>baguette aggregates variable importance across every tree.</strong> Because no single tree is readable, the fitted object stores a combined importance table. Pull it from the engine fit to see which predictors drive the ensemble.</p>
+
+<div class="webr-container" data-block-title="Read aggregated variable importance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Read aggregated variable importance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bag_fit$fit$imp
+#&gt; # A tibble: 4 x 4
+#&gt;   term          value std.error  used
+#&gt;   &lt;chr&gt;         &lt;dbl&gt;     &lt;dbl&gt; &lt;int&gt;
+#&gt; 1 Petal.Width    55.8      2.14    25
+#&gt; 2 Petal.Length   54.1      2.31    25
+#&gt; 3 Sepal.Length   18.7      1.62    25
+#&gt; 4 Sepal.Width    11.2      1.05    25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>value</code> column ranks predictors, and <code>std.error</code> shows how stable that ranking is across resamples. A low standard error means the ensemble agrees on that variable's role.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use importance to prune predictors.</strong> Variables with near-zero <code>value</code> and a large <code>std.error</code> contribute little. Dropping them often keeps accuracy while speeding up every future fit.</div></div>
+
+<h2>bag_tree() vs decision_tree() vs rand_forest()</h2>
+
+<p><strong>All three are tree models, but they manage variance differently.</strong> A single tree is the simplest and the most readable. A bagged ensemble averages many trees. A random forest adds random feature selection on top of bagging.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Model</th>
+<th>How it builds trees</th>
+<th>Variance</th>
+<th>Interpretability</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>decision_tree()</code></td>
+<td>One tree on the full data</td>
+<td>High</td>
+<td>Reads as if-then rules</td>
+</tr>
+<tr>
+<td><code>bag_tree()</code></td>
+<td>Many trees on bootstrap samples, averaged</td>
+<td>Low</td>
+<td>Aggregated importance only</td>
+</tr>
+<tr>
+<td><code>rand_forest()</code></td>
+<td>Bagged trees plus random predictor subsets</td>
+<td>Lowest</td>
+<td>Aggregated importance only</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is short. Use <code>decision_tree()</code> when you must explain the model as rules. Use <code>bag_tree()</code> when you want a stabler version of trees. Use <code>rand_forest()</code> when you also want the trees de-correlated for the best accuracy.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>A random forest is bagging plus one extra step.</strong> Both resample the rows, but <code>rand_forest()</code> also samples a random subset of predictors at each split. That extra randomness usually beats plain bagging, so try it once <code>bag_tree()</code> works.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most bag_tree() errors trace back to the missing baguette package.</strong> The constructor is in parsnip, but the engine is not. Calling <code>fit()</code> without <code>library(baguette)</code> raises an engine error.</p>
+
+<div class="webr-container" data-block-title="Fitting without baguette loaded fails">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fitting without baguette loaded fails</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(parsnip)
+
+bag_tree() |&gt;
+  set_engine(&quot;rpart&quot;) |&gt;
+  set_mode(&quot;classification&quot;) |&gt;
+  fit(Species ~ ., data = iris)
+#&gt; Error: parsnip could not locate an implementation for `bag_tree`
+#&gt; classification model specifications using the `rpart` engine.
+#&gt; The parsnip extension package baguette implements support for
+#&gt; this specification. Please install (if needed) and load.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Load baguette and the fit succeeds. Two more traps to watch:</p>
+
+<ul>
+
+<li>Setting <code>times</code> too low gives an unstable ensemble. Fewer than 11 trees barely beats one tree, so keep <code>times</code> at 25 or more.</li>
+
+<li>A regression target stored as a factor throws a type error. Convert it with <code>as.numeric()</code> before fitting.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Bagging does not fix a biased tree.</strong> It only cuts variance. If every tree underfits because <code>tree_depth</code> is set very low, averaging them keeps the same bias. Let each tree grow reasonably deep, then let bagging smooth the noise.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a bagged regression model with 25 trees, fit it to predict <code>hp</code> from all columns of <code>mtcars</code>, and save the fitted model to <code>ex_bag_fit</code>.</p>
+<div class="webr-container" data-block-title="Your turn: fit a bagged regression model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit a bagged regression model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: build and fit a bagged regression model
+ex_bag_fit &lt;- # your code here
+
+ex_bag_fit
+#&gt; Expected: a parsnip bagged model fit object</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_bag_fit &lt;- bag_tree() |&gt;
+  set_engine(&quot;rpart&quot;, times = 25) |&gt;
+  set_mode(&quot;regression&quot;) |&gt;
+  fit(hp ~ ., data = mtcars)
+
+class(ex_bag_fit)
+#&gt; [1] &quot;_bagger&quot;  &quot;model_fit&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The spec sets the mode, <code>set_engine(&quot;rpart&quot;, times = 25)</code> picks the backend and the bootstrap count, and <code>fit()</code> trains all 25 trees on <code>mtcars</code>. The result is a parsnip <code>model_fit</code> wrapping a baguette <code>bagger</code> object.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>bag_tree() is one model in a family of parsnip specifications.</strong> When a bagged tree is not the right fit, these neighbors share the same <code>set_engine()</code> and <code>fit()</code> workflow:</p>
+
+<ul>
+
+<li><code>decision_tree()</code> builds one interpretable tree.</li>
+
+<li><code>rand_forest()</code> adds random feature selection to bagging.</li>
+
+<li><code>boost_tree()</code> builds trees sequentially for higher accuracy.</li>
+
+<li><code>bag_mars()</code> bags MARS models instead of trees.</li>
+
+<li><code>set_engine()</code> chooses the computational backend for any spec.</li>
+
+</ul>
+
+<p>See the <a href="https://parsnip.tidymodels.org/reference/bag_tree.html">tidymodels bag_tree reference</a> for the full list of supported engines.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What package provides bag_tree() in R?</strong> The <code>bag_tree()</code> constructor is exported by the parsnip package, but its fitting engines are registered by the baguette package. You need both loaded: parsnip defines the model spec, and baguette implements the <code>rpart</code> and <code>C5.0</code> bagging backends. Loading <code>library(tidymodels)</code> plus <code>library(baguette)</code> covers every case, since baguette is not part of the core tidymodels attach list.</p>
+
+<p><strong>How is bag_tree() different from rand_forest()?</strong> Both fit many trees on bootstrap resamples of the data and average them. The difference is feature sampling. <code>rand_forest()</code> also picks a random subset of predictors at each split, which de-correlates the trees and usually improves accuracy. <code>bag_tree()</code> uses every predictor at every split, so its trees look more alike. Bagging is the simpler baseline; a random forest is the tuned upgrade.</p>
+
+<p><strong>How many trees should I set with times?</strong> The <code>times</code> argument controls how many bootstrap trees the ensemble fits. Values below 11 barely beat a single tree, because there are too few trees to average out noise. A setting of 25 to 50 is a solid default for most datasets. Going past 100 rarely improves accuracy and just costs more fitting time, so stop once the validation score flattens.</p>
+
+<p><strong>Can bag_tree() report variable importance?</strong> Yes. baguette aggregates importance scores across every tree in the ensemble and stores them in the fitted object. Access the table with <code>your_fit$fit$imp</code>, which lists each predictor's mean importance <code>value</code> and a <code>std.error</code> showing how consistent that score is. This aggregated table is the closest a bagged model gets to the readable rule list of a single decision tree.</p>
+
+{% endraw %}
