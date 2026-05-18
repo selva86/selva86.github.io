@@ -1,0 +1,295 @@
+---
+title: "parsnip naive_Bayes() in R: Build a Naive Bayes Classifier"
+description: "Learn how parsnip naive_Bayes() defines a naive Bayes classifier in R. Set the klaR or naivebayes engine, tune Laplace smoothing, and fit with examples."
+keywords: "parsnip naive_Bayes, naive_Bayes function R, parsnip naive_Bayes examples, naive Bayes tidymodels R, naive_Bayes classifier R, R naive Bayes parsnip"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "naive_Bayes()|parsnip naive_Bayes|parsnip::naive_Bayes()|naive Bayes classifier|tidymodels naive Bayes"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>parsnip naive_Bayes() in R: Build a Naive Bayes Classifier</h1>
+
+<p class="lead">The parsnip naive_Bayes() function defines a naive Bayes classification model in R, a fast probabilistic classifier that plugs into any tidymodels engine.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>naive_Bayes()<span class="qa-cmt">                                   # bare spec, classification</span>
+naive_Bayes(mode = &quot;classification&quot;)<span class="qa-cmt">            # set mode inline</span>
+naive_Bayes(Laplace = 1)<span class="qa-cmt">                        # smoothing for zero counts</span>
+naive_Bayes(smoothness = 1.5)<span class="qa-cmt">                   # kernel density bandwidth</span>
+naive_Bayes() |&gt; set_engine(&quot;klaR&quot;)<span class="qa-cmt">             # default klaR engine</span>
+naive_Bayes() |&gt; set_engine(&quot;naivebayes&quot;)<span class="qa-cmt">       # switch the fitting engine</span>
+naive_Bayes(Laplace = 1) |&gt; fit(y ~ ., data = df)<span class="qa-cmt">  # define and train</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is naive_Bayes() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">fast probabilistic baseline classifier</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">naive_Bayes() |&gt; set_engine(&quot;klaR&quot;)</text><text x="125" y="126" class="branch-label">linear class boundary from group means</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">discrim_linear()</text><text x="125" y="182" class="branch-label">curved per-class covariance boundary</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">discrim_quad()</text><text x="125" y="238" class="branch-label">predictor interactions matter</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">rand_forest()</text><text x="125" y="294" class="branch-label">distance-based class voting</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">nearest_neighbor()</text><text x="125" y="350" class="branch-label">numeric outcome instead of a class</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">linear_reg()</text></svg></div>
+
+<h2>What naive_Bayes() does</h2>
+
+<p><strong>naive_Bayes() declares a classifier, it does not train one.</strong> The function returns a model specification: an engine-agnostic description of the naive Bayes classifier you want. No data touches it until you call <code>fit()</code>. That split keeps your modeling code portable across the whole tidymodels stack.</p>
+
+<p>A naive Bayes classifier applies <a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">Bayes' theorem</a> with one simplifying assumption: every predictor is conditionally independent of the others once you know the class. For each class it multiplies the class prior by the likelihood of each feature, then picks the class with the highest score. The assumption is rarely true, yet the classifier stays accurate and trains in a single pass over the data.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The "naive" assumption is a feature, not a bug.</strong> Treating predictors as independent collapses a hard joint-density estimate into many easy one-dimensional ones. That is why naive Bayes trains fast, needs little data, and rarely overfits, making it a strong baseline before you reach for heavier models.</div></div>
+
+<h2>naive_Bayes() syntax and arguments</h2>
+
+<p><strong>Two hyperparameters control how the classifier estimates probabilities.</strong> Both arguments are optional, and any you leave out falls back to the engine default.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>What it controls</th>
+<th>Typical value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>smoothness</code></td>
+<td>Kernel density bandwidth for numeric predictors</td>
+<td>0.5 to 2</td>
+</tr>
+<tr>
+<td><code>Laplace</code></td>
+<td>Additive smoothing for zero-frequency categories</td>
+<td>0 to 3</td>
+</tr>
+<tr>
+<td><code>mode</code></td>
+<td>Only <code>&quot;classification&quot;</code> is supported</td>
+<td><code>&quot;classification&quot;</code></td>
+</tr>
+<tr>
+<td><code>engine</code></td>
+<td>Fitting backend, set with <code>set_engine()</code></td>
+<td><code>&quot;klaR&quot;</code>, <code>&quot;naivebayes&quot;</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>You build a spec by piping the constructor into <code>set_engine()</code> and <code>set_mode()</code>.</p>
+
+<div class="webr-container" data-block-title="Define a naive Bayes spec">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define a naive Bayes spec</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(parsnip)
+library(discrim)
+
+nb_spec &lt;- naive_Bayes(Laplace = 1) |&gt;
+  set_engine(&quot;klaR&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+nb_spec
+#&gt; Naive Bayes Model Specification (classification)
+#&gt;
+#&gt; Main Arguments:
+#&gt;   Laplace = 1
+#&gt;
+#&gt; Computational engine: klaR</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The printed spec shows your chosen arguments and the engine. Nothing is fitted yet, so this object is cheap to create and reuse.</p>
+
+<h2>Fit a naive Bayes classifier</h2>
+
+<p><strong>Pass a formula and a data frame to fit(), then predict on new rows.</strong> Naive Bayes handles numeric and categorical predictors and needs no scaling. Here it classifies the three species in the built-in <code>iris</code> dataset.</p>
+
+<div class="webr-container" data-block-title="Fit a naive Bayes model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a naive Bayes model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nb_fit &lt;- nb_spec |&gt;
+  fit(Species ~ ., data = iris)
+
+predict(nb_fit, iris[c(1, 60, 130), ])
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 setosa
+#&gt; 2 versicolor
+#&gt; 3 virginica</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fitted object wraps the trained engine model and predicts a tidy tibble. Because naive Bayes is probabilistic, you can also ask for the class probabilities behind each label.</p>
+
+<div class="webr-container" data-block-title="Get class probabilities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Get class probabilities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(nb_fit, iris[c(1, 60, 130), ], type = &quot;prob&quot;)
+#&gt; # A tibble: 3 x 3
+#&gt;   .pred_setosa .pred_versicolor .pred_virginica
+#&gt;          &lt;dbl&gt;            &lt;dbl&gt;           &lt;dbl&gt;
+#&gt; 1     1.00            1.31e-15        7.94e-23
+#&gt; 2     2.27e-69        0.999           7.41e-04
+#&gt; 3     1.51e-216       1.05e-05        1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>type = &quot;prob&quot;</code> argument returns one <code>.pred_&lt;class&gt;</code> column per class, and the values in each row sum to 1. These probabilities feed straight into yardstick metrics like <code>roc_auc()</code>.</p>
+
+<h2>Choosing an engine: klaR vs naivebayes</h2>
+
+<p><strong>The engine decides the algorithm behind a shared interface.</strong> The default <code>klaR</code> engine wraps <code>klaR::NaiveBayes</code> and supports both <code>smoothness</code> and <code>Laplace</code>. The <code>naivebayes</code> engine wraps <code>naivebayes::naive_bayes</code>, runs faster, and has a lighter dependency footprint.</p>
+
+<div class="webr-container" data-block-title="Switch to the naivebayes engine">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Switch to the naivebayes engine</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nb2_fit &lt;- naive_Bayes() |&gt;
+  set_engine(&quot;naivebayes&quot;) |&gt;
+  set_mode(&quot;classification&quot;) |&gt;
+  fit(Species ~ ., data = iris)
+
+predict(nb2_fit, iris[c(1, 60, 130), ])
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 setosa
+#&gt; 2 versicolor
+#&gt; 3 virginica</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Each engine lives in its own package.</strong> The <code>klaR</code> engine needs the klaR package installed, and <code>naivebayes</code> needs the naivebayes package. Run <code>show_engines(&quot;naive_Bayes&quot;)</code> to list every engine and the modes it supports.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most naive_Bayes() errors trace back to a missing package.</strong> The function is exported by the discrim package, not parsnip core, so loading parsnip alone is not enough.</p>
+
+<div class="webr-container" data-block-title="Naive Bayes needs the discrim package">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Naive Bayes needs the discrim package</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(parsnip)
+
+naive_Bayes()
+#&gt; Error in naive_Bayes(): could not find function &quot;naive_Bayes&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Adding <code>library(discrim)</code> registers the model and the spec builds cleanly. Two more traps to watch:</p>
+
+<ul>
+
+<li>Naive Bayes has no regression mode. Calling <code>set_mode(&quot;regression&quot;)</code> errors because the algorithm only predicts class labels, never a continuous number.</li>
+
+<li>A categorical level never seen with a class gets a likelihood of zero, which wipes out the whole product. Set <code>Laplace</code> to a small positive number to add pseudo-counts and avoid that collapse.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The independence assumption distorts predicted probabilities.</strong> When predictors are strongly correlated, naive Bayes still picks the right class often, but its probabilities skew hard toward 0 and 1. Trust the class label more than the raw probability when features overlap.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a naive Bayes spec with <code>Laplace = 0.5</code>, fit it to classify <code>Species</code> from all columns of <code>iris</code>, and save the fitted model to <code>ex_nb_fit</code>.</p>
+<div class="webr-container" data-block-title="Your turn: fit a naive Bayes model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit a naive Bayes model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: build and fit a naive Bayes classifier
+ex_nb_fit &lt;- # your code here
+
+ex_nb_fit
+#&gt; Expected: a parsnip model fit object</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_nb_fit &lt;- naive_Bayes(Laplace = 0.5) |&gt;
+  set_engine(&quot;klaR&quot;) |&gt;
+  set_mode(&quot;classification&quot;) |&gt;
+  fit(Species ~ ., data = iris)
+
+class(ex_nb_fit)
+#&gt; [1] &quot;_NaiveBayes&quot; &quot;model_fit&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The spec sets <code>Laplace</code> smoothing and the mode, <code>set_engine(&quot;klaR&quot;)</code> picks the backend, and <code>fit()</code> trains the classifier on <code>iris</code>. The result is a parsnip <code>model_fit</code> wrapping the underlying <code>NaiveBayes</code> object.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>naive_Bayes() is one classifier in a family of parsnip specifications.</strong> When the independence assumption is too strong, these neighbors share the same <code>set_engine()</code> and <code>fit()</code> workflow:</p>
+
+<ul>
+
+<li><code>discrim_linear()</code> fits <a class="auto-link" href="Linear-Discriminant-Analysis-in-R.html" title="LDA in R: Classify Observations by Maximising Between-Group Separation">linear discriminant analysis</a> for a linear class boundary.</li>
+
+<li><code>discrim_quad()</code> fits <a class="auto-link" href="Quadratic-Discriminant-Analysis-in-R.html" title="Quadratic Discriminant Analysis in R: When LDA Assumptions Break">quadratic discriminant analysis</a> with a per-class covariance.</li>
+
+<li><code>rand_forest()</code> averages many trees when predictor interactions matter.</li>
+
+<li><code>nearest_neighbor()</code> classifies by distance-based voting.</li>
+
+<li><code>set_engine()</code> chooses the computational backend for any spec.</li>
+
+</ul>
+
+<p>See the <a href="https://parsnip.tidymodels.org/reference/naive_Bayes.html">tidymodels parsnip reference</a> for the full list of supported engines.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What package is naive_Bayes() in?</strong> The <code>naive_Bayes()</code> function is exported by the discrim package, a parsnip extension for discriminant and Bayesian classifiers. Loading parsnip alone throws a "<a class="auto-link" href="R-Common-Errors.html" title="50 Most Common R Error Messages: What They Mean & How to Fix Them">could not find function</a>" error. Always run <code>library(discrim)</code> (or <code>library(tidymodels)</code> plus <code>library(discrim)</code>) before defining the spec. The discrim package also registers the klaR, naivebayes, and h2o engines.</p>
+
+<p><strong>Does naive_Bayes() support regression?</strong> No. Naive Bayes is a classification-only algorithm, so the spec accepts <code>set_mode(&quot;classification&quot;)</code> and nothing else. Calling <code>set_mode(&quot;regression&quot;)</code> raises an error stating that regression is not a known mode. For a numeric outcome, use <code>linear_reg()</code> or another regression model spec instead.</p>
+
+<p><strong>What does the Laplace argument do?</strong> <code>Laplace</code> adds a small constant to every feature-class count before estimating probabilities. Without it, a categorical level that never appears with a class gets a probability of zero, and that zero wipes out the entire product for that class. Setting <code>Laplace = 1</code> (add-one smoothing) is a common safe default that keeps every class in contention.</p>
+
+<p><strong>Should I use the klaR or naivebayes engine?</strong> Use the default <code>klaR</code> engine for general work; it is well tested and supports both <code>smoothness</code> and <code>Laplace</code>. Choose the <code>naivebayes</code> engine when you want faster fitting and a lighter dependency, especially on larger datasets. Both share the same parsnip interface, so switching engines is a one-line change to <code>set_engine()</code>.</p>
+
+<p><strong>How do I tune the smoothness parameter?</strong> Mark the argument for tuning by setting it to <code>tune()</code>, as in <code>naive_Bayes(smoothness = tune())</code>. Then build a grid with the dials package and pass it to <code>tune_grid()</code> along with a resampling object. The tuning step searches the candidate values and reports the bandwidth that scores best on your chosen metric.</p>
+
+{% endraw %}
