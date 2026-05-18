@@ -1,0 +1,317 @@
+---
+title: "rsample initial_split() in R: Make a Train/Test Split"
+description: "Split data into training and testing sets with rsample initial_split() in R. Covers prop, strata, set.seed reproducibility, and the training() helper."
+keywords: "rsample initial_split, initial_split function R, rsample initial_split examples, R train test split, initial_split tidymodels, split data training testing R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "initial_split()|rsample initial_split|rsample::initial_split()|train test split|initial split"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>rsample initial_split() in R: Make a Train/Test Split</h1>
+
+<p class="lead">The rsample initial_split() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> creates a single train/test partition of your data, so you can fit a model on one slice and measure honest performance on data it never saw.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>initial_split(df)<span class="qa-cmt">                          # default 75/25 split</span>
+initial_split(df, prop = 0.8)<span class="qa-cmt">              # custom 80/20 split</span>
+initial_split(df, strata = y)<span class="qa-cmt">              # stratified by outcome</span>
+training(split)<span class="qa-cmt">                            # extract training set</span>
+testing(split)<span class="qa-cmt">                             # extract testing set</span>
+initial_split(df, prop = 0.7, strata = y)<span class="qa-cmt">  # stratified custom split</span>
+set.seed(123); initial_split(df)<span class="qa-cmt">           # reproducible split</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is initial_split() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">one train/test split</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">initial_split(df, prop = 0.8)</text><text x="125" y="126" class="branch-label">stratified single split</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">initial_split(df, strata = y)</text><text x="125" y="182" class="branch-label">k-fold cross-validation</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">vfold_cv(df, v = 10)</text><text x="125" y="238" class="branch-label">repeated resampling</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">bootstraps(df, times = 25)</text><text x="125" y="294" class="branch-label">time-ordered split</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">initial_time_split(df, prop = 0.8)</text><text x="125" y="350" class="branch-label">keep groups intact</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">group_initial_split(df, group_var)</text><text x="125" y="406" class="branch-label">separate validation set</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">initial_validation_split(df)</text></svg></div>
+
+<h2>What initial_split() does</h2>
+
+<p><strong>initial_split() partitions a data frame once into a training set and a testing set.</strong> It belongs to the rsample package, the resampling engine of the tidymodels ecosystem. The function does not copy your data twice. It returns a lightweight <code>rsplit</code> object that stores the row indices for each partition, and you pull the actual data frames out later with <code>training()</code> and <code>testing()</code>.</p>
+
+<p>The point of a train/test split is honesty. You fit and tune your model on the training set, then score it once on the testing set to estimate how it will behave on genuinely new data. Touching the testing set during development leaks information and inflates your reported accuracy.</p>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>The signature is short, and most calls only need the first one or two arguments.</strong></p>
+
+<div class="webr-container" data-block-title="initial_split function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">initial_split function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">initial_split(
+  data,           # the data frame to split
+  prop = 3/4,     # proportion of rows sent to training
+  strata = NULL,  # column to stratify the split by
+  breaks = 4,     # bins used when strata is numeric
+  pool = 0.1      # small-group pooling threshold for strata
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments you reach for in practice:</p>
+
+<ul>
+
+<li><strong>data</strong>: the data frame or tibble to partition.</li>
+
+<li><strong>prop</strong>: the fraction of rows assigned to training. The default <code>3/4</code> gives a 75/25 split.</li>
+
+<li><strong>strata</strong>: a column name. The split is performed within each level of this variable so class proportions are preserved.</li>
+
+<li><strong>breaks</strong>: when <code>strata</code> is numeric, the number of <a class="auto-link" href="dplyr-ntile-in-R.html" title="dplyr ntile() in R: Bin Values into N Equal-Count Groups">quantile bins</a> used to stratify.</li>
+
+<li><strong>pool</strong>: strata levels smaller than this fraction of the data are pooled together before splitting.</li>
+
+</ul>
+
+<h2>initial_split() examples</h2>
+
+<h3>Basic 75/25 split</h3>
+
+<p><strong>Call initial_split() on a data frame and print the result to see the partition sizes.</strong> The <code>iris</code> dataset has 150 rows, so the default <code>3/4</code> proportion sends 112 rows to training.</p>
+
+<div class="webr-container" data-block-title="Create a default train test split">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create a default train test split</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rsample)
+
+set.seed(123)
+iris_split &lt;- initial_split(iris)
+iris_split
+#&gt; &lt;Training/Testing/Total&gt;
+#&gt; &lt;112/38/150&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Extract the training and testing sets</h3>
+
+<p><strong>The split object is not a data frame, so extract the two sets with training() and testing().</strong> These helpers return ordinary data frames you can pass to any modeling function.</p>
+
+<div class="webr-container" data-block-title="Pull out training and testing data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pull out training and testing data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train_data &lt;- training(iris_split)
+test_data  &lt;- testing(iris_split)
+
+nrow(train_data)
+#&gt; [1] 112
+nrow(test_data)
+#&gt; [1] 38</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Set a custom proportion</h3>
+
+<p><strong>Pass prop to change the split ratio.</strong> A value of <code>0.80</code> keeps 80 percent of rows for training, a common choice when the dataset is small.</p>
+
+<div class="webr-container" data-block-title="Use a custom 80 20 split">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use a custom 80 20 split</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(123)
+split_80 &lt;- initial_split(iris, prop = 0.80)
+split_80
+#&gt; &lt;Training/Testing/Total&gt;
+#&gt; &lt;120/30/150&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Stratify by the outcome</h3>
+
+<p><strong>Use strata to keep the outcome distribution balanced across both sets.</strong> Without stratification a random split can leave one class over-represented in training. Here every species stays evenly split.</p>
+
+<div class="webr-container" data-block-title="Stratified split by a factor column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stratified split by a factor column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(123)
+strat_split &lt;- initial_split(iris, prop = 0.75, strata = Species)
+table(training(strat_split)$Species)
+#&gt; 
+#&gt;     setosa versicolor  virginica 
+#&gt;         37         37         37</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>initial_split() vs other resampling functions</h2>
+
+<p><strong>initial_split() makes one split; the other rsample functions make many.</strong> Choose based on how you plan to estimate model performance.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Produces</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>initial_split()</code></td>
+<td>One train/test split</td>
+<td>Final hold-out evaluation</td>
+</tr>
+<tr>
+<td><code>vfold_cv()</code></td>
+<td>k cross-validation folds</td>
+<td>Tuning or robust performance estimates</td>
+</tr>
+<tr>
+<td><code>bootstrap()</code> / <code>bootstraps()</code></td>
+<td>Many resamples with replacement</td>
+<td>Small data, variance estimates</td>
+</tr>
+<tr>
+<td><code>initial_time_split()</code></td>
+<td>One time-ordered split</td>
+<td><a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">Time series</a>, no shuffling allowed</td>
+</tr>
+<tr>
+<td><code>group_initial_split()</code></td>
+<td>One split keeping groups intact</td>
+<td>Grouped or clustered observations</td>
+</tr>
+</tbody>
+</table>
+
+<p>A typical tidymodels workflow uses both: <code>initial_split()</code> to carve off a final testing set, then <code>vfold_cv()</code> on the training set to tune the model.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The rsplit object stores indices, not data.</strong> Printing <code>iris_split</code> shows <code>&lt;112/38/150&gt;</code> rather than rows because rsample keeps pointers into the original data frame. This is why splits are cheap to create and why <code>training()</code> and <code>testing()</code> are the only way to get usable data frames out.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most train/test split bugs.</strong></p>
+
+<ul>
+
+<li><strong>Forgetting set.seed().</strong> <code>initial_split()</code> shuffles rows at random. Without <code>set.seed()</code> before the call, every run produces a different split and your results are not reproducible. Set the seed in the same script, right before the split.</li>
+
+<li><strong>Using the testing set too early.</strong> Calling <code>testing()</code> to inspect or tune your model leaks information. Reserve it for one final evaluation after all modeling decisions are locked.</li>
+
+<li><strong>Stratifying a continuous outcome without breaks.</strong> When <code>strata</code> is numeric, rsample bins it into quantiles using <code>breaks</code>. The default of 4 is usually fine, but very skewed targets may need a different value, and tiny strata levels trigger the <code>pool</code> warning.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A split is only reproducible if the seed is set in the same session.</strong> <code>set.seed(123)</code> followed by <code>initial_split()</code> gives the same partition every time, but moving the seed to another script or changing the R version can shift results. Keep the seed and the split together.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Split the <code>mtcars</code> dataset into a 70/30 train/test partition, then save the training rows to <code>ex_train</code>.</p>
+<div class="webr-container" data-block-title="Your turn: split mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: split mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: 70/30 split of mtcars
+set.seed(42)
+ex_split &lt;- # your code here
+ex_train  &lt;- # your code here
+
+nrow(ex_train)
+#&gt; Expected: 22</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+ex_split &lt;- initial_split(mtcars, prop = 0.70)
+ex_train &lt;- training(ex_split)
+nrow(ex_train)
+#&gt; [1] 22</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>prop = 0.70</code> sends 70 percent of the 32 rows to training. The product <code>32 * 0.70 = 22.4</code> is rounded down, so 22 rows land in <code>ex_train</code> and 10 in the testing set.</p>
+
+</details>
+</section>
+
+<h2>Related rsample functions</h2>
+
+<p><strong>initial_split() is the entry point; these functions extend the workflow.</strong></p>
+
+<ul>
+
+<li><code>training()</code> and <code>testing()</code>: extract the two data frames from a split object.</li>
+
+<li><code>vfold_cv()</code>: build k-fold cross-validation folds from the training set.</li>
+
+<li><code>bootstraps()</code>: generate bootstrap resamples for variance estimates.</li>
+
+<li><code>group_initial_split()</code>: split while keeping all rows of a group together.</li>
+
+<li><code>initial_validation_split()</code>: create a three-way train/validation/test split.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from scikit-learn?</strong> <code>initial_split()</code> plus <code>training()</code> and <code>testing()</code> is the tidymodels equivalent of <code>train_test_split(X, y, test_size=0.25)</code>. The <code>strata</code> argument matches scikit-learn's <code>stratify</code>.</div></div>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the default split ratio for initial_split()?</strong></p>
+
+<p>The default <code>prop</code> argument is <code>3/4</code>, which sends 75 percent of rows to the training set and 25 percent to the testing set. For a 150-row dataset that is a 112/38 split. Pass a different <code>prop</code> value, such as <code>0.8</code>, to change the ratio. There is no single correct ratio: 75/25 and 80/20 are both common, and larger datasets can afford a smaller testing fraction.</p>
+
+<p><strong>How do I make initial_split() reproducible?</strong></p>
+
+<p>Call <code>set.seed()</code> with any integer immediately before <code>initial_split()</code>. The function selects training rows at random, so a fixed seed guarantees the same partition every time the script runs. Keep the seed and the split in the same script. Re-running with the same seed and the same R version reproduces the exact rows in each set.</p>
+
+<p><strong>What is the difference between initial_split() and vfold_cv()?</strong></p>
+
+<p><code>initial_split()</code> creates one train/test split for a final hold-out evaluation. <code>vfold_cv()</code> creates k folds for cross-validation, used to tune hyperparameters or get a more stable performance estimate. They work together: split off a testing set with <code>initial_split()</code>, then apply <code>vfold_cv()</code> to the training portion during model tuning.</p>
+
+<p><strong>When should I use the strata argument?</strong></p>
+
+<p>Use <code>strata</code> when the outcome is imbalanced, such as a rare-event classification target. Stratified splitting preserves the class proportions in both the training and testing sets, so neither set is missing a class or skewed. For a numeric outcome, rsample bins the variable into quantiles first, controlled by the <code>breaks</code> argument.</p>
+
+<p><strong>Can initial_split() handle time series data?</strong></p>
+
+<p>Not directly. <code>initial_split()</code> shuffles rows, which breaks the time order a <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a> model depends on. Use <code>initial_time_split()</code> instead. It keeps the first <code>prop</code> fraction of rows as training and the most recent rows as testing, so the split respects chronology.</p>
+
+{% endraw %}
