@@ -1,0 +1,343 @@
+---
+title: "recipes step_dummy() in R: Create Dummy Variables"
+description: "recipes step_dummy() in R turns factor and character predictors into 0/1 dummy variables. Learn the syntax, one-hot encoding, prep and bake, and pitfalls."
+keywords: "recipes step_dummy, step_dummy function R, recipes step_dummy examples, R dummy variables, tidymodels step_dummy, one-hot encoding recipe R, step_dummy recipe"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_dummy()|recipes step_dummy|recipes::step_dummy()|step_dummy|create dummy variables"
+auto_link_case_sensitive: true
+fr_parent: "Dummy-Variables-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>recipes step_dummy() in R: Create Dummy Variables</h1>
+
+<p class="lead">The <code>recipes</code> <code>step_dummy()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> turns factor and character predictors into numeric 0/1 dummy variables so models can use them. You add it to a <code>recipe()</code>, record the factor levels with <code>prep()</code>, and apply the encoding with <code>bake()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_dummy(rec, all_nominal_predictors())<span class="qa-cmt">        # dummy-encode every factor</span>
+step_dummy(rec, Species)<span class="qa-cmt">                          # encode one named column</span>
+step_dummy(rec, Species, one_hot = TRUE)<span class="qa-cmt">          # keep all levels, no reference</span>
+step_dummy(rec, all_nominal(), -all_outcomes())<span class="qa-cmt">   # encode factors, skip the outcome</span>
+step_dummy(rec, where(is.character))<span class="qa-cmt">              # encode character columns too</span>
+prep(rec) |&gt; bake(new_data = NULL)<span class="qa-cmt">                # learn levels, then apply</span>
+tidy(prep(rec), number = 1)<span class="qa-cmt">                       # inspect the retained levels</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_dummy() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">turn factors into 0/1 indicator columns</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_dummy(rec, all_nominal_predictors())</text><text x="125" y="126" class="branch-label">collapse rare factor levels first</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_other(rec, all_nominal_predictors())</text><text x="125" y="182" class="branch-label">guard against unseen levels in new data</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_novel(rec, all_nominal_predictors())</text><text x="125" y="238" class="branch-label">replace missing factor values</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_unknown(rec, all_nominal_predictors())</text><text x="125" y="294" class="branch-label">build <a class="auto-link" href="Interaction-Effects-in-R.html" title="Interaction Effects in R: Add Them, Test Them, and Actually Understand the Output">interaction terms</a> between predictors</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">step_interact(rec, ~ a:<a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a></text><text x="125" y="350" class="branch-label">drop indicator columns with no variance</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">step_zv(rec, all_predictors())</text></svg></div>
+
+<h2>What step_dummy() does in R</h2>
+
+<p><strong>step_dummy() replaces a categorical column with a set of binary indicator columns.</strong> Most R modeling engines need numeric input, so a factor like <code>Species</code> cannot be fed in directly. <code>step_dummy()</code> converts each factor into one or more 0/1 columns, where a 1 marks membership in a level and a 0 marks absence.</p>
+
+<p>By default it uses <a class="auto-link" href="Dummy-Variables-in-R.html" title="Dummy Variables in R: What lm() Does With Factor Predictors Under the Hood">treatment contrasts</a>, the same scheme <code>lm()</code> applies behind the scenes. A factor with K levels becomes K-1 dummy columns, and the first level is held back as the reference. A car with 4, 6, or 8 cylinders therefore needs only two columns, because "not 6 and not 8" already identifies the 4-cylinder group.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The factor levels are learned during prep(), not bake().</strong> <code>step_dummy()</code> records every level it sees in the training data and stores them inside the prepped recipe. When you <code>bake()</code> new rows, it reuses that stored level set, so the test data gets exactly the same columns in the same order as training, even if a level happens to be absent from the new batch.</div></div>
+
+<h2>step_dummy() syntax and arguments</h2>
+
+<p><strong>step_dummy() attaches an encoding operation to a recipe.</strong> You pass the recipe first, then the columns to encode, chosen with tidyselect helpers like <code>all_nominal_predictors()</code>.</p>
+
+<div class="webr-container" data-block-title="The step_dummy skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The step_dummy skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+recipe(Sepal.Length ~ ., data = iris) |&gt;
+  step_dummy(all_nominal_predictors())
+#&gt; -- Recipe ---------------------------------------------------------------
+#&gt; -- Inputs
+#&gt; Number of variables by role
+#&gt; outcome:   1
+#&gt; predictor: 4
+#&gt; -- Operations
+#&gt; * Dummy variables from: all_nominal_predictors()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments you will actually touch:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>recipe</code></td>
+<td>The recipe object the step is added to.</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Columns to encode, chosen with selectors such as <code>all_nominal_predictors()</code>.</td>
+</tr>
+<tr>
+<td><code>one_hot</code></td>
+<td>If <code>TRUE</code>, keep a column for every level instead of dropping a reference. Default <code>FALSE</code>.</td>
+</tr>
+<tr>
+<td><code>naming</code></td>
+<td>Function that builds the new column names. Default joins variable and level with an underscore.</td>
+</tr>
+<tr>
+<td><code>levels</code></td>
+<td>Filled in by <code>prep()</code>; stores the factor levels learned from the training data.</td>
+</tr>
+<tr>
+<td><code>skip</code></td>
+<td>If <code>TRUE</code>, the step is ignored when baking new data. Leave <code>FALSE</code> for encoding.</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Creating dummy variables: worked examples</h2>
+
+<p><strong>Build the recipe, prep it, then bake.</strong> A recipe is only a plan until <code>prep()</code> records the levels from data. This example dummy-encodes the <code>Species</code> factor in <code>iris</code> using the default treatment contrasts.</p>
+
+<div class="webr-container" data-block-title="Create dummy variables for a factor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create dummy variables for a factor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec &lt;- recipe(Sepal.Length ~ ., data = iris) |&gt;
+  step_dummy(Species)
+
+baked &lt;- prep(rec) |&gt; bake(new_data = NULL)
+baked[c(1, 51, 101), c(&quot;Species_versicolor&quot;, &quot;Species_virginica&quot;)]
+#&gt; # A tibble: 3 x 2
+#&gt;   Species_versicolor Species_virginica
+#&gt;                &lt;dbl&gt;             &lt;dbl&gt;
+#&gt; 1                  0                 0
+#&gt; 2                  1                 0
+#&gt; 3                  0                 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>Species</code> had three levels, so two dummy columns appear. Row 1 is <code>setosa</code>, the dropped reference, and shows 0 in both columns. The new columns are named <code>variable_level</code>, joining the original name and the factor level with an underscore.</p>
+
+<p>To keep a column for every level, set <code>one_hot = TRUE</code>. This is the encoding tree-free models and neural networks usually expect.</p>
+
+<div class="webr-container" data-block-title="One-hot encode with one_hot = TRUE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One-hot encode with one_hot = TRUE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_oh &lt;- recipe(Sepal.Length ~ ., data = iris) |&gt;
+  step_dummy(Species, one_hot = TRUE)
+
+oh &lt;- prep(rec_oh) |&gt; bake(new_data = NULL)
+oh[c(1, 51, 101), c(&quot;Species_setosa&quot;, &quot;Species_versicolor&quot;, &quot;Species_virginica&quot;)]
+#&gt; # A tibble: 3 x 3
+#&gt;   Species_setosa Species_versicolor Species_virginica
+#&gt;            &lt;dbl&gt;              &lt;dbl&gt;             &lt;dbl&gt;
+#&gt; 1              1                  0                 0
+#&gt; 2              0                  1                 0
+#&gt; 3              0                  0                 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>To encode several factors at once, use <code>all_nominal_predictors()</code>. It selects every factor and character predictor while leaving the outcome alone.</p>
+
+<div class="webr-container" data-block-title="Dummy-encode every nominal predictor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Dummy-encode every nominal predictor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cars &lt;- mtcars
+cars$cyl  &lt;- factor(cars$cyl)
+cars$gear &lt;- factor(cars$gear)
+
+rec_all &lt;- recipe(mpg ~ cyl + gear + hp, data = cars) |&gt;
+  step_dummy(all_nominal_predictors())
+
+names(prep(rec_all) |&gt; bake(new_data = NULL))
+#&gt; [1] &quot;cyl_X6&quot;  &quot;cyl_X8&quot;  &quot;hp&quot;      &quot;gear_X4&quot; &quot;gear_X5&quot; &quot;mpg&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both factors expand to K-1 columns and the numeric <code>hp</code> passes through unchanged. The <code>X</code> prefix appears because level names that start with a digit are not valid R names, so <code>step_dummy()</code> repairs them. To see which levels each factor kept, call <code>tidy()</code> on the prepped recipe with the step number.</p>
+
+<div class="webr-container" data-block-title="Inspect retained levels with tidy()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect retained levels with tidy()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prepped &lt;- prep(rec_all)
+tidy(prepped, number = 1)
+#&gt; # A tibble: 4 x 3
+#&gt;   terms columns id
+#&gt;   &lt;chr&gt; &lt;chr&gt;   &lt;chr&gt;
+#&gt; 1 cyl   X6      dummy_aB3x9
+#&gt; 2 cyl   X8      dummy_aB3x9
+#&gt; 3 gear  X4      dummy_aB3x9
+#&gt; 4 gear  X5      dummy_aB3x9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>step_dummy() vs model.matrix() vs dummyVars()</h2>
+
+<p><strong>Pick the encoder that matches your workflow.</strong> Base R and caret both create dummy variables, but they differ in how they handle the reference level and new data.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Drops a reference level?</th>
+<th>Where it fits</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_dummy()</code></td>
+<td>Yes by default; <code>one_hot = TRUE</code> keeps all</td>
+<td>tidymodels recipes</td>
+</tr>
+<tr>
+<td><code>model.matrix()</code></td>
+<td>Yes, always</td>
+<td>base R model formulas</td>
+</tr>
+<tr>
+<td><code>caret::dummyVars()</code></td>
+<td>No by default</td>
+<td>caret preprocessing</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>step_dummy()</code> when the encoding is part of a tidymodels pipeline, because it stores the factor levels and reapplies them to new data without extra code. Reach for <code>model.matrix()</code> only for a one-off design matrix outside a workflow. <code>caret::dummyVars()</code> is the right call when the surrounding model is already built with caret.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Collapse rare levels before encoding.</strong> A factor with many sparse levels produces many sparse dummy columns, which slows fitting and can break cross-validation folds. Run <code>step_other()</code> ahead of <code>step_dummy()</code> to fold infrequent levels into a single <code>other</code> category first.</div></div>
+
+<h2>Common pitfalls with step_dummy()</h2>
+
+<p><strong>Most failures come from the column type or from unseen levels.</strong> Watch these three traps when adding the step to a recipe.</p>
+
+<ol>
+
+<li><strong>Passing a numeric or character column you forgot to convert.</strong> <code>step_dummy()</code> expects a factor. A plain character column is coerced, but a numeric column triggers an error, so convert categorical numbers with <code>factor()</code> first or use <code>step_num2factor()</code>.</li>
+
+<li><strong>Unseen levels in new data.</strong> If <code>bake()</code> meets a factor level that was absent during <code>prep()</code>, the dummy columns for that row come back as <code>NA</code>. Add <code>step_novel()</code> before <code>step_dummy()</code> so unknown levels land in a dedicated column instead.</li>
+
+<li><strong>Encoding the outcome.</strong> <code>all_nominal()</code> includes a categorical response variable. Use <code>all_nominal_predictors()</code>, or subtract the outcome with <code>-all_outcomes()</code>, so the target stays a factor for classification.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">Ordered factors</a> do not become 0/1 columns.</strong> When the input is an ordered factor, <code>step_dummy()</code> applies polynomial contrasts by default, producing linear and quadratic terms rather than plain indicators. Convert to an unordered factor first if you want simple 0/1 dummy variables.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Convert <code>cyl</code> in <code>mtcars</code> to a factor and one-hot encode it in a recipe. Save the baked result to <code>ex_dummies</code>.</p>
+<div class="webr-container" data-block-title="Your turn: one-hot encode cyl">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: one-hot encode cyl</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: one-hot encode cyl
+ex_cars &lt;- mtcars
+ex_cars$cyl &lt;- factor(ex_cars$cyl)
+
+ex_rec &lt;- recipe(mpg ~ cyl, data = ex_cars) |&gt;
+  step_dummy(# your code here)
+
+ex_dummies &lt;- # your code here
+names(ex_dummies)
+#&gt; Expected: cyl_X4, cyl_X6, cyl_X8, mpg</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec &lt;- recipe(mpg ~ cyl, data = ex_cars) |&gt;
+  step_dummy(cyl, one_hot = TRUE)
+
+ex_dummies &lt;- prep(ex_rec) |&gt; bake(new_data = NULL)
+names(ex_dummies)
+#&gt; [1] &quot;cyl_X4&quot; &quot;cyl_X6&quot; &quot;cyl_X8&quot; &quot;mpg&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Setting <code>one_hot = TRUE</code> keeps an indicator column for every level, so all three cylinder counts get a column instead of dropping one as a reference. The <code>X</code> prefix is added because the level names begin with digits.</p>
+
+</details>
+</section>
+
+<h2>Related recipes steps</h2>
+
+<p><strong>step_dummy() is one of several recipes steps for <a class="auto-link" href="Categorical-Data-in-R.html" title="Categorical Data in R: Frequency Tables, Crosstabs & Mosaic Plots">categorical data</a>.</strong> These pair naturally with it in a tidymodels workflow:</p>
+
+<ul>
+
+<li><a href="recipes-step_other-in-R.html">step_other()</a> folds rare factor levels into a single <code>other</code> group.</li>
+
+<li><a href="recipes-step_novel-in-R.html">step_novel()</a> reserves a level for values unseen during training.</li>
+
+<li><a href="recipes-step_unknown-in-R.html">step_unknown()</a> assigns missing factor values to their own level.</li>
+
+<li><a href="recipes-step_interact-in-R.html">step_interact()</a> builds interaction terms from the dummy columns.</li>
+
+<li><a href="recipes-step_zv-in-R.html">step_zv()</a> drops indicator columns that hold a single value.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The equivalent of <code>step_dummy()</code> is <code>pd.get_dummies(df)</code>, or scikit-learn's <code>OneHotEncoder()</code>. The recipes version differs by learning the factor levels on training data and reapplying the exact same columns to new data automatically.</div></div>
+
+<h2>FAQ</h2>
+
+<p><strong>What does step_dummy() do in R?</strong></p>
+
+<p><code>step_dummy()</code> is a recipes step that converts factor or character predictors into numeric 0/1 dummy variables. During <code>prep()</code> it records every level present in the training data. During <code>bake()</code> it creates an indicator column for each level, so a model that needs numeric input can use the categorical information. By default it drops one level as a reference, matching the contrast scheme <code>lm()</code> uses internally.</p>
+
+<p><strong>What is the difference between step_dummy() and one-hot encoding?</strong></p>
+
+<p>Plain <code>step_dummy()</code> uses treatment contrasts: a factor with K levels becomes K-1 columns, with the first level held back as a reference. True one-hot encoding keeps a column for every level. To get one-hot output, set <code>step_dummy(rec, cols, one_hot = TRUE)</code>. Use K-1 dummies for linear and <a class="auto-link" href="Ridge-and-Lasso-Regression-in-R.html" title="Ridge and Lasso in R: How Penalised Regression Shrinks Coefficients and Selects Variables">penalized regression</a> to avoid collinearity, and one-hot for tree ensembles or neural networks.</p>
+
+<p><strong>Why are my dummy column names prefixed with X?</strong></p>
+
+<p><code>step_dummy()</code> builds new column names by joining the variable name and the level with an underscore. When a level name starts with a digit, such as <code>4</code> or <code>6</code>, that is not a syntactically valid R name, so <code>step_dummy()</code> repairs it by adding an <code>X</code> prefix. A <code>cyl</code> factor with level <code>6</code> becomes the column <code>cyl_X6</code>. You can override this by supplying a custom function to the <code>naming</code> argument.</p>
+
+<p><strong>Do I need to prep() before step_dummy() works?</strong></p>
+
+<p>Yes. A recipe with <code>step_dummy()</code> is just a plan until <code>prep()</code> runs. <code>prep()</code> scans the training data, records the factor levels, and stores them in the step. Only then can <code>bake()</code> produce the dummy columns. Calling <code>bake()</code> on an unprepped recipe throws an error because the levels have not been learned yet.</p>
+
+{% endraw %}
