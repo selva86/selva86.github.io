@@ -1,0 +1,395 @@
+---
+title: "parsnip boost_tree() in R: Define Gradient Boosting Models"
+description: "parsnip boost_tree() in R defines gradient-boosted tree models for tidymodels. Covers syntax, the xgboost and C5.0 engines, classification, and regression."
+keywords: "parsnip boost_tree, boost_tree function R, parsnip boost_tree examples, gradient boosting tidymodels R, boost_tree xgboost engine, tidymodels gradient boosting"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "boost_tree()|parsnip boost_tree|parsnip::boost_tree()|gradient boosting in R|tidymodels gradient boosting"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>parsnip boost_tree() in R: Define Gradient Boosting Models</h1>
+
+<p class="lead">The parsnip <code>boost_tree()</code> function defines a gradient-boosted tree model for classification or regression in tidymodels. It gives you one interface that fits with the xgboost, C5.0, or lightgbm engine underneath.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>boost_tree()<span class="qa-cmt">                                  # default spec, xgboost engine</span>
+boost_tree() |&gt; set_mode(&quot;classification&quot;)<span class="qa-cmt">    # classify a factor outcome</span>
+boost_tree() |&gt; set_mode(&quot;regression&quot;)<span class="qa-cmt">        # predict a numeric outcome</span>
+boost_tree(trees = 500, learn_rate = 0.1)<span class="qa-cmt">     # set boosting rounds and step size</span>
+boost_tree(tree_depth = 4, min_n = 10)<span class="qa-cmt">        # control how large each tree grows</span>
+boost_tree() |&gt; set_engine(&quot;C5.0&quot;)<span class="qa-cmt">            # swap the backend engine</span>
+fit(spec, Species ~ ., data = iris)<span class="qa-cmt">           # train on a dataset</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is boost_tree() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">gradient-boosted trees</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">boost_tree() |&gt; set_engine(&quot;xgboost&quot;)</text><text x="125" y="126" class="branch-label">bagged random-split trees</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">rand_forest() |&gt; set_engine(&quot;ranger&quot;)</text><text x="125" y="182" class="branch-label">one interpretable tree</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">decision_tree() |&gt; set_engine(&quot;rpart&quot;)</text><text x="125" y="238" class="branch-label">a plain linear model</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">linear_reg() |&gt; set_engine(&quot;lm&quot;)</text><text x="125" y="294" class="branch-label">bagged trees without boosting</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">bag_tree() |&gt; set_engine(&quot;rpart&quot;)</text><text x="125" y="350" class="branch-label">tune learn_rate and tree_depth</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">tune_grid() with boost_tree()</text></svg></div>
+
+<h2>What boost_tree() does</h2>
+
+<p><strong>boost_tree() is a model specification, not a fitted model.</strong> It records your intent to build a gradient-boosted tree ensemble and the hyperparameters you want, but no data touches it until you call <code>fit()</code>. This separation lets you reuse one specification across many datasets or resampling folds.</p>
+
+<p>Gradient boosting grows trees one after another, where each new tree corrects the errors of the trees before it. Predictions sum the contributions of every tree, scaled by a learning rate that keeps each step small. This sequential, error-driven design is what separates boosting from a random forest, which grows its trees independently.</p>
+
+<p>The function belongs to the tidymodels framework. Because parsnip standardizes the interface, the same <code>boost_tree()</code> code runs on the fast xgboost engine or the classic C5.0 engine with only one line changed.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A parsnip spec is a recipe for a model, not the model itself.</strong> You build the specification once, then <code>fit()</code> turns it into a trained model object. Keeping those two steps apart is what makes tidymodels workflows reproducible across resamples.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>boost_tree() ships in core parsnip, but the engines do not.</strong> The default <code>xgboost</code> engine needs the <code>xgboost</code> package installed, and <code>set_engine(&quot;C5.0&quot;)</code> needs the <code>C50</code> package. Install the engine package before you fit, or R reports that the engine is not available.</div></div>
+
+<h2>boost_tree() syntax and arguments</h2>
+
+<p><strong>boost_tree() takes up to eight hyperparameters and two setup verbs.</strong> The arguments control how trees are grown and combined, while <code>set_engine()</code> and <code>set_mode()</code> finish the specification.</p>
+
+<div class="webr-container" data-block-title="The boost_tree specification skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The boost_tree specification skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+
+boost_tree(
+  mode = &quot;unknown&quot;,      # set to &quot;classification&quot; or &quot;regression&quot;
+  engine = &quot;xgboost&quot;,    # xgboost (default), C5.0, lightgbm, h2o, spark
+  trees = NULL,          # number of boosting rounds (trees)
+  tree_depth = NULL,     # maximum depth of each tree
+  learn_rate = NULL,     # shrinkage applied to each tree
+  min_n = NULL,          # minimum rows in a node before a split
+  loss_reduction = NULL, # minimum loss drop required to split
+  sample_size = NULL,    # fraction of rows sampled per tree
+  stop_iter = NULL       # rounds with no gain before early stop
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>trees</code> argument sets how many boosting rounds run, and <code>learn_rate</code> shrinks each tree's contribution so the ensemble improves gradually. The <code>tree_depth</code> and <code>min_n</code> arguments cap tree size, while <code>loss_reduction</code> and <code>sample_size</code> add regularization. The <code>stop_iter</code> argument halts training early once extra rounds stop helping.</p>
+
+<p><strong>The mode is never "unknown" at fit time.</strong> A boosted model can predict a class or a number, so you must call <code>set_mode(&quot;classification&quot;)</code> or <code>set_mode(&quot;regression&quot;)</code> before fitting. You can pass the engine through <code>set_engine()</code> instead of the <code>engine</code> argument, which is the more common tidymodels style.</p>
+
+<h2>Fit a boosted model: four examples</h2>
+
+<p><strong>Every example below uses a built-in R dataset.</strong> The <code>iris</code> data drives the classification examples and <code>mtcars</code> drives the regression example, so the code runs anywhere with no downloads.</p>
+
+<h3>Example 1: Classify with the default xgboost engine</h3>
+
+<p><strong>Build the specification, then fit it to data.</strong> The xgboost engine is the parsnip default and grows trees quickly in C++.</p>
+
+<div class="webr-container" data-block-title="Fit boost_tree on the iris data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit boost_tree on the iris data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bt_spec &lt;- boost_tree(trees = 500, learn_rate = 0.1) |&gt;
+  set_engine(&quot;xgboost&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+bt_fit &lt;- bt_spec |&gt;
+  fit(Species ~ ., data = iris)
+
+bt_fit
+#&gt; parsnip model object
+#&gt;
+#&gt; ##### xgb.Booster
+#&gt; raw: 92.5 Kb
+#&gt; call:
+#&gt;   xgboost::xgb.train(params = list(eta = 0.1, max_depth = 6, ...))
+#&gt; params (as set within xgb.train):
+#&gt;   eta = &quot;0.1&quot;, max_depth = &quot;6&quot;, gamma = &quot;0&quot;
+#&gt; niter: 500
+#&gt; # of features: 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The printout confirms the engine ran 500 boosting rounds (<code>niter</code>) with a learning rate (<code>eta</code>) of 0.1 on the four iris predictors. The model is now trained and ready to predict.</p>
+
+<h3>Example 2: Predict classes and probabilities</h3>
+
+<p><strong>predict() returns a tidy tibble with one row per input row.</strong> Use <code>type = &quot;prob&quot;</code> to get per-class probabilities instead of the hard label.</p>
+
+<div class="webr-container" data-block-title="Predict iris species and class probabilities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict iris species and class probabilities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sample_rows &lt;- iris[c(1, 70, 130), ]
+
+predict(bt_fit, new_data = sample_rows)
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 setosa
+#&gt; 2 versicolor
+#&gt; 3 virginica
+
+predict(bt_fit, new_data = sample_rows, type = &quot;prob&quot;)
+#&gt; # A tibble: 3 x 3
+#&gt;   .pred_setosa .pred_versicolor .pred_virginica
+#&gt;          &lt;dbl&gt;            &lt;dbl&gt;           &lt;dbl&gt;
+#&gt; 1        0.997          0.002            0.001
+#&gt; 2        0.002          0.991            0.007
+#&gt; 3        0.001          0.013            0.986</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The probability columns are named <code>.pred_&lt;class&gt;</code> and each row sums to one. Probabilities come from the summed tree scores passed through a softmax, which makes them useful for ranking or for a custom decision threshold.</p>
+
+<h3>Example 3: Fit a regression model on mtcars</h3>
+
+<p><strong>Switch the mode to "regression" and the same function predicts a number.</strong> Nothing else about the call changes.</p>
+
+<div class="webr-container" data-block-title="Fit a boosted regression model on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a boosted regression model on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bt_reg &lt;- boost_tree(trees = 200, learn_rate = 0.05, tree_depth = 3) |&gt;
+  set_engine(&quot;xgboost&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+bt_reg_fit &lt;- bt_reg |&gt;
+  fit(mpg ~ ., data = mtcars)
+
+predict(bt_reg_fit, new_data = mtcars[1:3, ])
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  21.3
+#&gt; 2  21.0
+#&gt; 3  24.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The regression model predicts miles per gallon directly. A shallow <code>tree_depth</code> of 3 paired with a small <code>learn_rate</code> keeps each round modest, which guards a 32-row dataset against overfitting.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pair a low learn_rate with more trees, not fewer.</strong> Shrinking the learning rate makes each tree contribute less, so the ensemble needs more rounds to converge. A common starting point is <code>learn_rate = 0.05</code> to <code>0.1</code> with <code>trees</code> between 200 and 1000, then tune both together.</div></div>
+
+<h3>Example 4: Rank predictors by importance</h3>
+
+<p><strong>The xgboost engine stores an importance table you can read straight from the fit.</strong> Call <code>xgb.importance()</code> on the underlying engine object.</p>
+
+<div class="webr-container" data-block-title="Rank iris predictors by xgboost importance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank iris predictors by xgboost importance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(xgboost)
+
+imp_fit &lt;- boost_tree(trees = 300, learn_rate = 0.1) |&gt;
+  set_engine(&quot;xgboost&quot;) |&gt;
+  set_mode(&quot;classification&quot;) |&gt;
+  fit(Species ~ ., data = iris)
+
+xgb.importance(model = imp_fit$fit)
+#&gt;         Feature   Gain  Cover Frequency
+#&gt; 1: Petal.Length 0.6841 0.5523    0.4012
+#&gt; 2:  Petal.Width 0.2796 0.3134    0.3188
+#&gt; 3: Sepal.Length 0.0241 0.0876    0.1554
+#&gt; 4:  Sepal.Width 0.0122 0.0467    0.1246</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Petal length and petal width dominate the <code>Gain</code> column, which matches the known biology of the iris dataset. The <code>imp_fit$fit</code> object is the raw xgboost booster, so any xgboost helper works on it directly.</p>
+
+<h2>Compare boost_tree() engines</h2>
+
+<p><strong>boost_tree() runs on several engines that share the same code.</strong> You swap engines with one <code>set_engine()</code> call, and parsnip translates the hyperparameters to each backend.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Engine</th>
+<th>Package</th>
+<th>Strengths</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>xgboost</code></td>
+<td>xgboost</td>
+<td>Fast, regularized, default</td>
+<td>Almost always; the standard choice</td>
+</tr>
+<tr>
+<td><code>C5.0</code></td>
+<td>C50</td>
+<td>Boosted C5.0 rules, classification only</td>
+<td>You need rule-based, interpretable trees</td>
+</tr>
+<tr>
+<td><code>lightgbm</code></td>
+<td>bonsai, lightgbm</td>
+<td>Leaf-wise growth, very fast on wide data</td>
+<td>Many features or large row counts</td>
+</tr>
+<tr>
+<td><code>h2o</code></td>
+<td>h2o, agua</td>
+<td>Scales beyond memory</td>
+<td>Data is too large for one machine</td>
+</tr>
+<tr>
+<td><code>spark</code></td>
+<td>sparklyr</td>
+<td>Distributed training</td>
+<td>Data already lives in a Spark cluster</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is simple. Use <code>xgboost</code> unless you have a specific reason not to, switch to <code>C5.0</code> when you want interpretable boosted rules, and reach for <code>lightgbm</code> when training speed on wide data matters.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes catch most newcomers to boost_tree().</strong> Each one below shows the problem and the fix.</p>
+
+<p>The most common is forgetting to set the mode. A boosted model can classify or predict a number, so parsnip cannot guess which one you want and <code>fit()</code> fails until you call <code>set_mode()</code>.</p>
+
+<div class="webr-container" data-block-title="Mode must be set before fitting">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mode must be set before fitting</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Wrong: no mode, fit() cannot dispatch
+boost_tree(trees = 200) |&gt;
+  set_engine(&quot;xgboost&quot;) |&gt;
+  fit(Species ~ ., data = iris)
+#&gt; Error: Please set the mode in the model specification.
+
+# Right: set the mode first
+boost_tree(trees = 200) |&gt;
+  set_engine(&quot;xgboost&quot;) |&gt;
+  set_mode(&quot;classification&quot;) |&gt;
+  fit(Species ~ ., data = iris)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second pitfall is using the <code>C5.0</code> engine for regression. C5.0 only builds classification trees, so a <code>set_mode(&quot;regression&quot;)</code> specification with that engine errors before training starts. The third is leaving <code>learn_rate</code> at a high value with many trees, which lets the ensemble memorize noise.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A high learn_rate with many trees overfits fast.</strong> Each tree corrects the last, so a large step size combined with hundreds of rounds drives training error to zero while test error climbs. Lower <code>learn_rate</code>, cap <code>trees</code>, or set <code>stop_iter</code> so early stopping halts the run once gains stall.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a classification model on <code>iris</code> with 200 trees, <code>learn_rate = 0.1</code>, and <code>tree_depth = 3</code>, then predict the class for the 120th row. Save the prediction to <code>ex_pred</code>.</p>
+<div class="webr-container" data-block-title="Your turn: classify iris with boost_tree">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: classify iris with boost_tree</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit a 200-round boosted model, then predict row 120
+ex_spec &lt;- # your code here
+ex_fit  &lt;- # your code here
+ex_pred &lt;- # your code here
+
+ex_pred
+#&gt; Expected: a 1-row tibble with .pred_class = virginica</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_spec &lt;- boost_tree(trees = 200, learn_rate = 0.1, tree_depth = 3) |&gt;
+  set_engine(&quot;xgboost&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+ex_fit &lt;- ex_spec |&gt;
+  fit(Species ~ ., data = iris)
+
+ex_pred &lt;- predict(ex_fit, new_data = iris[120, ])
+ex_pred
+#&gt; # A tibble: 1 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 virginica</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>trees</code>, <code>learn_rate</code>, and <code>tree_depth</code> arguments shape the boosting run, while <code>set_mode(&quot;classification&quot;)</code> tells parsnip to predict the <code>Species</code> factor. Row 120 of iris is a virginica flower, so the trained model assigns that class.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>boost_tree() works alongside the rest of the parsnip model family.</strong> These functions cover the neighboring tasks in a tidymodels project.</p>
+
+<ul>
+
+<li><code>rand_forest()</code> defines a random forest, an ensemble of independent trees.</li>
+
+<li><code>decision_tree()</code> defines a single classification or regression tree.</li>
+
+<li><code>bag_tree()</code> defines a bagged tree ensemble without boosting.</li>
+
+<li><code>set_engine()</code> chooses the computational backend for any specification.</li>
+
+<li><code>fit()</code> trains a specification on data and returns a model object.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What package is boost_tree() in?</strong></p>
+
+<p><code>boost_tree()</code> ships in core parsnip, so <code>library(tidymodels)</code> or <code>library(parsnip)</code> makes it available. The function only describes the model, though, and the actual fitting happens in an engine package. The default <code>xgboost</code> engine needs the <code>xgboost</code> package, and <code>set_engine(&quot;C5.0&quot;)</code> needs the <code>C50</code> package installed separately.</p>
+
+<p><strong>What is the difference between boost_tree() and rand_forest()?</strong></p>
+
+<p>Both build tree ensembles, but they grow trees differently. <code>rand_forest()</code> grows many trees independently on bootstrap samples and averages them to lower variance. <code>boost_tree()</code> grows trees in sequence, where each tree corrects the errors of the ones before it, which lowers bias. Boosting often reaches higher accuracy but is more sensitive to its <code>learn_rate</code> and <code>trees</code> settings.</p>
+
+<p><strong>What engine does boost_tree() use by default?</strong></p>
+
+<p>The default engine is <code>xgboost</code>, a fast, regularized C++ implementation of gradient boosting. You can confirm or change it with <code>set_engine()</code>, and <code>show_engines(&quot;boost_tree&quot;)</code> lists every registered option. Most projects keep xgboost because it is quick and well tuned, switching only for interpretable rules or distributed scaling.</p>
+
+<p><strong>How do I tune learn_rate and trees in boost_tree()?</strong></p>
+
+<p>Set the arguments to <code>tune()</code>, as in <code>boost_tree(trees = tune(), learn_rate = tune())</code>, then pass the specification to <code>tune_grid()</code> with a resampling object such as <code>vfold_cv()</code>. The framework searches a grid of values and scores each with cross-validation. Use <code>select_best()</code> to pick the winner, then <code>finalize_workflow()</code> to lock the values before the final fit.</p>
+
+<p><strong>Does boost_tree() handle early stopping?</strong></p>
+
+<p>Yes, through the <code>stop_iter</code> argument. Setting <code>stop_iter = 20</code> tells the xgboost engine to stop adding trees once 20 consecutive rounds bring no improvement on a validation split. Early stopping protects against overfitting and saves compute, which makes it a good default companion to a low <code>learn_rate</code>.</p>
+
+<p>For the full argument reference, see the <a href="https://parsnip.tidymodels.org/reference/boost_tree.html">parsnip boost_tree() documentation</a>.</p>
+
+{% endraw %}
