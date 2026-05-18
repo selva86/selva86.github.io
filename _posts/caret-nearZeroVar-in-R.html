@@ -1,0 +1,333 @@
+---
+title: "caret nearZeroVar() in R: Drop Near-Constant Predictors"
+description: "Use caret nearZeroVar() in R to find and drop near-zero variance predictors before modeling. Covers freqCut, uniqueCut, saveMetrics, and worked examples."
+keywords: "caret nearZeroVar, nearZeroVar function R, caret nearZeroVar example, R remove near zero variance predictors, nearZeroVar saveMetrics, zero variance predictors R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "nearZeroVar()|caret nearZeroVar|caret::nearZeroVar()|near-zero variance|zero variance predictors"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret nearZeroVar() in R: Drop Near-Constant Predictors</h1>
+
+<p class="lead">The <code>nearZeroVar()</code> function in caret flags predictors that barely vary, columns where one value dominates and distinct values are few. These near-zero variance features add noise and can break model fitting, so nearZeroVar() finds them so you can drop them before training.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>nearZeroVar(df)<span class="qa-cmt">                              # indices of bad columns</span>
+nearZeroVar(df, names = TRUE)<span class="qa-cmt">                # column names instead</span>
+nearZeroVar(df, saveMetrics = TRUE)<span class="qa-cmt">          # full metrics table</span>
+df[, -nearZeroVar(df)]<span class="qa-cmt">                       # drop the flagged columns</span>
+nearZeroVar(df, freqCut = 99/1)<span class="qa-cmt">              # stricter cutoff</span>
+nearZeroVar(df, uniqueCut = 5)<span class="qa-cmt">               # require fewer unique values</span>
+preProcess(df, method = &quot;nzv&quot;)<span class="qa-cmt">               # same filter inside preProcess</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is nearZeroVar() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">drop near-constant predictors</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">nearZeroVar(df, names = TRUE)</text><text x="125" y="126" class="branch-label">drop highly correlated predictors</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">findCorrelation(cor(df))</text><text x="125" y="182" class="branch-label">drop linear-combination columns</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">findLinearCombos(df)</text><text x="125" y="238" class="branch-label">center and scale predictors</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">preProcess(df, method = &quot;scale&quot;)</text><text x="125" y="294" class="branch-label">one-hot encode factor columns</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">dummyVars(~ ., data = df)</text><text x="125" y="350" class="branch-label">rank predictors by importance</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">varImp(model)</text></svg></div>
+
+<h2>What nearZeroVar() does in one sentence</h2>
+
+<p><strong><code>nearZeroVar()</code> flags predictors that carry almost no information.</strong> It scans each column, computes two diagnostics, and reports the columns whose distribution is so lopsided that a model would learn nothing useful from them. By default it returns a vector of column positions.</p>
+
+<p>A predictor counts as near-zero variance when <strong>both</strong> conditions hold: one value appears far more often than the next most common value, and the column has very few distinct values overall. A column with a single repeated value is a special case called zero variance. Removing these columns before modeling speeds up training and prevents resampling folds from accidentally containing a constant predictor, which crashes many algorithms. One-hot encoding a factor with rare levels, stuck sensor readings, and survey questions answered the same way by nearly everyone all produce such columns, and <code>nearZeroVar()</code> catches every one of these patterns with a single call.</p>
+
+<h2>nearZeroVar() syntax and arguments</h2>
+
+<p><strong><code>nearZeroVar()</code> needs only a data frame or matrix of predictors.</strong> Every other argument tunes how aggressive the filter is or changes the shape of the output.</p>
+
+<div class="webr-container" data-block-title="Load caret and build sample data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and build sample data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(1)
+df &lt;- data.frame(
+  height     = rnorm(100, mean = 170, sd = 8),
+  coin_flip  = rep(c(0, 1), 50),
+  near_const = c(rep(1, 97), 2, 2, 3),
+  constant   = rep(5, 100)
+)
+str(df)
+#&gt; 'data.frame': 100 obs. of  4 variables:
+#&gt;  $ height    : num  165 172 163 183 173 ...
+#&gt;  $ coin_flip : num  0 1 0 1 0 1 0 1 0 1 ...
+#&gt;  $ near_const: num  1 1 1 1 1 1 1 1 1 1 ...
+#&gt;  $ constant  : num  5 5 5 5 5 5 5 5 5 5 ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments that matter most are:</p>
+
+<ul>
+
+<li><code>x</code>: a data frame or numeric matrix of predictors.</li>
+
+<li><code>freqCut</code>: the cutoff for the ratio of the most common value to the second most common. Defaults to <code>95/5</code>, which equals 19.</li>
+
+<li><code>uniqueCut</code>: the cutoff for the percentage of distinct values. Defaults to <code>10</code>.</li>
+
+<li><code>saveMetrics</code>: if <code>TRUE</code>, return a diagnostic data frame instead of a position vector.</li>
+
+<li><code>names</code>: if <code>TRUE</code>, return column names instead of column indices.</li>
+
+<li><code>foreach</code> and <code>allowParallel</code>: switch to a parallel backend for very wide data frames; both default to the single-threaded path.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python scikit-learn?</strong> The closest equivalent is <code>VarianceThreshold</code>, but it only inspects raw variance. <code>nearZeroVar()</code> is stricter because it also checks how lopsided the value frequencies are.</div></div>
+
+<h2>nearZeroVar() examples by use case</h2>
+
+<p><strong>Set <code>saveMetrics = TRUE</code> to see why each column is flagged.</strong> This returns a data frame with the frequency ratio, the percent of unique values, and two logical flags for every predictor.</p>
+
+<div class="webr-container" data-block-title="Inspect the full metrics table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the full metrics table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nearZeroVar(df, saveMetrics = TRUE)
+#&gt;            freqRatio percentUnique zeroVar   nzv
+#&gt; height          1.00           100   FALSE FALSE
+#&gt; coin_flip       1.00             2   FALSE FALSE
+#&gt; near_const     48.50             3   FALSE  TRUE
+#&gt; constant        0.00             1    TRUE  TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>height</code> varies freely and <code>coin_flip</code> is balanced, so both are kept. <code>near_const</code> is flagged because 97 of 100 rows share one value, and <code>constant</code> is flagged as both <code>zeroVar</code> and <code>nzv</code> because it never changes.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A column is flagged only when both gates fail.</strong> <code>freqRatio</code> above <code>freqCut</code> AND <code>percentUnique</code> below <code>uniqueCut</code> together trigger <code>nzv</code>. A binary column survives because its frequency ratio is low, even though it has few unique values.</div></div>
+
+<p><strong>Call <code>nearZeroVar()</code> with no extra arguments to get column positions.</strong> Add <code>names = TRUE</code> when you want the column names instead, which is easier to read and safer to reuse.</p>
+
+<div class="webr-container" data-block-title="Return indices or names">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Return indices or names</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nearZeroVar(df)
+#&gt; [1] 3 4
+
+nearZeroVar(df, names = TRUE)
+#&gt; [1] &quot;near_const&quot; &quot;constant&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Use the result to subset the data frame.</strong> Negative indexing drops the flagged columns and keeps the informative ones.</p>
+
+<div class="webr-container" data-block-title="Drop the flagged columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop the flagged columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">clean &lt;- df[, -nearZeroVar(df)]
+names(clean)
+#&gt; [1] &quot;height&quot;    &quot;coin_flip&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Tune <code>freqCut</code> to make the filter stricter or looser.</strong> A higher <code>freqCut</code> demands a more extreme imbalance before a column is flagged, so <code>near_const</code> survives while the truly constant column is still removed.</p>
+
+<div class="webr-container" data-block-title="Raise freqCut to keep near_const">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Raise freqCut to keep near_const</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nearZeroVar(df, freqCut = 99/1, names = TRUE)
+#&gt; [1] &quot;constant&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Raising the cutoff to 99 moves the threshold past <code>near_const</code>'s ratio of 48.5, so only the truly constant column remains. Tune <code>uniqueCut</code> the same way to control how many distinct values a column may have before it is kept.</p>
+
+<h2>nearZeroVar() vs preProcess and recipes</h2>
+
+<p><strong><code>nearZeroVar()</code> is the standalone version of a filter that also lives inside other tools.</strong> The right choice depends on whether you want a quick diagnostic or a step bundled into a modeling pipeline.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Returns</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nearZeroVar()</code></td>
+<td>Column indices or a metrics table</td>
+<td>Inspecting and filtering predictors by hand</td>
+</tr>
+<tr>
+<td><code>preProcess(method = &quot;nzv&quot;)</code></td>
+<td>A reusable preprocessing object</td>
+<td>Bundling the filter with centering and scaling</td>
+</tr>
+<tr>
+<td><code>recipes::step_nzv()</code></td>
+<td>A step in a recipe</td>
+<td>tidymodels workflows</td>
+</tr>
+<tr>
+<td><code>apply(df, 2, var)</code></td>
+<td>Variance per column</td>
+<td>Catching exact zero variance only</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for <code>nearZeroVar()</code> when you want to see the metrics and decide manually. Reach for <code>preProcess(method = &quot;nzv&quot;)</code> when the filter should travel with the model so test data is treated identically. A plain variance check with <code>apply()</code> misses the lopsided-but-not-constant case that <code>nearZeroVar()</code> was built to catch.</p>
+
+<p>The distinction matters most once you split data into training and test sets. Filtering the full frame at once lets a column that is near-constant only in the test fold leak into your decision. Wrapping the filter in <code>preProcess()</code> or a recipe ties the rule to the training data alone.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong><code>nearZeroVar()</code> returns positions, not a filtered data frame.</strong> It tells you which columns to drop; the subsetting is your job. Pass the result to negative indexing, never expect a cleaned frame back directly.</p>
+
+<p><strong>An empty result silently drops every column.</strong> When no column is flagged, <code>nearZeroVar()</code> returns <code>integer(0)</code>. Using that in <code>df[, -integer(0)]</code> does not keep all columns, it removes all of them. Always guard with a length check.</p>
+
+<div class="webr-container" data-block-title="Guard against an empty result">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Guard against an empty result</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">safe_df &lt;- data.frame(a = rnorm(10), b = rnorm(10))
+nearZeroVar(safe_df)
+#&gt; integer(0)
+
+ncol(safe_df[, -nearZeroVar(safe_df)])
+#&gt; [1] 0
+
+nzv &lt;- nearZeroVar(safe_df)
+result &lt;- if (length(nzv) &gt; 0) safe_df[, -nzv] else safe_df
+ncol(result)
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never index with <code>-integer(0)</code>.</strong> A length-zero negative index returns a zero-column data frame, not the original. This bug hides easily because it throws no error. The <code>names = TRUE</code> form avoids it, since dropping by an empty character vector is harmless.</div></div>
+
+<p><strong>Near-zero variance is not the same as useless.</strong> A rare-event flag, such as a fraud indicator that is 1 for 0.5 percent of rows, will be flagged even though it is highly predictive. Review flagged columns with <code>saveMetrics = TRUE</code> before deleting them rather than dropping the whole list blindly.</p>
+
+<p><strong>The flag depends on the rows you pass in.</strong> <code>nearZeroVar()</code> recomputes its metrics on whatever data it sees, so a small or unrepresentative sample can flag a column that varies fine in the full data set. Run it on training data large enough to reflect real variation.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run nearZeroVar on a data frame that has one near-constant column, and save the names of the flagged columns to ex_flagged.</p>
+<div class="webr-container" data-block-title="Your turn: flag near-zero variance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: flag near-zero variance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: flag the near-constant column
+ex_df &lt;- data.frame(
+  x    = rnorm(50),
+  flat = c(rep(0, 49), 1)
+)
+ex_flagged &lt;- # your code here
+
+ex_flagged
+#&gt; Expected: &quot;flat&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_df &lt;- data.frame(
+  x    = rnorm(50),
+  flat = c(rep(0, 49), 1)
+)
+ex_flagged &lt;- nearZeroVar(ex_df, names = TRUE)
+ex_flagged
+#&gt; [1] &quot;flat&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>flat</code> column has 49 identical values and only two distinct values, so its frequency ratio (49) clears <code>freqCut</code> and its percent-unique (4) falls below <code>uniqueCut</code>, which flags it as near-zero variance.</p>
+
+</details>
+</section>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Run <code>saveMetrics = TRUE</code> first, then decide.</strong> The metrics table shows exactly why each column was flagged, so you can spot a rare-but-useful predictor before it gets dropped with the rest.</div></div>
+
+<h2>Related caret functions</h2>
+
+<p>These caret functions pair naturally with <code>nearZeroVar()</code> when preparing predictors for a model:</p>
+
+<ul>
+
+<li><a href="caret-preProcess-in-R.html">preProcess()</a> centers, scales, and imputes numeric predictors.</li>
+
+<li><a href="caret-dummyVars-in-R.html">dummyVars()</a> one-hot encodes categorical predictors.</li>
+
+<li><a href="caret-findCorrelation-in-R.html">findCorrelation()</a> removes highly correlated predictors.</li>
+
+<li><a href="caret-findLinearCombos-in-R.html">findLinearCombos()</a> drops columns that are exact linear combinations of others.</li>
+
+<li><a href="caret-train-in-R.html">train()</a> fits and tunes a model on the cleaned data.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does near-zero variance mean in caret?</strong></p>
+
+<p>Near-zero variance describes a predictor whose values are almost all the same. caret flags a column when two conditions hold together: the most common value occurs far more often than the second most common (the frequency ratio is large), and the column has very few distinct values relative to the row count. Such columns add little signal, slow training, and can cause resampling folds to contain a constant predictor, so they are usually removed before modeling.</p>
+
+<p><strong>How is nearZeroVar() different from zero variance?</strong></p>
+
+<p>Zero variance means a column has exactly one value, so it never changes. Near-zero variance is broader: the column does change, but so rarely that it is nearly constant. In the <code>saveMetrics</code> output, a zero-variance column shows <code>zeroVar = TRUE</code> and <code>nzv = TRUE</code>, while a near-zero-variance column shows <code>zeroVar = FALSE</code> and <code>nzv = TRUE</code>. <code>nearZeroVar()</code> catches both, whereas a plain variance check only catches the exact zero-variance case.</p>
+
+<p><strong>Should I always remove near-zero variance predictors?</strong></p>
+
+<p>Not blindly. Most near-zero variance columns are noise and safe to drop, but a rare-event indicator, such as a fraud or default flag, can be both near-zero variance and strongly predictive. Inspect the flagged columns with <code>saveMetrics = TRUE</code>, confirm none of them encode a meaningful rare event, and then drop the rest. Tree-based models tolerate these columns better than linear models do.</p>
+
+<p><strong>How do I use nearZeroVar() inside a caret modeling pipeline?</strong></p>
+
+<p>Pass <code>preProcess = &quot;nzv&quot;</code> to <code>train()</code>, or build a <code>preProcess(method = &quot;nzv&quot;)</code> object and apply it with <code>predict()</code>. Both apply the same near-zero variance filter as <code>nearZeroVar()</code> but learn the rule on the training data and replay it on test data, which keeps the two sets column-aligned and prevents leakage.</p>
+
+</content>
+
+</invoke>
