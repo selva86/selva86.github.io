@@ -1,0 +1,320 @@
+---
+title: "recipes step_normalize() in R: Center and Scale Predictors"
+description: "recipes step_normalize() in R centers and scales numeric predictors to mean zero and unit variance using training statistics. Syntax, examples, and pitfalls."
+keywords: "recipes step_normalize, step_normalize function R, recipes step_normalize examples, R normalize predictors, tidymodels step_normalize, normalize data recipe R, step_normalize recipe"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_normalize()|recipes step_normalize|recipes::step_normalize()|step_normalize|normalize numeric predictors"
+auto_link_case_sensitive: true
+fr_parent: "caret-preProcess-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>recipes step_normalize() in R: Center and Scale Predictors</h1>
+
+<p class="lead">The <code>recipes</code> <code>step_normalize()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> centers and scales numeric predictors in one step, leaving each column with a mean of zero and a standard deviation of one. You add it to a <code>recipe()</code>, learn the statistics with <code>prep()</code>, and apply them with <code>bake()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_normalize(rec, all_numeric_predictors())<span class="qa-cmt">     # normalize all numeric predictors</span>
+step_normalize(rec, mpg, hp)<span class="qa-cmt">                      # normalize named columns</span>
+step_normalize(rec, all_numeric())<span class="qa-cmt">                # normalize every numeric column</span>
+step_normalize(rec, contains(&quot;score&quot;))<span class="qa-cmt">            # normalize by name pattern</span>
+step_normalize(rec, -all_outcomes())<span class="qa-cmt">              # normalize all but the outcome</span>
+prep(rec) |&gt; bake(new_data = NULL)<span class="qa-cmt">                # estimate stats, then apply</span>
+tidy(prep(rec), number = 1)<span class="qa-cmt">                       # inspect the means and SDs</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_normalize() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">center and scale to mean 0, SD 1</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_normalize(rec, all_numeric_predictors())</text><text x="125" y="126" class="branch-label">only divide by the SD</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_scale(rec, all_numeric_predictors())</text><text x="125" y="182" class="branch-label">only subtract the mean</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_center(rec, all_numeric_predictors())</text><text x="125" y="238" class="branch-label">squeeze into a 0-1 range</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_range(rec, all_numeric_predictors())</text><text x="125" y="294" class="branch-label">fix skew before normalizing</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">step_YeoJohnson(rec, all_numeric_predictors())</text><text x="125" y="350" class="branch-label">drop constant columns first</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">step_zv(rec, all_predictors())</text></svg></div>
+
+<h2>What step_normalize() does in R</h2>
+
+<p><strong>step_normalize() converts each predictor into a z-score.</strong> During <code>prep()</code> it computes the mean and standard deviation of every selected column. During <code>bake()</code> it returns <code>(value - mean) / sd</code>. The result is a column centered at zero with unit variance, which is exactly the transformation that <code>step_center()</code> followed by <code>step_scale()</code> would produce.</p>
+
+<p>Normalization matters because many models compare predictors by magnitude. A car's <code>disp</code> runs into the hundreds while <code>drat</code> sits near three, so distance-based and penalized models let <code>disp</code> dominate the fit. <code>step_normalize()</code> puts every predictor on the same footing inside a modeling pipeline rather than by hand, and it keeps the transformation reproducible on new data.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The mean and SD are learned once, on training data only.</strong> <code>step_normalize()</code> stores both statistics inside the prepped recipe. When you <code>bake()</code> new rows, it reuses those stored values, so test data is normalized with training statistics and no information leaks across the split.</div></div>
+
+<h2>step_normalize() syntax and arguments</h2>
+
+<p><strong>step_normalize() attaches a centering-and-scaling operation to a recipe.</strong> You pass the recipe first, then the columns to transform, selected with tidyselect helpers.</p>
+
+<div class="webr-container" data-block-title="The step_normalize skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The step_normalize skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+recipe(mpg ~ ., data = mtcars) |&gt;
+  step_normalize(all_numeric_predictors())
+#&gt; -- Recipe ---------------------------------------------------------------
+#&gt; -- Inputs
+#&gt; Number of variables by role
+#&gt; outcome:    1
+#&gt; predictor: 10
+#&gt; -- Operations
+#&gt; * Centering and scaling for: all_numeric_predictors()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments you will actually touch:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>recipe</code></td>
+<td>The recipe object the step is added to.</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Columns to normalize, chosen with selectors like <code>all_numeric_predictors()</code>.</td>
+</tr>
+<tr>
+<td><code>na_rm</code></td>
+<td>If <code>TRUE</code> (default), <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> are dropped when computing the mean and SD.</td>
+</tr>
+<tr>
+<td><code>means</code></td>
+<td>Filled in by <code>prep()</code>; holds the estimated mean per column.</td>
+</tr>
+<tr>
+<td><code>sds</code></td>
+<td>Filled in by <code>prep()</code>; holds the estimated standard deviation per column.</td>
+</tr>
+<tr>
+<td><code>skip</code></td>
+<td>If <code>TRUE</code>, the step is ignored when baking new data. Leave <code>FALSE</code> for normalization.</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Normalizing predictors: worked examples</h2>
+
+<p><strong>Build the recipe, prep it, then bake.</strong> A recipe is only a plan until <code>prep()</code> estimates the statistics from data. This first example normalizes every numeric predictor in <code>mtcars</code>.</p>
+
+<div class="webr-container" data-block-title="Normalize predictors in a recipe">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Normalize predictors in a recipe</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec &lt;- recipe(mpg ~ ., data = mtcars) |&gt;
+  step_normalize(all_numeric_predictors())
+
+normalized &lt;- prep(rec) |&gt; bake(new_data = NULL)
+round(head(normalized[c(&quot;hp&quot;, &quot;wt&quot;, &quot;mpg&quot;)]), 2)
+#&gt;      hp    wt  mpg
+#&gt; 1 -0.54 -0.61 21.0
+#&gt; 2 -0.54 -0.35 21.0
+#&gt; 3 -0.78 -0.92 22.8
+#&gt; 4 -0.54  0.00 21.4
+#&gt; 5  0.41  0.23 18.7
+#&gt; 6 -0.61  0.25 18.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The outcome <code>mpg</code> is untouched because <code>all_numeric_predictors()</code> excludes it. Values now sit around zero, with negative numbers for below-average cars and positive numbers for above-average ones. To confirm the step worked, check the mean and standard deviation of each result column.</p>
+
+<div class="webr-container" data-block-title="Verify the normalized statistics">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Verify the normalized statistics</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(colMeans(normalized[c(&quot;hp&quot;, &quot;wt&quot;, &quot;disp&quot;)]), 2)
+#&gt;   hp   wt disp
+#&gt;    0    0    0
+sapply(normalized[c(&quot;hp&quot;, &quot;wt&quot;, &quot;disp&quot;)], sd)
+#&gt;   hp   wt disp
+#&gt;    1    1    1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every column now has a mean of zero and a standard deviation of one. To see the actual statistics the recipe learned, call <code>tidy()</code> on the prepped recipe with the step number.</p>
+
+<div class="webr-container" data-block-title="Inspect the learned means and SDs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the learned means and SDs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prepped &lt;- prep(rec)
+tidy(prepped, number = 1) |&gt; subset(terms %in% c(&quot;hp&quot;, &quot;wt&quot;))
+#&gt; # A tibble: 4 x 4
+#&gt;   terms statistic  value id
+#&gt;   &lt;chr&gt; &lt;chr&gt;      &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 hp    mean     147.    normalize_AbC12
+#&gt; 2 wt    mean       3.22  normalize_AbC12
+#&gt; 3 hp    sd        68.6   normalize_AbC12
+#&gt; 4 wt    sd         0.978 normalize_AbC12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A single <code>tidy()</code> call returns both the means and the standard deviations, tagged in the <code>statistic</code> column. This is the practical advantage of <code>step_normalize()</code> over chaining two separate steps: one step, one summary, both statistics.</p>
+
+<h2>step_normalize() vs step_center() vs step_scale()</h2>
+
+<p><strong>Pick the step that matches the transformation you need.</strong> Centering, scaling, and normalizing are related but distinct, and recipes gives each its own step.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What it does</th>
+<th>Resulting column</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_normalize()</code></td>
+<td>Centers and scales together</td>
+<td>Mean 0, SD 1</td>
+</tr>
+<tr>
+<td><code>step_center()</code></td>
+<td>Subtracts the mean</td>
+<td>Mean 0, original spread</td>
+</tr>
+<tr>
+<td><code>step_scale()</code></td>
+<td>Divides by the standard deviation</td>
+<td>SD 1, original center</td>
+</tr>
+<tr>
+<td><code>step_range()</code></td>
+<td>Rescales to a fixed interval</td>
+<td>Bounded, default 0 to 1</td>
+</tr>
+</tbody>
+</table>
+
+<p>If you want both mean zero and unit variance, reach for <code>step_normalize()</code> instead of adding <code>step_center()</code> and <code>step_scale()</code> separately. It is shorter to write, the <code>tidy()</code> output covers both statistics, and there is no risk of accidentally selecting different columns in each step. Use a bare <code>step_center()</code> or <code>step_scale()</code> only when you specifically want to preserve one of the two original properties.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reduce skew before you normalize.</strong> Run <code>step_YeoJohnson()</code> or <code>step_BoxCox()</code> first when predictors are heavily skewed, then normalize. Subtracting the mean and dividing by the SD shifts and shrinks the numbers but leaves the shape of the distribution exactly as lopsided as before.</div></div>
+
+<h2>Common pitfalls with step_normalize()</h2>
+
+<p><strong>Watch which columns you select and when the step runs.</strong> The most frequent mistakes come from normalizing the wrong columns or placing the step at the wrong point in the recipe.</p>
+
+<ol>
+
+<li><strong>Normalizing the outcome.</strong> <code>all_numeric()</code> includes the response variable. Use <code>all_numeric_predictors()</code> so the model still trains and predicts on the original target scale.</li>
+
+<li><strong>Normalizing dummy variables.</strong> If <code>step_dummy()</code> runs before <code>step_normalize()</code>, the 0/1 indicator columns get centered and scaled too, which makes them harder to interpret. Normalize before creating dummies, or select numeric columns explicitly.</li>
+
+<li><strong>Forgetting to prep.</strong> Calling <code>bake()</code> on a recipe that was never prepped throws an error, because the means and SDs have not been estimated yet.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never compute the mean and SD on the full dataset before splitting.</strong> Normalizing with statistics that saw the test rows leaks information and inflates your performance estimate. Always wrap normalization in a recipe and let <code>prep()</code> use training data only.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Normalize only the <code>hp</code> and <code>wt</code> columns of <code>mtcars</code> in a recipe, prep it, and save the baked result to <code>ex_norm</code>.</p>
+<div class="webr-container" data-block-title="Your turn: normalize two columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: normalize two columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: normalize hp and wt only
+ex_rec &lt;- recipe(mpg ~ ., data = mtcars) |&gt;
+  step_normalize(# your code here)
+
+ex_norm &lt;- # your code here
+
+round(c(mean = mean(ex_norm$hp), sd = sd(ex_norm$hp)), 6)
+#&gt; Expected: mean 0, sd 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec &lt;- recipe(mpg ~ ., data = mtcars) |&gt;
+  step_normalize(hp, wt)
+
+ex_norm &lt;- prep(ex_rec) |&gt; bake(new_data = NULL)
+round(c(mean = mean(ex_norm$hp), sd = sd(ex_norm$hp)), 6)
+#&gt; mean   sd
+#&gt;    0    1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Passing bare column names to <code>step_normalize()</code> limits the step to just <code>hp</code> and <code>wt</code>. After <code>prep()</code> estimates their means and SDs and <code>bake()</code> applies the z-score, the <code>hp</code> column has a mean of zero and a standard deviation of one.</p>
+
+</details>
+</section>
+
+<h2>Related recipes steps</h2>
+
+<p><strong>step_normalize() is one of several recipes preprocessing steps.</strong> These pair naturally with it in a tidymodels workflow:</p>
+
+<ul>
+
+<li><a href="recipes-step_center-in-R.html">step_center()</a> subtracts the mean without touching the spread.</li>
+
+<li><a href="recipes-step_scale-in-R.html">step_scale()</a> divides by the SD without shifting the center.</li>
+
+<li><a href="recipes-step_range-in-R.html">step_range()</a> rescales predictors to a fixed interval.</li>
+
+<li><a href="recipes-step_YeoJohnson-in-R.html">step_YeoJohnson()</a> reduces skew before normalizing.</li>
+
+<li><a href="recipes-step_zv-in-R.html">step_zv()</a> drops zero-variance columns that cannot be normalized.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The equivalent of <code>step_normalize()</code> is <code>(df - df.mean()) / df.std()</code>, or scikit-learn's <code>StandardScaler()</code>. The recipes version differs by learning the mean and SD on training data and reapplying them automatically to new data.</div></div>
+
+<h2>FAQ</h2>
+
+<p><strong>What does step_normalize() do in R?</strong></p>
+
+<p><code>step_normalize()</code> is a recipes step that centers and scales numeric predictors at the same time. During <code>prep()</code> it learns each column's mean and standard deviation from the training data. During <code>bake()</code> it applies the z-score transformation <code>(value - mean) / sd</code>, so every selected column ends with a mean of zero and a standard deviation of one. It is the recipes equivalent of standardizing data before modeling.</p>
+
+<p><strong>What is the difference between step_normalize() and step_scale()?</strong></p>
+
+<p><code>step_scale()</code> only divides each column by its standard deviation, so the column keeps its original mean. <code>step_normalize()</code> does two things: it subtracts the mean and then divides by the SD, leaving the column with mean zero and SD one. Use <code>step_normalize()</code> when a model needs both, such as <a class="auto-link" href="Ridge-and-Lasso-Regression-in-R.html" title="Ridge and Lasso in R: How Penalised Regression Shrinks Coefficients and Selects Variables">regularized regression</a> or <a class="auto-link" href="PCA-in-R.html" title="PCA in R: Reduce Dimensions, Visualise Structure, and Understand What prcomp() Returns">principal component analysis</a>. Use <code>step_scale()</code> alone when the original center carries meaning you want to keep.</p>
+
+<p><strong>Do I need step_normalize() before every model?</strong></p>
+
+<p>No. Tree-based models such as random forests and boosted trees are invariant to monotonic rescaling, so normalization adds nothing. Normalization matters for distance-based and penalized methods: k-nearest neighbors, <a class="auto-link" href="Support-Vector-Machines-With-R.html" title="Support Vector Machines with R">support vector machines</a>, principal component analysis, and lasso or <a class="auto-link" href="Ridge-Regression-With-R.html" title="Ridge Regression with R">ridge regression</a> all let large-magnitude predictors dominate unless predictors share a common scale.</p>
+
+<p><strong>What does <a class="auto-link" href="parsnip-tidy-fit-in-R.html" title="parsnip tidy() in R: Tidy Model Coefficients">tidy()</a> show for a step_normalize() step?</strong></p>
+
+<p>Calling <code>tidy()</code> on a prepped recipe with the step number returns a tibble with one row per statistic per column. The <code>statistic</code> column reads either <code>mean</code> or <code>sd</code>, the <code>value</code> column holds the learned number, and <code>terms</code> names the predictor. This lets you audit exactly which means and standard deviations the recipe will reuse when baking new data.</p>
+
+{% endraw %}
