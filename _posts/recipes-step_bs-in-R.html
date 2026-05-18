@@ -1,0 +1,312 @@
+---
+title: "recipes step_bs() in R: B-Spline Basis Expansion"
+description: "Learn how recipes step_bs() in R builds a B-spline basis for a numeric predictor in a tidymodels recipe, with runnable examples for deg_free and degree."
+keywords: "recipes step_bs, step_bs function R, recipes step_bs examples, B-spline basis R, tidymodels spline terms, step_bs deg_free, step_bs degree"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_bs()|recipes step_bs|recipes::step_bs()|step_bs in R|B-spline basis recipe|step_bs terms"
+auto_link_case_sensitive: true
+fr_parent: "Linear-Regression.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>recipes step_bs() in R: B-Spline Basis Expansion</h1>
+
+<p class="lead">The recipes step_bs() function builds a B-spline basis for a numeric predictor in a tidymodels recipe, expanding one column into several that let a model fit a smooth, flexible curve. A B-spline puts no constraint on the curve beyond its outer knots, so it stays free to bend near the edges of the data.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_bs(rec, x)<span class="qa-cmt">                              # default cubic B-spline, 3 df</span>
+step_bs(rec, x, deg_free = 5)<span class="qa-cmt">                # 5 columns, more flexible</span>
+step_bs(rec, x, degree = 2)<span class="qa-cmt">                  # quadratic pieces, not cubic</span>
+step_bs(rec, x, y, deg_free = 4)<span class="qa-cmt">             # expand several predictors</span>
+step_bs(rec, x, keep_original_cols = TRUE)<span class="qa-cmt">   # keep the input column</span>
+step_bs(rec, all_numeric_predictors())<span class="qa-cmt">       # expand every numeric predictor</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_bs() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">flexible B-spline curve, free edges</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_bs(x, deg_free = 5)</text><text x="125" y="126" class="branch-label">spline with stable linear tails</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_ns(x, deg_free = 4)</text><text x="125" y="182" class="branch-label">smooth global polynomial curve</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_poly(x, degree = 2)</text><text x="125" y="238" class="branch-label">multiply two predictors together</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_interact(~ a:<a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a></text><text x="125" y="294" class="branch-label">fix a right-skewed predictor</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code"><a class="auto-link" href="recipes-step_log-in-R.html" title="recipes step_log() in R: Log-Transform Skewed Predictors">step_log</a>(x)</text><text x="125" y="350" class="branch-label">center and scale predictors</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">step_normalize(all_numeric_predictors())</text></svg></div>
+
+<h2>What step_bs() does</h2>
+
+<p><strong>step_bs() expands one column into a B-spline basis.</strong> It is a recipe step from the <code>recipes</code> package that replaces a numeric predictor with several columns describing a smooth, piecewise-polynomial curve. A model fed those columns can bend its prediction without you constructing spline terms by hand.</p>
+
+<p>A B-spline, short for basis spline, splits the predictor range at interior knots. On each interval the curve is a polynomial of a chosen degree, and neighbouring pieces join smoothly where they meet. Unlike a natural spline, a B-spline places no constraint on the curve beyond the outer knots, so it keeps full freedom at the edges of the data.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Two arguments control the basis: degree and deg_free.</strong> <code>degree</code> sets the polynomial order of each piece, cubic by default. <code>deg_free</code> sets how many columns the predictor expands into. Together they decide how flexible the fitted curve can be.</div></div>
+
+<h2>step_bs() syntax and arguments</h2>
+
+<p><strong>Most calls only set deg_free, and sometimes degree.</strong> You add step_bs() to a recipe pipeline after declaring variable roles with <code>recipe()</code>.</p>
+
+<div class="webr-container" data-block-title="step_bs signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">step_bs signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">step_bs(
+  recipe,
+  ...,                        # selectors for numeric predictors
+  role = &quot;predictor&quot;,         # role for the new columns
+  deg_free = NULL,            # number of spline columns
+  degree = 3,                 # polynomial degree per piece
+  options = list(),           # passed to splines::bs()
+  keep_original_cols = FALSE  # drop the input column
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>...</code> argument takes one or more predictors, named directly or through selectors like <code>all_numeric_predictors()</code>. <code>deg_free</code> controls how many spline columns each predictor produces. When it is left at <code>NULL</code>, step_bs() falls back to the value of <code>degree</code>, so a default call yields three columns.</p>
+
+<p><code>degree</code> sets the polynomial order on each interval. The default 3 gives cubic pieces, the most common choice; lower it to 2 or 1 for stiffer, simpler segments. <code>options</code> is a list forwarded to <code>splines::bs()</code>, where you can pass <code>knots</code> to place interior knots yourself instead of at the default quantiles. <code>keep_original_cols</code> defaults to <code>FALSE</code>, so step_bs() drops the input column and keeps only the basis.</p>
+
+<h2>step_bs() examples by use case</h2>
+
+<p><strong>Start with the default cubic expansion.</strong> Load <code>recipes</code>, declare a recipe, add the step, then <code>prep()</code> and <code>bake()</code> to inspect the result.</p>
+
+<div class="webr-container" data-block-title="Default B-spline expansion">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Default B-spline expansion</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+rec &lt;- recipe(mpg ~ disp, data = mtcars) |&gt;
+  step_bs(disp)
+
+baked &lt;- rec |&gt; prep() |&gt; bake(new_data = NULL)
+names(baked)
+#&gt; [1] &quot;mpg&quot;       &quot;disp_bs_1&quot; &quot;disp_bs_2&quot; &quot;disp_bs_3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>disp</code> column is gone and three new columns take its place. They are named with the predictor, a <code>_bs_</code> separator, and an index. Three columns appear because <code>deg_free</code> is <code>NULL</code> and <code>degree</code> is 3.</p>
+
+<p><strong>Raise deg_free for a more flexible curve.</strong> A higher value adds more spline columns and lets the fitted curve bend more often.</p>
+
+<div class="webr-container" data-block-title="More degrees of freedom">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">More degrees of freedom</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec5 &lt;- recipe(mpg ~ disp, data = mtcars) |&gt;
+  step_bs(disp, deg_free = 5)
+
+names(prep(rec5) |&gt; bake(new_data = NULL))
+#&gt; [1] &quot;mpg&quot;       &quot;disp_bs_1&quot; &quot;disp_bs_2&quot; &quot;disp_bs_3&quot; &quot;disp_bs_4&quot;
+#&gt; [6] &quot;disp_bs_5&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Five degrees of freedom produce five columns, whatever the polynomial degree. Each extra column buys local flexibility, at the cost of more parameters for the model to estimate.</p>
+
+<p><strong>Lower the degree for stiffer polynomial pieces.</strong> The <code>degree</code> argument changes the shape of each segment without changing the column count, which <code>deg_free</code> still controls.</p>
+
+<div class="webr-container" data-block-title="Quadratic B-spline pieces">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Quadratic B-spline pieces</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_q &lt;- recipe(mpg ~ disp, data = mtcars) |&gt;
+  step_bs(disp, degree = 2, deg_free = 4)
+
+names(prep(rec_q) |&gt; bake(new_data = NULL))
+#&gt; [1] &quot;mpg&quot;       &quot;disp_bs_1&quot; &quot;disp_bs_2&quot; &quot;disp_bs_3&quot; &quot;disp_bs_4&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Four columns appear because <code>deg_free</code> is 4. Setting <code>degree = 2</code> makes each piece a quadratic rather than a cubic, so the curve is a little less wiggly between knots.</p>
+
+<p><strong>Expand several predictors in one call.</strong> List predictors in <code>...</code> and step_bs() applies the same settings to each.</p>
+
+<div class="webr-container" data-block-title="B-spline expansion of two predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">B-spline expansion of two predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_multi &lt;- recipe(mpg ~ disp + hp, data = mtcars) |&gt;
+  step_bs(disp, hp, deg_free = 3)
+
+names(prep(rec_multi) |&gt; bake(new_data = NULL))
+#&gt; [1] &quot;mpg&quot;       &quot;disp_bs_1&quot; &quot;disp_bs_2&quot; &quot;disp_bs_3&quot;
+#&gt; [5] &quot;hp_bs_1&quot;   &quot;hp_bs_2&quot;   &quot;hp_bs_3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each predictor becomes three columns, so two predictors at three degrees of freedom yield six new features.</p>
+
+<h2>step_bs() vs step_ns() and step_poly()</h2>
+
+<p><strong>Three recipe steps add a non-linear basis, and they differ in how the curve behaves at the edges.</strong> step_bs() is the choice when you want maximum flexibility, including near the smallest and largest predictor values.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>Basis</th>
+<th>Edge behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_bs(x, deg_free = 5)</code></td>
+<td>B-spline</td>
+<td>unconstrained, free to swing at the edges</td>
+</tr>
+<tr>
+<td><code>step_ns(x, deg_free = 4)</code></td>
+<td>natural cubic spline</td>
+<td>linear beyond boundary knots, stable tails</td>
+</tr>
+<tr>
+<td><code>step_poly(x, degree = 4)</code></td>
+<td>global polynomial</td>
+<td>one curve, high degree oscillates near min and max</td>
+</tr>
+<tr>
+<td><code>step_interact(~ a:b)</code></td>
+<td>product of predictors</td>
+<td>not a curve, captures combined effects</td>
+</tr>
+</tbody>
+</table>
+
+<p>The practical contrast is at the boundaries. A B-spline is free to follow the data right up to the outer knots, which helps when the relationship really does curve near the extremes. A natural spline trades that freedom for a straight-line tail that extrapolates more safely. step_poly() fits a single global polynomial, simple but prone to oscillation at high degree.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python?</strong> The closest equivalent is <code>SplineTransformer</code> from scikit-learn, or the <code>bs()</code> B-spline term in patsy. Both build a B-spline basis you drop into a modeling pipeline, just as step_bs() feeds a tidymodels workflow.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most step_bs() surprises come from the dropped column and from over-flexing the basis.</strong> Three mistakes show up repeatedly.</p>
+
+<p>First, expecting the original predictor to remain. Because <code>keep_original_cols</code> defaults to <code>FALSE</code>, a later step that references <code>disp</code> by name fails after step_bs() runs. Set <code>keep_original_cols = TRUE</code> or reorder the recipe so dependent steps run first.</p>
+
+<div class="webr-container" data-block-title="Keep the input column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keep the input column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_keep &lt;- recipe(mpg ~ disp + hp, data = mtcars) |&gt;
+  step_bs(disp, deg_free = 2, keep_original_cols = TRUE)
+
+names(prep(rec_keep) |&gt; bake(new_data = NULL))
+#&gt; [1] &quot;disp&quot;      &quot;hp&quot;        &quot;mpg&quot;       &quot;disp_bs_1&quot; &quot;disp_bs_2&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Second, setting deg_free too high. A B-spline has no edge constraint, so a large deg_free can swing wildly near the extremes and chase noise. Start at 3 or 4 and raise it only if validation error improves.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A B-spline cannot extrapolate beyond its outer knots safely.</strong> Predictions for new data outside the training range rely on an unconstrained polynomial tail and can be wildly off. Make sure the training data covers the range you will predict on.</div></div>
+
+<p>Third, applying step_bs() to a predictor with very few unique values. <code>splines::bs()</code> cannot place interior knots when a column takes only two or three distinct values, and <code>prep()</code> raises an error. Check the distinct count before choosing deg_free.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a recipe on mtcars predicting mpg from hp, expand hp into a B-spline with five degrees of freedom, and bake the data. Save the result to ex_baked.</p>
+<div class="webr-container" data-block-title="Your turn: B-spline on hp">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: B-spline on hp</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: 5 df B-spline on hp
+ex_baked &lt;- # your code here
+
+names(ex_baked)
+#&gt; Expected: includes &quot;hp_bs_1&quot; through &quot;hp_bs_5&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_baked &lt;- recipe(mpg ~ hp, data = mtcars) |&gt;
+  step_bs(hp, deg_free = 5) |&gt;
+  prep() |&gt;
+  bake(new_data = NULL)
+names(ex_baked)
+#&gt; [1] &quot;mpg&quot;     &quot;hp_bs_1&quot; &quot;hp_bs_2&quot; &quot;hp_bs_3&quot; &quot;hp_bs_4&quot;
+#&gt; [6] &quot;hp_bs_5&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A deg_free of 5 expands <code>hp</code> into five B-spline columns. step_bs() drops the original <code>hp</code> column because <code>keep_original_cols</code> defaults to <code>FALSE</code>.</p>
+
+</details>
+</section>
+
+<h2>Related recipes functions</h2>
+
+<p><strong>These steps pair naturally with step_bs() in a <a class="auto-link" href="recipes-recipe-in-R.html" title="recipes recipe() in R: Build a Preprocessing Blueprint">preprocessing recipe</a>.</strong> Each one handles a different feature-engineering need:</p>
+
+<ul>
+
+<li><code>step_ns()</code> builds a natural spline basis when you want stable, linear tails.</li>
+
+<li><code>step_poly()</code> adds polynomial terms, a smoother global alternative to splines.</li>
+
+<li><code>step_interact()</code> multiplies predictors into <a class="auto-link" href="Interaction-Effects-in-R.html" title="Interaction Effects in R: Add Them, Test Them, and Actually Understand the Output">interaction terms</a> when combined effects matter.</li>
+
+<li><code>step_normalize()</code> centers and scales predictors, useful before other transformations.</li>
+
+<li><code>recipe()</code> defines the variable roles every step operates on.</li>
+
+</ul>
+
+<p>See the official <a href="https://recipes.tidymodels.org/reference/step_bs.html">step_bs() reference</a> for the full argument list.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does step_bs() do in a recipes pipeline?</strong></p>
+
+<p>step_bs() replaces a numeric predictor with a B-spline basis: several columns that together describe a smooth, piecewise-polynomial curve. A model that receives those columns can fit a non-linear relationship while still estimating ordinary linear coefficients. The step drops the original predictor by default and appends the new columns after the outcome variable in the baked data.</p>
+
+<p><strong>What is the difference between step_bs() and step_ns()?</strong></p>
+
+<p>Both expand a predictor into a spline basis, but they differ at the edges. step_bs() builds an unconstrained B-spline that is free to curve right up to the outer knots. step_ns() builds a natural spline that is forced to be linear beyond its boundary knots. Use step_bs() when the relationship genuinely bends near the extremes, and step_ns() when you want safer, more stable extrapolation.</p>
+
+<p><strong>How many columns does step_bs() create?</strong></p>
+
+<p>The column count equals <code>deg_free</code>. When <code>deg_free</code> is left at its <code>NULL</code> default, step_bs() falls back to the value of <code>degree</code>, so a plain <code>step_bs(x)</code> call produces three columns. Setting <code>deg_free = 5</code> always yields five columns, whatever the <code>degree</code>. The new columns are named with the predictor, a <code>_bs_</code> separator, and an index running from 1.</p>
+
+<p><strong>What value of deg_free should I use with step_bs()?</strong></p>
+
+<p>Start with 3 or 4, which captures gentle curvature, and raise it only when cross-validation shows a real improvement. A B-spline has no edge constraint, so a large deg_free can overfit and swing near the extremes. When accuracy matters, treat deg_free as a tunable hyperparameter and let a resampling search pick it rather than fixing the value by eye.</p>
+
+{% endraw %}
