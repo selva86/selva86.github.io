@@ -1,0 +1,342 @@
+---
+title: "parsnip proportional_hazards() in R: Cox Survival Models"
+description: "proportional_hazards() in R fits a Cox proportional hazards model via parsnip and the censored package. Covers engines, hazard ratios, and prediction types."
+keywords: "parsnip proportional_hazards, proportional_hazards function R, parsnip proportional_hazards examples, Cox proportional hazards tidymodels, Cox model parsnip, censored regression R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "proportional_hazards()|parsnip proportional_hazards|parsnip::proportional_hazards()|Cox proportional hazards model|Cox model in R"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>parsnip proportional_hazards() in R: Cox Survival Models</h1>
+
+<p class="lead">The parsnip <code>proportional_hazards()</code> function defines a <a class="auto-link" href="R-for-Healthcare-Exercises.html" title="R for Healthcare Exercises: 20 Practice Problems">Cox proportional hazards</a> model for time-to-event data in tidymodels. It gives you one interface that fits a classic or penalized Cox model underneath.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>proportional_hazards()<span class="qa-cmt">                                  # Cox model, survival engine</span>
+proportional_hazards() |&gt; set_engine(&quot;survival&quot;)<span class="qa-cmt">        # classic Cox via coxph</span>
+proportional_hazards(penalty = 0.01) |&gt; set_engine(&quot;glmnet&quot;)<span class="qa-cmt">  # penalized Cox</span>
+fit(spec, Surv(time, status) ~ ., data = df)<span class="qa-cmt">            # train on a Surv() outcome</span>
+predict(fit, new_data, type = &quot;time&quot;)<span class="qa-cmt">                   # predicted event time</span>
+predict(fit, new_data, type = &quot;linear_pred&quot;)<span class="qa-cmt">            # linear predictor (log-hazard)</span>
+predict(fit, new_data, type = &quot;survival&quot;, eval_time = t)<span class="qa-cmt">  # survival probability</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is proportional_hazards() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">hazard ratios from a Cox model</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">proportional_hazards()</text><text x="125" y="126" class="branch-label">assume a named event-time distribution</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">survival_reg(dist = &quot;weibull&quot;)</text><text x="125" y="182" class="branch-label">tree-based survival model</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code"><a class="auto-link" href="parsnip-decision_tree-in-R.html" title="parsnip decision_tree() in R: Build Tree-Based Models">decision_tree()</a> with censored mode</text><text x="125" y="238" class="branch-label">boosted survival model</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code"><a class="auto-link" href="parsnip-boost_tree-in-R.html" title="parsnip boost_tree() in R: Define Gradient Boosting Models">boost_tree()</a> with censored mode</text><text x="125" y="294" class="branch-label">plain numeric outcome, no censoring</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">linear_reg()</text><text x="125" y="350" class="branch-label">count of events per period</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">poisson_reg()</text></svg></div>
+
+<h2>What proportional_hazards() does</h2>
+
+<p><strong>proportional_hazards() is a model specification, not a fitted model.</strong> It records your intent to build a Cox proportional hazards model in tidymodels, but no data touches it until you call <code>fit()</code>. The same specification can be reused across datasets or resampling folds.</p>
+
+<p>The Cox model studies time-to-event data, where the outcome is the time until an event such as death, relapse, or customer churn. Its defining feature is that it models the hazard rate, the instantaneous risk of the event, as a baseline hazard multiplied by <code>exp()</code> of a linear predictor. The word proportional means each covariate scales the hazard by a constant factor that does not change over time.</p>
+
+<p>Unlike <code>survival_reg()</code>, the Cox model never assumes a shape for the baseline hazard. It is semi-parametric: it estimates covariate effects while leaving the baseline unspecified. That makes it the default choice when hazard ratios, not predicted times, are the goal. See the <a href="https://parsnip.tidymodels.org/reference/proportional_hazards.html">parsnip reference</a> for the full argument list.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The Cox model estimates relative risk without ever modeling the baseline hazard.</strong> It cancels the baseline out of the likelihood and keeps only the hazard ratios. That is why <code>proportional_hazards()</code> hands you clean <code>exp(coef)</code> ratios but needs extra steps to produce an absolute predicted time.</div></div>
+
+<h2>proportional_hazards() syntax and arguments</h2>
+
+<p><strong>The signature is short, and most arguments only matter for one engine.</strong> The <code>survival</code> engine has no tuning parameters at all.</p>
+
+<div class="webr-container" data-block-title="proportional_hazards arguments">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">proportional_hazards arguments</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">proportional_hazards(
+  mode    = &quot;censored regression&quot;,  # the only supported mode
+  engine  = &quot;survival&quot;,             # backend: survival or glmnet
+  penalty = NULL,                   # glmnet only: regularization amount
+  mixture = NULL                    # glmnet only: 0 = ridge, 1 = lasso
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>mode</code> argument is fixed at <code>&quot;censored regression&quot;</code>, so you rarely set it. The <code>engine</code> argument picks the backend: <code>survival</code> fits a classic Cox model with <code>survival::coxph()</code>, while <code>glmnet</code> fits a penalized Cox model for variable selection. The <code>penalty</code> and <code>mixture</code> arguments tune that penalization and are ignored by the survival engine.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>proportional_hazards() ships in core parsnip, but the engines need the censored package.</strong> Loading <code>library(censored)</code> registers the survival and glmnet engines with parsnip. Without it, parsnip reports that the engine is unavailable even though the survival package is installed.</div></div>
+
+<h2>Fitting a proportional_hazards() model: examples</h2>
+
+<p><strong>Start by loading the framework and defining a specification.</strong> The <code>lung</code> dataset from the survival package records survival times for advanced lung cancer patients.</p>
+
+<div class="webr-container" data-block-title="Define a proportional_hazards specification">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define a proportional_hazards specification</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+library(censored)
+library(survival)
+
+cox_spec &lt;- proportional_hazards() |&gt;
+  set_engine(&quot;survival&quot;)
+
+cox_spec
+#&gt; Proportional Hazards Model Specification (censored regression)
+#&gt;
+#&gt; Computational engine: survival</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The outcome must be a <code>Surv()</code> object that pairs the follow-up <code>time</code> with the event <code>status</code>. In <code>lung</code>, status is coded 1 for censored and 2 for dead, which <code>Surv()</code> reads automatically.</p>
+
+<div class="webr-container" data-block-title="Fit the Cox model to lung data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the Cox model to lung data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cox_fit &lt;- cox_spec |&gt;
+  fit(Surv(time, status) ~ age + sex + ph.ecog, data = lung)
+
+cox_fit
+#&gt; parsnip model object
+#&gt;
+#&gt; Call:
+#&gt; survival::coxph(formula = Surv(time, status) ~ age + sex + ph.ecog,
+#&gt;     data = data, x = TRUE, model = TRUE)
+#&gt;
+#&gt;             coef exp(coef)  se(coef)      z        p
+#&gt; age     0.011281  1.011345  0.009319  1.211  0.22606
+#&gt; sex    -0.548562  0.577780  0.174861 -3.137  0.00171
+#&gt; ph.ecog 0.461585  1.586590  0.113493  4.067 4.76e-05
+#&gt;
+#&gt; Likelihood ratio test=30.5  on 3 df, p=1.083e-06
+#&gt; n= 227, number of events= 164
+#&gt;    (1 observation deleted due to missingness)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>exp(coef)</code> column holds the hazard ratios. A value of <code>0.578</code> for <code>sex</code> means the higher-coded group has roughly 58 percent of the reference hazard, while <code>1.587</code> for <code>ph.ecog</code> means each one-point rise in the performance score lifts the hazard by about 59 percent.</p>
+
+<div class="webr-container" data-block-title="Hazard ratios with broom tidy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Hazard ratios with broom tidy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(cox_fit, exponentiate = TRUE)
+#&gt; # A tibble: 3 x 5
+#&gt;   term    estimate std.error statistic  p.value
+#&gt;   &lt;chr&gt;      &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 age        1.01    0.00932     1.21  0.226
+#&gt; 2 sex        0.578   0.175      -3.14  0.00171
+#&gt; 3 ph.ecog    1.59    0.113       4.07  0.0000476</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Test the proportional hazards assumption before trusting the coefficients.</strong> Pull the underlying model with <code>extract_fit_engine()</code> and run <code>survival::cox.zph()</code> on it. A small <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> flags a covariate whose effect drifts over time, which breaks the model.</div></div>
+
+<p>To get a survival curve, use <code>type = &quot;survival&quot;</code> and pass the times at which to evaluate it through <code>eval_time</code>. The result is a list column of small tibbles, one per subject.</p>
+
+<div class="webr-container" data-block-title="Predict survival probabilities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict survival probabilities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(
+  cox_fit,
+  new_data  = lung[1:3, ],
+  type      = &quot;survival&quot;,
+  eval_time = c(100, 500)
+)
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred
+#&gt;   &lt;list&gt;
+#&gt; 1 &lt;tibble [2 x 2]&gt;
+#&gt; 2 &lt;tibble [2 x 2]&gt;
+#&gt; 3 &lt;tibble [2 x 2]&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The linear predictor, the log-hazard relative to the average subject, comes from <code>type = &quot;linear_pred&quot;</code>. Negative values mean lower risk than average, positive values mean higher.</p>
+
+<div class="webr-container" data-block-title="Predict the linear predictor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict the linear predictor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(cox_fit, new_data = lung[1:3, ], type = &quot;linear_pred&quot;)
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred_linear_pred
+#&gt;               &lt;dbl&gt;
+#&gt; 1            -0.166
+#&gt; 2             0.291
+#&gt; 3             0.146</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>type = "time" returns the median survival time, which can be NA.</strong> A Cox model has no parametric form, so a predicted time is read off the estimated survival curve. If a subject's curve never drops below 0.5 within the observed follow-up, the median is undefined and the prediction is <code>NA</code>.</div></div>
+
+<h2>proportional_hazards() vs other censored models</h2>
+
+<p><strong>The censored package registers several model types.</strong> Choose by the question you are asking, not just the shape of the data.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Model</th>
+<th>parsnip function</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Cox proportional hazards</td>
+<td><code>proportional_hazards()</code></td>
+<td>Hazard ratios, no distribution assumption</td>
+</tr>
+<tr>
+<td>Parametric survival</td>
+<td><code>survival_reg()</code></td>
+<td>Predicted times, smooth extrapolation</td>
+</tr>
+<tr>
+<td>Penalized Cox</td>
+<td><code>proportional_hazards()</code> + glmnet</td>
+<td>Many predictors, variable selection</td>
+</tr>
+<tr>
+<td>Survival decision tree</td>
+<td><code>decision_tree()</code></td>
+<td>Non-linear effects, interpretable splits</td>
+</tr>
+<tr>
+<td>Boosted survival model</td>
+<td><code>boost_tree()</code></td>
+<td>Highest predictive accuracy</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>proportional_hazards()</code> when relative risk between groups is the goal and you prefer not to commit to a distribution. Switch to <code>survival_reg()</code> when you trust a distributional assumption and want predicted times or curves that extend past the observed follow-up. Reach for tree or boosting engines when raw predictive accuracy outweighs interpretability.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Forgetting to load the censored package</strong> is the most frequent error. The engine looks registered in the documentation but fails at fit time.</p>
+
+<div class="webr-container" data-block-title="Pitfall: censored package not loaded">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: censored package not loaded</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># censored package not loaded
+proportional_hazards() |&gt; set_engine(&quot;survival&quot;) |&gt; fit(Surv(time, status) ~ age, data = lung)
+#&gt; Error: The parsnip extension package censored is required.
+# Fix: run library(censored) first</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Passing a bare numeric outcome</strong> instead of a <code>Surv()</code> object silently changes the problem. The Cox model needs the censoring indicator, so the left side of the formula must be <code>Surv(time, status)</code>, never <code>time</code> alone.</p>
+
+<p><strong>Requesting <code>type = &quot;survival&quot;</code> without <code>eval_time</code></strong> raises an error. Survival probabilities are only defined at specific times, so you must state which times you want.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a Cox <code>proportional_hazards()</code> model on the <code>lung</code> dataset using <code>age</code> and <code>sex</code> as predictors, then get the hazard ratios with <code>tidy()</code>. Save the result to <code>ex_hr</code>.</p>
+<div class="webr-container" data-block-title="Your turn: fit proportional_hazards">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit proportional_hazards</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit a Cox model and get hazard ratios
+ex_fit &lt;- # your code here
+ex_hr &lt;- # your code here
+
+ex_hr
+#&gt; Expected: a 2-row tibble with hazard ratios in the estimate column</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- proportional_hazards() |&gt;
+  set_engine(&quot;survival&quot;) |&gt;
+  fit(Surv(time, status) ~ age + sex, data = lung)
+
+ex_hr &lt;- tidy(ex_fit, exponentiate = TRUE)
+ex_hr
+#&gt; # A tibble: 2 x 5
+#&gt;   term  estimate std.error statistic  p.value
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 age      1.02    0.00922     1.85  0.0646
+#&gt; 2 sex      0.599   0.167      -3.06  0.00221</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The specification fits a Cox model with the survival engine, and <code>tidy(exponentiate = TRUE)</code> converts the log-hazard coefficients into hazard ratios. The <code>sex</code> ratio near 0.6 means the higher-coded group has lower risk.</p>
+
+</details>
+</section>
+
+<h2>Related tidymodels functions</h2>
+
+<ul>
+
+<li><a href="parsnip-survival_reg-in-R.html">survival_reg()</a> fits a parametric survival model with assumed distributions.</li>
+
+<li><a href="parsnip-set_engine-in-R.html">set_engine()</a> swaps the backend, such as glmnet for a penalized Cox model.</li>
+
+<li><a href="parsnip-fit-in-R.html">fit()</a> trains a specification on a <code>Surv()</code> outcome.</li>
+
+<li><a href="parsnip-predict-in-R.html">predict()</a> returns times, survival probabilities, or the linear predictor.</li>
+
+<li><a href="parsnip-extract_fit_engine-in-R.html">extract_fit_engine()</a> reaches the underlying <code>coxph</code> object.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is proportional_hazards() in R?</strong> <code>proportional_hazards()</code> is a parsnip function that defines a Cox proportional hazards model for censored, time-to-event data. It records the engine and any penalization, but does not touch data until you call <code>fit()</code>. The Cox model estimates how covariates scale the event hazard without assuming a shape for the baseline hazard, which makes it a semi-parametric model.</p>
+
+<p><strong>What is the difference between proportional_hazards() and survival_reg()?</strong> <code>proportional_hazards()</code> fits a Cox model that makes no distributional assumption and reports hazard ratios between groups. <code>survival_reg()</code> fits a parametric model that assumes a named distribution, such as Weibull, and can predict absolute event times. Use proportional_hazards() when relative risk is the goal; use survival_reg() when you want predicted times or smooth survival curves.</p>
+
+<p><strong>What does the proportional hazards assumption mean?</strong> The assumption says each covariate multiplies the hazard by a constant factor that stays the same at every point in time. If a treatment helps early but stops helping later, that effect is not constant and the assumption is violated. Check it by running <code>survival::cox.zph()</code> on the model extracted with <code>extract_fit_engine()</code>.</p>
+
+<p><strong>Why do I need the censored package for proportional_hazards()?</strong> <code>proportional_hazards()</code> lives in core parsnip, but its engines are registered by the <code>censored</code> extension package. Running <code>library(censored)</code> connects parsnip to the survival and glmnet backends. Without that call, parsnip reports the engine is unavailable even though the underlying survival package is installed.</p>
+
+<p><strong>How do I get hazard ratios from a proportional_hazards() model?</strong> Fit the model, then call <code>tidy()</code> with <code>exponentiate = TRUE</code>. The Cox model estimates coefficients on the log-hazard scale, and exponentiating them converts each one into a hazard ratio. A ratio above 1 means higher risk, below 1 means lower risk, and the <code>std.error</code> and <code>p.value</code> columns help you judge significance.</p>
