@@ -1,0 +1,341 @@
+---
+title: "parsnip survival_reg() in R: Parametric Survival Models"
+description: "survival_reg() in R fits parametric survival regression models via parsnip and the censored package. Covers engines, distributions, and prediction types."
+keywords: "parsnip survival_reg, survival_reg function R, parsnip survival_reg examples, parametric survival model R, censored regression tidymodels, survival_reg engine R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "survival_reg()|parsnip survival_reg|parsnip::survival_reg()|parametric survival regression|censored regression in R"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>parsnip survival_reg() in R: Parametric Survival Models</h1>
+
+<p class="lead">The parsnip <code>survival_reg()</code> function defines a parametric survival regression model for time-to-event data in tidymodels. It gives you one interface that fits with the survival, flexsurv, or flexsurvspline engine underneath.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>survival_reg()<span class="qa-cmt">                              # default Weibull, survival engine</span>
+survival_reg(dist = &quot;exponential&quot;)<span class="qa-cmt">          # exponential AFT model</span>
+survival_reg(dist = &quot;lognormal&quot;)<span class="qa-cmt">            # log-normal accelerated failure</span>
+survival_reg() |&gt; set_engine(&quot;flexsurv&quot;)<span class="qa-cmt">    # flexible parametric engine</span>
+fit(spec, Surv(time, status) ~ ., data = df)<span class="qa-cmt"> # train on a Surv() outcome</span>
+predict(fit, new_data, type = &quot;time&quot;)<span class="qa-cmt">       # predicted event time</span>
+predict(fit, new_data, type = &quot;survival&quot;, eval_time = t)<span class="qa-cmt">  # survival prob</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is survival_reg() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">parametric time-to-event model</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">survival_reg(dist = &quot;weibull&quot;)</text><text x="125" y="126" class="branch-label">hazard ratios from a Cox model</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">proportional_hazards()</text><text x="125" y="182" class="branch-label">tree-based survival model</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code"><a class="auto-link" href="parsnip-decision_tree-in-R.html" title="parsnip decision_tree() in R: Build Tree-Based Models">decision_tree()</a> with censored mode</text><text x="125" y="238" class="branch-label">boosted survival model</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code"><a class="auto-link" href="parsnip-boost_tree-in-R.html" title="parsnip boost_tree() in R: Define Gradient Boosting Models">boost_tree()</a> with censored mode</text><text x="125" y="294" class="branch-label">plain numeric outcome, no censoring</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">linear_reg()</text><text x="125" y="350" class="branch-label">count of events per period</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">poisson_reg()</text></svg></div>
+
+<h2>What survival_reg() does</h2>
+
+<p><strong>survival_reg() is a model specification, not a fitted model.</strong> It records your intent to build a parametric survival model and the distribution you want, but no data touches it until you call <code>fit()</code>. The same specification can then be reused across many datasets or resampling folds.</p>
+
+<p>Survival <a class="auto-link" href="adv-regression-models.html" title="Advanced Regression Models">regression models</a> the time until an event happens, such as death, failure, or churn. The defining feature of this data is censoring: some subjects have not had the event by the end of the study, so you only know their time exceeds some value. A parametric survival model assumes the event times follow a named distribution, like Weibull or log-normal, and estimates that distribution from both observed and censored records.</p>
+
+<p>The function belongs to the tidymodels framework. Because parsnip standardizes the interface, the same <code>survival_reg()</code> code runs on the classic survival engine or the more flexible flexsurv engine with only one line changed.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><a class="auto-link" href="Tobit-Regression-in-R.html" title="Tobit Regression in R: AER Package for Censored Outcomes">Censored regression</a> treats "still alive" as information, not missing data.</strong> A subject who survives past the study end contributes a lower bound on their event time. survival_reg() uses that bound directly, which is why you cannot model this data with ordinary <code>linear_reg()</code>.</div></div>
+
+<h2>survival_reg() syntax and arguments</h2>
+
+<p><strong>The function signature is short.</strong> Most of the modeling choices live in <code>dist</code> and the engine.</p>
+
+<div class="webr-container" data-block-title="survival_reg arguments">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">survival_reg arguments</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">survival_reg(
+  mode   = &quot;censored regression&quot;,  # the only supported mode
+  engine = &quot;survival&quot;,             # backend: survival, flexsurv, flexsurvspline
+  dist   = NULL                    # distribution: weibull, exponential, lognormal
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>mode</code> argument is fixed at <code>&quot;censored regression&quot;</code>, so you rarely set it. The <code>engine</code> argument picks the backend package that does the math. The <code>dist</code> argument names the assumed event-time distribution; leaving it <code>NULL</code> lets the engine choose its default, which is Weibull for the survival engine.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>survival_reg() ships in core parsnip, but the engines need the censored package.</strong> Loading <code>library(censored)</code> registers the survival, flexsurv, and flexsurvspline engines with parsnip. Without it, parsnip reports that the engine is not available even though the survival package is installed.</div></div>
+
+<h2>Fitting a survival_reg() model: examples</h2>
+
+<p><strong>Start by loading the framework and defining a specification.</strong> The <code>lung</code> dataset from the survival package records survival times for advanced lung cancer patients.</p>
+
+<div class="webr-container" data-block-title="Define a survival_reg specification">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define a survival_reg specification</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+library(censored)
+library(survival)
+
+surv_spec &lt;- survival_reg(dist = &quot;weibull&quot;) |&gt;
+  set_engine(&quot;survival&quot;)
+
+surv_spec
+#&gt; Parametric Survival Regression Model Specification (censored regression)
+#&gt;
+#&gt; Main Arguments:
+#&gt;   dist = weibull
+#&gt;
+#&gt; Computational engine: survival</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The outcome must be a <code>Surv()</code> object that pairs the follow-up <code>time</code> with the event <code>status</code>. In <code>lung</code>, status is coded 1 for censored and 2 for dead, which <code>Surv()</code> interprets automatically.</p>
+
+<div class="webr-container" data-block-title="Fit the model to lung data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit the model to lung data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">surv_fit &lt;- surv_spec |&gt;
+  fit(Surv(time, status) ~ age + sex + ph.ecog, data = lung)
+
+surv_fit
+#&gt; parsnip model object
+#&gt;
+#&gt; Call:
+#&gt; survival::survreg(formula = Surv(time, status) ~ age + sex +
+#&gt;     ph.ecog, data = data, model = TRUE)
+#&gt;
+#&gt; Coefficients:
+#&gt; (Intercept)         age         sex     ph.ecog
+#&gt;  6.27243757 -0.00585765  0.39942216 -0.34642110
+#&gt;
+#&gt; Scale= 0.7273694
+#&gt;
+#&gt; n=227 (1 observation deleted due to missingness)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>To get predictions, pick a <code>type</code>. Use <code>&quot;time&quot;</code> for a single predicted event time per subject.</p>
+
+<div class="webr-container" data-block-title="Predict event times">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict event times</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(surv_fit, new_data = lung[1:3, ], type = &quot;time&quot;)
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred_time
+#&gt;        &lt;dbl&gt;
+#&gt; 1       470.
+#&gt; 2       402.
+#&gt; 3       246.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For a survival curve, use <code>type = &quot;survival&quot;</code> and pass the times at which to evaluate it through <code>eval_time</code>. The result is a list column of small tibbles, one per subject.</p>
+
+<div class="webr-container" data-block-title="Predict survival probabilities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict survival probabilities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(
+  surv_fit,
+  new_data  = lung[1:3, ],
+  type      = &quot;survival&quot;,
+  eval_time = c(100, 500)
+)
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred
+#&gt;   &lt;list&gt;
+#&gt; 1 &lt;tibble [2 x 2]&gt;
+#&gt; 2 &lt;tibble [2 x 2]&gt;
+#&gt; 3 &lt;tibble [2 x 2]&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Switching distributions takes one argument. An exponential model assumes a constant hazard, while a log-normal model allows the hazard to rise and then fall.</p>
+
+<div class="webr-container" data-block-title="Compare two distributions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare two distributions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">exp_fit &lt;- survival_reg(dist = &quot;exponential&quot;) |&gt;
+  set_engine(&quot;survival&quot;) |&gt;
+  fit(Surv(time, status) ~ age + sex, data = lung)
+
+logn_fit &lt;- survival_reg(dist = &quot;lognormal&quot;) |&gt;
+  set_engine(&quot;survival&quot;) |&gt;
+  fit(Surv(time, status) ~ age + sex, data = lung)
+
+c(exponential = logLik(extract_fit_engine(exp_fit)),
+  lognormal   = logLik(extract_fit_engine(logn_fit)))
+#&gt; exponential   lognormal
+#&gt;   -1156.300   -1143.726</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Compare distributions by log-likelihood or <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a>, not by eye.</strong> Fit several <code>dist</code> values on the same data and pick the one with the best fit statistic. The log-normal often beats the exponential because real hazards are rarely constant over time.</div></div>
+
+<h2>survival_reg() vs other censored models</h2>
+
+<p><strong>The censored package registers several model types.</strong> Choose by the question you are asking, not just the data shape.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Model</th>
+<th>parsnip function</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Parametric survival</td>
+<td><code>survival_reg()</code></td>
+<td>Smooth survival curves, extrapolation</td>
+</tr>
+<tr>
+<td><a class="auto-link" href="R-for-Healthcare-Exercises.html" title="R for Healthcare Exercises: 20 Practice Problems">Cox proportional hazards</a></td>
+<td><code>proportional_hazards()</code></td>
+<td>Hazard ratios, no distribution assumption</td>
+</tr>
+<tr>
+<td>Survival decision tree</td>
+<td><code>decision_tree()</code></td>
+<td>Non-linear effects, interpretable splits</td>
+</tr>
+<tr>
+<td>Boosted survival model</td>
+<td><code>boost_tree()</code></td>
+<td>Highest predictive accuracy</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>survival_reg()</code> when you trust a distributional assumption and want predicted times or curves that extend beyond the observed follow-up. Switch to <code>proportional_hazards()</code> when you care about hazard ratios and prefer not to commit to a distribution. Reach for tree or boosting engines when prediction accuracy matters more than interpretability.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Forgetting to load the censored package</strong> is the most frequent error. The engine looks registered in the docs but fails at fit time.</p>
+
+<div class="webr-container" data-block-title="Pitfall: engine not loaded">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: engine not loaded</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># censored package not loaded
+survival_reg() |&gt; set_engine(&quot;survival&quot;) |&gt; fit(Surv(time, status) ~ age, data = lung)
+#&gt; Error: The parsnip extension package censored is required.
+# Fix: run library(censored) first</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Passing a bare numeric outcome</strong> instead of a <code>Surv()</code> object silently changes the problem. survival_reg() needs the censoring indicator, so the left side of the formula must be <code>Surv(time, status)</code>, never <code>time</code> alone.</p>
+
+<p><strong>Requesting <code>type = &quot;survival&quot;</code> without <code>eval_time</code></strong> raises an error. Survival probabilities are only defined at specific times, so you must say which times you want.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a Weibull <code>survival_reg()</code> model on the <code>lung</code> dataset using <code>age</code> and <code>sex</code> as predictors, then predict the event time for the first two rows. Save the predictions to <code>ex_pred</code>.</p>
+<div class="webr-container" data-block-title="Your turn: fit survival_reg">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit survival_reg</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit a Weibull model and predict
+ex_fit &lt;- # your code here
+ex_pred &lt;- # your code here
+
+ex_pred
+#&gt; Expected: a 2-row tibble with a .pred_time column</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- survival_reg(dist = &quot;weibull&quot;) |&gt;
+  set_engine(&quot;survival&quot;) |&gt;
+  fit(Surv(time, status) ~ age + sex, data = lung)
+
+ex_pred &lt;- predict(ex_fit, new_data = lung[1:2, ], type = &quot;time&quot;)
+ex_pred
+#&gt; # A tibble: 2 x 1
+#&gt;   .pred_time
+#&gt;        &lt;dbl&gt;
+#&gt; 1       434.
+#&gt; 2       368.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The specification sets the <a class="auto-link" href="Weibull-Log-Normal-and-Uniform-Distributions-in-R.html" title="Weibull, Log-Normal & Uniform Distributions in R: Survival & Reliability">Weibull distribution</a> and survival engine, then <code>fit()</code> trains it on a <code>Surv()</code> outcome. Asking for <code>type = &quot;time&quot;</code> returns one predicted event time per row.</p>
+
+</details>
+</section>
+
+<h2>Related tidymodels functions</h2>
+
+<ul>
+
+<li><a href="parsnip-proportional_hazards-in-R.html">proportional_hazards()</a> defines a Cox model for hazard ratios.</li>
+
+<li><a href="parsnip-set_engine-in-R.html">set_engine()</a> swaps the backend, such as flexsurv.</li>
+
+<li><a href="parsnip-fit-in-R.html">fit()</a> trains a specification on data.</li>
+
+<li><a href="parsnip-predict-in-R.html">predict()</a> returns times, survival, or hazard.</li>
+
+<li><a href="parsnip-extract_fit_engine-in-R.html">extract_fit_engine()</a> reaches the underlying survreg object.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is survival_reg() in R?</strong> <code>survival_reg()</code> is a parsnip function that defines a parametric survival regression model for censored, time-to-event data. It specifies the assumed event-time distribution and the engine, but does not touch data until you call <code>fit()</code>. The model handles censored records, where the event has not yet happened, by treating their times as lower bounds rather than <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>.</p>
+
+<p><strong>What is the difference between survival_reg() and proportional_hazards()?</strong> <code>survival_reg()</code> fits a parametric model that assumes a named distribution, such as Weibull, and can predict absolute event times. <code>proportional_hazards()</code> fits a Cox model that makes no distributional assumption and instead estimates hazard ratios between groups. Use survival_reg() when you want predicted times or smooth curves; use proportional_hazards() when relative risk is the goal.</p>
+
+<p><strong>What distributions does survival_reg() support?</strong> The survival engine supports weibull, exponential, gaussian, logistic, lognormal, and loglogistic distributions through the <code>dist</code> argument. The flexsurv and flexsurvspline engines add further options, including spline-based hazards. Weibull is the default for the survival engine because it flexibly models hazards that rise or fall over time.</p>
+
+<p><strong>Why do I need the censored package for survival_reg()?</strong> <code>survival_reg()</code> lives in core parsnip, but its engines are registered by the <code>censored</code> extension package. Running <code>library(censored)</code> connects parsnip to the survival, flexsurv, and flexsurvspline backends. Without that call, parsnip reports the engine is unavailable even though the underlying survival package is installed.</p>
+
+<p><strong>How do I predict survival probabilities with survival_reg()?</strong> Call <code>predict()</code> with <code>type = &quot;survival&quot;</code> and supply an <code>eval_time</code> vector of the times at which you want probabilities. The result is a list column of tibbles, each holding the evaluation times and matching survival probabilities for one subject. Use <code>tidyr::unnest()</code> to flatten it into a tidy frame for plotting.</p>
