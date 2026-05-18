@@ -1,0 +1,357 @@
+---
+title: "parsnip svm_linear() in R: Linear SVM Specification"
+description: "parsnip svm_linear() in R defines linear support vector machine models for tidymodels. Covers syntax, the LiblineaR and kernlab engines, and examples."
+keywords: "parsnip svm_linear, svm_linear function R, parsnip svm_linear examples, linear SVM R tidymodels, support vector machine R parsnip, svm_linear kernlab engine"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "svm_linear()|parsnip svm_linear|parsnip::svm_linear()|linear SVM in R|tidymodels SVM"
+auto_link_case_sensitive: true
+fr_parent: "Support-Vector-Machines-With-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>parsnip svm_linear() in R: Linear SVM Specification</h1>
+
+<p class="lead">The parsnip <code>svm_linear()</code> function defines a linear support vector machine, a maximum-margin classifier or regressor, for tidymodels. It gives you one interface that fits with the LiblineaR or kernlab engine underneath.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>svm_linear()<span class="qa-cmt">                                  # default spec, LiblineaR engine</span>
+svm_linear() |&gt; set_mode(&quot;classification&quot;)<span class="qa-cmt">    # classify a factor outcome</span>
+svm_linear() |&gt; set_mode(&quot;regression&quot;)<span class="qa-cmt">        # predict a numeric outcome</span>
+svm_linear(cost = 2)<span class="qa-cmt">                          # set the margin-violation penalty</span>
+svm_linear(margin = 0.1)<span class="qa-cmt">                      # set epsilon for regression</span>
+svm_linear() |&gt; set_engine(&quot;kernlab&quot;)<span class="qa-cmt">         # swap the backend engine</span>
+fit(spec, Species ~ ., data = iris)<span class="qa-cmt">           # train on a dataset</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is svm_linear() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">linear boundary, maximum margin</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">svm_linear() |&gt; set_engine(&quot;LiblineaR&quot;)</text><text x="125" y="126" class="branch-label">non-linear boundary via RBF kernel</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">svm_rbf() |&gt; set_engine(&quot;kernlab&quot;)</text><text x="125" y="182" class="branch-label">polynomial decision boundary</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">svm_poly() |&gt; set_engine(&quot;kernlab&quot;)</text><text x="125" y="238" class="branch-label">a linear classifier with probabilities</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">logistic_reg() |&gt; set_engine(&quot;glm&quot;)</text><text x="125" y="294" class="branch-label">tree-based non-linear model</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">rand_forest() |&gt; set_engine(&quot;ranger&quot;)</text><text x="125" y="350" class="branch-label">tune the cost penalty by grid</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">tune_grid() with svm_linear()</text></svg></div>
+
+<h2>What svm_linear() does</h2>
+
+<p><strong>svm_linear() is a model specification, not a fitted model.</strong> It records your choice of a linear support vector machine and its hyperparameters, but no data touches it until you call <code>fit()</code>. This separation lets you reuse one specification across many datasets or resampling folds.</p>
+
+<p>A linear SVM finds the straight boundary, a hyperplane, that separates classes with the widest possible margin. The <code>cost</code> argument trades margin width against misclassified points: a high cost fits the training data tightly, a low cost keeps a wider, smoother margin. For regression, the model fits a flat band of width <code>margin</code> and penalizes only points outside it.</p>
+
+<p>The function belongs to the tidymodels framework. Because parsnip standardizes the interface, the same <code>svm_linear()</code> code runs on the fast LiblineaR engine or the kernlab engine with only one line changed.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A parsnip spec is a recipe for a model, not the model itself.</strong> You build the specification once, then <code>fit()</code> turns it into a trained model object. Keeping those two steps apart is what makes tidymodels workflows reproducible across resamples.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>svm_linear() ships in core parsnip, but the engines do not.</strong> The default <code>LiblineaR</code> engine needs the <code>LiblineaR</code> package installed, and <code>set_engine(&quot;kernlab&quot;)</code> needs the <code>kernlab</code> package. Install the engine package before you fit, or R reports that the engine is not available.</div></div>
+
+<h2>svm_linear() syntax and arguments</h2>
+
+<p><strong>svm_linear() takes two hyperparameters and two setup verbs.</strong> The arguments control how strict the margin is, while <code>set_engine()</code> and <code>set_mode()</code> finish the specification.</p>
+
+<div class="webr-container" data-block-title="The svm_linear specification skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The svm_linear specification skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+
+svm_linear(
+  mode = &quot;unknown&quot;,      # set to &quot;classification&quot; or &quot;regression&quot;
+  engine = &quot;LiblineaR&quot;,  # LiblineaR (default) or kernlab
+  cost = NULL,           # penalty for margin violations
+  margin = NULL          # epsilon insensitivity band (regression only)
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>cost</code> argument sets the penalty for points that fall inside the margin or on the wrong side of the boundary, where a larger cost means a tighter, lower-bias fit. The <code>margin</code> argument sets the epsilon insensitivity band used only in regression, where residuals smaller than <code>margin</code> cost nothing.</p>
+
+<p><strong>The mode is never "unknown" at fit time.</strong> A linear SVM can predict a class or a number, so you must call <code>set_mode(&quot;classification&quot;)</code> or <code>set_mode(&quot;regression&quot;)</code> before fitting. You can pass the engine through <code>set_engine()</code> instead of the <code>engine</code> argument, which is the more common tidymodels style.</p>
+
+<h2>Fit a linear SVM: four examples</h2>
+
+<p><strong>Every example below uses a built-in R dataset.</strong> The <code>iris</code> data drives the classification examples and <code>mtcars</code> drives the regression example, so the code runs anywhere with no downloads.</p>
+
+<h3>Example 1: Classify with the default LiblineaR engine</h3>
+
+<p><strong>Build the specification, then fit it to data.</strong> The LiblineaR engine trains a linear SVM quickly and is the parsnip default.</p>
+
+<div class="webr-container" data-block-title="Fit svm_linear on the iris data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit svm_linear on the iris data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">svm_spec &lt;- svm_linear(cost = 1) |&gt;
+  set_engine(&quot;LiblineaR&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+svm_fit &lt;- svm_spec |&gt;
+  fit(Species ~ ., data = iris)
+
+preds &lt;- predict(svm_fit, new_data = iris)
+mean(preds$.pred_class == iris$Species)
+#&gt; [1] 0.9666667</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The model assigns a class to every iris flower, and comparing those labels to the true species gives a training accuracy near 97%. A straight boundary separates the three species well because the petal measurements are close to linearly separable.</p>
+
+<h3>Example 2: Predict species for new rows</h3>
+
+<p><strong>predict() returns a tidy tibble with one row per input row.</strong> Each prediction is the class on whichever side of the hyperplane the row falls.</p>
+
+<div class="webr-container" data-block-title="Predict iris species for new rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict iris species for new rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sample_rows &lt;- iris[c(1, 70, 130), ]
+
+predict(svm_fit, new_data = sample_rows)
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 setosa
+#&gt; 2 versicolor
+#&gt; 3 virginica</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>.pred_class</code> column holds the predicted species as a factor. The LiblineaR engine returns hard class labels only; for per-class probabilities you switch to the kernlab engine, shown in Example 4.</p>
+
+<h3>Example 3: Fit a regression linear SVM on mtcars</h3>
+
+<p><strong>Switch the mode to "regression" and the same function predicts a number.</strong> The <code>margin</code> argument now controls the width of the insensitivity band.</p>
+
+<div class="webr-container" data-block-title="Fit a regression linear SVM on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a regression linear SVM on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">svm_reg &lt;- svm_linear(cost = 1, margin = 0.1) |&gt;
+  set_engine(&quot;LiblineaR&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+svm_reg_fit &lt;- svm_reg |&gt;
+  fit(mpg ~ ., data = mtcars)
+
+predict(svm_reg_fit, new_data = mtcars[1:3, ])
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  22.6
+#&gt; 2  22.1
+#&gt; 3  26.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The regression SVM returns a numeric <code>.pred</code> column. Residuals inside the <code>margin</code> band of 0.1 add nothing to the loss, so the fit ignores tiny errors and concentrates on the larger ones.</p>
+
+<h3>Example 4: Get class probabilities with the kernlab engine</h3>
+
+<p><strong>Swap to kernlab when you need predicted probabilities.</strong> The LiblineaR engine cannot produce them, but kernlab can.</p>
+
+<div class="webr-container" data-block-title="Predict class probabilities with kernlab">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict class probabilities with kernlab</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">svm_prob &lt;- svm_linear(cost = 1) |&gt;
+  set_engine(&quot;kernlab&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+prob_fit &lt;- svm_prob |&gt;
+  fit(Species ~ ., data = iris)
+
+predict(prob_fit, new_data = iris[c(1, 70, 130), ], type = &quot;prob&quot;)
+#&gt; # A tibble: 3 x 3
+#&gt;   .pred_setosa .pred_versicolor .pred_virginica
+#&gt;          &lt;dbl&gt;            &lt;dbl&gt;           &lt;dbl&gt;
+#&gt; 1        0.98             0.01            0.01
+#&gt; 2        0.02             0.95            0.03
+#&gt; 3        0.01             0.04            0.95</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The probability columns are named <code>.pred_&lt;class&gt;</code> and each row sums to one. kernlab estimates these with Platt scaling, which fits a logistic curve to the SVM decision values.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Normalize your predictors before fitting a linear SVM.</strong> The cost penalty treats every predictor on its raw scale, so a variable measured in thousands drowns out one measured in fractions. Add <code>step_normalize(all_numeric_predictors())</code> in a recipe so each predictor contributes fairly.</div></div>
+
+<h2>Compare svm_linear() engines</h2>
+
+<p><strong>svm_linear() runs on two engines that share the same code.</strong> You swap engines with one <code>set_engine()</code> call, and parsnip translates <code>cost</code> and <code>margin</code> to each backend.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Engine</th>
+<th>Package</th>
+<th>Strengths</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>LiblineaR</code></td>
+<td>LiblineaR</td>
+<td>Very fast on wide or sparse data</td>
+<td>Large datasets; the default choice</td>
+</tr>
+<tr>
+<td><code>kernlab</code></td>
+<td>kernlab</td>
+<td>Supports class probabilities, scales predictors</td>
+<td>You need <code>.pred</code> probability columns</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is short. Use <code>LiblineaR</code> for speed on large or sparse data, and switch to <code>kernlab</code> when you need class probabilities or want to match other kernlab SVM models in the same project.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes catch most newcomers to svm_linear().</strong> Each one below shows the problem and the fix.</p>
+
+<p>The most common is forgetting to set the mode. A linear SVM can classify or predict a number, so parsnip cannot guess which one you want and <code>fit()</code> fails until you call <code>set_mode()</code>.</p>
+
+<div class="webr-container" data-block-title="Mode must be set before fitting">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mode must be set before fitting</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Wrong: no mode, fit() cannot dispatch
+svm_linear(cost = 1) |&gt;
+  set_engine(&quot;LiblineaR&quot;) |&gt;
+  fit(Species ~ ., data = iris)
+#&gt; Error: Please set the mode in the model specification.
+
+# Right: set the mode first
+svm_linear(cost = 1) |&gt;
+  set_engine(&quot;LiblineaR&quot;) |&gt;
+  set_mode(&quot;classification&quot;) |&gt;
+  fit(Species ~ ., data = iris)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second pitfall is asking the LiblineaR engine for probabilities. <code>predict(fit, type = &quot;prob&quot;)</code> errors unless the model was fit with the kernlab engine. The third is leaving predictors unscaled, which lets a large-scale variable dominate the cost penalty and skews the boundary.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>type = "prob" fails on the LiblineaR engine.</strong> parsnip reports that the LiblineaR engine does not support probability predictions. Refit the specification with <code>set_engine(&quot;kernlab&quot;)</code> if your workflow needs <code>.pred_&lt;class&gt;</code> probability columns.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a regression linear SVM on <code>mtcars</code> with <code>cost = 2</code>, then predict <code>mpg</code> for the first row. Save the prediction to <code>ex_pred</code>.</p>
+<div class="webr-container" data-block-title="Your turn: regression SVM on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: regression SVM on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit a cost = 2 regression SVM, then predict row 1
+ex_spec &lt;- # your code here
+ex_fit  &lt;- # your code here
+ex_pred &lt;- # your code here
+
+ex_pred
+#&gt; Expected: a 1-row tibble with one .pred value near 21</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_spec &lt;- svm_linear(cost = 2) |&gt;
+  set_engine(&quot;LiblineaR&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+ex_fit &lt;- ex_spec |&gt;
+  fit(mpg ~ ., data = mtcars)
+
+ex_pred &lt;- predict(ex_fit, new_data = mtcars[1, ])
+ex_pred
+#&gt; # A tibble: 1 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  21.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Setting the mode to "regression" makes svm_linear() predict the numeric <code>mpg</code> column, and <code>cost = 2</code> tightens the fit. Row 1 of mtcars is the Mazda RX4, whose true mpg is 21, so the linear SVM lands close.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>svm_linear() works alongside the rest of the parsnip model family.</strong> These functions cover the neighboring tasks in a tidymodels project.</p>
+
+<ul>
+
+<li><code>svm_poly()</code> defines a support vector machine with a polynomial kernel.</li>
+
+<li><code>svm_rbf()</code> defines a support vector machine with a radial basis kernel.</li>
+
+<li><code>logistic_reg()</code> defines a linear classifier that returns probabilities directly.</li>
+
+<li><code>set_engine()</code> chooses the computational backend for any specification.</li>
+
+<li><code>fit()</code> trains a specification on data and returns a model object.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What package is svm_linear() in?</strong></p>
+
+<p><code>svm_linear()</code> ships in core parsnip, so <code>library(tidymodels)</code> or <code>library(parsnip)</code> makes it available. The function only describes the model, though, and the actual fitting happens in an engine package. The default <code>LiblineaR</code> engine needs the <code>LiblineaR</code> package, and <code>set_engine(&quot;kernlab&quot;)</code> needs the <code>kernlab</code> package installed separately.</p>
+
+<p><strong>What is the difference between svm_linear() and svm_rbf()?</strong></p>
+
+<p><code>svm_linear()</code> fits a straight decision boundary, a hyperplane, between classes. <code>svm_rbf()</code> uses a radial basis kernel that bends the boundary into flexible curves. Choose <code>svm_linear()</code> when the classes are close to linearly separable or the data has many predictors, and <code>svm_rbf()</code> when the boundary is clearly non-linear. The linear model trains faster and is easier to interpret.</p>
+
+<p><strong>What engine does svm_linear() use by default?</strong></p>
+
+<p>The default engine is <code>LiblineaR</code>, a fast C++ library built for linear classification and regression on large or sparse datasets. You can confirm or change it with <code>set_engine()</code>, and <code>show_engines(&quot;svm_linear&quot;)</code> lists every registered option. Switch to <code>kernlab</code> when you need predicted class probabilities, which LiblineaR does not provide.</p>
+
+<p><strong>Does svm_linear() give class probabilities?</strong></p>
+
+<p>Only with the kernlab engine. The default LiblineaR engine returns hard class labels, so <code>predict(fit, type = &quot;prob&quot;)</code> errors. Refit with <code>set_engine(&quot;kernlab&quot;)</code> and kernlab estimates probabilities with Platt scaling. If you need calibrated probabilities and a linear boundary together, kernlab is the engine to use.</p>
+
+<p><strong>How do I tune the cost parameter in svm_linear()?</strong></p>
+
+<p>Set the argument to <code>tune()</code>, as in <code>svm_linear(cost = tune())</code>, then pass the specification to <code>tune_grid()</code> with a resampling object such as <code>vfold_cv()</code>. The framework scores a grid of cost values with cross-validation. Use <code>select_best()</code> to pick the winner, then <code>finalize_workflow()</code> to lock the value before the final fit.</p>
+
+<p>For the full argument reference, see the <a href="https://parsnip.tidymodels.org/reference/svm_linear.html">parsnip svm_linear() documentation</a>.</p>
+
+{% endraw %}
