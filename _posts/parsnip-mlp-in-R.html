@@ -1,0 +1,380 @@
+---
+title: "parsnip mlp() in R: Single-Layer Neural Network Spec"
+description: "parsnip mlp() in R defines a single-layer neural network for tidymodels. Covers syntax, the nnet engine, hidden_units, penalty, epochs, and model tuning."
+keywords: "parsnip mlp, mlp function R, parsnip mlp examples, neural network tidymodels R, mlp model spec R, tidymodels neural network, parsnip nnet engine"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "mlp()|parsnip mlp|parsnip::mlp()|multilayer perceptron|neural network in R"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>parsnip mlp() in R: Single-Layer Neural Network Spec</h1>
+
+<p class="lead">The parsnip <code>mlp()</code> function defines a single-layer neural network, a multilayer perceptron, for classification or regression in tidymodels. It gives you one interface to a feed-forward net with a hidden layer of units, fitted with the nnet engine underneath.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>mlp()<span class="qa-cmt">                                  # default spec, nnet engine</span>
+mlp() |&gt; set_mode(&quot;classification&quot;)<span class="qa-cmt">    # classify a factor outcome</span>
+mlp() |&gt; set_mode(&quot;regression&quot;)<span class="qa-cmt">        # predict a numeric outcome</span>
+mlp(hidden_units = 5)<span class="qa-cmt">                  # 5 units in the hidden layer</span>
+mlp(penalty = 0.01)<span class="qa-cmt">                    # weight decay to curb overfitting</span>
+mlp(epochs = 100)<span class="qa-cmt">                      # number of training iterations</span>
+fit(spec, Species ~ ., data = iris)<span class="qa-cmt">    # train the spec on data</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is mlp() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">fit a single-layer neural net</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">mlp() |&gt; set_mode(&quot;classification&quot;)</text><text x="125" y="126" class="branch-label">predict a number with a net</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">mlp() |&gt; set_mode(&quot;regression&quot;)</text><text x="125" y="182" class="branch-label">a tree-based ensemble instead</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">rand_forest() |&gt; set_engine(&quot;ranger&quot;)</text><text x="125" y="238" class="branch-label">gradient-boosted trees</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code"><a class="auto-link" href="parsnip-boost_tree-in-R.html" title="parsnip boost_tree() in R: Define Gradient Boosting Models">boost_tree()</a> |&gt; set_engine(&quot;xgboost&quot;)</text><text x="125" y="294" class="branch-label">a linear baseline first</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">logistic_reg() |&gt; set_engine(&quot;glm&quot;)</text><text x="125" y="350" class="branch-label">tune the hidden layer size</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">mlp(hidden_units = tune())</text></svg></div>
+
+<h2>What mlp() does</h2>
+
+<p><strong>mlp() is a model specification, not a fitted model.</strong> It records your intent to build a multilayer perceptron and the hyperparameters you want, but no data touches it until you call <code>fit()</code>. That separation lets you reuse one specification across many datasets or resampling folds.</p>
+
+<p>A multilayer perceptron is a feed-forward neural network. The parsnip <code>mlp()</code> function builds the single-hidden-layer version: inputs feed a layer of hidden units, and those units feed the output. The hidden layer is what lets the model learn non-linear patterns that a plain linear model cannot.</p>
+
+<p>The function belongs to the tidymodels framework. Because parsnip standardizes the interface, the same <code>mlp()</code> code drops straight into a <code>workflow()</code> or a <code>tune_grid()</code> call without rewriting.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A parsnip spec is a recipe for a model, not the model itself.</strong> You build the specification once, then <code>fit()</code> turns it into a trained network. Keeping those two steps apart is what makes tidymodels workflows reproducible across resamples.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>mlp() ships in core parsnip, but the engine does not.</strong> The default engine is <code>nnet</code>, a recommended R package that is usually already installed. Other engines such as <code>brulee</code>, <code>keras</code>, and <code>h2o</code> need their own packages before you can <code>fit()</code> with them.</div></div>
+
+<h2>mlp() syntax and arguments</h2>
+
+<p><strong>mlp() takes up to six hyperparameters plus two setup verbs.</strong> The arguments shape the network, while <code>set_engine()</code> and <code>set_mode()</code> finish the specification.</p>
+
+<div class="webr-container" data-block-title="The mlp specification skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The mlp specification skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+
+mlp(
+  mode = &quot;unknown&quot;,      # set to &quot;classification&quot; or &quot;regression&quot;
+  engine = &quot;nnet&quot;,       # nnet is the default engine
+  hidden_units = NULL,   # number of units in the hidden layer
+  penalty = NULL,        # weight decay, larger values regularize more
+  dropout = NULL,        # proportion of weights zeroed (not used by nnet)
+  epochs = NULL,         # number of training iterations
+  activation = NULL,     # hidden-layer activation (engine dependent)
+  learn_rate = NULL      # step size for gradient updates
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>hidden_units</code> argument sets how many neurons live in the hidden layer, where more units add capacity but risk overfitting. The <code>penalty</code> argument applies weight decay, a regularization term that shrinks weights toward zero. The <code>epochs</code> argument caps how many passes the optimizer makes over the data.</p>
+
+<p><strong>Not every argument applies to every engine.</strong> The default <code>nnet</code> engine uses <code>hidden_units</code>, <code>penalty</code>, and <code>epochs</code>, but ignores <code>dropout</code> and <code>learn_rate</code>. Those belong to the <code>brulee</code> and <code>keras</code> engines. Setting an unused argument is harmless, parsnip just drops it.</p>
+
+<h2>Fit a neural network: four examples</h2>
+
+<p><strong>Every example below uses a built-in R dataset.</strong> The <code>iris</code> data drives the classification examples and <code>mtcars</code> drives the regression example, so the code runs anywhere with no downloads.</p>
+
+<h3>Example 1: Classify iris with the nnet engine</h3>
+
+<p><strong>Build the specification, then fit it to data.</strong> The nnet engine trains a small network to separate the three iris species.</p>
+
+<div class="webr-container" data-block-title="Fit mlp on the iris data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit mlp on the iris data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mlp_spec &lt;- mlp(hidden_units = 5, penalty = 0.01, epochs = 100) |&gt;
+  set_engine(&quot;nnet&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+mlp_fit &lt;- mlp_spec |&gt;
+  fit(Species ~ ., data = iris)
+
+mlp_fit
+#&gt; parsnip model object
+#&gt;
+#&gt; a 4-5-3 network with 43 weights
+#&gt; inputs: Sepal.Length Sepal.Width Petal.Length Petal.Width
+#&gt; output(s): ..y
+#&gt; options were - softmax modelling  decay=0.01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>4-5-3 network</code> line confirms the shape: four input predictors, five hidden units, three output classes. The 43 weights are the parameters the optimizer learned during the 100 epochs.</p>
+
+<h3>Example 2: Predict classes and probabilities</h3>
+
+<p><strong>predict() returns a tidy tibble with one row per input row.</strong> Use <code>type = &quot;prob&quot;</code> to get per-class probabilities instead of the hard label.</p>
+
+<div class="webr-container" data-block-title="Predict iris species and class probabilities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict iris species and class probabilities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sample_rows &lt;- iris[c(1, 70, 130), ]
+
+predict(mlp_fit, new_data = sample_rows)
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 setosa
+#&gt; 2 versicolor
+#&gt; 3 virginica
+
+predict(mlp_fit, new_data = sample_rows, type = &quot;prob&quot;)
+#&gt; # A tibble: 3 x 3
+#&gt;   .pred_setosa .pred_versicolor .pred_virginica
+#&gt;          &lt;dbl&gt;            &lt;dbl&gt;           &lt;dbl&gt;
+#&gt; 1        0.99             0.01            0.00
+#&gt; 2        0.01             0.97            0.02
+#&gt; 3        0.00             0.03            0.97</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The probability columns are named <code>.pred_&lt;class&gt;</code> and each row sums to one. They come from the softmax output layer, useful for ranking predictions or applying a custom decision threshold.</p>
+
+<h3>Example 3: Fit a neural network regression on mtcars</h3>
+
+<p><strong>Switch the mode to "regression" and the same function predicts a number.</strong> Nothing else about the call structure changes.</p>
+
+<div class="webr-container" data-block-title="Fit an mlp regression model on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit an mlp regression model on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mlp_reg &lt;- mlp(hidden_units = 3, penalty = 0.1, epochs = 200) |&gt;
+  set_engine(&quot;nnet&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+mlp_reg_fit &lt;- mlp_reg |&gt;
+  fit(mpg ~ ., data = mtcars)
+
+predict(mlp_reg_fit, new_data = mtcars[c(1, 15, 30), ])
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  21.3
+#&gt; 2  14.9
+#&gt; 3  19.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A regression network outputs a single numeric value per row in the <code>.pred</code> column. With raw <code>mtcars</code> predictors, keep <code>hidden_units</code> small so the tiny dataset does not overfit.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Tune hidden_units and penalty with cross-validation rather than guessing.</strong> The best network size depends on the data, so set both to <code>tune()</code> and let <code>tune_grid()</code> score a range on resamples. A small grid of 1 to 10 hidden units is a sensible start.</div></div>
+
+<h3>Example 4: Mark hyperparameters for tuning</h3>
+
+<p><strong>Pass tune() instead of a value to defer a hyperparameter.</strong> The specification stays valid and prints the placeholders so you can confirm what will be searched.</p>
+
+<div class="webr-container" data-block-title="A tunable mlp specification">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A tunable mlp specification</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mlp_tune &lt;- mlp(hidden_units = tune(), penalty = tune()) |&gt;
+  set_engine(&quot;nnet&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+mlp_tune
+#&gt; Single Layer Neural Network Model Specification (classification)
+#&gt;
+#&gt; Main Arguments:
+#&gt;   hidden_units = tune()
+#&gt;   penalty = tune()
+#&gt;
+#&gt; Computational engine: nnet</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This specification is not fitted yet. You hand it to <code>tune_grid()</code> with a resampling object such as <code>vfold_cv()</code>, and the framework fills in the best <code>hidden_units</code> and <code>penalty</code> from cross-validation.</p>
+
+<h2>Compare mlp() engines</h2>
+
+<p><strong>The engine decides which backend trains the network.</strong> All engines share the <code>mlp()</code> interface, so you swap them with one <code>set_engine()</code> call and keep the rest of the specification.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Engine</th>
+<th>Backend</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nnet</code></td>
+<td>Base recommended package</td>
+<td>You want a fast, dependency-free default</td>
+</tr>
+<tr>
+<td><code>brulee</code></td>
+<td>Torch via the brulee package</td>
+<td>You need dropout, learn_rate, and GPU support</td>
+</tr>
+<tr>
+<td><code>keras</code></td>
+<td>TensorFlow through keras</td>
+<td>You already work in the Keras ecosystem</td>
+</tr>
+<tr>
+<td><code>h2o</code></td>
+<td>The h2o cluster engine</td>
+<td>You train large data on an h2o backend</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is simple. Start with <code>nnet</code> for a quick baseline, move to <code>brulee</code> when you need modern training controls like dropout, and reach for <code>keras</code> or <code>h2o</code> only when an existing stack or data size demands it.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes catch most newcomers to mlp().</strong> Each one below shows the problem and the fix.</p>
+
+<p>The most common is forgetting to set the mode. A neural network can classify or predict a number, so parsnip cannot guess which one you want and <code>fit()</code> fails until you call <code>set_mode()</code>.</p>
+
+<div class="webr-container" data-block-title="Mode must be set before fitting">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mode must be set before fitting</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Wrong: no mode, fit() cannot dispatch
+mlp(hidden_units = 5) |&gt;
+  set_engine(&quot;nnet&quot;) |&gt;
+  fit(Species ~ ., data = iris)
+#&gt; Error: Please set the mode in the model specification.
+
+# Right: set the mode first
+mlp(hidden_units = 5) |&gt;
+  set_engine(&quot;nnet&quot;) |&gt;
+  set_mode(&quot;classification&quot;) |&gt;
+  fit(Species ~ ., data = iris)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second pitfall is leaving predictors on different scales. A neural network is sensitive to input magnitude, so a wide-range column dominates training. In a <code>workflow()</code>, add <code>step_normalize()</code> to a recipe so every predictor is centered and scaled. The third is asking the <code>nnet</code> engine for too many weights, since it caps the network size and errors with <code>too many weights</code> when <code>hidden_units</code> is large.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A neural network gives different results across runs unless you set a seed.</strong> Weight initialization is random, so two fits of the same <code>mlp()</code> specification can disagree. Call <code>set.seed()</code> before <code>fit()</code> to make the network reproducible.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a classification network on <code>iris</code> with 4 hidden units and <code>penalty = 0.05</code>, then predict the class for the 120th row. Save the prediction to <code>ex_pred</code>.</p>
+<div class="webr-container" data-block-title="Your turn: classify iris with mlp">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: classify iris with mlp</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit a 4-unit mlp, then predict row 120
+ex_spec &lt;- # your code here
+ex_fit  &lt;- # your code here
+ex_pred &lt;- # your code here
+
+ex_pred
+#&gt; Expected: a 1-row tibble with .pred_class = virginica</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+
+ex_spec &lt;- mlp(hidden_units = 4, penalty = 0.05, epochs = 100) |&gt;
+  set_engine(&quot;nnet&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+ex_fit &lt;- ex_spec |&gt;
+  fit(Species ~ ., data = iris)
+
+ex_pred &lt;- predict(ex_fit, new_data = iris[120, ])
+ex_pred
+#&gt; # A tibble: 1 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 virginica</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>hidden_units</code> argument sizes the hidden layer at 4, and <code>set_mode(&quot;classification&quot;)</code> tells parsnip to predict the <code>Species</code> factor. Row 120 of iris is a virginica flower, so the trained network labels it virginica.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>mlp() works alongside the rest of the parsnip model family.</strong> These functions cover the neighboring tasks in a tidymodels project.</p>
+
+<ul>
+
+<li><code>rand_forest()</code> defines a random forest ensemble of decision trees.</li>
+
+<li><code>boost_tree()</code> defines a gradient-boosted tree model.</li>
+
+<li><code>logistic_reg()</code> defines a <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">logistic regression</a> classifier baseline.</li>
+
+<li><code>set_engine()</code> chooses the computational backend for any specification.</li>
+
+<li><code>fit()</code> trains a specification on data and returns a model object.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What package is mlp() in?</strong></p>
+
+<p><code>mlp()</code> ships in core parsnip, so <code>library(tidymodels)</code> or <code>library(parsnip)</code> makes it available. The function only describes the network, though, and the actual fitting happens in an engine package. The default engine is <code>nnet</code>, a recommended R package that is usually installed already, so most users can fit an <code>mlp()</code> specification without installing anything extra.</p>
+
+<p><strong>What is the default engine for mlp()?</strong></p>
+
+<p>The default engine is <code>nnet</code>, which fits a single-hidden-layer neural network in base R. Name it explicitly with <code>set_engine(&quot;nnet&quot;)</code> for clarity. To see every registered backend, run <code>show_engines(&quot;mlp&quot;)</code>, which lists <code>nnet</code>, <code>brulee</code>, <code>keras</code>, <code>h2o</code>, and a few others. Pick <code>nnet</code> for a fast baseline and switch only when you need a specific feature.</p>
+
+<p><strong>How many hidden layers does mlp() support?</strong></p>
+
+<p>The parsnip <code>mlp()</code> function builds a single hidden layer, which is what makes it a classic multilayer perceptron. For two hidden layers, parsnip provides <code>mlp(engine = &quot;brulee_two_layer&quot;)</code>. Deeper architectures are outside the parsnip interface and call for <code>keras</code> or <code>torch</code> directly.</p>
+
+<p><strong>How do I tune the network size in mlp()?</strong></p>
+
+<p>Set <code>hidden_units = tune()</code> and <code>penalty = tune()</code> in the specification, then pass it to <code>tune_grid()</code> with a resampling object such as <code>vfold_cv()</code>. The framework scores each combination with cross-validation. Use <code>select_best()</code> to pick the winner, then <code>finalize_workflow()</code> to lock the values before the final fit.</p>
+
+<p><strong>Why do my mlp() predictions change every run?</strong></p>
+
+<p>A neural network starts from random weights, so each fit can land on a different solution. Call <code>set.seed()</code> immediately before <code>fit()</code> to make the result reproducible. Inside a tuning workflow, the resampling object also carries a seed, so set it once at the top of the script for consistent runs.</p>
+
+<p>For the full argument reference, see the <a href="https://parsnip.tidymodels.org/reference/mlp.html">parsnip mlp() documentation</a>.</p>
+
+{% endraw %}
