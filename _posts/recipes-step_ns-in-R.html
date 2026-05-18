@@ -1,0 +1,298 @@
+---
+title: "recipes step_ns() in R: Add Natural Spline Predictor Terms"
+description: "Learn how recipes step_ns() in R adds natural spline terms to a tidymodels recipe, with runnable examples for deg_free, knots, multiple predictors, and naming."
+keywords: "recipes step_ns, step_ns function R, recipes step_ns examples, natural splines R recipes, tidymodels spline terms, step_ns deg_free, natural spline recipe R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_ns()|recipes step_ns|recipes::step_ns()|step_ns in R|natural spline recipe step|step_ns terms"
+auto_link_case_sensitive: true
+fr_parent: "Linear-Regression.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>recipes step_ns() in R: Add Natural Spline Predictor Terms</h1>
+
+<p class="lead">The recipes step_ns() function adds natural spline terms to a tidymodels <a class="auto-link" href="recipes-recipe-in-R.html" title="recipes recipe() in R: Build a Preprocessing Blueprint">preprocessing recipe</a>, expanding one numeric predictor into several columns that let a model fit a smooth, flexible curve. Because the spline stays linear beyond its outer knots, the fitted curve behaves well at the edges of the data.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_ns(rec, x)<span class="qa-cmt">                              # default 2 df natural spline</span>
+step_ns(rec, x, deg_free = 4)<span class="qa-cmt">                # 4 columns, more flexible</span>
+step_ns(rec, x, y, deg_free = 3)<span class="qa-cmt">             # expand several predictors</span>
+step_ns(rec, x, keep_original_cols = TRUE)<span class="qa-cmt">   # keep the input column</span>
+step_ns(rec, all_numeric_predictors())<span class="qa-cmt">       # expand every numeric predictor</span>
+step_ns(rec, starts_with(&quot;hp&quot;))<span class="qa-cmt">              # select predictors by pattern</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_ns() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">flexible curve with stable tails</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_ns(x, deg_free = 4)</text><text x="125" y="126" class="branch-label">B-spline basis, free at edges</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_bs(x, deg_free = 4)</text><text x="125" y="182" class="branch-label">smooth global polynomial curve</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_poly(x, degree = 2)</text><text x="125" y="238" class="branch-label">multiply two predictors together</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_interact(~ a:<a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a></text><text x="125" y="294" class="branch-label">fix a right-skewed predictor</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code"><a class="auto-link" href="recipes-step_log-in-R.html" title="recipes step_log() in R: Log-Transform Skewed Predictors">step_log</a>(x)</text><text x="125" y="350" class="branch-label">center and scale predictors</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">step_normalize(all_numeric_predictors())</text></svg></div>
+
+<h2>What step_ns() does</h2>
+
+<p><strong>step_ns() expands one column into a natural spline basis.</strong> It is a recipe step from the <code>recipes</code> package that takes a numeric predictor and replaces it with several columns describing a smooth, piecewise curve. A model fed those columns can bend its prediction without you building spline terms by hand.</p>
+
+<p>A natural cubic spline splits the predictor range at interior knots. Between knots the curve is a cubic polynomial, and the pieces join smoothly where they meet. Beyond the outer knots the curve is forced to be a straight line, which keeps the tails from swinging wildly.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A spline term is just a set of extra columns, not a new model.</strong> step_ns() engineers a basis of derived features. A plain linear model still fits straight-line coefficients, but because the inputs now encode a flexible curve, the fitted prediction can follow a non-linear shape.</div></div>
+
+<p>That edge constraint is the main reason to prefer step_ns() over a high-degree polynomial. A polynomial can wave dramatically near the smallest and largest values, while a natural spline stays linear there and extrapolates more sensibly.</p>
+
+<h2>step_ns() syntax and arguments</h2>
+
+<p><strong>The step is short to write, and most calls only set deg_free.</strong> You add it to a recipe pipeline after declaring variable roles with <code>recipe()</code>.</p>
+
+<div class="webr-container" data-block-title="step_ns signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">step_ns signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">step_ns(
+  recipe,
+  ...,                        # selectors for numeric predictors
+  role = &quot;predictor&quot;,         # role for the new columns
+  deg_free = 2,               # spline degrees of freedom
+  options = list(),           # passed to splines::ns()
+  keep_original_cols = FALSE  # drop the input column
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>...</code> argument takes one or more predictors, named directly or through selectors like <code>all_numeric_predictors()</code>. <code>deg_free</code> sets how many spline columns each predictor expands into, so a larger value allows a more flexible curve.</p>
+
+<p><code>options</code> is a list forwarded to <code>splines::ns()</code>. Pass <code>options = list(knots = ...)</code> to place interior knots yourself instead of at the default quantiles. <code>keep_original_cols</code> defaults to <code>FALSE</code>, so step_ns() removes the input column and leaves only the spline basis.</p>
+
+<h2>step_ns() examples by use case</h2>
+
+<p><strong>Start with the default two-degree expansion.</strong> Load <code>recipes</code>, declare a recipe, add the step, then <code>prep()</code> and <code>bake()</code> to inspect the result.</p>
+
+<div class="webr-container" data-block-title="Default natural spline expansion">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Default natural spline expansion</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+rec &lt;- recipe(mpg ~ disp, data = mtcars) |&gt;
+  step_ns(disp, deg_free = 2)
+
+baked &lt;- rec |&gt; prep() |&gt; bake(new_data = NULL)
+names(baked)
+#&gt; [1] &quot;mpg&quot;       &quot;disp_ns_1&quot; &quot;disp_ns_2&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>disp</code> column is gone and two new columns take its place. They are named with the predictor, a <code>_ns_</code> separator, and an index.</p>
+
+<p><strong>Raise deg_free for a more flexible curve.</strong> A higher value adds more spline columns and lets the fitted curve bend more often.</p>
+
+<div class="webr-container" data-block-title="More degrees of freedom">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">More degrees of freedom</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec4 &lt;- recipe(mpg ~ disp, data = mtcars) |&gt;
+  step_ns(disp, deg_free = 4)
+
+names(prep(rec4) |&gt; bake(new_data = NULL))
+#&gt; [1] &quot;mpg&quot;       &quot;disp_ns_1&quot; &quot;disp_ns_2&quot; &quot;disp_ns_3&quot; &quot;disp_ns_4&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Four degrees of freedom produce four columns. Each extra column buys local flexibility, at the cost of more parameters for the model to estimate.</p>
+
+<p><strong>Expand several predictors in one call.</strong> List predictors in <code>...</code> and step_ns() applies the same deg_free to each.</p>
+
+<div class="webr-container" data-block-title="Spline expansion of two predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Spline expansion of two predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_multi &lt;- recipe(mpg ~ disp + hp, data = mtcars) |&gt;
+  step_ns(disp, hp, deg_free = 3)
+
+names(prep(rec_multi) |&gt; bake(new_data = NULL))
+#&gt; [1] &quot;mpg&quot;       &quot;disp_ns_1&quot; &quot;disp_ns_2&quot; &quot;disp_ns_3&quot;
+#&gt; [5] &quot;hp_ns_1&quot;   &quot;hp_ns_2&quot;   &quot;hp_ns_3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each predictor becomes three columns, so two predictors at three degrees of freedom yield six new features.</p>
+
+<p><strong>Keep the original column when later steps still need it.</strong> Set <code>keep_original_cols = TRUE</code> so the input survives alongside the basis.</p>
+
+<div class="webr-container" data-block-title="Keep the input column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keep the input column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_keep &lt;- recipe(mpg ~ disp + hp, data = mtcars) |&gt;
+  step_ns(disp, deg_free = 2, keep_original_cols = TRUE)
+
+names(prep(rec_keep) |&gt; bake(new_data = NULL))
+#&gt; [1] &quot;disp&quot;      &quot;hp&quot;        &quot;mpg&quot;       &quot;disp_ns_1&quot; &quot;disp_ns_2&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>disp</code> column stays in place and the two spline columns are appended after the outcome.</p>
+
+<h2>step_ns() vs step_poly() and step_bs()</h2>
+
+<p><strong>Three recipe steps add a non-linear basis, and they differ in how the curve behaves.</strong> step_ns() is the choice when stable behavior at the edges of the data matters.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>Basis</th>
+<th>Edge behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_ns(x, deg_free = 4)</code></td>
+<td>natural cubic spline</td>
+<td>linear beyond boundary knots, stable tails</td>
+</tr>
+<tr>
+<td><code>step_bs(x, deg_free = 4)</code></td>
+<td>B-spline</td>
+<td>unconstrained, can swing at the edges</td>
+</tr>
+<tr>
+<td><code>step_poly(x, degree = 4)</code></td>
+<td>global polynomial</td>
+<td>high degree oscillates near min and max</td>
+</tr>
+<tr>
+<td><code>step_interact(~ a:b)</code></td>
+<td>product of predictors</td>
+<td>not a curve, captures combined effects</td>
+</tr>
+</tbody>
+</table>
+
+<p>Choose step_ns() for a flexible curve that extrapolates sensibly. Reach for step_bs() when you want the extra edge freedom of a B-spline, and step_poly() for a simple, smooth global bend.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python?</strong> The closest equivalent is <code>SplineTransformer</code> from scikit-learn, or the <code>cr()</code> natural-spline term in patsy. Both produce a spline basis you drop into a modeling pipeline, just as step_ns() feeds a tidymodels workflow.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most step_ns() surprises come from the dropped column and the choice of deg_free.</strong> Three mistakes show up repeatedly.</p>
+
+<p>First, expecting the original predictor to remain. Because <code>keep_original_cols</code> defaults to <code>FALSE</code>, a later step that references <code>disp</code> by name fails after step_ns() runs. Set <code>keep_original_cols = TRUE</code> or reorder the recipe so dependent steps run first.</p>
+
+<p>Second, setting deg_free too high. Many degrees of freedom chase noise and produce a wiggly fit that generalizes poorly. Start at 2 or 3, raise it only if validation error improves, and tune it as a hyperparameter when accuracy matters.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A spline cannot extrapolate a trend it never saw.</strong> Beyond the boundary knots a natural spline is linear, so predictions for new data far outside the training range follow a straight line, not the curve. Make sure the training data covers the range you will predict on.</div></div>
+
+<p>Third, applying step_ns() to a predictor with very few unique values. <code>splines::ns()</code> cannot place interior knots when a column takes only two or three distinct values, and <code>prep()</code> raises an error. Check the number of distinct values before choosing deg_free.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a recipe on mtcars predicting mpg from hp, expand hp into a natural spline with three degrees of freedom, and bake the data. Save the result to ex_baked.</p>
+<div class="webr-container" data-block-title="Your turn: natural spline on hp">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: natural spline on hp</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: 3 df natural spline on hp
+ex_baked &lt;- # your code here
+
+names(ex_baked)
+#&gt; Expected: includes &quot;hp_ns_1&quot;, &quot;hp_ns_2&quot;, &quot;hp_ns_3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_baked &lt;- recipe(mpg ~ hp, data = mtcars) |&gt;
+  step_ns(hp, deg_free = 3) |&gt;
+  prep() |&gt;
+  bake(new_data = NULL)
+names(ex_baked)
+#&gt; [1] &quot;mpg&quot;     &quot;hp_ns_1&quot; &quot;hp_ns_2&quot; &quot;hp_ns_3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A deg_free of 3 expands <code>hp</code> into three natural spline columns. step_ns() drops the original <code>hp</code> column because <code>keep_original_cols</code> defaults to <code>FALSE</code>.</p>
+
+</details>
+</section>
+
+<h2>Related recipes functions</h2>
+
+<p><strong>These steps pair naturally with step_ns() in a preprocessing recipe.</strong> Each one handles a different feature-engineering need:</p>
+
+<ul>
+
+<li><code>step_poly()</code> adds polynomial terms, a smoother global alternative to splines.</li>
+
+<li><code>step_bs()</code> builds a B-spline basis when you want unconstrained edge behavior.</li>
+
+<li><code>step_interact()</code> multiplies predictors into <a class="auto-link" href="Interaction-Effects-in-R.html" title="Interaction Effects in R: Add Them, Test Them, and Actually Understand the Output">interaction terms</a> when combined effects matter.</li>
+
+<li><code>step_normalize()</code> centers and scales predictors, useful before other transformations.</li>
+
+<li><code>recipe()</code> defines the variable roles every step operates on.</li>
+
+</ul>
+
+<p>See the official <a href="https://recipes.tidymodels.org/reference/step_ns.html">step_ns() reference</a> for the full argument list.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does step_ns() do in a recipes pipeline?</strong></p>
+
+<p>step_ns() replaces a numeric predictor with a natural spline basis: several columns that together describe a smooth, piecewise curve. A model that receives those columns can fit a non-linear relationship while still estimating ordinary linear coefficients. The step drops the original predictor by default and appends the new columns after the outcome variable in the baked data.</p>
+
+<p><strong>What is the difference between step_ns() and step_poly()?</strong></p>
+
+<p>step_poly() builds a single global polynomial, so one set of coefficients describes the whole curve. step_ns() builds a piecewise cubic spline with knots, so the curve can bend locally without affecting distant regions. The big practical difference is the edges: a high-degree polynomial oscillates near the smallest and largest values, while a natural spline stays linear beyond its boundary knots and extrapolates more sensibly.</p>
+
+<p><strong>How does step_ns() name its new columns?</strong></p>
+
+<p>step_ns() names each output column with the predictor name, a <code>_ns_</code> separator, and an index. Expanding <code>disp</code> with <code>deg_free = 2</code> produces <code>disp_ns_1</code> and <code>disp_ns_2</code>. The index runs from 1 up to the deg_free value, so four degrees of freedom add <code>disp_ns_3</code> and <code>disp_ns_4</code> as well. Consistent naming lets downstream steps select the basis with patterns like <code>starts_with(&quot;disp_ns_&quot;)</code>.</p>
+
+<p><strong>What value of deg_free should I use with step_ns()?</strong></p>
+
+<p>Start with 2 or 3, which captures gentle curvature, and raise it only when cross-validation shows a real improvement. Each extra degree of freedom adds a column and a chance to overfit. When accuracy matters, treat deg_free as a tunable hyperparameter and let a resampling search pick it, rather than fixing the value by eye.</p>
+
+<p><strong>Does step_ns() keep the original predictor column?</strong></p>
+
+<p>No, not by default. <code>keep_original_cols</code> defaults to <code>FALSE</code>, so step_ns() removes the input column once it has built the spline basis. Set <code>keep_original_cols = TRUE</code> when a later recipe step or the model still needs the raw predictor. Otherwise the baked data returns only the expanded spline columns and the original is gone.</p>
+
+{% endraw %}
