@@ -1,0 +1,360 @@
+---
+title: "parsnip cubist_rules() in R: Rule-Based Regression Models"
+description: "parsnip cubist_rules() in R defines a Cubist rule-based regression model for tidymodels. Covers syntax, the Cubist engine, committees, neighbors, examples."
+keywords: "parsnip cubist_rules, cubist_rules function R, parsnip cubist_rules examples, Cubist model R tidymodels, rule-based regression R, cubist rules tidymodels"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "cubist_rules()|parsnip cubist_rules|cubist_rules function|Cubist model in R|rule-based regression"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>parsnip cubist_rules() in R: Rule-Based Regression Models</h1>
+
+<p class="lead">The parsnip <code>cubist_rules()</code> function defines a Cubist rule-based regression model for tidymodels. It gives you one interface for a model that splits the data into rules and fits a separate linear regression inside each one, through the Cubist engine.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>cubist_rules()<span class="qa-cmt">                              # default spec, Cubist engine</span>
+cubist_rules() |&gt; set_mode(&quot;regression&quot;)<span class="qa-cmt">    # the only supported mode</span>
+cubist_rules(committees = 10)<span class="qa-cmt">               # boost with 10 committees</span>
+cubist_rules(neighbors = 5)<span class="qa-cmt">                 # instance-based correction</span>
+cubist_rules(max_rules = 20)<span class="qa-cmt">                # cap the number of rules</span>
+cubist_rules() |&gt; set_engine(&quot;Cubist&quot;)<span class="qa-cmt">      # name the engine explicitly</span>
+fit(spec, mpg ~ ., data = mtcars)<span class="qa-cmt">           # train on a dataset</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is cubist_rules() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">rule-based numeric prediction</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">cubist_rules() |&gt; set_engine(&quot;Cubist&quot;)</text><text x="125" y="126" class="branch-label">rule-based classification</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">C5_rules() |&gt; set_engine(&quot;C5.0&quot;)</text><text x="125" y="182" class="branch-label">one readable tree</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code"><a class="auto-link" href="parsnip-decision_tree-in-R.html" title="parsnip decision_tree() in R: Build Tree-Based Models">decision_tree()</a> |&gt; set_engine(&quot;rpart&quot;)</text><text x="125" y="238" class="branch-label">gradient-boosted trees</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code"><a class="auto-link" href="parsnip-boost_tree-in-R.html" title="parsnip boost_tree() in R: Define Gradient Boosting Models">boost_tree()</a> |&gt; set_engine(&quot;xgboost&quot;)</text><text x="125" y="294" class="branch-label">many bagged trees averaged</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">rand_forest() |&gt; set_engine(&quot;ranger&quot;)</text><text x="125" y="350" class="branch-label">tune committees by grid</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">tune_grid() with cubist_rules()</text></svg></div>
+
+<h2>What cubist_rules() does</h2>
+
+<p><strong>cubist_rules() is a model specification, not a fitted model.</strong> It records your choice of a Cubist rule-based regression model and its hyperparameters, but no data touches it until you call <code>fit()</code>. This separation lets you reuse one specification across many datasets or resampling folds.</p>
+
+<p>A Cubist model first grows a tree, then collapses that tree into a flat list of <code>if-then</code> rules. What sets it apart is the leaf: instead of predicting a single constant, each rule holds its own <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression model</a>. A prediction is the output of whichever rule the new row matches.</p>
+
+<p>The function belongs to the tidymodels framework. Because parsnip standardizes the interface, <code>cubist_rules()</code> shares the same <code>fit()</code> and <code>predict()</code> verbs used by every other parsnip model.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Cubist puts a regression model in every rule.</strong> A plain decision tree predicts one constant per leaf, so its surface looks like flat steps. Cubist instead attaches a <a class="auto-link" href="Multiple-Regression-in-R.html" title="Multiple Regression in R: How to Build, Interpret, and Refine a Real Model">multiple linear regression</a> to each rule, so within a rule the prediction still slopes with the predictors. The result combines readable rules with sloped predictions, so Cubist often beats a single tree on numeric targets.</div></div>
+
+<h2>cubist_rules() syntax and arguments</h2>
+
+<p><strong>cubist_rules() takes three hyperparameters and two setup verbs.</strong> The arguments shape how many rule committees the model builds and how predictions are adjusted, while <code>set_engine()</code> and <code>set_mode()</code> finish the specification.</p>
+
+<div class="webr-container" data-block-title="The cubist_rules specification skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The cubist_rules specification skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+library(rules)
+
+cubist_rules(
+  mode = &quot;regression&quot;,   # regression is the only supported mode
+  committees = NULL,     # number of boosting-style committees, 1 to 100
+  neighbors = NULL,      # nearest neighbors for prediction adjustment, 0 to 9
+  max_rules = NULL,      # maximum number of rules to keep
+  engine = &quot;Cubist&quot;      # Cubist is the only standard engine
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>committees</code> argument sets how many sequential rule sets the model builds, much like boosting iterations, where each committee corrects the errors of the last. The <code>neighbors</code> argument turns on instance-based correction: at prediction time the model nudges its estimate toward the known outcomes of similar training rows. The <code>max_rules</code> argument caps how many rules survive, so a smaller value gives a simpler model.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>cubist_rules() lives in the rules package, not core parsnip.</strong> You need <code>library(rules)</code> alongside <code>library(tidymodels)</code> to register the function. The fitting itself happens in the <code>Cubist</code> engine package, so install <code>Cubist</code> before you call <code>fit()</code> or R reports that the engine is not available. When the hyperparameters are left <code>NULL</code>, the Cubist engine picks sensible defaults from the data.</div></div>
+
+<h2>Fit a Cubist model: four examples</h2>
+
+<p><strong>Every example below uses the built-in mtcars dataset.</strong> Cubist supports regression only, so all four examples predict the numeric <code>mpg</code> column and the code runs anywhere with no downloads.</p>
+
+<h3>Example 1: Fit a regression Cubist on mtcars</h3>
+
+<p><strong>Build the specification, then fit it to data.</strong> Leaving the hyperparameters unset lets the Cubist engine choose the rules and their linear models.</p>
+
+<div class="webr-container" data-block-title="Fit cubist_rules on the mtcars data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit cubist_rules on the mtcars data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cubist_spec &lt;- cubist_rules() |&gt;
+  set_engine(&quot;Cubist&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+cubist_fit &lt;- cubist_spec |&gt;
+  fit(mpg ~ ., data = mtcars)
+
+preds &lt;- predict(cubist_fit, new_data = mtcars)
+cor(preds$.pred, mtcars$mpg)^2
+#&gt; [1] 0.872</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Squaring the correlation between predicted and actual <code>mpg</code> gives a training R-squared near 0.87. On data this small Cubist forms a single rule, so the result is one linear model over the strongest predictors.</p>
+
+<h3>Example 2: Predict mpg for new rows</h3>
+
+<p><strong>predict() returns a tidy tibble with one row per input row.</strong> Each prediction comes from the linear model inside the matching rule.</p>
+
+<div class="webr-container" data-block-title="Predict mpg for new rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict mpg for new rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sample_rows &lt;- mtcars[c(1, 15, 30), ]
+
+predict(cubist_fit, new_data = sample_rows)
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  21.6
+#&gt; 2  11.2
+#&gt; 3  19.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>.pred</code> column holds the predicted miles per gallon as a number. The output keeps the same row order as the input, so you can bind it back to <code>sample_rows</code> with <code>bind_cols()</code>.</p>
+
+<h3>Example 3: Boost accuracy with committees</h3>
+
+<p><strong>Raise committees and Cubist builds several rule sets in sequence.</strong> Each new committee focuses on the rows the previous ones predicted poorly.</p>
+
+<div class="webr-container" data-block-title="Use ten committees for a boosted fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use ten committees for a boosted fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cubist_boost &lt;- cubist_rules(committees = 10) |&gt;
+  set_engine(&quot;Cubist&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+boost_fit &lt;- cubist_boost |&gt;
+  fit(mpg ~ ., data = mtcars)
+
+boost_preds &lt;- predict(boost_fit, new_data = mtcars)
+cor(boost_preds$.pred, mtcars$mpg)^2
+#&gt; [1] 0.908</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With ten committees the training R-squared climbs to about 0.91. The committees behave like boosting rounds, so accuracy usually rises before it plateaus.</p>
+
+<h3>Example 4: Adjust predictions with neighbors</h3>
+
+<p><strong>Set neighbors and Cubist corrects each prediction using similar training rows.</strong> The model blends its rule-based estimate with the outcomes of the nearest neighbors.</p>
+
+<div class="webr-container" data-block-title="Add instance-based correction with neighbors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add instance-based correction with neighbors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cubist_knn &lt;- cubist_rules(committees = 10, neighbors = 5) |&gt;
+  set_engine(&quot;Cubist&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+knn_fit &lt;- cubist_knn |&gt;
+  fit(mpg ~ ., data = mtcars)
+
+predict(knn_fit, new_data = mtcars[1:3, ])
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  21.4
+#&gt; 2  21.0
+#&gt; 3  25.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With <code>neighbors = 5</code>, each prediction shifts toward the average outcome of the five most similar cars. This often sharpens accuracy when the rule-based estimate alone is slightly off.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Tune committees and neighbors together, not separately.</strong> These two arguments interact: more committees sharpen the rule fit, while neighbors corrects whatever the rules still miss. A small grid that crosses a few committee counts with <code>neighbors</code> values of 0, 5 and 9 usually finds a better model than tuning either argument on its own.</div></div>
+
+<h2>cubist_rules() vs boost_tree() vs decision_tree()</h2>
+
+<p><strong>parsnip ships several tree-based ways to fit a numeric target.</strong> They share the same verbs, so swapping between them is a one-line change.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>What each leaf predicts</th>
+<th>Output style</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>decision_tree()</code></td>
+<td>One constant value</td>
+<td>A single readable tree</td>
+<td>You need a simple, explainable model</td>
+</tr>
+<tr>
+<td><code>cubist_rules()</code></td>
+<td>A linear regression model</td>
+<td>A flat list of rules</td>
+<td>Rules plus sloped predictions help</td>
+</tr>
+<tr>
+<td><code>boost_tree()</code></td>
+<td>Many trees summed</td>
+<td>An ensemble score</td>
+<td>Raw accuracy matters most</td>
+</tr>
+</tbody>
+</table>
+
+<p>Start with <code>decision_tree()</code> when explainability is the goal, reach for <code>cubist_rules()</code> when you want rules that still respond smoothly to the predictors, and use <code>boost_tree()</code> when only predictive accuracy counts.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes catch most newcomers to cubist_rules().</strong> Each one below shows the problem and the fix.</p>
+
+<p>The most common is asking for classification. Cubist is a regression-only algorithm, so <code>set_mode(&quot;classification&quot;)</code> fails. Reach for <code>C5_rules()</code> from the same <code>rules</code> package when you need rule-based classification.</p>
+
+<div class="webr-container" data-block-title="Cubist supports regression only">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cubist supports regression only</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Wrong: classification is not a Cubist mode
+cubist_rules() |&gt;
+  set_mode(&quot;classification&quot;)
+#&gt; Error: &quot;classification&quot; is not a known mode for model `cubist_rules()`.
+
+# Right: regression is the only mode
+cubist_rules() |&gt;
+  set_mode(&quot;regression&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second pitfall is forgetting <code>library(rules)</code>. Because <code>cubist_rules()</code> lives in the <code>rules</code> extension package, a plain <code>library(tidymodels)</code> does not expose it and R reports that the function is not found. The third is passing a <code>neighbors</code> value outside 0 to 9, since the Cubist engine only accepts that range and rejects anything larger.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A large committees value can overfit small data.</strong> Each committee adds another rule set that chases the residuals of the last, so on a small table like <code>mtcars</code> the model can start memorizing noise. Keep <code>committees</code> modest and tune it across resampling folds with <code>vfold_cv()</code> rather than trusting training R-squared.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a Cubist regression model on <code>mtcars</code> with <code>committees = 5</code>, then predict <code>mpg</code> for the first row. Save the prediction to <code>ex_pred</code>.</p>
+<div class="webr-container" data-block-title="Your turn: cubist_rules on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: cubist_rules on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit a committees = 5 Cubist model, then predict row 1
+ex_spec &lt;- # your code here
+ex_fit  &lt;- # your code here
+ex_pred &lt;- # your code here
+
+ex_pred
+#&gt; Expected: a 1-row tibble with one .pred value near 21</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_spec &lt;- cubist_rules(committees = 5) |&gt;
+  set_engine(&quot;Cubist&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+ex_fit &lt;- ex_spec |&gt;
+  fit(mpg ~ ., data = mtcars)
+
+ex_pred &lt;- predict(ex_fit, new_data = mtcars[1, ])
+ex_pred
+#&gt; # A tibble: 1 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  21.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Setting <code>committees = 5</code> builds five sequential rule sets that each correct the last. Row 1 of mtcars is the Mazda RX4, whose true mpg is 21, so the Cubist prediction lands close.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>cubist_rules() works alongside the rest of the parsnip model family.</strong> These functions cover the neighboring tasks in a tidymodels project.</p>
+
+<ul>
+
+<li><code>C5_rules()</code> defines a C5.0 rule-based model for classification problems.</li>
+
+<li><code>rule_fit()</code> defines a RuleFit model that mixes ensemble rules with a lasso fit.</li>
+
+<li><code>decision_tree()</code> defines a single tree of axis-aligned splits.</li>
+
+<li><code>boost_tree()</code> defines a gradient-boosted ensemble of trees.</li>
+
+<li><code>set_engine()</code> chooses the computational backend for any specification.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What package is cubist_rules() in?</strong></p>
+
+<p><code>cubist_rules()</code> ships in the <code>rules</code> package, a parsnip extension, so you need <code>library(rules)</code> in addition to <code>library(tidymodels)</code>. The function only describes the model; the actual fitting happens in an engine package. The standard registered engine is <code>Cubist</code>, which implements Quinlan's Cubist algorithm, so install the <code>Cubist</code> package separately before you call <code>fit()</code>.</p>
+
+<p><strong>What is the difference between cubist_rules() and decision_tree()?</strong></p>
+
+<p><code>decision_tree()</code> predicts a single constant value in each leaf, so its surface is a set of flat steps. <code>cubist_rules()</code> instead fits a separate multiple linear regression inside every rule, so predictions still slope with the predictors within a rule. Cubist also builds committees, a boosting-style ensemble of rule sets. Choose <code>decision_tree()</code> for a simple, readable model and <code>cubist_rules()</code> when sloped, rule-based predictions improve accuracy.</p>
+
+<p><strong>Does cubist_rules() support classification?</strong></p>
+
+<p>No. Cubist is a regression-only algorithm, so <code>cubist_rules()</code> accepts only <code>set_mode(&quot;regression&quot;)</code> and <code>fit()</code> fails on a factor outcome. For rule-based classification, use <code>C5_rules()</code> from the same <code>rules</code> package, which wraps the C5.0 algorithm.</p>
+
+<p><strong>What do committees do in cubist_rules()?</strong></p>
+
+<p>The <code>committees</code> argument sets how many rule sets Cubist builds in sequence. The first committee fits the data, and each later committee adjusts its training targets to focus on the rows the previous committees predicted poorly, much like boosting rounds. More committees usually raise accuracy until the gain plateaus.</p>
+
+<p><strong>How do I tune cubist_rules() hyperparameters?</strong></p>
+
+<p>Mark the arguments with <code>tune()</code>, as in <code>cubist_rules(committees = tune(), neighbors = tune())</code>, then pass the specification to <code>tune_grid()</code> with a resampling object such as <code>vfold_cv()</code>. The framework scores a grid of committee counts and neighbor values with cross-validation. Use <code>select_best()</code> to pick the winner, then <code>finalize_workflow()</code> to lock the values before the final fit.</p>
+
+<p>For the full argument reference, see the <a href="https://rules.tidymodels.org/reference/cubist_rules.html">rules cubist_rules() documentation</a>.</p>
+
+</content>
+
+</invoke>
+
+{% endraw %}
