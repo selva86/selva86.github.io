@@ -1,0 +1,358 @@
+---
+title: "parsnip augment() in R: Add Predictions to Data"
+description: "Learn how parsnip augment() in R appends model predictions and residuals to your data frame, with hands-on regression and classification model fit examples."
+keywords: "parsnip augment, augment function R, parsnip augment examples, R augment predictions, tidymodels augment, augment model_fit, add predictions to data R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "augment()|parsnip augment|parsnip::augment()|augment.model_fit|augment model fit|parsnip augment function"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>parsnip augment() in R: Add Predictions to Data</h1>
+
+<p class="lead">The parsnip augment() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> adds model predictions and residuals directly to your data frame, returning every original column plus new prediction columns in a single call.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>augment(fit, new_data = df)<span class="qa-cmt">            # append .pred column to df</span>
+augment(lm_fit, new_data = test)<span class="qa-cmt">       # regression: adds .pred and .resid</span>
+augment(cls_fit, new_data = test)<span class="qa-cmt">      # classification: adds .pred_class + probs</span>
+augment(fit, new_data = df[, -1])<span class="qa-cmt">      # no outcome column means no .resid</span>
+augment(fit, new_data = df)$.pred<span class="qa-cmt">      # pull only the predictions vector</span>
+augment(fit, new_data = df)$.resid<span class="qa-cmt">     # pull residuals for diagnostics</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is augment() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">keep your data and add predictions</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">augment(fit, new_data = df)</text><text x="125" y="126" class="branch-label">want only a predictions tibble</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">predict(fit, new_data = df)</text><text x="125" y="182" class="branch-label">model not fitted yet</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">fit(spec, y ~ ., data = train)</text><text x="125" y="238" class="branch-label">augment a full workflow object</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">augment(wf_fit, new_data = df)</text><text x="125" y="294" class="branch-label">tidy the model coefficients</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">tidy(fit)</text><text x="125" y="350" class="branch-label">one-row model fit summary</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">glance(fit)</text></svg></div>
+
+<h2>What augment() does</h2>
+
+<p><strong>augment() attaches predictions to your data instead of returning them separately.</strong> You pass a fitted parsnip model and a data frame, and <code>augment()</code> runs the model on that data, then column-binds the prediction columns onto the original rows. The output is a tibble with the same number of rows as the input.</p>
+
+<p>This is the key difference from <code>predict()</code>, which returns only the new columns. With <code>augment()</code> you never have to manually <code>bind_cols()</code> predictions back to your data, so the result is ready for plotting, error analysis, or export.</p>
+
+<p>The columns added depend on the model's mode. A regression model gains a <code>.pred</code> column, and a <code>.resid</code> column when the true outcome is present. A classification model gains a <code>.pred_class</code> column plus one probability column per class.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>augment() is predict() plus your original data.</strong> Reach for it whenever the next step needs predictions sitting next to the predictors that produced them, such as residual plots or grouped accuracy checks.</div></div>
+
+<h2>augment() syntax and arguments</h2>
+
+<p><strong>The signature is short because most behavior is inferred from the model.</strong> <code>augment()</code> is an S3 generic; the method for parsnip is <code>augment.model_fit()</code>.</p>
+
+<div class="webr-container" data-block-title="augment generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">augment generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">augment(x, new_data, eval_time = NULL, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td>A fitted <code>model_fit</code> object produced by <code>fit()</code> or <code>fit_xy()</code>.</td>
+</tr>
+<tr>
+<td><code>new_data</code></td>
+<td>A data frame or matrix of predictors to generate predictions for.</td>
+</tr>
+<tr>
+<td><code>eval_time</code></td>
+<td>Evaluation times, used only for <a class="auto-link" href="Tobit-Regression-in-R.html" title="Tobit Regression in R: AER Package for Censored Outcomes">censored regression</a> (survival) models.</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Extra arguments passed through to <code>predict()</code>, such as <code>type</code>.</td>
+</tr>
+</tbody>
+</table>
+
+<p>The argument is named <code>new_data</code>, with an underscore. Passing <code>data =</code> instead is the single most common mistake, covered in the pitfalls section below.</p>
+
+<h2>Augment a model: four examples</h2>
+
+<p><strong>Each example below uses a built-in dataset so you can run it as-is.</strong> First, fit a <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression model</a> with the <code>parsnip</code> interface.</p>
+
+<div class="webr-container" data-block-title="Fit a linear model with parsnip">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a linear model with parsnip</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(parsnip)
+
+lm_fit &lt;- linear_reg() |&gt;
+  set_engine(&quot;lm&quot;) |&gt;
+  fit(mpg ~ wt + hp, data = mtcars)
+
+lm_fit
+#&gt; parsnip model object
+#&gt;
+#&gt; Call:  stats::lm(formula = mpg ~ wt + hp, data = data)
+#&gt;
+#&gt; Coefficients:
+#&gt; (Intercept)           wt           hp
+#&gt;    37.22727     -3.87783     -0.03177</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 1 augments regression data and adds residuals.</strong> Because <code>mtcars</code> still contains the <code>mpg</code> outcome, <code>augment()</code> returns both <code>.pred</code> and <code>.resid</code>.</p>
+
+<div class="webr-container" data-block-title="Augment regression predictions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Augment regression predictions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aug &lt;- augment(lm_fit, new_data = mtcars)
+aug[1:4, c(&quot;mpg&quot;, &quot;wt&quot;, &quot;hp&quot;, &quot;.pred&quot;, &quot;.resid&quot;)]
+#&gt; # A tibble: 4 x 5
+#&gt;     mpg    wt    hp .pred .resid
+#&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1  21    2.62   110  23.0  -1.97
+#&gt; 2  21    2.88   110  22.0  -0.98
+#&gt; 3  22.8  2.32    93  25.3  -2.53
+#&gt; 4  21.4  3.22   110  21.1   0.30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 2 augments a classification model.</strong> A fitted classifier adds <code>.pred_class</code> and one probability column per outcome level.</p>
+
+<div class="webr-container" data-block-title="Augment classification predictions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Augment classification predictions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tree_fit &lt;- decision_tree(mode = &quot;classification&quot;) |&gt;
+  set_engine(&quot;rpart&quot;) |&gt;
+  fit(Species ~ ., data = iris)
+
+augment(tree_fit, new_data = iris)[c(1, 60, 120), 
+  c(&quot;Species&quot;, &quot;.pred_class&quot;, &quot;.pred_setosa&quot;, &quot;.pred_versicolor&quot;)]
+#&gt; # A tibble: 3 x 4
+#&gt;   Species    .pred_class .pred_setosa .pred_versicolor
+#&gt;   &lt;fct&gt;      &lt;fct&gt;              &lt;dbl&gt;            &lt;dbl&gt;
+#&gt; 1 setosa     setosa                 1            0
+#&gt; 2 versicolor versicolor             0            0.907
+#&gt; 3 virginica  virginica              0            0.022</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 3 augments fresh data with no outcome column.</strong> When <code>new_data</code> lacks the response variable, <code>augment()</code> can still predict but omits <code>.resid</code>.</p>
+
+<div class="webr-container" data-block-title="Augment new data without the outcome">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Augment new data without the outcome</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">new_cars &lt;- mtcars[1:3, c(&quot;wt&quot;, &quot;hp&quot;)]
+augment(lm_fit, new_data = new_cars)
+#&gt; # A tibble: 3 x 3
+#&gt;      wt    hp .pred
+#&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1  2.62   110  23.0
+#&gt; 2  2.88   110  22.0
+#&gt; 3  2.32    93  25.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 4 turns the augmented frame into a residual diagnostic.</strong> Because predictions and residuals share one tibble, plotting them takes a single step.</p>
+
+<div class="webr-container" data-block-title="Plot residuals from augmented data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot residuals from augmented data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aug &lt;- augment(lm_fit, new_data = mtcars)
+plot(aug$.pred, aug$.resid,
+     xlab = &quot;Predicted mpg&quot;, ylab = &quot;Residual&quot;)
+abline(h = 0, lty = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>augment() vs predict(): which to use</h2>
+
+<p><strong>Use augment() when you want context, and predict() when you want only the numbers.</strong> Both call the same underlying model, so predictions are identical; they differ in what comes back.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Aspect</th>
+<th><code>augment()</code></th>
+<th><code>predict()</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Returns</td>
+<td>Original data plus prediction columns</td>
+<td>Only prediction columns</td>
+</tr>
+<tr>
+<td>Row count</td>
+<td>Same as <code>new_data</code></td>
+<td>Same as <code>new_data</code></td>
+</tr>
+<tr>
+<td>Residuals</td>
+<td>Adds <code>.resid</code> when outcome is present</td>
+<td>Never</td>
+</tr>
+<tr>
+<td>Best for</td>
+<td>Diagnostics, plotting, grouped error</td>
+<td>Feeding predictions into another step</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is simple. If your next line of code needs the predictors or the true outcome alongside <code>.pred</code>, call <code>augment()</code>. If you only need a clean predictions tibble to bind elsewhere, <code>predict()</code> is leaner.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Chain augment() straight into yardstick.</strong> Since the augmented tibble holds both the truth and <code>.pred</code>, you can pipe it directly into metric functions like <code>rmse(aug, truth = mpg, estimate = .pred)</code> with no extra joins.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most augment() errors.</strong> Each one below shows the failing pattern and the fix.</p>
+
+<p>The first is using <code>data =</code> instead of <code>new_data =</code>. The parsnip method only recognizes <code>new_data</code>, so the wrong name triggers an unused-argument error.</p>
+
+<div class="webr-container" data-block-title="Wrong argument name fails">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrong argument name fails</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># augment(lm_fit, data = mtcars)
+#&gt; Error: unused argument (data = mtcars)
+augment(lm_fit, new_data = mtcars)   # correct</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second is expecting <code>.resid</code> on data that has no outcome column. Residuals need the true value, so scoring data without the response returns predictions only. Include the outcome column in <code>new_data</code> if you need residuals.</p>
+
+<p>The third is calling <code>augment()</code> on a raw engine object instead of a parsnip <code>model_fit</code>. A plain <code>lm()</code> result dispatches to <code>broom::augment()</code>, which uses different column names. Always augment the object returned by <code>parsnip::fit()</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Column names can collide.</strong> If <code>new_data</code> already contains a column called <code>.pred</code> or <code>.resid</code>, <code>augment()</code> overwrites it without warning. Rename pre-existing dotted columns before augmenting.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a <code>linear_reg()</code> model of <code>mpg</code> on <code>disp</code> using the <code>lm</code> engine, then augment <code>mtcars</code> and save the result to <code>ex_aug</code>.</p>
+<div class="webr-container" data-block-title="Your turn augment mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn augment mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit, then augment
+ex_fit &lt;- # your code here
+ex_aug &lt;- # your code here
+
+ncol(ex_aug)
+#&gt; Expected: 13 columns (11 original + .pred + .resid)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- linear_reg() |&gt;
+  set_engine(&quot;lm&quot;) |&gt;
+  fit(mpg ~ disp, data = mtcars)
+
+ex_aug &lt;- augment(ex_fit, new_data = mtcars)
+ncol(ex_aug)
+#&gt; [1] 13</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>mtcars</code> has 11 columns, and <code>augment()</code> appends <code>.pred</code> plus <code>.resid</code> because the <code>mpg</code> outcome is present, giving 13 columns total.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>augment() works alongside the rest of the parsnip prediction toolkit.</strong> These functions cover the steps before and after augmenting.</p>
+
+<ul>
+
+<li><code>predict()</code> returns only the prediction columns, without the original data.</li>
+
+<li><code>fit()</code> trains the model specification that <code>augment()</code> later consumes.</li>
+
+<li><code>fit_xy()</code> trains a model from separate predictor and outcome objects.</li>
+
+<li><code>set_engine()</code> chooses the computational engine behind the model.</li>
+
+<li><code>translate()</code> shows the exact engine call parsnip will run.</li>
+
+</ul>
+
+<p>See the official <a href="https://parsnip.tidymodels.org/reference/augment.html">augment.model_fit reference</a> for engine-specific notes.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between augment() and predict() in parsnip?</strong></p>
+
+<p>Both functions generate the same predictions from a fitted model. <code>predict()</code> returns a tibble containing only the new prediction columns, so you must bind it back to your data yourself. <code>augment()</code> does that bind for you, returning the full <code>new_data</code> with <code>.pred</code> (and <code>.resid</code> when the outcome is present) appended. Use <code>augment()</code> for diagnostics and plotting, and <code>predict()</code> when you only need the prediction values.</p>
+
+<p><strong>Why does augment() not return a .resid column?</strong></p>
+
+<p>The <code>.resid</code> column appears only when <code>new_data</code> includes the true outcome variable. Residuals are computed as the observed value minus the predicted value, so without the observed value there is nothing to subtract. If you augment holdout or scoring data that lacks the response column, you get <code>.pred</code> but no <code>.resid</code>. Add the outcome column to <code>new_data</code> to get residuals back.</p>
+
+<p><strong>Can I use augment() on a workflow object?</strong></p>
+
+<p>Yes. The <code>workflows</code> package provides its own <code>augment.workflow()</code> method that behaves like the parsnip one, applying any recipe preprocessing first. Calling <code>augment(wf_fit, new_data = df)</code> on a fitted workflow returns the original data with prediction columns added, and recent versions also return <code>.resid</code> under the same conditions as <code>augment.model_fit()</code>.</p>
+
+<p><strong>What columns does augment() add for classification models?</strong></p>
+
+<p>A classification <code>model_fit</code> gains a <code>.pred_class</code> column holding the predicted label. It also adds one probability column per outcome level, named <code>.pred_&lt;level&gt;</code>, such as <code>.pred_setosa</code> and <code>.pred_versicolor</code>. The probability columns sum to 1 across each row, and <code>.pred_class</code> is the level with the highest probability.</p>
+
+{% endraw %}
