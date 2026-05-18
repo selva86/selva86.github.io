@@ -1,0 +1,362 @@
+---
+title: "parsnip fit() in R: Train a Model Specification"
+description: "parsnip fit() in R trains a model specification on data. Covers the formula interface, fitting workflows, fit_xy, the model_fit object, and common errors."
+keywords: "parsnip fit, fit function R, parsnip fit examples, R fit model tidymodels, train parsnip model, fit model specification R, model_fit object"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "fit()|parsnip fit|parsnip::fit()|fit a model spec|model_fit object"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>parsnip fit() in R: Train a Model Specification</h1>
+
+<p class="lead">The parsnip <code>fit()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> trains a model specification on data and returns a fitted model object. You pass a parsnip spec, a formula, and a data frame, and <code>fit()</code> hands the work to the underlying engine.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>fit(spec, y ~ ., data = df)<span class="qa-cmt">               # formula interface</span>
+fit(spec, y ~ x1 + x2, data = df)<span class="qa-cmt">         # choose predictors</span>
+fit_xy(spec, x = predictors, y = outcome)<span class="qa-cmt"> # matrix interface</span>
+fit(workflow_obj, data = df)<span class="qa-cmt">              # fit a bundled workflow</span>
+model_fit$fit<span class="qa-cmt">                             # the raw engine object</span>
+predict(model_fit, new_data = df)<span class="qa-cmt">         # use the fitted model</span>
+extract_fit_engine(model_fit)<span class="qa-cmt">             # pull the engine fit</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is fit() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">train a spec with a formula</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">fit(spec, y ~ ., data = df)</text><text x="125" y="126" class="branch-label">train with separate x and y</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">fit_xy(spec, x = preds, y = out)</text><text x="125" y="182" class="branch-label">fit then score on a test split</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">last_fit(spec, split)</text><text x="125" y="238" class="branch-label">fit across CV resamples</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">fit_resamples(spec, resamples = folds)</text><text x="125" y="294" class="branch-label">predict from a trained model</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">predict(model_fit, new_data)</text><text x="125" y="350" class="branch-label">pull the raw engine object</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">extract_fit_engine(model_fit)</text></svg></div>
+
+<h2>What fit() does</h2>
+
+<p><strong>fit() is the verb that turns a specification into a trained model.</strong> A parsnip spec such as <code>linear_reg()</code> only records your intent. No data touches it until you call <code>fit()</code>, which estimates the parameters and returns a <code>model_fit</code> object you can predict from.</p>
+
+<p>The function takes three core inputs: the model specification, a formula that names the outcome and predictors, and the data frame to learn from. It then translates your spec into a call to the chosen engine, such as <code>stats::lm()</code> or <code>ranger::ranger()</code>, and stores the result.</p>
+
+<p>Because <code>fit()</code> is a generic, it also accepts a <code>workflow</code> object. That lets one call train a preprocessing recipe and a model together, which is the pattern most tidymodels projects use in production.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A spec is a recipe and fit() does the cooking.</strong> Keeping specification and fitting apart is what makes tidymodels reproducible. You build the spec once, then call <code>fit()</code> on every resample or dataset without rewriting the model definition.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>fit() comes from the generics package and is re-exported by parsnip.</strong> Loading <code>library(tidymodels)</code> or <code>library(parsnip)</code> makes it available. The method that handles model specs is <code>fit.model_spec()</code>, and a separate <code>fit.workflow()</code> method handles workflows.</div></div>
+
+<h2>fit() syntax and arguments</h2>
+
+<p><strong>fit() needs a spec, a formula, and data, with everything else optional.</strong> The remaining arguments tune how the fit is reported and weighted.</p>
+
+<div class="webr-container" data-block-title="The fit() argument skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The fit() argument skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit(
+  object,                      # a parsnip model specification
+  formula,                     # outcome ~ predictors
+  data,                        # a data frame or tibble
+  case_weights = NULL,         # optional per-row weights
+  control = control_parsnip(), # verbosity and error catching
+  ...                          # passed to the engine
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>object</code> argument is the spec you built with verbs like <code>set_engine()</code> and <code>set_mode()</code>. The <code>formula</code> argument follows base R rules, so <code>mpg ~ .</code> means predict <code>mpg</code> from every other column. The <code>data</code> argument holds the training rows.</p>
+
+<p><strong>The control argument changes how fit() behaves on failure.</strong> By default a fitting error stops execution. Pass <code>control_parsnip(catch = TRUE)</code> to capture the error inside the result instead, which is useful when fitting many models in a loop.</p>
+
+<h2>Fit a model: four examples</h2>
+
+<p><strong>Every example below uses a built-in R dataset.</strong> The <code>mtcars</code> data drives the regression examples and a factor version drives the classification example, so the code runs anywhere with no downloads.</p>
+
+<h3>Example 1: Fit a regression model with a formula</h3>
+
+<p><strong>Build the spec, then fit it with a formula.</strong> The <code>lm</code> engine needs no extra package, so this is the simplest possible <code>fit()</code> call.</p>
+
+<div class="webr-container" data-block-title="Fit a linear regression on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a linear regression on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+
+lm_spec &lt;- linear_reg() |&gt;
+  set_engine(&quot;lm&quot;)
+
+lm_fit &lt;- lm_spec |&gt;
+  fit(mpg ~ wt + hp, data = mtcars)
+
+lm_fit
+#&gt; parsnip model object
+#&gt;
+#&gt;
+#&gt; Call:
+#&gt; stats::lm(formula = mpg ~ wt + hp, data = data)
+#&gt;
+#&gt; Coefficients:
+#&gt; (Intercept)           wt           hp
+#&gt;    37.22727     -3.87783     -0.03177</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The printed result is a <code>model_fit</code> object wrapping the <code>lm()</code> output. The coefficients show fuel economy falls as weight and horsepower rise, which matches the data.</p>
+
+<h3>Example 2: Fit a classification model</h3>
+
+<p><strong>Switch the spec to logistic_reg() and fit() trains a classifier.</strong> The outcome column must be a factor, so convert it first.</p>
+
+<div class="webr-container" data-block-title="Fit a logistic model on a factor outcome">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a logistic model on a factor outcome</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cars &lt;- mtcars
+cars$am &lt;- factor(cars$am, labels = c(&quot;auto&quot;, &quot;manual&quot;))
+
+glm_spec &lt;- logistic_reg() |&gt;
+  set_engine(&quot;glm&quot;)
+
+glm_fit &lt;- glm_spec |&gt;
+  fit(am ~ mpg + hp, data = cars)
+
+glm_fit$fit$converged
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The same <code>fit()</code> call handles classification once the spec and the outcome type agree. Here the <code>glm</code> engine converged, so the model is ready for <code>predict()</code>.</p>
+
+<h3>Example 3: Fit a workflow object</h3>
+
+<p><strong>fit() also accepts a workflow, training preprocessing and model in one call.</strong> A workflow bundles a formula or recipe with a model spec.</p>
+
+<div class="webr-container" data-block-title="Fit a bundled workflow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a bundled workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wf &lt;- workflow() |&gt;
+  add_formula(mpg ~ wt + hp) |&gt;
+  add_model(lm_spec)
+
+wf_fit &lt;- fit(wf, data = mtcars)
+
+class(wf_fit)
+#&gt; [1] &quot;workflow&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Calling <code>fit()</code> on the workflow runs the formula step and the model fit together. The result is a fitted <code>workflow</code>, not a bare <code>model_fit</code>, so you predict from it the same way.</p>
+
+<h3>Example 4: Inspect the model_fit object</h3>
+
+<p><strong>fit() returns a structured object, not just the engine output.</strong> The <code>model_fit</code> object stores the spec, timing, and the raw engine result side by side.</p>
+
+<div class="webr-container" data-block-title="Look inside the fitted object">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Look inside the fitted object</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">class(lm_fit)
+#&gt; [1] &quot;_lm&quot;        &quot;model_fit&quot;
+
+names(lm_fit)
+#&gt; [1] &quot;lvl&quot;          &quot;spec&quot;         &quot;fit&quot;
+#&gt; [4] &quot;preproc&quot;      &quot;elapsed&quot;      &quot;censor_probs&quot;
+
+extract_fit_engine(lm_fit)$rank
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>fit</code> element holds the underlying <code>lm</code> object, and <code>extract_fit_engine()</code> is the safe way to reach it. Use that helper rather than digging into <code>$fit</code> directly, since the internal layout can change.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use extract_fit_engine() instead of $fit for engine-specific work.</strong> When you need <code>summary()</code>, diagnostics, or other native methods, <code>extract_fit_engine(model_fit)</code> returns the raw engine object cleanly. It works the same whether you fit a spec or a workflow.</div></div>
+
+<h2>Compare fit() with fit_xy() and last_fit()</h2>
+
+<p><strong>fit() is one of three training verbs in tidymodels.</strong> Each one trains a model but expects different inputs and produces a different result.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Inputs</th>
+<th>Returns</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fit()</code></td>
+<td>spec, formula, data</td>
+<td><code>model_fit</code></td>
+<td>Standard training with a formula</td>
+</tr>
+<tr>
+<td><code>fit_xy()</code></td>
+<td>spec, <code>x</code>, <code>y</code></td>
+<td><code>model_fit</code></td>
+<td>Predictors and outcome are separate objects</td>
+</tr>
+<tr>
+<td><code>last_fit()</code></td>
+<td>spec, <code>rsplit</code></td>
+<td>results tibble</td>
+<td>Final fit on train, scored on test</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is simple. Use <code>fit()</code> for everyday training with a formula, reach for <code>fit_xy()</code> when your predictors are already a matrix, and call <code>last_fit()</code> only for the one final evaluation on held-out test data. If you come from caret, the parsnip <code>fit()</code> plus <code>predict()</code> pair replaces <code>caret::train()</code>.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes catch most newcomers to fit().</strong> Each one below shows the problem and the fix.</p>
+
+<p>The most common is swapping the formula and data arguments. <code>fit()</code> expects the formula second and the data third, so a named <code>data =</code> argument with no formula fails.</p>
+
+<div class="webr-container" data-block-title="Formula must come before data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Formula must come before data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Wrong: no formula, fit() cannot build the model
+linear_reg() |&gt;
+  set_engine(&quot;lm&quot;) |&gt;
+  fit(data = mtcars)
+#&gt; Error: argument &quot;formula&quot; is missing, with no default
+
+# Right: formula first, then data
+linear_reg() |&gt;
+  set_engine(&quot;lm&quot;) |&gt;
+  fit(mpg ~ ., data = mtcars)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second pitfall is a missing mode. Models that can both classify and regress, such as <code>decision_tree()</code>, need <code>set_mode()</code> before <code>fit()</code> can dispatch. The third is a character outcome for classification, since parsnip requires the response column to be a factor, not plain text.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>fit() will not classify a character outcome.</strong> If the response column is a character vector, parsnip stops and asks for a factor. Convert it first with <code>factor()</code> or <code>as.factor()</code>, otherwise <code>fit()</code> cannot learn the class levels.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a <code>linear_reg()</code> model with the <code>lm</code> engine that predicts <code>mpg</code> from <code>disp</code> and <code>cyl</code> on <code>mtcars</code>. Save the fitted model to <code>ex_fit</code>.</p>
+<div class="webr-container" data-block-title="Your turn: fit a linear model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit a linear model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit mpg ~ disp + cyl with parsnip
+ex_spec &lt;- # your code here
+ex_fit  &lt;- # your code here
+
+ex_fit
+#&gt; Expected: a model_fit object with three coefficients</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_spec &lt;- linear_reg() |&gt;
+  set_engine(&quot;lm&quot;)
+
+ex_fit &lt;- ex_spec |&gt;
+  fit(mpg ~ disp + cyl, data = mtcars)
+
+ex_fit
+#&gt; parsnip model object
+#&gt;
+#&gt; Call:
+#&gt; stats::lm(formula = mpg ~ disp + cyl, data = data)
+#&gt;
+#&gt; Coefficients:
+#&gt; (Intercept)         disp          cyl
+#&gt;    34.66099     -0.02058     -1.58728</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The spec sets the model type and engine, then <code>fit()</code> estimates the coefficients from the formula and data. The result is a <code>model_fit</code> object holding the trained <code>lm</code> model.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>fit() works alongside the rest of the parsnip workflow.</strong> These functions cover the neighboring steps in a tidymodels project.</p>
+
+<ul>
+
+<li><code>fit_xy()</code> trains a spec from separate predictor and outcome objects.</li>
+
+<li><code>predict()</code> generates predictions from a fitted <code>model_fit</code>.</li>
+
+<li><code>set_engine()</code> chooses the computational backend before fitting.</li>
+
+<li><code>set_mode()</code> sets classification or regression for dual-mode models.</li>
+
+<li><code>extract_fit_engine()</code> pulls the raw engine object out of a fit.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What package is fit() in?</strong></p>
+
+<p>The <code>fit()</code> generic is defined in the <code>generics</code> package and re-exported by parsnip, so <code>library(parsnip)</code> or <code>library(tidymodels)</code> makes it available. The method that handles parsnip specifications is <code>fit.model_spec()</code>, and <code>fit.workflow()</code> handles workflow objects. You never call those methods by name; R dispatches the right one based on the object you pass.</p>
+
+<p><strong>What is the difference between fit() and fit_xy()?</strong></p>
+
+<p>Both train a parsnip spec, but they take different inputs. <code>fit()</code> uses a formula and a data frame, so it can apply factor encoding and other formula-driven preprocessing. <code>fit_xy()</code> takes predictors and outcome as separate objects and skips formula handling, which is faster when your data is already a numeric matrix. Most projects use <code>fit()</code> because the formula interface is clearer.</p>
+
+<p><strong>What does fit() return in R?</strong></p>
+
+<p><code>fit()</code> returns a <code>model_fit</code> object. It is a structured list that stores the original specification, the elapsed fitting time, the outcome levels, and the raw engine result in the <code>fit</code> element. Reach the engine object with <code>extract_fit_engine()</code> rather than indexing <code>$fit</code> directly. When you call <code>fit()</code> on a workflow, the result is a fitted <code>workflow</code> instead.</p>
+
+<p><strong>Why does fit() say the mode is missing?</strong></p>
+
+<p>Some model types, such as <code>decision_tree()</code> and <code>rand_forest()</code>, can predict either a class or a number. parsnip cannot guess which you want, so <code>fit()</code> stops until you call <code>set_mode(&quot;classification&quot;)</code> or <code>set_mode(&quot;regression&quot;)</code>. Single-mode models like <code>linear_reg()</code> set the mode automatically, so the error only appears for dual-mode specifications.</p>
+
+<p><strong>How do I fit a model across cross-validation folds?</strong></p>
+
+<p>Use <code>fit_resamples()</code> from the tune package instead of <code>fit()</code>. It takes the spec and a resampling object such as <code>vfold_cv()</code>, fits the model on each fold, and collects the metrics. Plain <code>fit()</code> trains one model on one dataset, so it is the wrong tool for resampling. Use <code>fit()</code> for the final model once tuning is done.</p>
+
+<p>For the full argument reference, see the <a href="https://parsnip.tidymodels.org/reference/fit.html">parsnip fit() documentation</a>.</p>
+
+{% endraw %}
