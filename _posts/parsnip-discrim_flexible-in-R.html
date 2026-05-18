@@ -1,0 +1,414 @@
+---
+title: "parsnip discrim_flexible() in R: Fit FDA Models"
+description: "Use parsnip discrim_flexible() to fit flexible discriminant analysis (FDA) models in R. Covers syntax, the earth engine, MARS tuning, and common pitfalls."
+keywords: "parsnip discrim_flexible, discrim_flexible function R, parsnip discrim_flexible examples, flexible discriminant analysis R, discrim_flexible tidymodels, FDA in R, discrim_flexible earth engine"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "discrim_flexible()|parsnip discrim_flexible|discrim::discrim_flexible()|flexible discriminant analysis|discrim_flexible"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>parsnip discrim_flexible() in R: Fit FDA Models</h1>
+
+<p class="lead">The parsnip <code>discrim_flexible()</code> function defines a flexible discriminant analysis (FDA) model in R. It keeps the discriminant analysis framework but swaps the linear step for a MARS basis expansion, so the decision boundary can bend instead of staying straight.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>discrim_flexible()<span class="qa-cmt">                                 # default FDA spec, earth engine</span>
+discrim_flexible(prod_degree = 1)<span class="qa-cmt">                  # additive model, no interactions</span>
+discrim_flexible(prod_degree = 2)<span class="qa-cmt">                  # allow two-way interactions</span>
+discrim_flexible(num_terms = 8)<span class="qa-cmt">                    # cap retained MARS terms</span>
+discrim_flexible(prune_method = &quot;backward&quot;)<span class="qa-cmt">        # MARS pruning method</span>
+discrim_flexible(num_terms = tune())<span class="qa-cmt">               # mark a parameter for tuning</span>
+discrim_flexible() |&gt; set_engine(&quot;earth&quot;)<span class="qa-cmt">          # the only engine</span>
+discrim_flexible() |&gt; fit(Species ~ ., train)<span class="qa-cmt">      # fit to training data</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is discrim_flexible() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">nonlinear class boundary, basis expansion</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">discrim_flexible()</text><text x="125" y="126" class="branch-label">classes share covariance, linear boundary</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">discrim_linear()</text><text x="125" y="182" class="branch-label">classes differ in spread, curved boundary</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">discrim_quad()</text><text x="125" y="238" class="branch-label">want an LDA-to-<a class="auto-link" href="Quadratic-Discriminant-Analysis-in-R.html" title="Quadratic Discriminant Analysis in R: When LDA Assumptions Break">QDA</a> shrinkage blend</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">discrim_regularized()</text><text x="125" y="294" class="branch-label">tree-based splits, mixed predictors</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code"><a class="auto-link" href="parsnip-decision_tree-in-R.html" title="parsnip decision_tree() in R: Build Tree-Based Models">decision_tree()</a></text><text x="125" y="350" class="branch-label">two classes, want interpretable odds</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">logistic_reg()</text></svg></div>
+
+<h2>What discrim_flexible() does</h2>
+
+<p><strong><code>discrim_flexible()</code> creates a flexible discriminant analysis specification.</strong> Like its discriminant siblings it belongs to the parsnip model family but ships in the companion <code>discrim</code> package, so you load both <code>tidymodels</code> and <code>discrim</code>. The function returns a model specification, not a fitted model. You pair it with the <code>earth</code> engine, set the mode, then call <code>fit()</code>.</p>
+
+<p>FDA, introduced by Hastie, Tibshirani, and Buja in 1994, generalizes <a class="auto-link" href="Linear-Discriminant-Analysis-in-R.html" title="LDA in R: Classify Observations by Maximising Between-Group Separation">linear discriminant analysis</a>. Plain LDA fits a <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a> internally to separate classes. FDA replaces that linear step with a flexible nonparametric regression. With the <code>earth</code> engine, that regression is MARS, multivariate adaptive <a class="auto-link" href="Polynomial-and-Spline-Regression-in-R.html" title="Polynomial and Spline Regression in R: Model Curvature Without Transforming Variables">regression splines</a>, which means the model can capture curved boundaries that LDA cannot.</p>
+
+<h2>discrim_flexible() syntax and arguments</h2>
+
+<p><strong><code>discrim_flexible()</code> exposes three hyperparameters, all passed through to the <code>earth</code> engine.</strong> That is more than <code>discrim_linear()</code> and <code>discrim_quad()</code>, which have nothing to tune, and it reflects the extra flexibility of the MARS basis.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Purpose</th>
+<th>Typical values</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>num_terms</code></td>
+<td>Number of MARS terms retained in the final model</td>
+<td>integer, or <code>tune()</code></td>
+</tr>
+<tr>
+<td><code>prod_degree</code></td>
+<td>Highest interaction degree among predictors</td>
+<td>1 (additive) or 2</td>
+</tr>
+<tr>
+<td><code>prune_method</code></td>
+<td>MARS pruning method passed to <code>earth</code></td>
+<td><code>&quot;backward&quot;</code>, <code>&quot;none&quot;</code>, <code>&quot;cv&quot;</code></td>
+</tr>
+<tr>
+<td><code>mode</code></td>
+<td>Prediction type</td>
+<td><code>&quot;classification&quot;</code> (the only valid mode)</td>
+</tr>
+<tr>
+<td><code>engine</code></td>
+<td>Computational backend</td>
+<td><code>&quot;earth&quot;</code> (the only engine)</td>
+</tr>
+</tbody>
+</table>
+
+<p>A complete specification chains the spec with <code>set_engine()</code> and <code>set_mode()</code>.</p>
+
+<div class="webr-container" data-block-title="Define a flexible discriminant spec">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define a flexible discriminant spec</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+library(discrim)
+
+fda_spec &lt;- discrim_flexible(prod_degree = 1) |&gt;
+  set_engine(&quot;earth&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+fda_spec
+#&gt; Flexible Discriminant Model Specification (classification)
+#&gt;
+#&gt; Main Arguments:
+#&gt;   prod_degree = 1
+#&gt;
+#&gt; Computational engine: earth</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The printed object confirms the argument, the mode, and the engine. Nothing is fitted yet, so this spec is reusable across resamples and workflows.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>earth</code> is the only engine.</strong> <code>discrim_flexible()</code> always calls <code>mda::fda()</code> with <code>method = earth::earth</code>, so the <code>earth</code> package must be installed alongside <code>discrim</code>. There is no engine choice to make, though keeping <code>set_engine(&quot;earth&quot;)</code> documents intent.</div></div>
+
+<h2>Fit a flexible discriminant model</h2>
+
+<p><strong><code>fit()</code> runs the MARS basis search and estimates the discriminant directions.</strong> Split the data first so you can measure honest accuracy on rows the model never saw. The <code>iris</code> dataset works well: three classes and four numeric predictors.</p>
+
+<div class="webr-container" data-block-title="Fit FDA on the iris data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit FDA on the iris data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+iris_split &lt;- initial_split(iris, prop = 0.75, strata = Species)
+iris_train &lt;- training(iris_split)
+iris_test  &lt;- testing(iris_split)
+
+fda_fit &lt;- fda_spec |&gt;
+  fit(Species ~ ., data = iris_train)
+
+fda_fit
+#&gt; parsnip model object
+#&gt;
+#&gt; Call:
+#&gt; fda(formula = Species ~ ., data = data, degree = ~1, method = earth)
+#&gt;
+#&gt; Dimension: 2
+#&gt;
+#&gt; Percent Between-Group Variance Explained:
+#&gt;     v1     v2
+#&gt;  99.08 100.00
+#&gt;
+#&gt; Training Misclassification Error: 0.0273 ( N = 110 )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fitted object reports the discriminant dimensions and a training error. Predictions arrive as tidy tibbles, one column for the class and one column per class for probabilities.</p>
+
+<div class="webr-container" data-block-title="Predict classes and probabilities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict classes and probabilities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(fda_fit, iris_test) |&gt; head(3)
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 setosa
+#&gt; 2 setosa
+#&gt; 3 setosa
+
+predict(fda_fit, iris_test, type = &quot;prob&quot;) |&gt; head(3)
+#&gt; # A tibble: 3 x 3
+#&gt;   .pred_setosa .pred_versicolor .pred_virginica
+#&gt;          &lt;dbl&gt;            &lt;dbl&gt;           &lt;dbl&gt;
+#&gt; 1         1.00        0.0000571       0.00000002
+#&gt; 2         1.00        0.0000419       0.00000001
+#&gt; 3         1.00        0.0000332       0.00000001</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Bind the predictions back to the test set to score the model with <code>yardstick</code>'s <code>accuracy()</code>.</p>
+
+<h2>Tune num_terms and prod_degree</h2>
+
+<p><strong>The flexibility of FDA is only an advantage when the MARS settings are chosen by data, not by guesswork.</strong> Mark <code>num_terms</code> and <code>prod_degree</code> with <code>tune()</code>, build a grid, and resample with cross-validation. The <code>dials</code> package supplies parameter objects named after each argument.</p>
+
+<div class="webr-container" data-block-title="Tune the MARS parameters">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tune the MARS parameters</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fda_tune &lt;- discrim_flexible(
+  num_terms   = tune(),
+  prod_degree = tune()
+) |&gt;
+  set_engine(&quot;earth&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+set.seed(7)
+folds &lt;- vfold_cv(iris_train, v = 5, strata = Species)
+
+fda_grid &lt;- grid_regular(
+  num_terms(range = c(2, 12)),
+  prod_degree(),
+  levels = 4
+)
+
+fda_res &lt;- tune_grid(fda_tune, Species ~ ., resamples = folds, grid = fda_grid)
+
+show_best(fda_res, metric = &quot;accuracy&quot;, n = 3)
+#&gt; # A tibble: 3 x 8
+#&gt;   num_terms prod_degree .metric  .estimator  mean     n std_err .config
+#&gt;       &lt;int&gt;       &lt;int&gt; &lt;chr&gt;    &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1         8           1 accuracy multiclass 0.973     5  0.0163 Prepro~
+#&gt; 2         5           1 accuracy multiclass 0.964     5  0.0201 Prepro~
+#&gt; 3        12           2 accuracy multiclass 0.955     5  0.0226 Prepro~</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>On <code>iris</code> an additive model with a modest term count scores highest, since the classes are nearly linearly separable. Harder data rewards more terms and a higher product degree.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Finalize the spec with the winning settings.</strong> Pass <code>select_best(fda_res, metric = &quot;accuracy&quot;)</code> to <code>finalize_model()</code> to lock the tuned values, then refit on the full training set before predicting on test data.</div></div>
+
+<h2>discrim_flexible() vs linear discriminant models</h2>
+
+<p><strong>FDA is the nonlinear member of the discriminant family.</strong> Its three linear siblings keep the boundary straight or quadratic, while <code>discrim_flexible()</code> lets MARS bend it wherever the data asks. The table shows where each function sits.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Boundary</th>
+<th>Covariance assumption</th>
+<th>Tuning parameters</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>discrim_linear()</code></td>
+<td>Linear</td>
+<td>Shared across classes</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>discrim_quad()</code></td>
+<td>Quadratic</td>
+<td>One per class</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>discrim_regularized()</code></td>
+<td>Between linear and quadratic</td>
+<td>Shrunk blend</td>
+<td>2 fractions</td>
+</tr>
+<tr>
+<td><code>discrim_flexible()</code></td>
+<td>Nonlinear, piecewise</td>
+<td>Replaced by MARS regression</td>
+<td>3 (terms, degree, pruning)</td>
+</tr>
+</tbody>
+</table>
+
+<p>Allowing two-way interactions with <code>prod_degree = 2</code> gives MARS more freedom, which helps when classes overlap in a curved region.</p>
+
+<div class="webr-container" data-block-title="Compare additive and interaction FDA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare additive and interaction FDA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fda_d2 &lt;- discrim_flexible(prod_degree = 2) |&gt;
+  set_engine(&quot;earth&quot;) |&gt;
+  set_mode(&quot;classification&quot;) |&gt;
+  fit(Species ~ ., data = iris_train)
+
+iris_test |&gt;
+  bind_cols(predict(fda_d2, iris_test)) |&gt;
+  accuracy(Species, .pred_class) |&gt;
+  pull(.estimate)
+#&gt; [1] 0.9736842</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>FDA is LDA with the linear step swapped out.</strong> Classic LDA hides a linear regression inside its machinery. <code>discrim_flexible()</code> keeps the discriminant framework but replaces that regression with MARS, so the same model now draws piecewise boundaries instead of straight lines.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>FDA fails in a few predictable ways.</strong> Each has a clear fix.</p>
+
+<ul>
+
+<li><strong><code>discrim</code> not loaded.</strong> <code>discrim_flexible()</code> is not in parsnip core. Without <code>library(discrim)</code> you get <code>could not find function</code>.</li>
+
+<li><strong><code>earth</code> package missing.</strong> The only engine calls <code>earth</code>. If that package is not installed, <code>fit()</code> errors when it tries to build the MARS basis.</li>
+
+<li><strong><code>prod_degree</code> set too high.</strong> Degrees above 2 rarely help classification and invite overfitting. Stick to 1 or 2 and let <code>num_terms</code> control complexity.</li>
+
+</ul>
+
+<div class="webr-container" data-block-title="Pitfall: discrim package not loaded">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: discrim package not loaded</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># library(discrim) was never called
+discrim_flexible()
+#&gt; Error: could not find function &quot;discrim_flexible&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Loading <code>tidymodels</code> alone is not enough.</strong> The core <code>tidymodels</code> bundle does not attach <code>discrim</code>. Always call <code>library(discrim)</code> in the same script, or the model function will not be found.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Tune <code>num_terms</code> only, holding <code>prod_degree</code> at 1, on <code>iris_train</code> with 5-fold cross-validation, and report the best accuracy. Save the tuning result to <code>ex_res</code>.</p>
+<div class="webr-container" data-block-title="Your turn: tune num_terms">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tune num_terms</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: tune num_terms with prod_degree fixed at 1
+ex_spec &lt;- discrim_flexible(num_terms = tune(), prod_degree = 1) |&gt;
+  set_engine(&quot;earth&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+ex_res &lt;- # your code here
+
+show_best(ex_res, metric = &quot;accuracy&quot;, n = 1)
+#&gt; Expected: one row with the best num_terms</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_folds &lt;- vfold_cv(iris_train, v = 5, strata = Species)
+ex_grid  &lt;- grid_regular(num_terms(range = c(2, 12)), levels = 5)
+ex_res &lt;- tune_grid(ex_spec, Species ~ ., resamples = ex_folds, grid = ex_grid)
+
+show_best(ex_res, metric = &quot;accuracy&quot;, n = 1)
+#&gt; # A tibble: 1 x 7
+#&gt;   num_terms .metric  .estimator  mean     n std_err .config
+#&gt;       &lt;int&gt; &lt;chr&gt;    &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1         7 accuracy multiclass 0.973     5  0.0163 Preprocessor1_Model1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Fixing <code>prod_degree</code> at 1 keeps the model additive, so the grid only varies how many MARS terms survive pruning. <code>grid_regular()</code> with <code>levels = 5</code> spreads <code>num_terms</code> evenly across the chosen range.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>These functions pair naturally with <code>discrim_flexible()</code>.</strong></p>
+
+<ul>
+
+<li><a href="discrim_linear-in-R.html">discrim_linear()</a> defines an LDA model with a shared covariance.</li>
+
+<li><a href="discrim_quad-in-R.html">discrim_quad()</a> defines a QDA model with one covariance per class.</li>
+
+<li><a href="discrim_regularized-in-R.html">discrim_regularized()</a> blends LDA and QDA through two shrinkage fractions.</li>
+
+<li><code>set_engine()</code> selects the computational backend.</li>
+
+<li><code>tune()</code> marks an argument for grid search.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is flexible discriminant analysis?</strong></p>
+
+<p>Flexible discriminant analysis (FDA) is a classification method that generalizes linear discriminant analysis. LDA fits a linear regression internally to map predictors onto discriminant coordinates. FDA replaces that linear regression with a flexible nonparametric one, which with the <code>earth</code> engine is MARS. The result keeps the interpretable discriminant framework but allows curved, piecewise decision boundaries. <code>discrim_flexible()</code> is the parsnip interface to this model.</p>
+
+<p><strong>What is the difference between discrim_flexible() and discrim_linear()?</strong></p>
+
+<p><code>discrim_linear()</code> fits classic LDA with a single linear boundary and a covariance shared across classes. It has no tuning parameters. <code>discrim_flexible()</code> keeps the discriminant framework but swaps the internal linear regression for a MARS basis expansion, so the boundary can bend. That flexibility comes with three hyperparameters, <code>num_terms</code>, <code>prod_degree</code>, and <code>prune_method</code>, which control how complex the MARS model becomes.</p>
+
+<p><strong>Which engine does discrim_flexible() support?</strong></p>
+
+<p><code>discrim_flexible()</code> supports a single engine, <code>&quot;earth&quot;</code>, which calls <code>mda::fda()</code> with <code>method = earth::earth</code> under the hood. There is no alternative backend, so <code>set_engine(&quot;earth&quot;)</code> is optional, though keeping it makes the specification explicit. The <code>earth</code> package must be installed in addition to <code>discrim</code>. Run <code>discrim_flexible() |&gt; translate()</code> to see the exact engine call parsnip will make.</p>
+
+<p><strong>How do I tune a flexible discriminant model in R?</strong></p>
+
+<p>Mark <code>num_terms</code> and <code>prod_degree</code> with <code>tune()</code>, build a grid with <code>grid_regular(num_terms(range = c(2, 12)), prod_degree())</code>, and pass it to <code>tune_grid()</code> with a <code>vfold_cv()</code> resampling object. Inspect results with <code>show_best()</code> and lock the winner with <code>select_best()</code> plus <code>finalize_model()</code>. Cross-validation matters here because more MARS terms always cut training error but can hurt test accuracy.</p>
+
+<p><strong>Does discrim_flexible() handle nonlinear decision boundaries?</strong></p>
+
+<p>Yes. That is the whole point of the model. The MARS basis behind the <code>earth</code> engine builds piecewise linear hinge functions, and combining them produces curved class boundaries. Setting <code>prod_degree = 2</code> adds two-way interactions, bending the boundary further. This is what separates <code>discrim_flexible()</code> from <code>discrim_linear()</code> and <code>discrim_quad()</code>, whose boundaries are fixed as linear or quadratic.</p>
+
+<p>For the full argument reference, see the <a href="https://discrim.tidymodels.org/reference/discrim_flexible.html">discrim package documentation</a>.</p>
