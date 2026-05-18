@@ -1,0 +1,343 @@
+---
+title: "recipes step_corr() in R: Drop Correlated Predictors"
+description: "The recipes step_corr() function in R removes predictors with high pairwise correlation using a tunable threshold. Runnable prep and bake examples included."
+keywords: "recipes step_corr, step_corr function R, recipes step_corr example, remove correlated predictors R, step_corr threshold, step_corr tidymodels, findCorrelation recipes"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_corr()|recipes step_corr|recipes::step_corr()|correlated predictors|step_corr"
+auto_link_case_sensitive: true
+fr_parent: "caret-preProcess-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>recipes step_corr() in R: Drop Correlated Predictors</h1>
+
+<p class="lead">The recipes <code>step_corr()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> removes predictors that are highly correlated with another column, judged by a tunable correlation threshold, before the redundancy can destabilize a model.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_corr(rec, all_numeric_predictors())<span class="qa-cmt">                       # screen numeric predictors</span>
+step_corr(rec, all_numeric_predictors(), threshold = 0.8)<span class="qa-cmt">      # stricter cutoff</span>
+step_corr(rec, x, y, z)<span class="qa-cmt">                                        # named columns only</span>
+step_corr(rec, all_numeric_predictors(), method = &quot;spearman&quot;)<span class="qa-cmt">  # rank correlation</span>
+step_corr(rec, all_numeric_predictors(), use = &quot;complete.obs&quot;)<span class="qa-cmt"> # NA handling</span>
+prep(rec); bake(rec, new_data = NULL)<span class="qa-cmt">                          # train, then apply</span>
+tidy(prep(rec), number = 1)<span class="qa-cmt">                                    # list removed columns</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_corr() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">predictors correlated in pairs</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_corr(rec, all_numeric_predictors())</text><text x="125" y="126" class="branch-label">column nearly constant, one value dominates</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_nzv(rec, all_predictors())</text><text x="125" y="182" class="branch-label">column has exactly one value</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_zv(rec, all_predictors())</text><text x="125" y="238" class="branch-label">columns are exact linear combinations</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_lincomb(rec, all_numeric_predictors())</text><text x="125" y="294" class="branch-label">compress a correlated set into components</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">step_pca(rec, all_numeric_predictors())</text><text x="125" y="350" class="branch-label">drop a named column outright</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">step_rm(rec, bad_col)</text></svg></div>
+
+<h2>What step_corr() does</h2>
+
+<p><strong>step_corr() deletes columns that duplicate the information already carried by another predictor.</strong> When two columns move together, a model gains nothing from the second one, and linear models in particular return unstable coefficients and inflated standard errors. The <code>recipes step_corr</code> step screens that redundancy out before the model ever sees it.</p>
+
+<p><code>step_corr()</code> works in two stages, like every recipe step. During <code>prep()</code> it builds the <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">correlation matrix</a> of the columns you selected, finds every pair whose absolute correlation exceeds <code>threshold</code>, and records which columns to drop. <code>bake()</code> then removes those columns from the training data and from any new data you pass through later.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>step_corr() removes one column per correlated pair, not both.</strong> For each pair above the threshold it keeps the column with the lower average correlation to everything else and discards the more redundant one. Two near-identical columns lose one member; a useful predictor that happens to share variance with a twin survives.</div></div>
+
+<h2>step_corr() syntax and arguments</h2>
+
+<p><strong>step_corr() is a selection step controlled by a single threshold plus a correlation method.</strong> You name columns directly or, more often, use the tidyselect helper <code>all_numeric_predictors()</code>, since correlation is only defined for numeric data.</p>
+
+<div class="webr-container" data-block-title="step_corr signature and arguments">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">step_corr signature and arguments</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">step_corr(
+  recipe,
+  ...,                              # columns to screen
+  role = NA,
+  trained = FALSE,
+  threshold = 0.9,                  # absolute-correlation cutoff
+  use = &quot;pairwise.complete.obs&quot;,    # how cor() handles missing values
+  method = &quot;pearson&quot;,               # or &quot;spearman&quot; / &quot;kendall&quot;
+  removals = NULL,
+  skip = FALSE,
+  id = rand_id(&quot;corr&quot;)
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>threshold</code> argument is the only knob most pipelines touch: a column pair is flagged when its absolute correlation is above this value, so <code>0.9</code> is permissive and <code>0.75</code> is aggressive. The <code>removals</code> slot is filled automatically at <code>prep()</code> time with the names of the dropped columns. Full argument detail lives in the <a href="https://recipes.tidymodels.org/reference/step_corr.html">recipes step_corr reference</a>.</p>
+
+<h2>step_corr() examples</h2>
+
+<p><strong>Every example follows the prep-then-bake rhythm.</strong> The frame below has a <code>core_metric</code> column and two noisy copies of it, <code>proxy_one</code> and <code>proxy_two</code>, plus an <code>unrelated</code> column. <code>core_metric</code> correlates about 0.93 with each proxy, while the two proxies correlate only about 0.86 with each other.</p>
+
+<div class="webr-container" data-block-title="Drop a redundant correlated column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop a redundant correlated column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+set.seed(2026)
+n &lt;- 2000
+core &lt;- rnorm(n)
+train &lt;- data.frame(
+  core_metric = core,
+  proxy_one   = core + rnorm(n, sd = 0.41),
+  proxy_two   = core + rnorm(n, sd = 0.41),
+  unrelated   = rnorm(n),
+  target      = rnorm(n)
+)
+
+corr_rec &lt;- recipe(target ~ ., data = train) |&gt;
+  step_corr(all_numeric_predictors(), threshold = 0.9) |&gt;
+  prep()
+
+names(bake(corr_rec, new_data = NULL))
+#&gt; [1] &quot;proxy_one&quot; &quot;proxy_two&quot; &quot;unrelated&quot; &quot;target&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At <code>threshold = 0.9</code> only <code>core_metric</code> exceeds the cutoff, and it does so against both proxies. Because it is the most connected column, <code>step_corr()</code> drops it and keeps the two proxies, whose mutual correlation of 0.86 stays under the line. To confirm exactly what left, call <code>tidy()</code> on the prepared recipe.</p>
+
+<div class="webr-container" data-block-title="List the columns step_corr removed">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">List the columns step_corr removed</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(corr_rec, number = 1)
+#&gt; # A tibble: 1 x 2
+#&gt;   terms       id
+#&gt;   &lt;chr&gt;       &lt;chr&gt;
+#&gt; 1 core_metric corr_a1B2c</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>terms</code> column names every dropped predictor; an empty tibble means nothing crossed the threshold. Lowering <code>threshold</code> makes the filter stricter and catches milder relationships.</p>
+
+<div class="webr-container" data-block-title="Lower threshold removes more columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lower threshold removes more columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># threshold 0.9: only core_metric exceeds the cutoff
+recipe(target ~ ., data = train) |&gt;
+  step_corr(all_numeric_predictors(), threshold = 0.9) |&gt;
+  prep() |&gt; bake(new_data = NULL) |&gt; ncol()
+#&gt; [1] 4
+
+# threshold 0.8: the proxy_one / proxy_two pair (r = 0.86) now also fires
+recipe(target ~ ., data = train) |&gt;
+  step_corr(all_numeric_predictors(), threshold = 0.8) |&gt;
+  prep() |&gt; bake(new_data = NULL) |&gt; ncol()
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At <code>0.8</code> the three correlated columns form one cluster, so <code>step_corr()</code> keeps a single representative and drops the other two. The crucial property is that this decision is learned once during <code>prep()</code> and then applied unchanged to fresh data.</p>
+
+<div class="webr-container" data-block-title="Apply the trained recipe to new data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Apply the trained recipe to new data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">test &lt;- data.frame(
+  core_metric = rnorm(50),
+  proxy_one   = rnorm(50),
+  proxy_two   = rnorm(50),
+  unrelated   = rnorm(50),
+  target      = rnorm(50)
+)
+
+names(bake(corr_rec, new_data = test))
+#&gt; [1] &quot;proxy_one&quot; &quot;proxy_two&quot; &quot;unrelated&quot; &quot;target&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The test frame loses <code>core_metric</code> even though its own correlations were never measured. That is the point: the column list is fixed from training, so train and test always end with the same schema and no information leaks across the split. The same logic scales to real data.</p>
+
+<div class="webr-container" data-block-title="step_corr on the mtcars dataset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">step_corr on the mtcars dataset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mt_rec &lt;- recipe(mpg ~ ., data = mtcars) |&gt;
+  step_corr(all_numeric_predictors(), threshold = 0.9) |&gt;
+  prep()
+
+ncol(bake(mt_rec, new_data = NULL))
+#&gt; [1] 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>mtcars</code> has one predictor pair above 0.9: cylinder count and displacement correlate at 0.90. <code>step_corr()</code> drops whichever of the two carries the higher average correlation with the remaining predictors, leaving 10 of the original 11 columns.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python scikit-learn?</strong> There is no built-in correlation filter. <code>VarianceThreshold</code> only screens low-variance columns; the <a class="auto-link" href="dplyr-join_by-in-R.html" title="dplyr join_by() in R: Modern Key Specification for Joins">closest match</a> to step_corr() is the <code>DropCorrelatedFeatures</code> transformer from the <code>feature-engine</code> package, or a manual filter on the correlation matrix.</div></div>
+
+<h2>step_corr() vs step_pca()</h2>
+
+<p><strong>Both steps tackle correlated predictors, but they leave very different data behind.</strong> Choosing wrong either keeps redundancy or destroys the column names your report depends on.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What it does</th>
+<th>Original columns kept?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_corr()</code></td>
+<td>Deletes redundant correlated columns</td>
+<td>Yes, survivors are unchanged</td>
+</tr>
+<tr>
+<td><code>step_pca()</code></td>
+<td>Replaces a correlated set with orthogonal components</td>
+<td>No, creates <code>PC1</code>, <code>PC2</code>, ...</td>
+</tr>
+<tr>
+<td><code>step_lincomb()</code></td>
+<td>Removes columns that are exact linear combinations</td>
+<td>Yes, survivors are unchanged</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for <code>step_corr()</code> when you want a smaller model that still uses interpretable, named predictors. Choose <code>step_pca()</code> when many predictors are correlated and you accept anonymous components in exchange for compression. Use <code>step_lincomb()</code> for the narrower case of exact redundancy, such as dummy columns that sum to a constant.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Place step_corr() after scaling and imputation, not before.</strong> Correlation is unaffected by centering or scaling, but <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> are not, and an all-NA column produces undefined correlations. Imputing first keeps the correlation matrix well defined.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most step_corr() confusion.</strong></p>
+
+<ol>
+
+<li><strong>Selecting non-numeric columns.</strong> Correlation is numeric-only. Use <code>all_numeric_predictors()</code> rather than <code>all_predictors()</code>, or <code>step_corr()</code> will fail or quietly ignore factor columns depending on the recipes version.</li>
+
+<li><strong>Assuming it keeps the predictor you care about.</strong> The filter ranks columns by average correlation, never by relationship to the outcome. It can discard the variable you find most interpretable and keep its twin.</li>
+
+<li><strong>Setting the threshold too high to do anything.</strong> The default <code>0.9</code> only catches near-duplicates. If you expect a leaner model, drop the threshold toward <code>0.8</code> or <code>0.75</code> and inspect <code>tidy()</code> to see what changed.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>step_corr() silently changes the column count.</strong> A baked frame can have fewer columns than the input with no message printed. If downstream code references columns by position, call <code>tidy()</code> after <code>prep()</code> to confirm exactly what was removed.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a recipe on the frame below, add <code>step_corr()</code> to the numeric predictors with <code>threshold = 0.9</code>, and bake the training data. The <code>revenue</code> and <code>revenue_copy</code> columns are near-identical, so one should disappear. Save the baked frame to <code>ex_baked</code>.</p>
+<div class="webr-container" data-block-title="Your turn: step_corr on numeric predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: step_corr on numeric predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+ex_train &lt;- data.frame(
+  revenue      = rnorm(500, 1000, 200),
+  visits       = rnorm(500, 300, 50),
+  conversion   = rnorm(500, 0.05, 0.01),
+  outcome      = rnorm(500)
+)
+ex_train$revenue_copy &lt;- ex_train$revenue + rnorm(500, sd = 1)
+
+# Try it: prep a recipe with step_corr(all_numeric_predictors()), then bake
+ex_baked &lt;- # your code here
+
+ncol(ex_baked)
+#&gt; Expected: one of the revenue pair removed</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec &lt;- recipe(outcome ~ ., data = ex_train) |&gt;
+  step_corr(all_numeric_predictors(), threshold = 0.9) |&gt;
+  prep()
+
+ex_baked &lt;- bake(ex_rec, new_data = NULL)
+ncol(ex_baked)
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>revenue</code> and <code>revenue_copy</code> correlate above 0.99, so <code>step_corr()</code> flags the pair during <code>prep()</code> and <code>bake()</code> drops one column. The frame goes from five columns to four.</p>
+
+</details>
+</section>
+
+<h2>Related recipes functions</h2>
+
+<p><strong>step_corr() is one filter in a larger column-cleaning toolkit.</strong> These steps often appear together in the same recipe:</p>
+
+<ul>
+
+<li><code>step_nzv()</code> removes near-zero-variance columns that are overwhelmingly one value.</li>
+
+<li><code>step_zv()</code> removes strictly constant columns with exactly one unique value.</li>
+
+<li><code>step_lincomb()</code> removes columns that form exact linear combinations of others.</li>
+
+<li><code>step_pca()</code> compresses a correlated set into orthogonal principal components.</li>
+
+<li><code>step_normalize()</code> centers and scales numeric predictors, a common step before correlation filtering.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does step_corr() do in R?</strong></p>
+
+<p><code>step_corr()</code> is a recipes step that removes predictors highly correlated with another column. During <code>prep()</code> it computes the correlation matrix of the selected columns and flags every pair whose absolute correlation exceeds <code>threshold</code>, which defaults to 0.9. For each flagged pair it keeps the less redundant column and marks the other for removal. <code>bake()</code> then drops the marked columns from the training data and from any new data passed through the recipe later.</p>
+
+<p><strong>How does step_corr() decide which column to remove?</strong></p>
+
+<p>For each pair above the threshold, <code>step_corr()</code> compares the two columns by their average absolute correlation with all other predictors. It keeps the column with the lower average and removes the one that is more redundant overall. This is the same heuristic used by caret's <code>findCorrelation()</code>. The decision never considers the outcome variable, so removal is based purely on predictor-to-predictor relationships.</p>
+
+<p><strong>What is the difference between step_corr() and step_pca()?</strong></p>
+
+<p><code>step_corr()</code> deletes redundant columns and keeps the survivors exactly as they were, so your model still uses named, interpretable predictors. <code>step_pca()</code> instead replaces a correlated group with new orthogonal components named <code>PC1</code>, <code>PC2</code>, and so on. Use <code>step_corr()</code> when interpretability matters and <code>step_pca()</code> when you want maximum compression and accept anonymous components in return.</p>
+
+<p><strong>Why did step_corr() not remove any columns?</strong></p>
+
+<p>The most common reason is a threshold set too high for the data. The default 0.9 only catches near-duplicate columns, so moderately correlated predictors survive. Lower <code>threshold</code> toward 0.8 or 0.75 to catch them. The other reason is that no selected columns are numeric: correlation is undefined for factors, so <code>step_corr()</code> has nothing to measure unless you select numeric predictors.</p>
+
+</content>
+
+</invoke>
+
+{% endraw %}
