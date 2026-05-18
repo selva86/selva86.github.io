@@ -1,0 +1,366 @@
+---
+title: "parsnip show_engines() in R: List Engines for a Model"
+description: "parsnip show_engines() in R lists every modeling engine available for a given model type. Learn the syntax, see worked examples, and avoid common mistakes."
+keywords: "parsnip show_engines, show_engines function R, parsnip show_engines examples, R list parsnip engines, tidymodels show engines, parsnip model engines"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "show_engines()|parsnip show_engines|parsnip::show_engines()|show_engines|list modeling engines"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>parsnip show_engines() in R: List Engines for a Model</h1>
+
+<p class="lead">parsnip <code>show_engines()</code> returns a tibble of every modeling engine registered for a parsnip model type, paired with the mode (regression or classification) each engine supports. It is the fastest way to see your options before you commit one with <code>set_engine()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>show_engines(&quot;linear_reg&quot;)<span class="qa-cmt">                          # all engines for a model</span>
+show_engines(&quot;rand_forest&quot;)<span class="qa-cmt">                         # engines for random forest</span>
+show_engines(&quot;boost_tree&quot;)<span class="qa-cmt">                          # boosted tree engines</span>
+show_engines(&quot;rand_forest&quot;) |&gt; filter(mode == &quot;regression&quot;)<span class="qa-cmt">  # filter by mode</span>
+show_engines(&quot;boost_tree&quot;) |&gt; pull(engine)<span class="qa-cmt">          # engine names only</span>
+nrow(show_engines(&quot;linear_reg&quot;))<span class="qa-cmt">                    # count available engines</span>
+show_engines(&quot;linear_reg&quot;) |&gt; distinct(engine)<span class="qa-cmt">      # unique engines, drop mode</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is show_engines() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">list engines for a model type</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">show_engines(&quot;linear_reg&quot;)</text><text x="125" y="126" class="branch-label">see args and defaults per engine</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">show_model_info(&quot;linear_reg&quot;)</text><text x="125" y="182" class="branch-label">attach one engine to a spec</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">set_engine(spec, &quot;glmnet&quot;)</text><text x="125" y="238" class="branch-label">check engine package requirements</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">required_pkgs(spec)</text><text x="125" y="294" class="branch-label">see the translated engine call</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">translate(spec)</text><text x="125" y="350" class="branch-label">inspect the fitted engine object</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">extract_fit_engine(fit)</text></svg></div>
+
+<h2>What show_engines() does</h2>
+
+<p><strong><code>show_engines()</code> is a lookup function, not a modeling function.</strong> It takes the name of a parsnip model type as a string and returns a two-column tibble listing every <a class="auto-link" href="parsnip-set_engine-in-R.html" title="parsnip set_engine() in R: Choose the Model Engine">computational engine</a> that can fit that model. An engine is the underlying package or system that does the real fitting work, such as <code>lm</code>, <code>glmnet</code>, <code>ranger</code>, or <code>spark</code>. parsnip wraps all of them behind one consistent interface, and <code>show_engines()</code> tells you which ones are on the menu.</p>
+
+<div class="webr-container" data-block-title="Load parsnip and list engines">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load parsnip and list engines</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(parsnip)
+library(dplyr)
+
+# Every engine registered for linear regression
+show_engines(&quot;linear_reg&quot;)
+#&gt; # A tibble: 7 x 2
+#&gt;   engine mode      
+#&gt;   &lt;chr&gt;  &lt;chr&gt;     
+#&gt; 1 lm     regression
+#&gt; 2 glm    regression
+#&gt; 3 glmnet regression
+#&gt; 4 stan   regression
+#&gt; 5 spark  regression
+#&gt; 6 keras  regression
+#&gt; 7 brulee regression</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is a valid <code>engine</code> and <code>mode</code> pairing. You read this as "<a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a> can be fitted by <code>lm</code>, <code>glmnet</code>, <code>stan</code>, and four others, all in regression mode."</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The engine list grows as you load extension packages.</strong> Loading <code>multilevelmod</code>, <code>poissonreg</code>, or <code>bonsai</code> registers extra engines, so the exact rows you see depend on your installed packages and parsnip version. The columns are always <code>engine</code> and <code>mode</code>.</div></div>
+
+<h2>show_engines() syntax and arguments</h2>
+
+<p><strong><code>show_engines()</code> takes exactly one argument.</strong> The signature is <code>show_engines(x)</code>, where <code>x</code> is a character string naming a parsnip model type. There is no <code>mode</code> argument and no <code>engine</code> argument: the function always returns the full set, and you filter the result afterwards with dplyr. The return value is a tibble with columns <code>engine</code> and <code>mode</code>, one row per valid combination.</p>
+
+<p>The string you pass must match a parsnip model function name. These are the most common ones:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Model type string</th>
+<th>parsnip model</th>
+<th>Typical task</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&quot;linear_reg&quot;</code></td>
+<td>Linear regression</td>
+<td>Regression</td>
+</tr>
+<tr>
+<td><code>&quot;logistic_reg&quot;</code></td>
+<td><a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">Logistic regression</a></td>
+<td>Classification</td>
+</tr>
+<tr>
+<td><code>&quot;rand_forest&quot;</code></td>
+<td>Random forest</td>
+<td>Both</td>
+</tr>
+<tr>
+<td><code>&quot;boost_tree&quot;</code></td>
+<td>Gradient boosting</td>
+<td>Both</td>
+</tr>
+<tr>
+<td><code>&quot;decision_tree&quot;</code></td>
+<td>Decision tree</td>
+<td>Both</td>
+</tr>
+</tbody>
+</table>
+
+<h2>show_engines() examples</h2>
+
+<p><strong>These four examples cover the use cases you hit most often.</strong> Each one starts from a model type string and shapes the result with dplyr.</p>
+
+<p>A classification-capable model returns rows for more than one mode:</p>
+
+<div class="webr-container" data-block-title="Engines for a random forest">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Engines for a random forest</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">show_engines(&quot;rand_forest&quot;)
+#&gt; # A tibble: 6 x 2
+#&gt;   engine       mode          
+#&gt;   &lt;chr&gt;        &lt;chr&gt;         
+#&gt; 1 ranger       classification
+#&gt; 2 ranger       regression    
+#&gt; 3 randomForest classification
+#&gt; 4 randomForest regression    
+#&gt; 5 spark        classification
+#&gt; 6 spark        regression</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> to a single mode when you only care about one task. Here we keep just the regression engines:</p>
+
+<div class="webr-container" data-block-title="Filter engines by mode">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Filter engines by mode</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">show_engines(&quot;rand_forest&quot;) |&gt;
+  filter(mode == &quot;regression&quot;)
+#&gt; # A tibble: 3 x 2
+#&gt;   engine       mode      
+#&gt;   &lt;chr&gt;        &lt;chr&gt;     
+#&gt; 1 ranger       regression
+#&gt; 2 randomForest regression
+#&gt; 3 spark        regression</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Pull the engine names into a plain character vector when you want to loop over them or print a list:</p>
+
+<div class="webr-container" data-block-title="Extract engine names only">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract engine names only</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">show_engines(&quot;boost_tree&quot;) |&gt;
+  pull(engine) |&gt;
+  unique()
+#&gt; [1] &quot;xgboost&quot; &quot;C5.0&quot;    &quot;spark&quot;   &quot;h2o&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Once you have picked an engine, feed it straight into <code>set_engine()</code> to build the model spec:</p>
+
+<div class="webr-container" data-block-title="Use the result with set_engine">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use the result with set_engine</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># show_engines confirmed 'glmnet' is valid for linear_reg
+linear_reg() |&gt;
+  set_engine(&quot;glmnet&quot;)
+#&gt; Linear Regression Model Specification (regression)
+#&gt; 
+#&gt; Computational engine: glmnet</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>show_engines() vs set_engine() vs show_model_info()</h2>
+
+<p><strong>These three functions answer different questions about engines.</strong> <code>show_engines()</code> discovers what is available, <code>show_model_info()</code> dumps the full registry detail, and <code>set_engine()</code> commits your choice to a model specification.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Purpose</th>
+<th>Returns</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>show_engines()</code></td>
+<td>List engines for a model type</td>
+<td>Tibble of <code>engine</code> + <code>mode</code></td>
+<td>Discover what is available</td>
+</tr>
+<tr>
+<td><code>show_model_info()</code></td>
+<td>Full registry detail for a model</td>
+<td>Printed text dump</td>
+<td>Inspect args, modes, and defaults</td>
+</tr>
+<tr>
+<td><code>set_engine()</code></td>
+<td>Attach one engine to a spec</td>
+<td>Updated model specification</td>
+<td>Build the model</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is simple. Start with <code>show_engines()</code> to see the menu. If you need to know which tuning arguments an engine accepts, escalate to <code>show_model_info()</code>. Once you have decided, call <code>set_engine()</code> to lock it in.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Chain show_engines() into your workflow during exploration.</strong> Run <code>show_engines(&quot;boost_tree&quot;)</code> interactively before writing <code>set_engine()</code>, so you never guess an engine name and trigger an error halfway through a pipeline.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most <code>show_engines()</code> errors come from how you pass the model name.</strong> The argument must be a quoted string.</p>
+
+<p>Passing the model function unquoted fails because R tries to evaluate it as an object:</p>
+
+<div class="webr-container" data-block-title="Pitfall: unquoted model name">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: unquoted model name</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">show_engines(linear_reg)
+#&gt; Error: object 'linear_reg' of mode 'function' ...
+# Fix: quote the model type
+show_engines(&quot;linear_reg&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A misspelled or unknown model type returns a clear error rather than an empty tibble:</p>
+
+<div class="webr-container" data-block-title="Pitfall: unknown model type">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: unknown model type</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">show_engines(&quot;linear_regression&quot;)
+#&gt; Error: No results found for model function 'linear_regression'.
+# Fix: use the exact parsnip name
+show_engines(&quot;linear_reg&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The third trap is confusing <code>show_engines()</code> with <code>show_model_info()</code>. <code>show_engines()</code> gives you a tidy tibble you can filter; <code>show_model_info()</code> prints a long unstructured summary. Reach for the second only when you need argument-level detail.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>An engine appearing in <code>show_engines()</code> does not mean it is installed.</strong> The function reads the parsnip registry, not your library. <code>show_engines(&quot;rand_forest&quot;)</code> lists <code>ranger</code> even if <code>ranger</code> is not installed. Run <code>install.packages()</code> or check <code>required_pkgs()</code> before fitting.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>show_engines()</code> to list every engine for <code>&quot;boost_tree&quot;</code>, then keep only the rows where <code>mode</code> is <code>&quot;regression&quot;</code>. Save the result to <code>ex_engines</code>.</p>
+<div class="webr-container" data-block-title="Your turn: filter boost_tree engines">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: filter boost_tree engines</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: list and filter boost_tree engines
+ex_engines &lt;- # your code here
+
+ex_engines
+#&gt; Expected: a tibble with mode == &quot;regression&quot; only</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_engines &lt;- show_engines(&quot;boost_tree&quot;) |&gt;
+  filter(mode == &quot;regression&quot;)
+ex_engines
+#&gt; # A tibble: 3 x 2
+#&gt;   engine  mode      
+#&gt;   &lt;chr&gt;   &lt;chr&gt;     
+#&gt; 1 xgboost regression
+#&gt; 2 spark   regression
+#&gt; 3 h2o     regression</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>show_engines(&quot;boost_tree&quot;)</code> returns every engine and mode pairing. The <code>filter()</code> call keeps only rows where the mode column equals <code>&quot;regression&quot;</code>, dropping the classification engines.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>These functions pair naturally with <code>show_engines()</code></strong> as you move from discovering an engine to fitting a model.</p>
+
+<ul>
+
+<li><code>set_engine()</code>: attaches a chosen engine to a model specification.</li>
+
+<li><code>set_mode()</code>: declares regression or classification for the spec.</li>
+
+<li><code>show_model_info()</code>: prints the full argument and mode registry for a model.</li>
+
+<li><code>translate()</code>: reveals the exact engine-level call parsnip will run.</li>
+
+<li><code>required_pkgs()</code>: lists the packages an engine needs before fitting.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between show_engines() and set_engine()?</strong></p>
+
+<p><code>show_engines()</code> is read-only: it lists the engines available for a model type and returns a tibble. <code>set_engine()</code> is an action: it takes a model specification and one engine name, then returns an updated spec that will use that engine when fitted. You typically call <code>show_engines()</code> first to see your options, then call <code>set_engine()</code> once to commit. They are a discovery step followed by a configuration step.</p>
+
+<p><strong>Why does show_engines() return an error instead of a tibble?</strong></p>
+
+<p>The most common cause is passing an invalid model type. <code>show_engines()</code> expects an exact parsnip model function name as a string, such as <code>&quot;linear_reg&quot;</code> or <code>&quot;rand_forest&quot;</code>. Misspellings like <code>&quot;linear_regression&quot;</code> or unquoted names like <code>linear_reg</code> trigger an error. Check the spelling against the parsnip documentation, and always quote the argument.</p>
+
+<p><strong>How do I see the default engine for a model?</strong></p>
+
+<p><code>show_engines()</code> lists engines but does not flag a default. To find the default, print the bare model specification, for example <code>linear_reg()</code>. parsnip shows the default engine in the printed output. For <code>linear_reg()</code> the default is <code>lm</code>, and for <code>rand_forest()</code> it is <code>ranger</code>. You can override it any time with <code>set_engine()</code>.</p>
+
+<p><strong>Does show_engines() need the engine packages installed?</strong></p>
+
+<p>No. <code>show_engines()</code> reads the internal parsnip engine registry, so it lists engines such as <code>glmnet</code> or <code>xgboost</code> whether or not those packages are installed. Installation only matters when you actually fit the model. Use <code>required_pkgs()</code> on a model specification to confirm which packages you still need to install.</p>
+
+<p><strong>Can show_engines() list engines for every model type at once?</strong></p>
+
+<p>No. <code>show_engines()</code> works on one model type per call. To survey several models, call it once per type and combine the results, for example with <code>purrr::map_dfr()</code> over a vector of model names. There is no single call that returns the entire registry as one tibble.</p>
