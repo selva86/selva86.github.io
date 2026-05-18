@@ -1,0 +1,335 @@
+---
+title: "recipes step_center() in R: Center Numeric Predictors"
+description: "recipes step_center() in R centers numeric predictors by subtracting the training mean. Learn the syntax, worked examples, prep and bake, and common pitfalls."
+keywords: "recipes step_center, step_center function R, recipes step_center examples, R center predictors, tidymodels step_center, center data recipe R, step_center recipe"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_center()|recipes step_center|recipes::step_center()|step_center|center numeric predictors"
+auto_link_case_sensitive: true
+fr_parent: "caret-preProcess-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>recipes step_center() in R: Center Numeric Predictors</h1>
+
+<p class="lead">The <code>recipes</code> <code>step_center()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> centers numeric predictors by subtracting each column's training-set mean, shifting every column's average to zero. You add it to a <code>recipe()</code>, estimate the means with <code>prep()</code>, and apply them with <code>bake()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_center(rec, all_numeric_predictors())<span class="qa-cmt">       # center all numeric predictors</span>
+step_center(rec, mpg, hp)<span class="qa-cmt">                        # center named columns</span>
+step_center(rec, all_numeric())<span class="qa-cmt">                  # center every numeric column</span>
+step_center(rec, contains(&quot;score&quot;))<span class="qa-cmt">              # center by name pattern</span>
+step_center(rec, all_numeric(), na_rm = TRUE)<span class="qa-cmt">    # ignore NA in the mean</span>
+prep(rec) |&gt; bake(new_data = NULL)<span class="qa-cmt">               # estimate means, then apply</span>
+tidy(prep(rec), number = 1)<span class="qa-cmt">                      # inspect the estimated means</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_center() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">shift predictors to mean zero</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_center(rec, all_numeric_predictors())</text><text x="125" y="126" class="branch-label">also scale to unit variance</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_normalize(rec, all_numeric_predictors())</text><text x="125" y="182" class="branch-label">only rescale, keep the mean</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_scale(rec, all_numeric_predictors())</text><text x="125" y="238" class="branch-label">squeeze into a 0-1 range</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_range(rec, all_numeric_predictors())</text><text x="125" y="294" class="branch-label">fix skew before centering</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">step_YeoJohnson(rec, all_numeric_predictors())</text><text x="125" y="350" class="branch-label">drop constant columns first</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">step_zv(rec, all_predictors())</text></svg></div>
+
+<h2>What step_center() does in R</h2>
+
+<p><strong>step_center() subtracts the column mean from every value.</strong> For a numeric column, it computes the mean during <code>prep()</code> and then, during <code>bake()</code>, returns <code>value - mean</code>. The transformed column has a mean of zero but keeps its original spread and units.</p>
+
+<p>Centering matters because many models behave better when predictors are on a common, zero-anchored scale. <a class="auto-link" href="Ridge-and-Lasso-Regression-in-R.html" title="Ridge and Lasso in R: How Penalised Regression Shrinks Coefficients and Selects Variables">Regularized regression</a>, principal components, and gradient-based learners all converge faster and interpret intercepts more cleanly when predictors are centered. <code>step_center()</code> is the recipes way to do this inside a modeling pipeline rather than by hand.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The mean is learned once, on training data only.</strong> <code>step_center()</code> stores the training means inside the prepped recipe. When you <code>bake()</code> new data, it reuses those stored means, so test rows are transformed with training statistics and no information leaks across the split.</div></div>
+
+<h2>step_center() syntax and arguments</h2>
+
+<p><strong>step_center() attaches a centering operation to a recipe.</strong> You pass the recipe first, then a set of columns selected with tidyselect helpers.</p>
+
+<div class="webr-container" data-block-title="The step_center skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The step_center skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+recipe(mpg ~ ., data = mtcars) |&gt;
+  step_center(all_numeric_predictors())
+#&gt; -- Recipe ---------------------------------------------------------------
+#&gt; -- Inputs
+#&gt; Number of variables by role
+#&gt; outcome:    1
+#&gt; predictor: 10
+#&gt; -- Operations
+#&gt; * Centering for: all_numeric_predictors()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments you will actually touch:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>recipe</code></td>
+<td>The recipe object the step is added to.</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Columns to center, chosen with selectors like <code>all_numeric_predictors()</code>.</td>
+</tr>
+<tr>
+<td><code>na_rm</code></td>
+<td>If <code>TRUE</code> (default), <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> are dropped when computing the mean.</td>
+</tr>
+<tr>
+<td><code>means</code></td>
+<td>Filled in by <code>prep()</code>; holds the estimated mean per column.</td>
+</tr>
+<tr>
+<td><code>skip</code></td>
+<td>If <code>TRUE</code>, the step is ignored when baking new data. Leave <code>FALSE</code> for centering.</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Centering predictors: worked examples</h2>
+
+<p><strong>Build the recipe, prep it, then bake.</strong> A recipe is just a plan until <code>prep()</code> estimates the statistics from data. The first example centers every numeric predictor in <code>mtcars</code>.</p>
+
+<div class="webr-container" data-block-title="Center predictors in a recipe">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Center predictors in a recipe</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec &lt;- recipe(mpg ~ ., data = mtcars) |&gt;
+  step_center(all_numeric_predictors())
+
+centered &lt;- prep(rec) |&gt; bake(new_data = NULL)
+round(head(centered[c(&quot;hp&quot;, &quot;wt&quot;, &quot;mpg&quot;)]), 2)
+#&gt;      hp    wt  mpg
+#&gt; 1 -36.7 -0.60 21.0
+#&gt; 2 -36.7 -0.34 21.0
+#&gt; 3 -53.7 -0.90 22.8
+#&gt; 4 -36.7  0.00 21.4
+#&gt; 5  28.3  0.22 18.7
+#&gt; 6 -41.7  0.24 18.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The outcome <code>mpg</code> is untouched because <code>all_numeric_predictors()</code> excludes it. To confirm the centering worked, check the column means of the result.</p>
+
+<div class="webr-container" data-block-title="Verify the centered means">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Verify the centered means</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">colMeans(centered[c(&quot;hp&quot;, &quot;wt&quot;, &quot;disp&quot;)])
+#&gt;           hp           wt         disp
+#&gt; 7.105427e-15 1.110223e-16 4.085621e-15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every mean is zero apart from floating-point dust. To see the actual values subtracted, call <code>tidy()</code> on the prepped recipe with the step number.</p>
+
+<div class="webr-container" data-block-title="Inspect the estimated means">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the estimated means</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prepped &lt;- prep(rec)
+tidy(prepped, number = 1)[1:3, ]
+#&gt; # A tibble: 3 x 3
+#&gt;   terms value id
+#&gt;   &lt;chr&gt; &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 cyl    6.19 center_xY1
+#&gt; 2 disp 231.   center_xY1
+#&gt; 3 hp   147.   center_xY1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Centering also works across a train and test split. Estimate the recipe on training rows, then bake the held-out rows.</p>
+
+<div class="webr-container" data-block-title="Apply training means to new data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Apply training means to new data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train &lt;- mtcars[1:24, ]
+test  &lt;- mtcars[25:32, ]
+
+rec2 &lt;- recipe(mpg ~ ., data = train) |&gt;
+  step_center(all_numeric_predictors()) |&gt;
+  prep()
+
+baked_test &lt;- bake(rec2, new_data = test)
+round(mean(baked_test$hp), 2)
+#&gt; [1] -17.83</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The test mean is not zero, and that is correct. The held-out rows are shifted by the training mean, so their average reflects the genuine difference between the two samples.</p>
+
+<h2>step_center() vs step_scale() vs step_normalize()</h2>
+
+<p><strong>Pick the step that matches the transformation you need.</strong> Centering, scaling, and normalizing are related but distinct, and recipes gives each its own step.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What it does</th>
+<th>Resulting column</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_center()</code></td>
+<td>Subtracts the mean</td>
+<td>Mean 0, original spread</td>
+</tr>
+<tr>
+<td><code>step_scale()</code></td>
+<td>Divides by the standard deviation</td>
+<td>SD 1, original center</td>
+</tr>
+<tr>
+<td><code>step_normalize()</code></td>
+<td>Centers and scales together</td>
+<td>Mean 0, SD 1</td>
+</tr>
+<tr>
+<td><code>step_range()</code></td>
+<td>Rescales to a fixed interval</td>
+<td>Bounded, default 0 to 1</td>
+</tr>
+</tbody>
+</table>
+
+<p>If you want both mean zero and unit variance, use <code>step_normalize()</code> rather than chaining <code>step_center()</code> and <code>step_scale()</code>. It is shorter, and one <code>tidy()</code> call returns both statistics.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Order your steps before centering.</strong> Run <code>step_YeoJohnson()</code> or <code>step_BoxCox()</code> first when predictors are skewed, then center. Centering a skewed column does not fix the skew, it only relocates it.</div></div>
+
+<h2>Common pitfalls with step_center()</h2>
+
+<p><strong>Watch what you select.</strong> The most frequent mistakes come from choosing the wrong columns or skipping <code>prep()</code>.</p>
+
+<ol>
+
+<li><strong>Centering the outcome.</strong> <code>all_numeric()</code> includes the response variable. Use <code>all_numeric_predictors()</code> so the model still trains on the original target scale.</li>
+
+<li><strong>Forgetting to prep.</strong> Calling <code>bake()</code> on a recipe that was never prepped throws an error, because the means have not been estimated yet.</li>
+
+<li><strong>Centering categorical dummies after the fact.</strong> If <code>step_dummy()</code> runs before <code>step_center()</code>, the 0/1 indicator columns get centered too, which is rarely what you want.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never compute the mean on the full dataset before splitting.</strong> Centering with a mean that saw the test rows leaks information and inflates your performance estimate. Always wrap centering in a recipe and let <code>prep()</code> use training data only.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Center only the <code>hp</code> and <code>wt</code> columns of <code>mtcars</code> in a recipe, prep it, and save the baked result to <code>ex_centered</code>.</p>
+<div class="webr-container" data-block-title="Your turn: center two columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: center two columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: center hp and wt only
+ex_rec &lt;- recipe(mpg ~ ., data = mtcars) |&gt;
+  step_center(# your code here)
+
+ex_centered &lt;- # your code here
+
+round(mean(ex_centered$hp), 6)
+#&gt; Expected: 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec &lt;- recipe(mpg ~ ., data = mtcars) |&gt;
+  step_center(hp, wt)
+
+ex_centered &lt;- prep(ex_rec) |&gt; bake(new_data = NULL)
+round(mean(ex_centered$hp), 6)
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Passing bare column names to <code>step_center()</code> limits the step to just <code>hp</code> and <code>wt</code>. After <code>prep()</code> estimates their means and <code>bake()</code> applies them, the <code>hp</code> column averages to zero.</p>
+
+</details>
+</section>
+
+<h2>Related recipes steps</h2>
+
+<p><strong>step_center() is one of several recipes preprocessing steps.</strong> These pair naturally with it in a tidymodels workflow:</p>
+
+<ul>
+
+<li><a href="recipes-step_scale-in-R.html">step_scale()</a> divides predictors by their standard deviation.</li>
+
+<li><a href="recipes-step_normalize-in-R.html">step_normalize()</a> centers and scales in a single step.</li>
+
+<li><a href="recipes-step_range-in-R.html">step_range()</a> rescales predictors to a fixed interval.</li>
+
+<li><a href="recipes-step_YeoJohnson-in-R.html">step_YeoJohnson()</a> reduces skew before centering.</li>
+
+<li><a href="recipes-step_zv-in-R.html">step_zv()</a> drops zero-variance columns that cannot be centered meaningfully.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The equivalent of <code>step_center()</code> is <code>df - df.mean()</code>, or scikit-learn's <code>StandardScaler(with_std=False)</code>. The recipes version differs by learning the mean on training data and reapplying it automatically to new data.</div></div>
+
+<h2>FAQ</h2>
+
+<p><strong>Does step_center() change the outcome variable?</strong></p>
+
+<p>Not when you <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">select columns</a> with <code>all_numeric_predictors()</code>, which is the recommended selector. That helper excludes the variable on the left of your recipe formula. If you instead use <code>all_numeric()</code>, the outcome is included and gets centered, which shifts your target away from its real scale. For almost all modeling work, keep the outcome on its original units and center predictors only.</p>
+
+<p><strong>What is the difference between step_center() and scale() in R?</strong></p>
+
+<p>Base R's <code>scale()</code> centers and, by default, also divides by the standard deviation, returning a matrix with attributes. <code>step_center()</code> only subtracts the mean, returns a data frame, and crucially stores the training mean inside a recipe. That means the same transformation is reapplied to new data automatically, which <code>scale()</code> cannot do on its own.</p>
+
+<p><strong>Do I need to center predictors before every model?</strong></p>
+
+<p>No. Tree-based models such as random forests and boosted trees are invariant to centering, so the step adds nothing. Centering helps regularized regression, <a class="auto-link" href="PCA-in-R.html" title="PCA in R: Reduce Dimensions, Visualise Structure, and Understand What prcomp() Returns">principal component analysis</a>, k-nearest neighbors, and neural networks, where predictor location and scale affect the fit. Add <code>step_center()</code> when your model is distance-based or penalized.</p>
+
+<p><strong>How does step_center() handle missing values?</strong></p>
+
+<p>By default <code>na_rm = TRUE</code>, so missing values are ignored when the mean is computed during <code>prep()</code>. The mean reflects only the observed values in each column. The <code>NA</code> cells themselves remain <code>NA</code> after baking, because centering shifts existing numbers but cannot invent a value. Impute first with a step such as <code>step_impute_mean()</code> if you need complete columns.</p>
+
+{% endraw %}
