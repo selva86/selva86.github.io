@@ -1,0 +1,336 @@
+---
+title: "recipes step_unknown() in R: Label Missing Factor Values"
+description: "Learn how the recipes step_unknown() function in R relabels missing (NA) factor values as an explicit level, with runnable prep, bake, and step_dummy examples."
+keywords: "recipes step_unknown, step_unknown function R, recipes step_unknown example, R missing factor levels, step_unknown tidymodels, handle NA factor R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_unknown()|recipes step_unknown|recipes::step_unknown()|missing factor levels|step_unknown"
+auto_link_case_sensitive: true
+fr_parent: "Categorical-Data-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>recipes step_unknown() in R: Label Missing Factor Values</h1>
+
+<p class="lead">The recipes <code>step_unknown()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> replaces missing (<code>NA</code>) values in a factor column with an explicit level, so models can use incomplete <a class="auto-link" href="Categorical-Data-in-R.html" title="Categorical Data in R: Frequency Tables, Crosstabs & Mosaic Plots">categorical data</a> instead of dropping rows.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_unknown(rec, var)<span class="qa-cmt">                           # NA becomes the level &quot;unknown&quot;</span>
+step_unknown(rec, var, new_level = &quot;missing&quot;)<span class="qa-cmt">    # custom placeholder name</span>
+step_unknown(rec, all_nominal_predictors())<span class="qa-cmt">      # apply to every factor column</span>
+recipe(...) |&gt; step_unknown(x) |&gt; step_dummy(x)<span class="qa-cmt">  # run before dummy encoding</span>
+prep(rec); bake(rec, new_data = NULL)<span class="qa-cmt">            # train, then return baked data</span>
+recipe(...) |&gt; step_unknown(x) |&gt; step_novel(x)<span class="qa-cmt">  # cover NA and unseen levels</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_unknown() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">factor value is missing (NA)</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_unknown(rec, x)</text><text x="125" y="126" class="branch-label">factor level unseen in training</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_novel(rec, x)</text><text x="125" y="182" class="branch-label"><a class="auto-link" href="tidyr-replace_na-in-R.html" title="tidyr replace_na() in R: Replace NA With a Value">fill NA</a> with most common level</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_impute_mode(rec, x)</text><text x="125" y="238" class="branch-label">rare training levels to collapse</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_other(rec, x)</text><text x="125" y="294" class="branch-label">convert factor to 0/1 columns</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">step_dummy(rec, x)</text><text x="125" y="350" class="branch-label">numeric column has <a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">NA values</a></text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">step_impute_mean(rec, x)</text></svg></div>
+
+<h2>What step_unknown() does</h2>
+
+<p><strong>step_unknown() turns missing factor values into a category the model can use.</strong> A categorical predictor with <code>NA</code> entries is a problem for most algorithms: they either discard the affected rows or stop with an error. <code>step_unknown()</code> removes that obstacle by relabeling every <code>NA</code> in a factor column as a known level, named <code>&quot;unknown&quot;</code> by default.</p>
+
+<p>The step runs inside a recipes pipeline. When you call <code>prep()</code>, it records which columns to treat; when you call <code>bake()</code>, it applies the relabeling to whatever data frame you pass. Because the missing value becomes a real factor level, downstream steps like <code>step_dummy()</code> give it its own indicator column.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Missingness in a categorical field is often informative.</strong> A blank <code>region</code> or an unrecorded <code>grade</code> can correlate with the outcome. step_unknown() keeps that signal in the model instead of throwing the row away.</div></div>
+
+<h2>step_unknown() syntax and arguments</h2>
+
+<p><strong>The function takes a recipe, one or more columns, and an optional label for the missing level.</strong> It is a selection step, so you can name factor columns directly or reach them with tidyselect helpers such as <code>all_nominal_predictors()</code>.</p>
+
+<div class="webr-container" data-block-title="step_unknown signature and arguments">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">step_unknown signature and arguments</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">step_unknown(
+  recipe,
+  ...,                    # columns: factor variables to process
+  role = NA,
+  trained = FALSE,
+  new_level = &quot;unknown&quot;,  # label assigned to missing values
+  objects = NULL,
+  skip = FALSE,
+  id = rand_id(&quot;unknown&quot;)
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The argument you change most often is <code>new_level</code>. It must be a string that is not already one of the column's levels, or <code>prep()</code> raises an error. The remaining arguments stay at their defaults for almost every workflow. Full details are in the <a href="https://recipes.tidymodels.org/reference/step_unknown.html">recipes documentation</a>.</p>
+
+<h2>step_unknown() examples</h2>
+
+<p><strong>Every recipe follows the same prep-then-bake rhythm.</strong> <code>prep()</code> learns the structure from training data; <code>bake()</code> produces the processed frame. The examples below build a small grades dataset that contains <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>.</p>
+
+<div class="webr-container" data-block-title="Basic step_unknown on missing values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Basic step_unknown on missing values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+train &lt;- data.frame(
+  grade = factor(c(&quot;A&quot;, &quot;B&quot;, NA, &quot;A&quot;, NA)),
+  score = c(88, 72, 65, 91, 70)
+)
+
+unknown_rec &lt;- recipe(score ~ grade, data = train) |&gt;
+  step_unknown(grade) |&gt;
+  prep()
+
+bake(unknown_rec, new_data = NULL)
+#&gt; # A tibble: 5 x 2
+#&gt;   grade   score
+#&gt;   &lt;fct&gt;   &lt;dbl&gt;
+#&gt; 1 A          88
+#&gt; 2 B          72
+#&gt; 3 unknown    65
+#&gt; 4 A          91
+#&gt; 5 unknown    70</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two <code>NA</code> grades became the level <code>unknown</code>. The <code>score</code> column is untouched because <code>step_unknown()</code> ignores numeric variables.</p>
+
+<p>You can rename the placeholder when <code>&quot;unknown&quot;</code> is unclear or could clash with a real category.</p>
+
+<div class="webr-container" data-block-title="Custom label for missing values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Custom label for missing values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">custom_rec &lt;- recipe(score ~ grade, data = train) |&gt;
+  step_unknown(grade, new_level = &quot;missing&quot;) |&gt;
+  prep()
+
+bake(custom_rec, new_data = NULL)
+#&gt; # A tibble: 5 x 2
+#&gt;   grade   score
+#&gt;   &lt;fct&gt;   &lt;dbl&gt;
+#&gt; 1 A          88
+#&gt; 2 B          72
+#&gt; 3 missing    65
+#&gt; 4 A          91
+#&gt; 5 missing    70</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The label <code>missing</code> now marks the same rows. A descriptive name helps when the baked data appears in reports or plots.</p>
+
+<p>To guard several factor columns in one call, swap the bare column name for a tidyselect helper.</p>
+
+<div class="webr-container" data-block-title="Apply step_unknown to all factor predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Apply step_unknown to all factor predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">multi &lt;- data.frame(
+  grade  = factor(c(&quot;A&quot;, &quot;B&quot;, NA)),
+  region = factor(c(&quot;East&quot;, NA, &quot;West&quot;)),
+  score  = c(88, 72, 65)
+)
+
+multi_rec &lt;- recipe(score ~ ., data = multi) |&gt;
+  step_unknown(all_nominal_predictors()) |&gt;
+  prep()
+
+bake(multi_rec, new_data = NULL)
+#&gt; # A tibble: 3 x 3
+#&gt;   grade   region  score
+#&gt;   &lt;fct&gt;   &lt;fct&gt;   &lt;dbl&gt;
+#&gt; 1 A       East       88
+#&gt; 2 B       unknown    72
+#&gt; 3 unknown West       65</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both <code>grade</code> and <code>region</code> had their <code>NA</code> entries relabeled, while <code>score</code> passed through unchanged.</p>
+
+<p>The most common production pairing is <code>step_unknown()</code> followed by <code>step_dummy()</code>. The unknown step must run first so the dummy encoder sees a complete set of levels.</p>
+
+<div class="webr-container" data-block-title="step_unknown before step_dummy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">step_unknown before step_dummy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dummy_rec &lt;- recipe(score ~ grade, data = train) |&gt;
+  step_unknown(grade) |&gt;
+  step_dummy(grade) |&gt;
+  prep()
+
+bake(dummy_rec, new_data = NULL)
+#&gt; # A tibble: 5 x 3
+#&gt;   grade_B grade_unknown score
+#&gt;     &lt;dbl&gt;         &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1       0             0    88
+#&gt; 2       1             0    72
+#&gt; 3       0             1    65
+#&gt; 4       0             0    91
+#&gt; 5       0             1    70</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>grade_unknown</code> column now carries every row that was missing a grade. A model fit on these indicators treats missingness as its own predictor.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The closest equivalent is <code>df[&quot;col&quot;].fillna(&quot;unknown&quot;)</code> or scikit-learn's <code>SimpleImputer(strategy=&quot;constant&quot;, fill_value=&quot;unknown&quot;)</code>. step_unknown() differs by recording the rule during <code>prep()</code> so new data is treated identically.</div></div>
+
+<h2>step_unknown() vs step_novel() vs step_impute_mode()</h2>
+
+<p><strong>Three recipes steps touch factor problems, but they fix different things.</strong> Choosing the wrong one either misses your case or alters data you meant to keep.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>Problem it solves</th>
+<th>What it does to the value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_unknown()</code></td>
+<td>Factor value is missing (<code>NA</code>)</td>
+<td>Relabels <code>NA</code> as an explicit <code>unknown</code> level</td>
+</tr>
+<tr>
+<td><code>step_novel()</code></td>
+<td>Category appears only at prediction time</td>
+<td>Reserves a level for unseen categories</td>
+</tr>
+<tr>
+<td><code>step_impute_mode()</code></td>
+<td>Factor value is missing (<code>NA</code>)</td>
+<td>Fills <code>NA</code> with the most frequent training level</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>step_unknown()</code> when <code>NA</code> values need an explicit, modelable bucket. Use <code>step_novel()</code> when production data may contain categories training never saw. Use <code>step_impute_mode()</code> when you would rather fill <code>NA</code> with a best guess than flag it. Pipelines often chain <code>step_unknown()</code> and <code>step_novel()</code> to cover both missing and unseen values.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes cause most step_unknown() bugs.</strong></p>
+
+<ol>
+
+<li><strong>Placing it after <code>step_dummy()</code>.</strong> The dummy step encodes whatever levels exist when it runs. If <code>step_unknown()</code> runs later, the <code>NA</code> rows are already encoded as all-zero or dropped. Put <code>step_unknown()</code> first.</li>
+
+<li><strong>Expecting it to work on character columns.</strong> The step processes factors. A plain character column is not selected the same way; convert it with <code>step_string2factor()</code> first.</li>
+
+<li><strong>Confusing it with imputation.</strong> <code>step_unknown()</code> does not guess a plausible value. It marks the row as missing. If you want the gap filled with a real level, use <code>step_impute_mode()</code> instead.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>step_unknown() leaves numeric <code>NA</code> values alone.</strong> It selects only nominal columns. A numeric predictor with missing values still needs a step such as <code>step_impute_mean()</code>, or those rows will break model fitting.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a recipe on the training frame below, add <code>step_unknown()</code> to the <code>team</code> column, and bake the training data so the missing team becomes the level <code>&quot;unknown&quot;</code>. Save the result to <code>ex_baked</code>.</p>
+<div class="webr-container" data-block-title="Your turn: step_unknown on team">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: step_unknown on team</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_train &lt;- data.frame(
+  team  = factor(c(&quot;Lions&quot;, &quot;Bears&quot;, NA)),
+  score = c(21, 14, 28)
+)
+# Try it: prep a recipe with step_unknown on team, then bake
+ex_baked &lt;- # your code here
+
+ex_baked
+#&gt; Expected: the NA team shown as the level &quot;unknown&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec &lt;- recipe(score ~ team, data = ex_train) |&gt;
+  step_unknown(team) |&gt;
+  prep()
+
+ex_baked &lt;- bake(ex_rec, new_data = NULL)
+ex_baked
+#&gt; # A tibble: 3 x 2
+#&gt;   team    score
+#&gt;   &lt;fct&gt;   &lt;dbl&gt;
+#&gt; 1 Lions      21
+#&gt; 2 Bears      14
+#&gt; 3 unknown    28</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>prep()</code> records <code>team</code> as a factor with the missing value flagged. <code>bake()</code> with <code>new_data = NULL</code> returns the processed training data, where the <code>NA</code> team is now the level <code>unknown</code>.</p>
+
+</details>
+</section>
+
+<h2>Related recipes functions</h2>
+
+<p><strong>step_unknown() is one step in a factor-handling toolkit.</strong> These steps often appear together in the same recipe:</p>
+
+<ul>
+
+<li><code>step_novel()</code> reserves a level for categories unseen during training.</li>
+
+<li><code>step_other()</code> collapses infrequent training levels into a single <code>other</code> level.</li>
+
+<li><code>step_impute_mode()</code> fills missing factor values with the most common level.</li>
+
+<li><code>step_dummy()</code> converts factors into 0/1 indicator columns.</li>
+
+<li><code>step_string2factor()</code> turns character columns into factors so factor steps can select them.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What value does step_unknown() assign to missing data?</strong></p>
+
+<p>By default it assigns the string <code>&quot;unknown&quot;</code>. Every <code>NA</code> in a selected factor column is relabeled to this level when <code>bake()</code> runs. You can change the label with the <code>new_level</code> argument, for example <code>step_unknown(grade, new_level = &quot;missing&quot;)</code>. The name you choose must not already exist among the column's levels, otherwise <code>prep()</code> stops with an error. The relabeled value is a normal factor level, so later steps treat it like any other category.</p>
+
+<p><strong>What is the difference between step_unknown() and step_impute_mode()?</strong></p>
+
+<p>Both handle <code>NA</code> in factor columns, but they make opposite assumptions. <code>step_unknown()</code> keeps missingness visible: it creates a separate <code>&quot;unknown&quot;</code> level so the model can learn whether a missing value predicts the outcome. <code>step_impute_mode()</code> hides missingness: it replaces each <code>NA</code> with the most frequent training level, as if the value had been observed. Choose <code>step_unknown()</code> when the gap might carry signal, and <code>step_impute_mode()</code> when you want a best-guess fill.</p>
+
+<p><strong>Does step_unknown() work on character columns?</strong></p>
+
+<p>No. <code>step_unknown()</code> operates on factor (nominal) variables. A plain character column is not a factor, so tidyselect helpers like <code>all_nominal_predictors()</code> may not pick it up, and the step has no level set to extend. Convert character columns first with <code>step_string2factor()</code>, then apply <code>step_unknown()</code>. Once the column is a factor, the step relabels its <code>NA</code> entries normally. Numeric columns are always skipped.</p>
+
+<p><strong>Should step_unknown() run before or after step_dummy()?</strong></p>
+
+<p>Before. <code>step_dummy()</code> builds indicator columns from the factor levels that exist when it runs. If <code>step_unknown()</code> runs first, the <code>&quot;unknown&quot;</code> level becomes one of those columns, so missing rows get their own indicator. Reversing the order means the <code>NA</code> rows are encoded before they are labeled, which usually produces all-zero indicator rows or an error. The reliable pattern is <code>step_unknown()</code> then <code>step_dummy()</code>.</p>
