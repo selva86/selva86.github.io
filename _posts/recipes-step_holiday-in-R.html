@@ -1,0 +1,330 @@
+---
+title: "recipes step_holiday() in R: Add Holiday Indicator Features"
+description: "recipes step_holiday() in R creates 0/1 indicator columns marking named holidays on a date column. Learn the syntax, the holidays argument, prep and bake."
+keywords: "recipes step_holiday, step_holiday function R, recipes step_holiday examples, R holiday features, step_holiday tidymodels, holiday dummy variables R, add holiday indicators R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_holiday()|recipes step_holiday|recipes::step_holiday()|step_holiday|holiday features"
+auto_link_case_sensitive: true
+fr_parent: "caret-preProcess-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>recipes step_holiday() in R: Add Holiday Indicator Features</h1>
+
+<p class="lead">The <code>recipes</code> <code>step_holiday()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> creates binary 0/1 indicator columns that mark whether each date falls on a named holiday. You add it to a <code>recipe()</code>, register it with <code>prep()</code>, and apply it with <code>bake()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_holiday(rec, event_date)<span class="qa-cmt">                                  # default 3 holidays</span>
+step_holiday(rec, event_date, holidays = &quot;USIndependenceDay&quot;)<span class="qa-cmt">  # one named holiday</span>
+step_holiday(rec, event_date, holidays = listHolidays(&quot;US&quot;))<span class="qa-cmt">   # every US holiday</span>
+step_holiday(rec, all_date_predictors())<span class="qa-cmt">                       # all date columns</span>
+step_holiday(rec, event_date, keep_original_cols = FALSE)<span class="qa-cmt">      # drop the raw date</span>
+prep(rec) |&gt; bake(new_data = NULL)<span class="qa-cmt">                             # learn, then apply</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_holiday() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">flag named holidays on a date</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_holiday(rec, event_date)</text><text x="125" y="126" class="branch-label">extract month, day-of-week, year</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_date(rec, event_date)</text><text x="125" y="182" class="branch-label">compute days since a fixed event</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_mutate(rec, gap = date - ref)</text><text x="125" y="238" class="branch-label">build lagged values of a column</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_lag(rec, sales, lag = 1)</text><text x="125" y="294" class="branch-label">encode resulting factor columns</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">step_dummy(rec, all_nominal_predictors())</text><text x="125" y="350" class="branch-label">drop the leftover Date column</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">step_rm(rec, event_date)</text></svg></div>
+
+<h2>What step_holiday() does in R</h2>
+
+<p><strong>step_holiday() turns a date into yes/no holiday flags.</strong> Calendar effects are real: retail sales spike before Christmas, web traffic drops on New Year's Day, and clinics see fewer visits on public holidays. A raw <code>Date</code> column hides that signal, because a model reads <code>2024-12-25</code> as just another number. <code>step_holiday()</code> adds one column per holiday you name, holding <code>1</code> when the date matches and <code>0</code> otherwise.</p>
+
+<p>It belongs to the <code>recipes</code> package, the feature-engineering layer of tidymodels. The new columns are named <code>&lt;variable&gt;_&lt;holiday&gt;</code>, so an <code>event_date</code> column checked against <code>USChristmasDay</code> produces a column called <code>event_date_USChristmasDay</code>. Holiday names come from the <code>timeDate</code> package, which computes the calendar date of each named holiday for any year.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>step_holiday() is deterministic, so prep() learns nothing from the data.</strong> Whether a date is a holiday does not depend on the training set. <code>prep()</code> still runs to register the step, but the same date always yields the same flags in training, test, and future data.</div></div>
+
+<h2>step_holiday() syntax and arguments</h2>
+
+<p><strong>step_holiday() attaches a holiday-flagging operation to a recipe.</strong> You pass the recipe first, then the date columns to check, named directly or selected with <code>all_date_predictors()</code>.</p>
+
+<div class="webr-container" data-block-title="The step_holiday skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The step_holiday skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+events &lt;- data.frame(
+  event_date = as.Date(c(&quot;2024-01-01&quot;, &quot;2024-07-04&quot;, &quot;2024-12-25&quot;,
+                          &quot;2024-03-15&quot;, &quot;2024-08-20&quot;)),
+  attendance = c(210, 480, 720, 260, 300)
+)
+
+recipe(attendance ~ event_date, data = events) |&gt;
+  step_holiday(event_date)
+#&gt; -- Recipe ----------------------------------------------------------------
+#&gt; -- Inputs
+#&gt; Number of variables by role
+#&gt; outcome:   1
+#&gt; predictor: 1
+#&gt; -- Operations
+#&gt; * Holiday features from: event_date</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments you will actually touch:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>recipe</code></td>
+<td>The recipe object the step is added to.</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Date columns to flag, named or selected with <code>all_date_predictors()</code>.</td>
+</tr>
+<tr>
+<td><code>holidays</code></td>
+<td>Character vector of holiday names. Default <code>c(&quot;LaborDay&quot;, &quot;NewYearsDay&quot;, &quot;ChristmasDay&quot;)</code>.</td>
+</tr>
+<tr>
+<td><code>keep_original_cols</code></td>
+<td>If <code>TRUE</code> (default), the source Date column stays in the output.</td>
+</tr>
+<tr>
+<td><code>role</code></td>
+<td>Role given to the new columns. Default <code>&quot;predictor&quot;</code>.</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>The holidays argument is the one you will always set.</strong> Its default covers only three days, so name the holidays your problem needs. Valid names come from <code>timeDate::listHolidays()</code>, which returns every supported holiday, with region prefixes such as <code>US</code>, <code>CA</code>, and <code>GB</code>.</p>
+
+<h2>step_holiday() examples</h2>
+
+<p><strong>Build the recipe, prep it, then bake.</strong> A recipe is only a plan until <code>prep()</code> registers the steps and <code>bake()</code> applies them. This recipe checks <code>event_date</code> against three US holidays.</p>
+
+<div class="webr-container" data-block-title="Flag three holidays and bake">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Flag three holidays and bake</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec &lt;- recipe(attendance ~ event_date, data = events) |&gt;
+  step_holiday(event_date,
+               holidays = c(&quot;USNewYearsDay&quot;, &quot;USIndependenceDay&quot;,
+                            &quot;USChristmasDay&quot;))
+
+baked &lt;- prep(rec) |&gt; bake(new_data = NULL)
+subset(baked, select = -c(event_date, attendance))
+#&gt; # A tibble: 5 x 3
+#&gt;   event_date_USNewYearsDay event_date_USIndependenceDay event_date_USChristmasDay
+#&gt;                      &lt;int&gt;                        &lt;int&gt;                     &lt;int&gt;
+#&gt; 1                        1                            0                         0
+#&gt; 2                        0                            1                         0
+#&gt; 3                        0                            0                         1
+#&gt; 4                        0                            0                         0
+#&gt; 5                        0                            0                         0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each holiday becomes its own 0/1 column. Rows four and five (March and August dates) are all zero because neither date is one of the named holidays. To find valid holiday names, call <code>listHolidays()</code> from <code>timeDate</code>. Pass a pattern to filter by region.</p>
+
+<div class="webr-container" data-block-title="List the available holiday names">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">List the available holiday names</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(timeDate)
+listHolidays(&quot;US&quot;)
+#&gt;  [1] &quot;USCPulaskisBirthday&quot;  &quot;USChristmasDay&quot;       &quot;USColumbusDay&quot;
+#&gt;  [4] &quot;USElectionDay&quot;        &quot;USGoodFriday&quot;         &quot;USInaugurationDay&quot;
+#&gt;  [7] &quot;USIndependenceDay&quot;    &quot;USLaborDay&quot;           &quot;USLincolnsBirthday&quot;
+#&gt; [10] &quot;USMLKingsBirthday&quot;    &quot;USMemorialDay&quot;        &quot;USNewYearsDay&quot;
+#&gt; [13] &quot;USPresidentsDay&quot;      &quot;USThanksgivingDay&quot;    &quot;USVeteransDay&quot;
+#&gt; [16] &quot;USWashingtonsBirthday&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Because the step is deterministic, it produces the same flags for dates the recipe has never seen. Apply the prepped recipe to new rows with <code>bake(new_data = ...)</code> and the holidays are recomputed for that year automatically.</p>
+
+<div class="webr-container" data-block-title="Apply the recipe to new dates">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Apply the recipe to new dates</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">new_events &lt;- data.frame(
+  event_date = as.Date(c(&quot;2025-01-01&quot;, &quot;2025-06-10&quot;)),
+  attendance = c(NA, NA)
+)
+
+prep(rec) |&gt; bake(new_data = new_events) |&gt;
+  subset(select = -c(event_date, attendance))
+#&gt; # A tibble: 2 x 3
+#&gt;   event_date_USNewYearsDay event_date_USIndependenceDay event_date_USChristmasDay
+#&gt;                      &lt;int&gt;                        &lt;int&gt;                     &lt;int&gt;
+#&gt; 1                        1                            0                         0
+#&gt; 2                        0                            0                         0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 2025 New Year's Day is flagged correctly even though every training date was in 2024, because <code>timeDate</code> resolves each holiday per year rather than from a fixed lookup table.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use all_date_predictors() when several columns hold dates.</strong> If a frame has both an <code>order_date</code> and a <code>ship_date</code>, <code>step_holiday(rec, all_date_predictors())</code> flags both in one call. The selector picks only <code>Date</code> and <code>POSIXct</code> columns, so a numeric column is never fed in by accident.</div></div>
+
+<h2>step_holiday() vs step_date() vs manual flags</h2>
+
+<p><strong>Pick the tool that matches the calendar signal you need.</strong> Holiday effects and seasonal effects are different features, and only a recipe step reapplies cleanly to new data.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>What it captures</th>
+<th>New data handling</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_holiday()</code></td>
+<td>0/1 flags for named holidays</td>
+<td>Recomputed by <code>bake()</code> for any year</td>
+</tr>
+<tr>
+<td><code>step_date()</code></td>
+<td>Calendar parts: month, day-of-week, year</td>
+<td>Reapplied automatically by <code>bake()</code></td>
+</tr>
+<tr>
+<td>Manual <code>ifelse()</code> on a date list</td>
+<td>Only the dates you hardcode</td>
+<td>You rewrite the list every year</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>step_holiday()</code> when special days drive the outcome, such as sales, staffing, or traffic. Reach for <code>step_date()</code> when smooth seasonality matters more than specific days. A typical recipe runs both: <code>step_date()</code> for month and weekday, then <code>step_holiday()</code> for the special-day spikes.</p>
+
+<h2>Common pitfalls with step_holiday()</h2>
+
+<p><strong>Most failures trace back to the holiday name or the column type.</strong> Watch these three traps when adding the step.</p>
+
+<ol>
+
+<li><strong>An unknown holiday name.</strong> A name not returned by <code>listHolidays()</code>, such as <code>&quot;Christmas&quot;</code> instead of <code>&quot;USChristmasDay&quot;</code>, raises an error. Copy names straight from <code>listHolidays()</code> to avoid typos.</li>
+
+<li><strong>Passing a character column.</strong> <code>step_holiday()</code> needs class <code>Date</code> or <code>POSIXct</code>. A column of strings like <code>&quot;2024-12-25&quot;</code> errors. Convert it first with <code>as.Date()</code>.</li>
+
+<li><strong>Feeding the Date column to the model.</strong> With <code>keep_original_cols = TRUE</code> (the default), <code>event_date</code> survives baking. Most engines reject the <code>Date</code> class, so add <code>step_rm(event_date)</code> once the flags exist.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The default holidays argument flags only three days.</strong> <code>step_holiday()</code> defaults to <code>c(&quot;LaborDay&quot;, &quot;NewYearsDay&quot;, &quot;ChristmasDay&quot;)</code>, not the full national calendar. A recipe written without an explicit <code>holidays</code> argument silently ignores Thanksgiving, Independence Day, and every other date. Always name the holidays your model needs.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add <code>step_holiday()</code> to a recipe on the <code>events</code> data so it flags <code>USIndependenceDay</code> and <code>USChristmasDay</code>, then bake it. Save the result to <code>ex_holidays</code>.</p>
+<div class="webr-container" data-block-title="Your turn: flag two holidays">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: flag two holidays</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: flag Independence Day and Christmas
+ex_rec &lt;- recipe(attendance ~ event_date, data = events) |&gt;
+  step_holiday(# your code here)
+
+ex_holidays &lt;- # your code here
+names(ex_holidays)
+#&gt; Expected: event_date, attendance, event_date_USIndependenceDay, event_date_USChristmasDay</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec &lt;- recipe(attendance ~ event_date, data = events) |&gt;
+  step_holiday(event_date,
+               holidays = c(&quot;USIndependenceDay&quot;, &quot;USChristmasDay&quot;))
+
+ex_holidays &lt;- prep(ex_rec) |&gt; bake(new_data = NULL)
+names(ex_holidays)
+#&gt; [1] &quot;event_date&quot;                   &quot;attendance&quot;
+#&gt; [3] &quot;event_date_USIndependenceDay&quot; &quot;event_date_USChristmasDay&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>holidays</code> argument names the two holidays to check, and each becomes a 0/1 column. The original <code>event_date</code> column stays because <code>keep_original_cols</code> is <code>TRUE</code> by default.</p>
+
+</details>
+</section>
+
+<h2>Related recipes steps</h2>
+
+<p><strong>step_holiday() is one of several recipes steps for time-based predictors.</strong> These pair naturally with it in a tidymodels workflow:</p>
+
+<ul>
+
+<li><a href="recipes-step_date-in-R.html">step_date()</a> extracts month, day-of-week, and year from a date.</li>
+
+<li><a href="recipes-step_lag-in-R.html">step_lag()</a> creates lagged copies of a column for time-series features.</li>
+
+<li><a href="recipes-step_dummy-in-R.html">step_dummy()</a> converts factor columns into 0/1 indicators.</li>
+
+<li><a href="recipes-step_rm-in-R.html">step_rm()</a> removes the original Date column once the flags exist.</li>
+
+<li><a href="recipes-recipe-in-R.html">recipe()</a> is the starting point every step is added to.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The closest equivalent is the <code>holidays</code> package or <code>pandas.tseries.holiday.USFederalHolidayCalendar</code>, checked against a date column. The recipes version differs by packaging the logic inside a recipe so the same flags are produced for any new data.</div></div>
+
+<h2>FAQ</h2>
+
+<p><strong>What does step_holiday() do in R?</strong></p>
+
+<p><code>step_holiday()</code> is a recipes step that adds binary indicator columns to a dataset, one per holiday you name. Each column holds <code>1</code> when a date matches that holiday and <code>0</code> otherwise. You add it to a <code>recipe()</code>, register it with <code>prep()</code>, and apply it with <code>bake()</code>. The new columns are named <code>&lt;variable&gt;_&lt;holiday&gt;</code>. Because holidays are deterministic, the step needs no training data to compute its output.</p>
+
+<p><strong>How do I see the list of valid holiday names?</strong></p>
+
+<p>Call <code>listHolidays()</code> from the <code>timeDate</code> package, which <code>recipes</code> uses under the hood. With no argument it returns every supported holiday; pass a pattern such as <code>listHolidays(&quot;US&quot;)</code> or <code>listHolidays(&quot;CA&quot;)</code> to filter by region. The names are case-sensitive and must be copied exactly, for example <code>USThanksgivingDay</code>. Any name not in this list raises an error when the recipe is prepped.</p>
+
+<p><strong>What is the difference between step_holiday() and step_date()?</strong></p>
+
+<p><code>step_date()</code> extracts general calendar parts such as month, day-of-week, and year from a date. <code>step_holiday()</code> answers a narrower question: it flags whether each date falls on a specific named holiday. They are complementary. A typical recipe runs <code>step_date()</code> first for smooth seasonality, then <code>step_holiday()</code> for special-day spikes, then <code>step_rm()</code> to drop the raw date column before fitting a model.</p>
+
+<p><strong>Does step_holiday() work for non-US holidays?</strong></p>
+
+<p>Yes. The <code>timeDate</code> package supports holidays for several regions, including Canada (<code>CA</code> prefix), Great Britain (<code>GB</code>), Switzerland, and others, plus religious holidays like <code>Easter</code> and <code>GoodFriday</code>. Run <code>listHolidays()</code> with the matching pattern to see what is available. Pass any of those names in the <code>holidays</code> argument exactly as listed, and <code>step_holiday()</code> flags them the same way it flags US holidays.</p>
+
+</content>
+
+</invoke>
+
+{% endraw %}
