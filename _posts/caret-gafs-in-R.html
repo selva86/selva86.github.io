@@ -1,0 +1,267 @@
+---
+title: "caret gafs() in R: Genetic Algorithm Feature Selection"
+description: "Use caret gafs() in R for genetic algorithm feature selection. Covers gafsControl, the rfGA and treebagGA backends, and a worked variable selection example."
+keywords: "caret gafs, gafs function R, caret gafs example, genetic algorithm feature selection R, caret feature selection, gafsControl R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "gafs()|caret gafs|caret::gafs()|genetic algorithm feature selection|gafsControl()"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret gafs() in R: Genetic Algorithm Feature Selection</h1>
+
+<p class="lead">The caret <code>gafs()</code> function runs genetic algorithm feature selection in R: it evolves a population of candidate predictor subsets across generations, breeding the best performers until it converges on a compact, high-scoring set of features.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>gafs(x, y, iters = 10, gafsControl = ga_ctrl)<span class="qa-cmt">   # core call</span>
+gafsControl(functions = rfGA, method = &quot;cv&quot;)<span class="qa-cmt">     # random forest backend</span>
+gafsControl(functions = treebagGA)<span class="qa-cmt">               # bagged tree backend</span>
+gafs(x, y, popSize = 20, pmutation = 0.1)<span class="qa-cmt">        # tune the search</span>
+gafs_fit$optVariables<span class="qa-cmt">                            # the chosen variables</span>
+gafs_fit$fit<span class="qa-cmt">                                     # model on the final subset</span>
+plot(gafs_fit) + theme_bw()<span class="qa-cmt">                      # fitness across generations</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is gafs() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">search feature subsets with a GA</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">gafs(x, y, iters = 10)</text><text x="125" y="126" class="branch-label">search with simulated annealing instead</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">safs(x, y, iters = 100)</text><text x="125" y="182" class="branch-label">rank then eliminate by resampling</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">rfe(x, y, sizes, rfeControl)</text><text x="125" y="238" class="branch-label">filter predictors one at a time</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">sbf(x, y, sbfControl)</text><text x="125" y="294" class="branch-label">drop near-constant columns first</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">nearZeroVar(df, names = TRUE)</text><text x="125" y="350" class="branch-label">drop correlated predictors first</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">findCorrelation(cor(df))</text><text x="125" y="406" class="branch-label">just rank importance, no selection</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">varImp(model)</text></svg></div>
+
+<h2>What gafs() does in one sentence</h2>
+
+<p><strong><code>gafs()</code> runs a genetic algorithm to search for the best feature subset.</strong> A genetic algorithm treats each candidate subset as a chromosome, a binary string where a 1 keeps a predictor and a 0 drops it. It starts from a random population of subsets, scores each one by fitting a model, then breeds the strongest performers through crossover and mutation to seed the next generation.</p>
+
+<p>Over successive generations the population drifts toward subsets that score well on resampled data. Because the search explores combinations rather than judging predictors one at a time, <code>gafs()</code> can keep variables that only help when paired with others, an interaction that a filter method cannot see. The trade-off is cost: every chromosome in every generation needs a model fit, so <code>gafs()</code> runs far slower than <code>rfe()</code> or <code>sbf()</code>.</p>
+
+<h2>gafs() syntax and arguments</h2>
+
+<p><strong><code>gafs()</code> needs a predictor set, an outcome, an iteration count, and a control object.</strong> The control object decides which model scores each subset and how external resampling estimates honest performance.</p>
+
+<div class="webr-container" data-block-title="Load caret and prepare data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and prepare data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(1)
+x &lt;- mtcars[, c(&quot;cyl&quot;, &quot;disp&quot;, &quot;hp&quot;, &quot;drat&quot;, &quot;wt&quot;, &quot;qsec&quot;, &quot;gear&quot;, &quot;carb&quot;)]
+y &lt;- mtcars$mpg
+dim(x)
+#&gt; [1] 32  8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments that matter most are:</p>
+
+<ul>
+
+<li><code>x</code>: a data frame or matrix of predictors only, with the outcome removed.</li>
+
+<li><code>y</code>: the response, numeric for regression or a factor for classification.</li>
+
+<li><code>iters</code>: the number of generations the genetic algorithm runs.</li>
+
+<li><code>popSize</code>: how many candidate subsets live in each generation.</li>
+
+<li><code>pcrossover</code> and <code>pmutation</code>: probabilities that control how offspring subsets are bred.</li>
+
+<li><code>gafsControl</code>: the object returned by <code>gafsControl()</code>, which sets the backend model and resampling.</li>
+
+</ul>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always set a seed before <code>gafs()</code>.</strong> The genetic algorithm seeds its first population at random and mutates subsets stochastically, so two runs can return different features. A <code>set.seed()</code> call directly before <code>gafs()</code> makes the selected subset reproducible.</div></div>
+
+<h2>A worked gafs() example</h2>
+
+<p><strong>Build the control object first, then pass it to <code>gafs()</code>.</strong> Here <code>rfGA</code> powers the search with random forests and <code>method = &quot;cv&quot;</code> requests 5-fold external cross-validation. The <code>iters</code> and <code>popSize</code> values are kept small so the example finishes quickly.</p>
+
+<div class="webr-container" data-block-title="Run genetic algorithm feature selection">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run genetic algorithm feature selection</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ga_ctrl &lt;- gafsControl(functions = rfGA, method = &quot;cv&quot;, number = 5)
+
+set.seed(1)
+gafs_fit &lt;- gafs(x, y, iters = 5, popSize = 10, gafsControl = ga_ctrl)
+gafs_fit
+#&gt; Genetic Algorithm Feature Selection
+#&gt;
+#&gt; 32 samples
+#&gt; 8 predictors
+#&gt;
+#&gt; Maximum generations: 5
+#&gt; Population per generation: 10
+#&gt; Crossover probability: 0.8
+#&gt; Mutation probability: 0.1
+#&gt;
+#&gt; External performance values: RMSE, Rsquared, MAE
+#&gt; External resampling method: Cross-Validated (5 fold)
+#&gt;
+#&gt; The final subset selected 4 variables (out of 8)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The genetic algorithm explored subsets for five generations and converged on four predictors. The external cross-validation loop scored each generation's best subset on held-out folds, so the reported performance reflects how the model would generalize.</p>
+
+<div class="webr-container" data-block-title="Extract the selected predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract the selected predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">gafs_fit$optVariables
+#&gt; [1] &quot;cyl&quot;  &quot;hp&quot;   &quot;wt&quot;   &quot;qsec&quot;
+
+length(gafs_fit$optVariables)
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>gafs()</code> runs two nested resampling loops.</strong> The inner loop scores chromosomes to drive the genetic search, while the outer loop holds back folds to estimate true performance of the whole selection process. Reading the outer score keeps you honest, because the inner score is optimistic by design.</div></div>
+
+<h2>Tuning the genetic search</h2>
+
+<p><strong>The <code>functions</code> argument decides which model scores each candidate subset.</strong> caret ships three ready-made genetic-algorithm backends, and the right one depends on your outcome type and how nonlinear the relationships are.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th><code>functions</code></th>
+<th>Model used</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rfGA</code></td>
+<td>Random forest</td>
+<td>Mixed predictors, nonlinear effects</td>
+</tr>
+<tr>
+<td><code>treebagGA</code></td>
+<td>Bagged trees</td>
+<td>Robust search with few tuning knobs</td>
+</tr>
+<tr>
+<td><code>caretGA</code></td>
+<td>Any <code>train()</code> model</td>
+<td>Custom model chosen via <code>method</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The genetic operators control how aggressively the search explores. A larger <code>popSize</code> covers more subsets per generation, more <code>iters</code> gives the population longer to converge, and a higher <code>pmutation</code> injects diversity that helps escape a local optimum. The full backend reference lives in the <a href="https://topepo.github.io/caret/feature-selection-using-genetic-algorithms.html">caret feature selection guide</a>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>gafs()</code> is a wrapper method, like <code>rfe()</code>.</strong> Both judge predictors by how a real model performs rather than by a standalone statistic. <code>gafs()</code> differs by searching combinations through evolution instead of stepwise elimination, which makes it slower but better at uncovering predictor interactions.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most disappointing <code>gafs()</code> runs.</strong> Each one has a clear symptom once you know what to look for.</p>
+
+<ul>
+
+<li><strong>Setting <code>iters</code> and <code>popSize</code> too low.</strong> A genetic algorithm needs a reasonable population and enough generations to evolve. Tiny values converge on a near-random subset. Start around <code>popSize = 20</code> and <code>iters = 10</code>, then raise them if the fitness curve is still climbing.</li>
+
+<li><strong>Leaving the outcome inside <code>x</code>.</strong> If the response column stays in the predictor matrix, every model fits it perfectly and <code>gafs()</code> keeps only that column. Always build <code>x</code> and <code>y</code> as separate objects.</li>
+
+<li><strong>Trusting the internal score as a final result.</strong> The internal RMSE drove the search, so it is optimistic. Read <code>gafs_fit</code> external performance, or score the final subset on a fresh hold-out set.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>gafs()</code> is computationally expensive.</strong> It fits one model per chromosome per generation, multiplied by every external resampling fold. A run with <code>popSize = 50</code>, <code>iters = 20</code>, and 10-fold CV trains 10,000 models. Profile on small settings before scaling up, and consider <code>allowParallel = TRUE</code> in <code>gafsControl()</code>.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run genetic algorithm feature selection on the four iris measurements to classify <code>Species</code>, using the random forest backend and 5-fold cross-validation. Save the result to <code>ex_gafs</code>.</p>
+<div class="webr-container" data-block-title="Your turn: gafs on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: gafs on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: select predictors for Species
+ex_ctrl &lt;- gafsControl(functions = rfGA, method = &quot;cv&quot;, number = 5)
+ex_gafs &lt;- # your code here
+
+ex_gafs$optVariables
+#&gt; Expected: the petal measurements dominate the subset</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+ex_ctrl &lt;- gafsControl(functions = rfGA, method = &quot;cv&quot;, number = 5)
+ex_gafs &lt;- gafs(iris[, 1:4], iris$Species,
+                iters = 5, popSize = 10, gafsControl = ex_ctrl)
+ex_gafs$optVariables
+#&gt; [1] &quot;Petal.Length&quot; &quot;Petal.Width&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The genetic algorithm scores subsets with random forest accuracy and evolves toward the two petal measurements, since they separate the iris species far better than the sepal measurements.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p><strong><code>gafs()</code> is one of several feature-selection tools in caret.</strong> Reach for a neighbour when an evolutionary search is not the right fit:</p>
+
+<ul>
+
+<li><code>safs()</code>: simulated annealing search over feature subsets.</li>
+
+<li><code>rfe()</code>: recursive feature elimination, ranks then drops predictors.</li>
+
+<li><code>sbf()</code>: selection by filter, scores predictors one at a time.</li>
+
+<li><code>varImp()</code>: ranks predictor importance without removing anything.</li>
+
+<li><code>nearZeroVar()</code>: drops near-constant columns before any search.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between gafs() and rfe()?</strong></p>
+
+<p>Both are wrapper methods that judge predictors by model performance under resampling. <code>rfe()</code> ranks predictors and removes the weakest in a fixed stepwise order, so it follows one path. <code>gafs()</code> evolves a whole population of subsets through crossover and mutation, exploring many combinations at once. <code>gafs()</code> is slower but can find predictor interactions that a stepwise search walks past. Use <code>rfe()</code> for speed and <code>gafs()</code> when combinations matter.</p>
+
+<p><strong>How long does gafs() take to run?</strong></p>
+
+<p><code>gafs()</code> fits one model for every chromosome in every generation, then multiplies that by each external resampling fold. A run with <code>popSize = 50</code>, <code>iters = 20</code>, and 10-fold cross-validation trains roughly 10,000 models. Runtime grows with all three settings and the cost of the backend model. Start small, watch the fitness curve, and enable <code>allowParallel = TRUE</code> in <code>gafsControl()</code> before scaling up.</p>
+
+<p><strong>What does gafsControl() do?</strong></p>
+
+<p><code>gafsControl()</code> configures everything outside the genetic operators. Its <code>functions</code> argument picks the backend model (<code>rfGA</code>, <code>treebagGA</code>, or <code>caretGA</code>), <code>method</code> and <code>number</code> set the external resampling scheme, and <code>metric</code> chooses the score used to compare generations. The object it returns is passed to the <code>gafsControl</code> argument of <code>gafs()</code>, keeping search settings separate from evolution settings.</p>
+
+<p><strong>Can gafs() be used for classification?</strong></p>
+
+<p>Yes. Pass a factor as <code>y</code> and the genetic algorithm switches to a classification backend automatically. With <code>rfGA</code> it scores subsets by accuracy or Kappa instead of RMSE, and <code>gafs()</code> reports the subset of predictors that maximizes classification performance across the external resampling folds.</p>
