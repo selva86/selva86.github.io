@@ -1,0 +1,329 @@
+---
+title: "recipes step_impute_median() in R: Impute Missing Values"
+description: "Learn how recipes step_impute_median() fills missing numeric values with the column median in R. Syntax, airquality examples, and median vs mean imputation."
+keywords: "recipes step_impute_median, step_impute_median function R, recipes step_impute_median examples, R median imputation recipes, tidymodels impute median, step_impute_median vs step_impute_mean"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_impute_median()|recipes step_impute_median|recipes::step_impute_median()|median imputation|step_impute_median tidymodels"
+auto_link_case_sensitive: true
+fr_parent: "Missing-Value-Treatment-With-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>recipes step_impute_median() in R: Impute Missing Values</h1>
+
+<p class="lead">recipes step_impute_median() fills missing numeric values with the column median, learned from training data during prep() and applied during bake(). It is the <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a>-resistant imputation step in the tidymodels recipes package.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_impute_median(rec, x)<span class="qa-cmt">                          # impute one column</span>
+step_impute_median(rec, x, y)<span class="qa-cmt">                       # impute several columns</span>
+step_impute_median(rec, all_numeric_predictors())<span class="qa-cmt">   # all numeric predictors</span>
+prep(rec) |&gt; bake(new_data = NULL)<span class="qa-cmt">                  # apply to training data</span>
+tidy(prepped, number = 1)<span class="qa-cmt">                           # see the learned medians</span>
+recipe(y ~ ., data = df) |&gt; step_impute_median(x)<span class="qa-cmt">   # inside a full recipe</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_impute_median() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">impute skewed numeric NAs</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_impute_median(rec, all_numeric_predictors())</text><text x="125" y="126" class="branch-label">impute symmetric numeric NAs</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_impute_mean(rec, x)</text><text x="125" y="182" class="branch-label">impute categorical NAs</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_impute_mode(rec, grp)</text><text x="125" y="238" class="branch-label">impute from similar rows</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_impute_knn(rec, x)</text><text x="125" y="294" class="branch-label">impute from a linear model</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">step_impute_linear(rec, x)</text><text x="125" y="350" class="branch-label">drop rows with NA entirely</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">step_naomit(rec, all_predictors())</text></svg></div>
+
+<h2>What step_impute_median() does</h2>
+
+<p><strong>step_impute_median() is a recipe step that replaces missing numeric values with the median of each column.</strong> It belongs to the <a href="https://recipes.tidymodels.org/">recipes</a> package, the preprocessing engine of tidymodels. You add the step to a recipe object and it becomes one stage of a reproducible feature-engineering pipeline.</p>
+
+<p>The step runs in two phases. When you call <code>prep()</code>, it computes the median of each selected column from the training data and stores it. When you call <code>bake()</code>, it uses those stored medians to fill <code>NA</code> values in any dataset you pass. Because the value is learned once and reused everywhere, median imputation inside a recipe stays safe for modelling.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The median ignores how extreme the outliers are.</strong> It is the middle value of the sorted column, so a handful of huge readings cannot drag it. That is why <code>step_impute_median()</code> is the safer default for skewed data, while <code>step_impute_mean()</code> gets pulled toward the tail.</div></div>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>The signature is short, and unlike step_impute_mean() there is no trim argument to tune.</strong> Here is the call with its defaults:</p>
+
+<div class="webr-container" data-block-title="step_impute_median signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">step_impute_median signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">step_impute_median(
+  recipe,
+  ...,
+  role = NA,
+  trained = FALSE,
+  medians = NULL,
+  skip = FALSE,
+  id = rand_id(&quot;impute_median&quot;)
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments you will actually set:</p>
+
+<ul>
+
+<li><code>recipe</code>: the recipe object you are adding the step to.</li>
+
+<li><code>...</code>: one or more selectors naming the columns to impute, such as <code>Ozone</code> or <code>all_numeric_predictors()</code>.</li>
+
+<li><code>skip</code>: if <code>TRUE</code>, the step is skipped when baking new data. Leave it <code>FALSE</code> for imputation.</li>
+
+</ul>
+
+<p>The <code>medians</code> argument is filled automatically during <code>prep()</code>, so never set it by hand. There is no <code>trim</code> option because the median is already a robust statistic.</p>
+
+<h2>step_impute_median() examples</h2>
+
+<p><strong>Median imputation earns its place when a column is skewed.</strong> The built-in <code>airquality</code> dataset makes this concrete: its <code>Ozone</code> column is right-skewed, so the mean and median disagree.</p>
+
+<div class="webr-container" data-block-title="Load recipes and compare mean to median">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load recipes and compare mean to median</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+mean(airquality$Ozone, na.rm = TRUE)
+#&gt; [1] 42.12931
+median(airquality$Ozone, na.rm = TRUE)
+#&gt; [1] 31.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The mean sits about 10 units above the median because a few high ozone readings inflate it. Filling gaps with <code>31.5</code> keeps the imputed values closer to a typical day. Now build a recipe that imputes both incomplete columns.</p>
+
+<div class="webr-container" data-block-title="Build and prep a median-imputation recipe">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build and prep a median-imputation recipe</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec &lt;- recipe(Temp ~ ., data = airquality) |&gt;
+  step_impute_median(Ozone, Solar.R)
+
+prepped &lt;- prep(rec, training = airquality)
+imputed &lt;- bake(prepped, new_data = airquality)
+
+colSums(is.na(imputed))
+#&gt;   Ozone Solar.R    Wind   Month     Day    Temp
+#&gt;       0       0       0       0       0       0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every gap is filled. To see the exact values inserted, call <code>tidy()</code> on the prepped recipe with the step number.</p>
+
+<div class="webr-container" data-block-title="Inspect the learned median values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the learned median values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(prepped, number = 1)
+#&gt; # A tibble: 2 x 3
+#&gt;   terms   value id
+#&gt;   &lt;chr&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 Ozone    31.5 impute_median_x1a2b
+#&gt; 2 Solar.R   205 impute_median_x1a2b</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Listing columns by hand does not scale. The <code>all_numeric_predictors()</code> selector imputes every numeric predictor in one call.</p>
+
+<div class="webr-container" data-block-title="Impute every numeric predictor at once">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Impute every numeric predictor at once</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_all &lt;- recipe(Temp ~ ., data = airquality) |&gt;
+  step_impute_median(all_numeric_predictors()) |&gt;
+  prep()
+
+baked &lt;- bake(rec_all, new_data = NULL)
+colSums(is.na(baked))
+#&gt;   Ozone Solar.R    Wind   Month     Day    Temp
+#&gt;       0       0       0       0       0       0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use bake(new_data = NULL) to retrieve the processed training data.</strong> Once a recipe is prepped, passing <code>NULL</code> returns the already-imputed training set without re-running <code>prep()</code>, which is faster than baking the original frame again.</div></div>
+
+<h2>Median vs mean imputation: which to use</h2>
+
+<p><strong>Median imputation and mean imputation fill the same gaps, but they behave differently on messy data.</strong> The choice comes down to the shape of the column.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Aspect</th>
+<th>step_impute_median()</th>
+<th>step_impute_mean()</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Best for</td>
+<td>Skewed columns, outliers present</td>
+<td>Roughly symmetric columns</td>
+</tr>
+<tr>
+<td>Pulled by outliers</td>
+<td>No</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>trim argument</td>
+<td>Not available</td>
+<td>Available</td>
+</tr>
+<tr>
+<td>Replacement value</td>
+<td>Middle sorted value</td>
+<td>Arithmetic average</td>
+</tr>
+</tbody>
+</table>
+
+<p>Decision rule: reach for <code>step_impute_median()</code> when a column is skewed or has outliers, which covers most real-world counts, prices, and durations. Use <code>step_impute_mean()</code> only when a column is roughly symmetric. When unsure, the median is the safer default because it cannot be distorted by a few extreme rows.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>The most common surprise is that non-numeric columns are silently ignored.</strong> <code>step_impute_median()</code> only touches numeric columns. Point it at a factor and the <code>NA</code> values stay in place with no error.</p>
+
+<div class="webr-container" data-block-title="Pitfall: non-numeric columns are skipped">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: non-numeric columns are skipped</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(x = c(1, NA, 5), grp = factor(c(&quot;a&quot;, NA, &quot;b&quot;)))
+
+baked &lt;- recipe(~ ., data = df) |&gt;
+  step_impute_median(all_predictors()) |&gt;
+  prep() |&gt;
+  bake(new_data = NULL)
+
+baked
+#&gt;   x  grp
+#&gt; 1 1    a
+#&gt; 2 3 &lt;NA&gt;
+#&gt; 3 5    b</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The numeric <code>x</code> is filled with its median <code>3</code>, but the factor <code>grp</code> keeps its <code>NA</code>. Use <code>step_impute_mode()</code> for categorical columns.</p>
+
+<p>Two more traps to avoid:</p>
+
+<ul>
+
+<li><strong>Imputing before splitting.</strong> Build the recipe on the training split only. Computing the median on the full dataset leaks test information into the model.</li>
+
+<li><strong>Imputing the outcome.</strong> Selectors like <code>all_numeric_predictors()</code> exclude the response, but a bare column name does not. Never impute the variable you are predicting.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A column that is all NA cannot be imputed.</strong> If every value in a selected column is missing, the median is <code>NA</code> and the step fills nothing. Drop such columns with <code>step_zv()</code> or remove them before the recipe.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a recipe on <code>airquality</code> that imputes only the <code>Ozone</code> column with its median, then confirm no <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> remain. Save the baked data to <code>ex_imputed</code>.</p>
+<div class="webr-container" data-block-title="Your turn: impute Ozone">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: impute Ozone</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: impute only Ozone with the median
+ex_imputed &lt;- # your code here
+
+sum(is.na(ex_imputed$Ozone))
+#&gt; Expected: 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_imputed &lt;- recipe(Temp ~ ., data = airquality) |&gt;
+  step_impute_median(Ozone) |&gt;
+  prep() |&gt;
+  bake(new_data = NULL)
+
+sum(is.na(ex_imputed$Ozone))
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The recipe selects only <code>Ozone</code>, learns its median during <code>prep()</code>, and <code>bake(new_data = NULL)</code> returns the processed training data with the gaps filled.</p>
+
+</details>
+</section>
+
+<h2>Related recipes steps</h2>
+
+<p><strong>These steps pair naturally with median imputation in a preprocessing pipeline.</strong></p>
+
+<ul>
+
+<li><code>step_impute_mean()</code>: mean fill, best for symmetric numeric columns.</li>
+
+<li><code>step_impute_mode()</code>: most-frequent-value fill for categorical columns.</li>
+
+<li><code>step_impute_knn()</code>: imputes from k nearest neighbours.</li>
+
+<li><code>step_impute_linear()</code>: imputes from a linear model of other predictors.</li>
+
+<li><code>step_normalize()</code>: centre and scale numeric columns after imputing.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between step_impute_median() and step_medianimpute()?</strong></p>
+
+<p>They do the same thing. <code>step_medianimpute()</code> was the original name and was deprecated in recipes 0.1.16 in favour of <code>step_impute_median()</code>. The new spelling groups every imputation step under a shared <code>step_impute_*</code> prefix. Old code still runs but raises a deprecation warning, so update calls to the current name when you can.</p>
+
+<p><strong>Does step_impute_median() work on factor or character columns?</strong></p>
+
+<p>No. <code>step_impute_median()</code> operates only on numeric columns. If you select a factor or character column, its missing values are left in place with no error or warning. For <a class="auto-link" href="Categorical-Data-in-R.html" title="Categorical Data in R: Frequency Tables, Crosstabs & Mosaic Plots">categorical data</a> use <code>step_impute_mode()</code>, which fills with the most frequent level instead.</p>
+
+<p><strong>When should I use median instead of mean imputation?</strong></p>
+
+<p>Use median imputation when a column is skewed or contains outliers, because the median is the middle value and cannot be pulled toward extreme readings. Counts, prices, incomes, and durations are usually skewed, so the median is a sensible default. Switch to <code>step_impute_mean()</code> only when a column is roughly symmetric.</p>
+
+<p><strong>Does step_impute_median() cause data leakage?</strong></p>
+
+<p>Not when used correctly. The median is computed only during <code>prep()</code>, which you run on the training set. When you <code>bake()</code> validation or test data, recipes reuses the stored training median. Leakage happens only if you prep the recipe on the full dataset before splitting, so always split your data first.</p>
+
+{% endraw %}
