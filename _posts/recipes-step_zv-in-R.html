@@ -1,0 +1,340 @@
+---
+title: "recipes step_zv() in R: Remove Zero-Variance Predictors"
+description: "Learn how the recipes step_zv() function in R removes zero-variance predictors, constant columns with a single value, with runnable prep and bake examples."
+keywords: "recipes step_zv, step_zv function R, recipes step_zv example, R remove zero variance predictors, step_zv tidymodels, zero variance filter R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_zv()|recipes step_zv|recipes::step_zv()|zero-variance predictors|step_zv"
+auto_link_case_sensitive: true
+fr_parent: "caret-preProcess-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>recipes step_zv() in R: Remove Zero-Variance Predictors</h1>
+
+<p class="lead">The recipes <code>step_zv()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> removes zero-variance predictors, columns that contain only a single unique value, so they cannot destabilize a model or a downstream preprocessing step.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_zv(rec, all_predictors())<span class="qa-cmt">            # drop every constant column</span>
+step_zv(rec, x, y)<span class="qa-cmt">                        # screen named columns only</span>
+step_zv(rec, all_numeric_predictors())<span class="qa-cmt">    # numeric predictors only</span>
+step_dummy(x) |&gt; step_zv(all_predictors())<span class="qa-cmt"> # after dummy encoding</span>
+prep(rec); bake(rec, new_data = NULL)<span class="qa-cmt">     # train, then apply</span>
+tidy(prep(rec), number = 1)<span class="qa-cmt">               # list removed columns</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_zv() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">column has one unique value</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_zv(rec, all_predictors())</text><text x="125" y="126" class="branch-label">column nearly constant, not exactly</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_nzv(rec, all_predictors())</text><text x="125" y="182" class="branch-label">predictors strongly correlated</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_corr(rec, all_numeric_predictors())</text><text x="125" y="238" class="branch-label">columns are exact linear combos</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_lincomb(rec, all_numeric_predictors())</text><text x="125" y="294" class="branch-label">drop a specific column by name</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">step_rm(rec, bad_col)</text><text x="125" y="350" class="branch-label">compress many predictors</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">step_pca(rec, all_numeric_predictors())</text></svg></div>
+
+<h2>What step_zv() does</h2>
+
+<p><strong>step_zv() deletes any column that has zero variance, meaning every row holds the same value.</strong> A constant column carries no information a model can learn from. Worse, it can trigger errors: many fitting routines fail when a predictor has no spread, and operations like scaling divide by a standard deviation of zero.</p>
+
+<p><code>step_zv()</code> screens the columns you select while the recipe is prepared. During <code>prep()</code> it counts the distinct values in each selected column. Any column with exactly one distinct value is marked for removal, and <code>bake()</code> then drops it from every data frame the recipe touches, training and new data alike.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A zero-variance column is decided from the data passed to prep(), not declared in advance.</strong> step_zv() learns the removal list once during preparation, then applies that same list consistently to every new dataset.</div></div>
+
+<h2>step_zv() syntax and arguments</h2>
+
+<p><strong>step_zv() takes a recipe and a <a class="auto-link" href="dplyr-select-in-R.html" title="dplyr select() in R: Choose, Rename and Reorder Columns">column selection</a>, and almost never needs anything else.</strong> It is a selection step, so you can name columns directly or use tidyselect helpers such as <code>all_predictors()</code> or <code>all_numeric_predictors()</code>.</p>
+
+<div class="webr-container" data-block-title="step_zv signature and arguments">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">step_zv signature and arguments</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">step_zv(
+  recipe,
+  ...,                  # columns to screen for zero variance
+  role = NA,
+  trained = FALSE,
+  group = NULL,         # optional: judge variance within groups
+  removals = NULL,
+  skip = FALSE,
+  id = rand_id(&quot;zv&quot;)
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Most workflows pass only the recipe and a selector. The <code>removals</code> slot is filled automatically at <code>prep()</code> time with the names of the constant columns. The <code>group</code> argument is for the rare case where a column should be considered constant only within levels of another variable. The full reference lives in the <a href="https://recipes.tidymodels.org/reference/step_zv.html">recipes documentation</a>.</p>
+
+<h2>step_zv() examples</h2>
+
+<p><strong>The pattern is always prep then bake.</strong> <code>prep()</code> finds the constant columns; <code>bake()</code> removes them. The examples below start from a small dataset where one predictor never changes.</p>
+
+<div class="webr-container" data-block-title="Drop a constant column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop a constant column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+train &lt;- data.frame(
+  age    = c(34, 41, 29, 52, 38),
+  region = c(&quot;east&quot;, &quot;east&quot;, &quot;east&quot;, &quot;east&quot;, &quot;east&quot;),
+  income = c(48, 61, 39, 72, 55)
+)
+
+zv_rec &lt;- recipe(income ~ ., data = train) |&gt;
+  step_zv(all_predictors()) |&gt;
+  prep()
+
+bake(zv_rec, new_data = NULL)
+#&gt; # A tibble: 5 x 2
+#&gt;     age income
+#&gt;   &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1    34     48
+#&gt; 2    41     61
+#&gt; 3    29     39
+#&gt; 4    52     72
+#&gt; 5    38     55</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>region</code> column held <code>&quot;east&quot;</code> in every row, so <code>step_zv()</code> dropped it. Only <code>age</code> and <code>income</code> survive. To confirm exactly which columns were removed, call <code>tidy()</code> on the prepared recipe and pass the step number.</p>
+
+<div class="webr-container" data-block-title="See which columns step_zv removed">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">See which columns step_zv removed</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(zv_rec, number = 1)
+#&gt; # A tibble: 1 x 2
+#&gt;   terms  id
+#&gt;   &lt;chr&gt;  &lt;chr&gt;
+#&gt; 1 region zv_AbC12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>terms</code> column lists every removed predictor. An empty tibble means no column was constant. This is the quickest audit when a recipe silently changes the number of columns it returns.</p>
+
+<p><code>step_zv()</code> is most valuable right after <code>step_dummy()</code>. Dummy encoding can create indicator columns that are all zeros when a factor level never appears in the data, and those columns have zero variance.</p>
+
+<div class="webr-container" data-block-title="step_zv after step_dummy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">step_zv after step_dummy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train2 &lt;- data.frame(
+  grade = factor(c(&quot;A&quot;, &quot;A&quot;, &quot;A&quot;, &quot;A&quot;, &quot;A&quot;), levels = c(&quot;A&quot;, &quot;B&quot;)),
+  hours = c(3, 5, 2, 6, 4),
+  score = c(70, 85, 60, 90, 78)
+)
+
+dummy_rec &lt;- recipe(score ~ ., data = train2) |&gt;
+  step_dummy(grade) |&gt;
+  step_zv(all_predictors()) |&gt;
+  prep()
+
+bake(dummy_rec, new_data = NULL)
+#&gt; # A tibble: 5 x 2
+#&gt;   hours score
+#&gt;   &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1     3    70
+#&gt; 2     5    85
+#&gt; 3     2    60
+#&gt; 4     6    90
+#&gt; 5     4    78</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The factor <code>grade</code> declares level <code>B</code>, but no row uses it, so <code>step_dummy()</code> produced an all-zero <code>grade_B</code> column. <code>step_zv()</code> then removed that dead column before it could reach the model. You can also restrict screening to named columns instead of every predictor.</p>
+
+<div class="webr-container" data-block-title="Screen only named columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Screen only named columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mixed &lt;- data.frame(
+  const_a = rep(1, 5),
+  varies  = c(2, 9, 4, 7, 1),
+  const_b = rep(&quot;z&quot;, 5),
+  y       = c(10, 22, 13, 19, 8)
+)
+
+named_rec &lt;- recipe(y ~ ., data = mixed) |&gt;
+  step_zv(const_a, varies) |&gt;
+  prep()
+
+bake(named_rec, new_data = NULL)
+#&gt; # A tibble: 5 x 3
+#&gt;   varies const_b     y
+#&gt;    &lt;dbl&gt; &lt;chr&gt;    &lt;dbl&gt;
+#&gt; 1      2 z           10
+#&gt; 2      9 z           22
+#&gt; 3      4 z           13
+#&gt; 4      7 z           19
+#&gt; 5      1 z            8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Only <code>const_a</code> and <code>varies</code> were screened, so <code>const_a</code> was dropped while <code>const_b</code> stayed, even though it is also constant. Selection scopes the check; an unselected constant column passes through untouched.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python scikit-learn?</strong> The equivalent is <code>VarianceThreshold(threshold=0.0)</code>, which drops features with zero variance. step_zv() differs by learning the removal list inside the recipe so the same columns are dropped from training and scoring data automatically.</div></div>
+
+<h2>step_zv() vs step_nzv() vs step_corr()</h2>
+
+<p><strong>Three recipes steps remove unhelpful columns, but each targets a different defect.</strong> Choosing the wrong one either keeps noise you wanted gone or deletes columns you meant to keep.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>Removes</th>
+<th>Decided from</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_zv()</code></td>
+<td>Columns with exactly one unique value</td>
+<td>Count of distinct values</td>
+</tr>
+<tr>
+<td><code>step_nzv()</code></td>
+<td>Columns that are nearly constant</td>
+<td>Frequency ratio and unique-value percentage</td>
+</tr>
+<tr>
+<td><code>step_corr()</code></td>
+<td>Columns highly correlated with another predictor</td>
+<td>Pairwise <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">correlation matrix</a></td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>step_zv()</code> for strictly constant columns: it is cheap, safe, and rarely surprises you. Reach for <code>step_nzv()</code> when a column is overwhelmingly one value but not perfectly constant, such as 999 zeros and a single one. Use <code>step_corr()</code> to thin out redundant numeric predictors. Many pipelines run <code>step_zv()</code> first as a guaranteed-safe filter, then add the others.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most step_zv() confusion.</strong></p>
+
+<ol>
+
+<li><strong>Expecting it to catch near-constant columns.</strong> <code>step_zv()</code> removes a column only when every value is identical. A column that is 99 percent one value still has variance and survives. Use <code>step_nzv()</code> for that case.</li>
+
+<li><strong>Running it before <code>step_dummy()</code>.</strong> All-zero dummy columns do not exist until <code>step_dummy()</code> runs. Place <code>step_zv()</code> after the dummy step so it can see and remove them.</li>
+
+<li><strong>Assuming the removed set is fixed.</strong> Zero variance is judged from the data given to <code>prep()</code>. Under resampling, a column constant in one fold may vary in another, so the removal list can differ across resamples.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>step_zv() silently changes the column count.</strong> A baked data frame can have fewer columns than the input with no message. If downstream code expects specific columns by position, call <code>tidy()</code> to confirm what was dropped.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a recipe on the training frame below, add <code>step_zv()</code> to all predictors, and bake the training data. The <code>flag</code> column is constant and should disappear. Save the result to <code>ex_baked</code>.</p>
+<div class="webr-container" data-block-title="Your turn: step_zv on all predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: step_zv on all predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_train &lt;- data.frame(
+  flag  = rep(&quot;yes&quot;, 4),
+  units = c(12, 30, 19, 25),
+  sales = c(220, 540, 360, 480)
+)
+# Try it: prep a recipe with step_zv(all_predictors()), then bake
+ex_baked &lt;- # your code here
+
+ex_baked
+#&gt; Expected: flag removed, units and sales remain</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec &lt;- recipe(sales ~ ., data = ex_train) |&gt;
+  step_zv(all_predictors()) |&gt;
+  prep()
+
+ex_baked &lt;- bake(ex_rec, new_data = NULL)
+ex_baked
+#&gt; # A tibble: 4 x 2
+#&gt;   units sales
+#&gt;   &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1    12   220
+#&gt; 2    30   540
+#&gt; 3    19   360
+#&gt; 4    25   480</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>flag</code> holds <code>&quot;yes&quot;</code> in every row, so <code>step_zv()</code> flags it as zero variance during <code>prep()</code> and <code>bake()</code> drops it. The numeric predictor <code>units</code> varies, so it stays.</p>
+
+</details>
+</section>
+
+<h2>Related recipes functions</h2>
+
+<p><strong>step_zv() is one filter in a larger column-cleaning toolkit.</strong> These steps frequently appear together in the same recipe:</p>
+
+<ul>
+
+<li><code>step_nzv()</code> removes near-zero-variance columns that are almost, but not exactly, constant.</li>
+
+<li><code>step_corr()</code> drops predictors that are highly correlated with another column.</li>
+
+<li><code>step_lincomb()</code> removes columns that form exact linear combinations of others.</li>
+
+<li><code>step_rm()</code> deletes specific columns you name by hand.</li>
+
+<li><code>step_dummy()</code> converts factors into indicator columns, often paired before <code>step_zv()</code>.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does step_zv() do in R?</strong></p>
+
+<p><code>step_zv()</code> is a recipes step that removes zero-variance predictors, columns where every observation has the same value. When the recipe is prepared with <code>prep()</code>, it counts the distinct values in each selected column and marks any column with a single unique value for removal. <code>bake()</code> then drops those columns from training and new data alike. It is a safe, fast filter commonly used to clean a dataset before modeling.</p>
+
+<p><strong>What is the difference between step_zv() and step_nzv()?</strong></p>
+
+<p><code>step_zv()</code> removes only strictly constant columns, those with exactly one unique value. <code>step_nzv()</code> is more aggressive: it removes near-zero-variance columns that are overwhelmingly one value but not perfectly constant, judged by a frequency ratio and the percentage of unique values. A column with 999 identical entries and one different entry survives <code>step_zv()</code> but is caught by <code>step_nzv()</code>. Use <code>step_zv()</code> when you only want to delete truly dead columns.</p>
+
+<p><strong>Should step_zv() come before or after step_dummy()?</strong></p>
+
+<p>After. <code>step_dummy()</code> builds indicator columns from a factor, and if a level never appears in the data, the corresponding dummy column is all zeros and therefore zero variance. If <code>step_zv()</code> runs first, those dead columns do not exist yet and slip through. Placing <code>step_zv()</code> after <code>step_dummy()</code> lets it see and remove the all-zero indicators before they reach the model.</p>
+
+<p><strong>How do I see which columns step_zv() removed?</strong></p>
+
+<p>Call <code>tidy()</code> on the prepared recipe and pass the step number, for example <code>tidy(prepped_recipe, number = 1)</code>. It returns a tibble whose <code>terms</code> column lists every predictor that was removed for zero variance. An empty tibble means no column was constant. This is the fastest way to audit a recipe when the baked output unexpectedly has fewer columns than the input.</p>
+
+</content>
+
+</invoke>
