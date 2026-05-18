@@ -1,0 +1,330 @@
+---
+title: "recipes step_lincomb() in R: Remove Linear Combinations"
+description: "The recipes step_lincomb() function in R removes predictors that are exact linear combinations of other columns. Runnable prep and bake examples included."
+keywords: "recipes step_lincomb, step_lincomb function R, recipes step_lincomb example, remove linear combinations R, step_lincomb tidymodels, findLinearCombos recipes, perfect multicollinearity R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_lincomb()|recipes step_lincomb|recipes::step_lincomb()|linear combinations|step_lincomb"
+auto_link_case_sensitive: true
+fr_parent: "caret-preProcess-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>recipes step_lincomb() in R: Remove Linear Combinations</h1>
+
+<p class="lead">The recipes <code>step_lincomb()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> removes predictors that are exact linear combinations of other columns, the perfect <a class="auto-link" href="Multicollinearity-in-R.html" title="Multicollinearity in R: Detect It With VIF Before It Corrupts Your Coefficients">multicollinearity</a> that destabilizes a linear model before it can fit.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_lincomb(rec, all_numeric_predictors())<span class="qa-cmt">                 # screen numeric predictors</span>
+step_lincomb(rec, x1, x2, x3)<span class="qa-cmt">                               # named columns only</span>
+step_lincomb(rec, all_numeric_predictors(), max_steps = 10)<span class="qa-cmt"> # allow more removal passes</span>
+prep(rec); bake(rec, new_data = NULL)<span class="qa-cmt">                       # train, then apply</span>
+tidy(prep(rec), number = 1)<span class="qa-cmt">                                 # list removed columns</span>
+bake(prepped, new_data = test)<span class="qa-cmt">                              # apply to fresh data</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_lincomb() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">columns are exact linear combinations</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_lincomb(rec, all_numeric_predictors())</text><text x="125" y="126" class="branch-label">predictors merely correlated in pairs</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_corr(rec, all_numeric_predictors())</text><text x="125" y="182" class="branch-label">column has exactly one unique value</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_zv(rec, all_predictors())</text><text x="125" y="238" class="branch-label">column nearly constant, one value dominates</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_nzv(rec, all_predictors())</text><text x="125" y="294" class="branch-label">compress a correlated set into components</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">step_pca(rec, all_numeric_predictors())</text><text x="125" y="350" class="branch-label">drop a named column outright</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">step_rm(rec, bad_col)</text></svg></div>
+
+<h2>What step_lincomb() does</h2>
+
+<p><strong>step_lincomb() deletes columns that other columns can reproduce exactly.</strong> When one predictor equals a weighted sum of others, it carries zero new information, and the model's design matrix becomes rank deficient. <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">Linear regression</a> then fails to estimate coefficients, or returns <code>NA</code> for the dependent terms. The <code>recipes step_lincomb</code> step finds and removes that exact redundancy before any model sees the data.</p>
+
+<p>Like every recipe step, <code>step_lincomb()</code> runs in two stages. During <code>prep()</code> it inspects the columns you selected, detects every exact linear dependency using a QR decomposition, and records which columns to drop. <code>bake()</code> then removes those columns from the training data and from any new data passed through the recipe later. The detection logic is the same one behind caret's <code>findLinearCombos()</code>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>step_lincomb() targets exact redundancy, not approximate.</strong> A column survives even at a correlation of 0.99; it is removed only when a weighted sum of other columns reproduces it to numerical precision. That makes the step rare on raw data and common after feature engineering, where dummy variables and derived ratios often sum to a constant.</div></div>
+
+<h2>step_lincomb() syntax and arguments</h2>
+
+<p><strong>step_lincomb() is a selection step with almost nothing to configure.</strong> You name columns directly or, more often, use the tidyselect helper <code>all_numeric_predictors()</code>, since linear combinations are only defined for numeric data.</p>
+
+<div class="webr-container" data-block-title="step_lincomb signature and arguments">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">step_lincomb signature and arguments</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">step_lincomb(
+  recipe,
+  ...,                       # columns to screen
+  role = NA,
+  trained = FALSE,
+  max_steps = 5,             # passes of detect-and-remove
+  removals = NULL,
+  skip = FALSE,
+  id = rand_id(&quot;lincomb&quot;)
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The only meaningful knob is <code>max_steps</code>. Removing one column can resolve several dependencies at once, or expose a fresh one, so <code>step_lincomb()</code> repeats the detect-and-remove cycle up to <code>max_steps</code> times. The default of 5 clears almost every real recipe; raise it only if you suspect a deeply tangled set of derived columns. The <code>removals</code> slot is filled automatically at <code>prep()</code> time with the names of the dropped columns. Full argument detail lives in the <a href="https://recipes.tidymodels.org/reference/step_lincomb.html">recipes step_lincomb reference</a>.</p>
+
+<h2>step_lincomb() examples</h2>
+
+<p><strong>Every example follows the prep-then-bake rhythm.</strong> The frame below has four numeric predictors, but <code>x3</code> is built as <code>2 * x1 - x2</code>, an exact linear combination. The <code>x4</code> column is independent noise.</p>
+
+<div class="webr-container" data-block-title="Drop an exact linear combination">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop an exact linear combination</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+set.seed(2026)
+n &lt;- 500
+a &lt;- rnorm(n)
+b &lt;- rnorm(n)
+train &lt;- data.frame(
+  x1     = a,
+  x2     = b,
+  x3     = 2 * a - b,   # exact linear combination of x1 and x2
+  x4     = rnorm(n),
+  target = rnorm(n)
+)
+
+lc_rec &lt;- recipe(target ~ ., data = train) |&gt;
+  step_lincomb(all_numeric_predictors()) |&gt;
+  prep()
+
+names(bake(lc_rec, new_data = NULL))
+#&gt; [1] &quot;x1&quot;     &quot;x2&quot;     &quot;x4&quot;     &quot;target&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>step_lincomb()</code> detects that <code>x3</code> is reconstructable from <code>x1</code> and <code>x2</code>, so it drops <code>x3</code> and keeps the two columns the combination was built from. To confirm exactly what left, call <code>tidy()</code> on the prepared recipe.</p>
+
+<div class="webr-container" data-block-title="List the columns step_lincomb removed">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">List the columns step_lincomb removed</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(lc_rec, number = 1)
+#&gt; # A tibble: 1 x 2
+#&gt;   terms id
+#&gt;   &lt;chr&gt; &lt;chr&gt;
+#&gt; 1 x3    lincomb_aZ9k2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>terms</code> column names every dropped predictor; an empty tibble means no exact dependency was found. The next example shows why <code>step_lincomb()</code> catches redundancy that a correlation filter never will. Here <code>feat_c</code> is the exact sum of <code>feat_a</code> and <code>feat_b</code>, yet each pairwise correlation is only about 0.71.</p>
+
+<div class="webr-container" data-block-title="step_lincomb catches what step_corr misses">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">step_lincomb catches what step_corr misses</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+m &lt;- 800
+f1 &lt;- rnorm(m)
+f2 &lt;- rnorm(m)
+combo2 &lt;- data.frame(
+  feat_a  = f1,
+  feat_b  = f2,
+  feat_c  = f1 + f2,   # exact sum, but each pairwise correlation is only ~0.71
+  outcome = rnorm(m)
+)
+
+# step_corr at the default threshold removes nothing
+recipe(outcome ~ ., data = combo2) |&gt;
+  step_corr(all_numeric_predictors(), threshold = 0.9) |&gt;
+  prep() |&gt; bake(new_data = NULL) |&gt; ncol()
+#&gt; [1] 4
+
+# step_lincomb catches the exact three-column dependency
+recipe(outcome ~ ., data = combo2) |&gt;
+  step_lincomb(all_numeric_predictors()) |&gt;
+  prep() |&gt; bake(new_data = NULL) |&gt; ncol()
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>No pair clears the 0.9 cutoff, so <code>step_corr()</code> leaves all four columns in place. <code>step_lincomb()</code> evaluates the columns jointly, finds the three-way dependency, and removes <code>feat_c</code>. This joint view is the step's whole reason to exist. The decision is learned once during <code>prep()</code> and then applied unchanged to fresh data.</p>
+
+<div class="webr-container" data-block-title="Apply the trained recipe to new data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Apply the trained recipe to new data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">test &lt;- data.frame(
+  x1     = rnorm(40),
+  x2     = rnorm(40),
+  x3     = rnorm(40),
+  x4     = rnorm(40),
+  target = rnorm(40)
+)
+
+names(bake(lc_rec, new_data = test))
+#&gt; [1] &quot;x1&quot;     &quot;x2&quot;     &quot;x4&quot;     &quot;target&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The test frame loses <code>x3</code> even though its own columns are unrelated noise. That is the point: the removal list is fixed from training, so train and test always end with the same schema and no information leaks across the split.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python scikit-learn?</strong> There is no direct equivalent. <code>VarianceThreshold</code> only screens low-variance columns. To remove exact linear combinations you either inspect the rank of the design matrix yourself with <code>numpy.linalg.matrix_rank</code>, or drop dependent columns by hand after one-hot encoding.</div></div>
+
+<h2>step_lincomb() vs step_corr()</h2>
+
+<p><strong>Both steps remove redundant predictors, but they answer different questions.</strong> Using the wrong one either leaves perfect multicollinearity in place or deletes columns that were only loosely related.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>Redundancy detected</th>
+<th>Looks at</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_lincomb()</code></td>
+<td>Exact linear combinations</td>
+<td>All selected columns jointly</td>
+</tr>
+<tr>
+<td><code>step_corr()</code></td>
+<td>High pairwise correlation</td>
+<td>Two columns at a time</td>
+</tr>
+<tr>
+<td><code>step_pca()</code></td>
+<td>Correlated groups, compressed</td>
+<td>All selected columns jointly</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for <code>step_lincomb()</code> when feature engineering may have produced exact dependencies, such as a full set of one-hot dummies or a ratio that duplicates its inputs. Choose <code>step_corr()</code> for the softer problem of predictors that merely move together. Many recipes use both: <code>step_lincomb()</code> first to clear perfect redundancy, then <code>step_corr()</code> to thin the near-duplicates that remain.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Place step_lincomb() right after dummy encoding and <a class="auto-link" href="Interaction-Effects-in-R.html" title="Interaction Effects in R: Add Them, Test Them, and Actually Understand the Output">interaction terms</a>.</strong> Those steps are the usual source of exact linear combinations, because a complete set of indicator columns sums to a constant. Running <code>step_lincomb()</code> immediately afterward catches the dummy-variable trap before it reaches the model.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most step_lincomb() confusion.</strong></p>
+
+<ol>
+
+<li><strong>Expecting it to catch correlated columns.</strong> <code>step_lincomb()</code> ignores any relationship short of exact. Two columns correlated at 0.98 both survive. Use <code>step_corr()</code> for approximate redundancy.</li>
+
+<li><strong>Selecting non-numeric columns.</strong> Linear combinations are numeric-only. Use <code>all_numeric_predictors()</code> rather than <code>all_predictors()</code>, or factor and character columns will trigger an error.</li>
+
+<li><strong>Assuming it keeps the original predictor.</strong> The step removes whichever column the QR decomposition flags as dependent, which is usually the engineered combination. Call <code>tidy()</code> after <code>prep()</code> to see exactly what was dropped.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>step_lincomb() silently changes the column count.</strong> A baked frame can have fewer columns than the input with no message printed. If downstream code references columns by position, call <code>tidy()</code> after <code>prep()</code> to confirm exactly what was removed.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a recipe on the frame below, add <code>step_lincomb()</code> to the numeric predictors, and bake the training data. The <code>bmi_proxy</code> column is an exact linear combination of <code>height</code> and <code>weight</code>, so it should disappear. Save the baked frame to <code>ex_baked</code>.</p>
+<div class="webr-container" data-block-title="Your turn: step_lincomb on numeric predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: step_lincomb on numeric predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+ex_train &lt;- data.frame(
+  height   = rnorm(300, 170, 10),
+  weight   = rnorm(300, 70, 12),
+  income   = rnorm(300, 50000, 8000),
+  response = rnorm(300)
+)
+ex_train$bmi_proxy &lt;- 3 * ex_train$height - 2 * ex_train$weight  # exact combination
+
+# Try it: prep a recipe with step_lincomb(all_numeric_predictors()), then bake
+ex_baked &lt;- # your code here
+
+ncol(ex_baked)
+#&gt; Expected: 4 columns (bmi_proxy removed)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec &lt;- recipe(response ~ ., data = ex_train) |&gt;
+  step_lincomb(all_numeric_predictors()) |&gt;
+  prep()
+
+ex_baked &lt;- bake(ex_rec, new_data = NULL)
+ncol(ex_baked)
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>bmi_proxy</code> is built as <code>3 * height - 2 * weight</code>, an exact linear combination. <code>step_lincomb()</code> detects the dependency during <code>prep()</code> and <code>bake()</code> drops the column, leaving <code>height</code>, <code>weight</code>, <code>income</code>, and <code>response</code>.</p>
+
+</details>
+</section>
+
+<h2>Related recipes functions</h2>
+
+<p><strong>step_lincomb() is one filter in a larger column-cleaning toolkit.</strong> These steps often appear together in the same recipe:</p>
+
+<ul>
+
+<li><code>step_corr()</code> removes predictors with high pairwise correlation below exact redundancy.</li>
+
+<li><code>step_zv()</code> removes strictly constant columns with exactly one unique value.</li>
+
+<li><code>step_nzv()</code> removes near-zero-variance columns that are overwhelmingly one value.</li>
+
+<li><code>step_pca()</code> compresses a correlated set into orthogonal principal components.</li>
+
+<li><code>step_dummy()</code> one-hot encodes factors, a common upstream source of linear combinations.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does step_lincomb() do in R?</strong></p>
+
+<p><code>step_lincomb()</code> is a recipes step that removes predictors which are exact linear combinations of other columns. During <code>prep()</code> it runs a QR decomposition on the selected numeric columns, finds every column reproducible as a weighted sum of others, and records the removals. <code>bake()</code> then drops those columns from the training data and from any new data passed through the recipe. It targets perfect multicollinearity, the kind that makes a regression design matrix rank deficient.</p>
+
+<p><strong>What is the difference between step_lincomb() and step_corr()?</strong></p>
+
+<p><code>step_lincomb()</code> removes columns that are exact linear combinations of others, evaluating all selected columns jointly. <code>step_corr()</code> removes columns with high pairwise correlation, comparing two columns at a time against a threshold. A three-column dependency where each pairwise correlation is moderate is invisible to <code>step_corr()</code> but caught by <code>step_lincomb()</code>. Use <code>step_lincomb()</code> for perfect redundancy and <code>step_corr()</code> for approximate redundancy.</p>
+
+<p><strong>Why did step_lincomb() not remove any columns?</strong></p>
+
+<p>The most common reason is that no exact linear combination exists. Real raw data rarely contains perfect multicollinearity, so <code>step_lincomb()</code> often leaves every column in place and returns an empty <code>tidy()</code> tibble. Exact dependencies usually appear only after feature engineering, such as a full set of one-hot dummies or a derived ratio. If you expected a removal, check that the suspect column is truly an exact weighted sum, not merely a strongly correlated one.</p>
+
+<p><strong>Does step_lincomb() work on factor or character columns?</strong></p>
+
+<p>No. Linear combinations are defined only for numeric data, so <code>step_lincomb()</code> must be pointed at numeric columns. Use the <code>all_numeric_predictors()</code> selector rather than <code>all_predictors()</code>. If you want to screen categorical predictors for redundancy, convert them with <code>step_dummy()</code> first, then place <code>step_lincomb()</code> afterward to catch the exact dependencies that one-hot encoding can create.</p>
+
+</content>
+
+{% endraw %}
