@@ -1,0 +1,370 @@
+---
+title: "recipes step_other() in R: Collapse Rare Factor Levels"
+description: "recipes step_other() in R pools infrequent factor levels into an 'other' category. Learn the threshold argument, worked examples, and the most common pitfalls."
+keywords: "recipes step_other, step_other function R, recipes step_other examples, collapse rare factor levels R, lump infrequent categories R, recipes preprocessing R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_other()|recipes step_other|recipes::step_other()|collapse rare factor levels|pool infrequent levels"
+auto_link_case_sensitive: true
+fr_parent: "Categorical-Data-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>recipes step_other() in R: Collapse Rare Factor Levels</h1>
+
+<p class="lead">recipes step_other() pools infrequent factor levels into a single "other" category during preprocessing, so rare categories do not generate unstable dummy columns in your model.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_other(rec, all_nominal_predictors())<span class="qa-cmt">          # default 5% threshold</span>
+step_other(rec, city, threshold = 0.1)<span class="qa-cmt">             # pool levels under 10%</span>
+step_other(rec, city, threshold = 35)<span class="qa-cmt">              # pool levels under 35 times</span>
+step_other(rec, city, other = &quot;rare_city&quot;)<span class="qa-cmt">         # rename the pooled level</span>
+step_other(rec, all_nominal_predictors(), id = &quot;x&quot;)<span class="qa-cmt">  # set a custom step id</span>
+bake(prep(rec), new_data = NULL)<span class="qa-cmt">                   # apply and view result</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_other() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">pool rare factor levels</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_other(rec, var, threshold = 0.05)</text><text x="125" y="126" class="branch-label">reserve a slot for unseen levels</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_novel(rec, var)</text><text x="125" y="182" class="branch-label">turn factors into dummy columns</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_dummy(rec, var)</text><text x="125" y="238" class="branch-label">label missing factor values</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_unknown(rec, var)</text><text x="125" y="294" class="branch-label">drop near-constant predictors</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">step_nzv(rec, all_predictors())</text><text x="125" y="350" class="branch-label">collapse levels outside a recipe</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code"><a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">forcats</a>::fct_lump_prop(x, 0.05)</text></svg></div>
+
+<h2>What step_other() does</h2>
+
+<p><strong>step_other() is a recipe step that collapses rare categorical levels.</strong> It scans a factor column, finds the levels that occur less often than a threshold, and relabels every one of them as <code>&quot;other&quot;</code>. The frequent levels are left untouched. Adding the step to a recipe records the decision; the actual pooling runs later when you call <code>prep()</code>.</p>
+
+<p>Rare levels are a real modeling problem. A factor with 40 cities where 30 of them appear two or three times will expand into 40 dummy columns under one-hot encoding. Most of those columns are almost entirely zeros, which inflates dimensionality, slows training, and produces coefficients estimated from a handful of rows. Worse, a level present in the test set but absent from training breaks many models outright.</p>
+
+<p><code>step_other()</code> solves all of this at once. By folding the long tail of rare levels into a single <code>&quot;other&quot;</code> bucket, you cut the column count, stabilise the estimates, and give every future unseen category a safe place to land. It is one of the most common steps in a tidymodels preprocessing pipeline for exactly this reason.</p>
+
+<h2>step_other() syntax and arguments</h2>
+
+<p><strong>The signature is small but the threshold argument carries all the logic.</strong> A typical call selects columns inside a recipe pipeline:</p>
+
+<div class="webr-container" data-block-title="The step_other function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The step_other function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">step_other(
+  recipe,
+  ...,                 # columns to pool (tidyselect)
+  role = NA,
+  trained = FALSE,
+  threshold = 0.05,    # proportion (&lt;1) or count (&gt;=1)
+  other = &quot;other&quot;,     # name of the pooled level
+  objects = NULL,
+  skip = FALSE,
+  id = rand_id(&quot;other&quot;)
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two arguments you actually tune are <code>threshold</code> and <code>other</code>. <code>threshold</code> decides which levels count as rare, and <code>other</code> names the bucket they land in. The remaining arguments are managed by recipes itself and can be left at their defaults.</p>
+
+<p>The column selector in <code>...</code> accepts any tidyselect helper. Passing a bare column name pools just that variable, while <code>all_nominal_predictors()</code> pools every categorical predictor in one call, which is the usual choice for a real pipeline.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Default</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>...</code></td>
+<td>required</td>
+<td>Columns to pool, chosen with tidyselect helpers</td>
+</tr>
+<tr>
+<td><code>threshold</code></td>
+<td><code>0.05</code></td>
+<td>Below this rate, a level is pooled</td>
+</tr>
+<tr>
+<td><code>other</code></td>
+<td><code>&quot;other&quot;</code></td>
+<td>Name given to the collapsed level</td>
+</tr>
+<tr>
+<td><code>skip</code></td>
+<td><code>FALSE</code></td>
+<td>If <code>TRUE</code>, the step is bypassed when baking new data</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The threshold flips meaning at 1.</strong> A value below 1 is read as a proportion of the training rows. A value of 1 or more is read as a raw frequency count. <code>threshold = 0.05</code> and <code>threshold = 50</code> answer different questions on a 1,000-row dataset.</div></div>
+
+<h2>step_other() examples</h2>
+
+<p><strong>Every example below uses one skewed factor column so the effect of each setting is easy to compare.</strong> The <code>sales</code> data frame holds 200 rows with a <code>city</code> factor whose levels range from very common (NYC, LA) to very rare (Reno, Tulsa). Watch how the same column is pooled three different ways.</p>
+
+<h3>Pool levels below a proportion</h3>
+
+<p><strong>Start with the default 5% threshold.</strong> Here <code>step_other()</code> pools every city that appears in fewer than 5% of the 200 training rows. Five percent of 200 is 10, so any level seen fewer than 10 times is rare.</p>
+
+<div class="webr-container" data-block-title="Pool rare levels with step_other">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pool rare levels with step_other</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+set.seed(42)
+city &lt;- sample(
+  c(&quot;NYC&quot;, &quot;LA&quot;, &quot;Chicago&quot;, &quot;Boston&quot;, &quot;Miami&quot;, &quot;Reno&quot;, &quot;Tulsa&quot;),
+  size = 200, replace = TRUE,
+  prob = c(0.42, 0.31, 0.17, 0.04, 0.03, 0.02, 0.01)
+)
+sales &lt;- data.frame(city = factor(city), revenue = rnorm(200, 100, 20))
+
+rec &lt;- recipe(revenue ~ city, data = sales) |&gt;
+  step_other(city, threshold = 0.05)
+
+baked &lt;- bake(prep(rec), new_data = NULL)
+table(baked$city)
+#&gt; 
+#&gt; Chicago      LA     NYC   other 
+#&gt;      34      62      84      20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Boston, Miami, Reno, and Tulsa all fell below the 10-row cutoff, so their rows now read <code>&quot;other&quot;</code>. Chicago, LA, and NYC clear the bar and survive as their own levels. The factor went from seven levels to four without dropping a single row of data.</p>
+
+<h3>Use a frequency count threshold</h3>
+
+<p><strong>Pass a value of 1 or more to switch to count mode.</strong> Now any level seen fewer than 35 times is pooled, regardless of dataset size.</p>
+
+<div class="webr-container" data-block-title="Use a frequency count threshold">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use a frequency count threshold</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_count &lt;- recipe(revenue ~ city, data = sales) |&gt;
+  step_other(city, threshold = 35)
+
+table(bake(prep(rec_count), new_data = NULL)$city)
+#&gt; 
+#&gt;    LA    NYC other 
+#&gt;    62    84    54</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Chicago drops into <code>&quot;other&quot;</code> this time because 34 occurrences is under the count of 35. Count thresholds are handy when you have a fixed minimum sample size per level in mind, for example a rule that every modeled category must be backed by at least 35 observations. Because the rule is an absolute count, it behaves consistently no matter how many rows the training set has.</p>
+
+<h3>Rename the pooled level</h3>
+
+<p><strong>The <code>other</code> argument controls the new label.</strong> Combine it with <code>all_nominal_predictors()</code> to pool every categorical predictor at once.</p>
+
+<div class="webr-container" data-block-title="Rename the pooled level">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rename the pooled level</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_named &lt;- recipe(revenue ~ city, data = sales) |&gt;
+  step_other(all_nominal_predictors(), threshold = 0.05,
+             other = &quot;rare_city&quot;)
+
+levels(bake(prep(rec_named), new_data = NULL)$city)
+#&gt; [1] &quot;Chicago&quot;   &quot;LA&quot;        &quot;NYC&quot;       &quot;rare_city&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Unseen levels at prediction time also land in "other".</strong> When <code>bake()</code> meets a city that was not in the training data, <code>step_other()</code> assigns it to the pooled level instead of raising an error. That makes the trained recipe robust to new categories.</div></div>
+
+<div class="webr-container" data-block-title="Unseen levels fall into other">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Unseen levels fall into other</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">new_cities &lt;- data.frame(
+  city = factor(c(&quot;NYC&quot;, &quot;Portland&quot;, &quot;LA&quot;)),
+  revenue = c(120, 95, 110)
+)
+bake(prep(rec), new_data = new_cities)$city
+#&gt; [1] NYC   other LA   
+#&gt; Levels: Chicago LA NYC other</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>step_other() vs step_novel() vs fct_lump_prop()</h2>
+
+<p><strong>All three shrink the level count, but they fire at different times.</strong> Pick by where and when you need the pooling to happen.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Package</th>
+<th>Pooling happens</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_other()</code></td>
+<td>recipes</td>
+<td>During <code>prep()</code> on training data</td>
+<td>Pooling known rare levels in a pipeline</td>
+</tr>
+<tr>
+<td><code>step_novel()</code></td>
+<td>recipes</td>
+<td>At <code>bake()</code> on new data</td>
+<td>Reserving a slot for future unseen levels</td>
+</tr>
+<tr>
+<td><code>fct_lump_prop()</code></td>
+<td>forcats</td>
+<td>Immediately, on a vector</td>
+<td>Quick exploratory collapsing outside a recipe</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>step_other()</code> for production preprocessing because it learns the rare levels once on training data and reapplies the exact same mapping to every later dataset. That consistency is what prevents data leakage: the test set never gets a say in which levels are rare. Reach for <code>fct_lump_prop()</code> only for ad hoc cleanup before you build a recipe, and add <code>step_novel()</code> when you expect genuinely new categories to arrive after the model ships.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most broken <code>step_other()</code> recipes.</strong></p>
+
+<p><strong>1. Placing step_other() after step_dummy().</strong> Once <code>step_dummy()</code> has expanded a factor into indicator columns, there is no factor left to pool. The rare levels each keep their own sparse column.</p>
+
+<div class="webr-container" data-block-title="Wrong order leaves rare levels unpooled">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrong order leaves rare levels unpooled</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Wrong: dummy columns are created before pooling
+recipe(revenue ~ city, data = sales) |&gt;
+  step_dummy(city) |&gt;
+  step_other(city)        # no effect, city is already numeric
+
+# Right: pool first, then encode
+recipe(revenue ~ city, data = sales) |&gt;
+  step_other(city, threshold = 0.05) |&gt;
+  step_dummy(city)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>2. Confusing the threshold scale.</strong> <code>threshold = 5</code> does not mean 5%. It means a count of 5. Write <code>threshold = 0.05</code> for a 5% proportion.</p>
+
+<p><strong>3. Setting the threshold too high.</strong> A large threshold such as <code>0.5</code> pools every level except the most common one, collapsing real signal into the <code>&quot;other&quot;</code> bucket. The model then sees a near-binary split and loses the structure you wanted it to learn. Start low, inspect the resulting <code>table()</code> of levels, and raise the threshold only if the rare bucket stays tiny relative to the rows you keep.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Pool the <code>clarity</code> factor of a 150-row sample so that any grade seen in under 8% of rows becomes <code>&quot;other&quot;</code>. Save the prepped recipe to <code>ex_rec</code>.</p>
+<div class="webr-container" data-block-title="Your turn: pool rare clarity levels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pool rare clarity levels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+set.seed(1)
+gem &lt;- data.frame(
+  clarity = factor(sample(c(&quot;IF&quot;, &quot;VVS1&quot;, &quot;VS1&quot;, &quot;SI1&quot;, &quot;I1&quot;),
+                          150, replace = TRUE,
+                          prob = c(0.03, 0.05, 0.40, 0.45, 0.07))),
+  price = rnorm(150, 500, 80)
+)
+
+ex_rec &lt;- # your code here
+
+table(bake(ex_rec, new_data = NULL)$clarity)
+#&gt; Expected: an &quot;other&quot; level appears</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec &lt;- recipe(price ~ clarity, data = gem) |&gt;
+  step_other(clarity, threshold = 0.08) |&gt;
+  prep()
+
+table(bake(ex_rec, new_data = NULL)$clarity)
+#&gt; 
+#&gt;   SI1   VS1 other 
+#&gt;    68    60    22</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A threshold of 0.08 pools any clarity grade below 8% of the 150 rows. IF, VVS1, and I1 each fall short, so their rows collapse into <code>&quot;other&quot;</code>.</p>
+
+</details>
+</section>
+
+<h2>Related recipes functions</h2>
+
+<p><strong>step_other() rarely works alone.</strong> These steps handle the neighboring categorical preprocessing tasks:</p>
+
+<ul>
+
+<li><a href="recipes-step_dummy-in-R.html">recipes step_dummy()</a> converts the pooled factor into model-ready indicator columns.</li>
+
+<li><a href="recipes-step_novel-in-R.html">recipes step_novel()</a> reserves a level for categories that appear only in future data.</li>
+
+<li><a href="recipes-step_unknown-in-R.html">recipes step_unknown()</a> gives missing factor values an explicit label.</li>
+
+<li><a href="recipes-step_nzv-in-R.html">recipes step_nzv()</a> drops predictors that stay nearly constant after pooling.</li>
+
+<li><a href="recipes-recipe-in-R.html">recipes recipe()</a> is the pipeline object every step is added to.</li>
+
+</ul>
+
+<p>See the official <a href="https://recipes.tidymodels.org/reference/step_other.html">step_other reference</a> for the full argument list.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does step_other() do in R?</strong></p>
+
+<p><code>step_other()</code> is a recipes preprocessing step that collapses infrequent factor levels into one pooled level named <code>&quot;other&quot;</code>. During <code>prep()</code> it learns which levels fall below the threshold on the training data, then <code>bake()</code> applies that mapping to any dataset. The result is a factor with fewer levels, which keeps one-hot encodings compact and stops rare categories from producing unstable model coefficients.</p>
+
+<p><strong>What is the default threshold for step_other()?</strong></p>
+
+<p>The default <code>threshold</code> is <code>0.05</code>, meaning any level that occurs in fewer than 5% of the training rows is pooled. Because the value is below 1, recipes treats it as a proportion. If you pass a value of 1 or greater, it is read as a raw frequency count instead, so <code>threshold = 20</code> pools every level seen fewer than 20 times regardless of dataset size.</p>
+
+<p><strong>Should step_other() come before or after step_dummy()?</strong></p>
+
+<p><code>step_other()</code> must come before <code>step_dummy()</code>. Pooling works on a factor column, so it has to run while the variable is still categorical. If <code>step_dummy()</code> runs first, the factor is already expanded into numeric indicator columns and there is nothing left for <code>step_other()</code> to collapse. The correct recipe order is <code>step_other()</code> then <code>step_dummy()</code>.</p>
+
+<p><strong>How does step_other() handle new factor levels?</strong></p>
+
+<p>When <code>bake()</code> processes data containing a level that was not present during training, <code>step_other()</code> assigns that novel level to the <code>&quot;other&quot;</code> bucket. This happens automatically and prevents prediction-time errors from unexpected categories. If you instead want a dedicated label for unseen levels, add <code>step_novel()</code> to the recipe before <code>step_other()</code>.</p>
