@@ -1,0 +1,322 @@
+---
+title: "recipes step_pca() in R: PCA Feature Reduction for Modeling"
+description: "The recipes step_pca() function in R turns correlated numeric predictors into principal components for modeling. Runnable prep and bake examples included."
+keywords: "recipes step_pca, step_pca function R, recipes step_pca example, R PCA recipe, tidymodels PCA preprocessing, step_pca threshold, dimensionality reduction recipes"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_pca()|recipes step_pca|recipes::step_pca()|principal component analysis|step_pca"
+auto_link_case_sensitive: true
+fr_parent: "caret-preProcess-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>recipes step_pca() in R: PCA Feature Reduction for Modeling</h1>
+
+<p class="lead">The recipes <code>step_pca()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> adds <a class="auto-link" href="PCA-in-R.html" title="PCA in R: Reduce Dimensions, Visualise Structure, and Understand What prcomp() Returns">principal component analysis</a> to a preprocessing pipeline, replacing a set of correlated numeric predictors with a smaller block of uncorrelated components before a model is trained.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_pca(rec, all_numeric_predictors())<span class="qa-cmt">                            # default 5 components</span>
+step_pca(rec, all_numeric_predictors(), num_comp = 3)<span class="qa-cmt">              # keep 3 components</span>
+step_pca(rec, all_numeric_predictors(), threshold = 0.9)<span class="qa-cmt">           # keep 90% of variance</span>
+step_pca(rec, x, y, z)<span class="qa-cmt">                                             # named columns only</span>
+step_pca(rec, all_numeric_predictors(), prefix = &quot;pc_&quot;)<span class="qa-cmt">            # rename PC1 to pc_1</span>
+step_pca(rec, all_numeric_predictors(), keep_original_cols = TRUE)<span class="qa-cmt"> # keep input columns</span>
+prep(rec); bake(rec, new_data = NULL)<span class="qa-cmt">                              # train, then apply</span>
+tidy(prep(rec), number = 1, type = &quot;variance&quot;)<span class="qa-cmt">                     # variance per component</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_pca() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">compress correlated predictors into components</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_pca(rec, all_numeric_predictors())</text><text x="125" y="126" class="branch-label">drop redundant columns but keep names</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_corr(rec, all_numeric_predictors())</text><text x="125" y="182" class="branch-label">predictors have nonlinear structure</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_kpca(rec, all_numeric_predictors())</text><text x="125" y="238" class="branch-label">want independent signals not variance</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_ica(rec, all_numeric_predictors())</text><text x="125" y="294" class="branch-label">reduce predictors using the outcome</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">step_pls(rec, all_numeric_predictors())</text><text x="125" y="350" class="branch-label">only need centering and scaling</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">step_normalize(rec, all_numeric_predictors())</text></svg></div>
+
+<h2>What step_pca() does</h2>
+
+<p><strong>step_pca() converts a group of numeric predictors into principal components.</strong> Principal component analysis finds new axes, ordered by how much variance they capture, that are linear combinations of the original columns. When predictors are correlated, the first few components hold most of the signal, so a model can train on three or four components instead of twenty columns.</p>
+
+<p>Like every recipe step, <code>step_pca()</code> works in two stages. During <code>prep()</code> it runs <code>prcomp()</code> on the selected training columns and stores the rotation matrix, the loadings that map raw columns to components. <code>bake()</code> then projects any data, training or new, onto those stored axes. The output columns are named <code>PC1</code>, <code>PC2</code>, and so on, and the original predictors are dropped.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The component axes are learned once and frozen.</strong> Because <code>prep()</code> stores the rotation from the training set, <code>bake()</code> applies the exact same projection to test data. New rows never shift the axes, so no information leaks from test back into training, the way it would if you ran PCA on the full dataset.</div></div>
+
+<h2>step_pca() syntax and arguments</h2>
+
+<p><strong>step_pca() is a transformation step sized by either a component count or a variance target.</strong> You <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">select columns</a> directly or, far more often, with the tidyselect helper <code>all_numeric_predictors()</code>, since PCA is only defined for numeric data.</p>
+
+<div class="webr-container" data-block-title="step_pca signature and arguments">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">step_pca signature and arguments</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">step_pca(
+  recipe,
+  ...,                       # columns to transform
+  role = &quot;predictor&quot;,
+  trained = FALSE,
+  num_comp = 5,              # how many components to keep
+  threshold = NA,            # or: keep enough components for this variance fraction
+  options = list(),          # passed to prcomp(): center, scale.
+  prefix = &quot;PC&quot;,             # component column name prefix
+  keep_original_cols = FALSE,
+  skip = FALSE,
+  id = rand_id(&quot;pca&quot;)
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two arguments control the output width. <code>num_comp</code> keeps a fixed number of components, while <code>threshold</code> keeps however many are needed to capture a fraction of total variance; setting <code>threshold</code> overrides <code>num_comp</code>. The <code>options</code> list is forwarded to <code>prcomp()</code>, which centers but does not scale by default. Full argument detail lives in the <a href="https://recipes.tidymodels.org/reference/step_pca.html">recipes step_pca reference</a>.</p>
+
+<h2>step_pca() examples</h2>
+
+<p><strong>Every example follows the prep-then-bake rhythm.</strong> The first builds a recipe on <code>mtcars</code>, normalizes the ten numeric predictors, and compresses them into three components. Normalizing first is important and is covered in the pitfalls below.</p>
+
+<div class="webr-container" data-block-title="PCA as a recipe step on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">PCA as a recipe step on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+pca_rec &lt;- recipe(mpg ~ ., data = mtcars) |&gt;
+  step_normalize(all_numeric_predictors()) |&gt;
+  step_pca(all_numeric_predictors(), num_comp = 3) |&gt;
+  prep()
+
+baked &lt;- bake(pca_rec, new_data = NULL)
+dim(baked)
+#&gt; [1] 32  4
+grep(&quot;^PC&quot;, names(baked), value = TRUE)
+#&gt; [1] &quot;PC1&quot; &quot;PC2&quot; &quot;PC3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The ten predictors collapse into <code>PC1</code>, <code>PC2</code>, and <code>PC3</code>, while the outcome <code>mpg</code> passes through untouched. Calling <code>bake(pca_rec, new_data = test_df)</code> on any frame with the same input columns reuses the stored loadings, so train and test always land in the same component space.</p>
+
+<div class="webr-container" data-block-title="num_comp sets how many components survive">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">num_comp sets how many components survive</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">recipe(mpg ~ ., data = mtcars) |&gt;
+  step_normalize(all_numeric_predictors()) |&gt;
+  step_pca(all_numeric_predictors(), num_comp = 5) |&gt;
+  prep() |&gt;
+  bake(new_data = NULL) |&gt;
+  ncol()
+#&gt; [1] 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With <code>num_comp = 5</code> the baked frame has six columns: five components plus the outcome. Picking a count is fine when you already know how wide you want the model input. When you would rather target a variance budget, use <code>threshold</code> instead.</p>
+
+<div class="webr-container" data-block-title="threshold keeps enough components for target variance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">threshold keeps enough components for target variance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">iris_rec &lt;- recipe(Species ~ ., data = iris) |&gt;
+  step_normalize(all_numeric_predictors()) |&gt;
+  step_pca(all_numeric_predictors(), threshold = 0.95) |&gt;
+  prep()
+
+grep(&quot;^PC&quot;, names(bake(iris_rec, new_data = NULL)), value = TRUE)
+#&gt; [1] &quot;PC1&quot; &quot;PC2&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The four iris measurements are strongly correlated, so two components already explain more than 95% of their variance and <code>step_pca()</code> stops there. To see the variance each component captures, call <code>tidy()</code> on the prepared recipe with <code>type = &quot;variance&quot;</code>.</p>
+
+<div class="webr-container" data-block-title="tidy() reports variance captured per component">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">tidy() reports variance captured per component</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+tidy(iris_rec, number = 2, type = &quot;variance&quot;) |&gt;
+  filter(terms == &quot;percent variance&quot;)
+#&gt; # A tibble: 4 x 4
+#&gt;   terms             value component id
+#&gt;   &lt;chr&gt;             &lt;dbl&gt;     &lt;int&gt; &lt;chr&gt;
+#&gt; 1 percent variance 73.0           1 pca_AbCdE
+#&gt; 2 percent variance 22.9           2 pca_AbCdE
+#&gt; 3 percent variance  3.67          3 pca_AbCdE
+#&gt; 4 percent variance  0.515         4 pca_AbCdE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>number = 2</code> argument points at the second step in the recipe, <code>step_pca()</code>. The table confirms <code>PC1</code> and <code>PC2</code> together carry about 96% of the variance, which is why the <code>threshold = 0.95</code> recipe retained exactly those two. Use <code>type = &quot;coef&quot;</code>, the default, to inspect the loadings instead.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python scikit-learn?</strong> The <a class="auto-link" href="dplyr-join_by-in-R.html" title="dplyr join_by() in R: Modern Key Specification for Joins">closest match</a> is <code>sklearn.decomposition.PCA</code> inside a <code>Pipeline</code>. The recipes equivalent of <code>PCA(n_components=3)</code> is <code>step_pca(num_comp = 3)</code>, and <code>PCA(n_components=0.95)</code> maps to <code>step_pca(threshold = 0.95)</code>.</div></div>
+
+<h2>step_pca() vs other reduction steps</h2>
+
+<p><strong>step_pca() is one of several recipes steps that shrink a wide predictor set, and they leave different data behind.</strong> Choosing wrong either keeps redundancy or discards structure the model needs.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>Transformation</th>
+<th>Output columns</th>
+<th>Best when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_pca()</code></td>
+<td>Linear orthogonal components</td>
+<td><code>PC1</code>, <code>PC2</code>, ...</td>
+<td>Predictors are linearly correlated</td>
+</tr>
+<tr>
+<td><code>step_kpca()</code></td>
+<td>Kernel (nonlinear) PCA</td>
+<td><code>kPC1</code>, <code>kPC2</code>, ...</td>
+<td>Structure between predictors is nonlinear</td>
+</tr>
+<tr>
+<td><code>step_ica()</code></td>
+<td>Independent components</td>
+<td><code>IC1</code>, <code>IC2</code>, ...</td>
+<td>You want statistically independent signals</td>
+</tr>
+<tr>
+<td><code>step_corr()</code></td>
+<td>Drops redundant columns</td>
+<td>Original survivors</td>
+<td>You need named, interpretable predictors</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for <code>step_pca()</code> when many predictors move together and you accept anonymous components in exchange for a compact, decorrelated model input. Choose <code>step_corr()</code> when interpretability matters and you want to keep real column names. Use <code>step_kpca()</code> or <code>step_ica()</code> only when the linear, variance-ranked view of PCA does not fit the problem.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Tune the component count instead of guessing it.</strong> Set <code>num_comp = tune()</code> and let a <code>workflow()</code> plus <code>tune_grid()</code> search for the value that maximizes cross-validated performance. The right width depends on the model and the data, not on a fixed rule of thumb.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most step_pca() confusion.</strong></p>
+
+<ol>
+
+<li><strong>Skipping normalization.</strong> <code>step_pca()</code> centers but does not scale by default, so a predictor measured in thousands dominates the first component over one measured in fractions. Add <code>step_normalize()</code> before <code>step_pca()</code>, or pass <code>options = list(scale. = TRUE)</code>.</li>
+
+<li><strong>Selecting non-numeric columns.</strong> PCA is numeric-only. Use <code>all_numeric_predictors()</code> rather than <code>all_predictors()</code>, otherwise factor or character columns trigger an error during <code>prep()</code>.</li>
+
+<li><strong>Expecting interpretable outputs.</strong> Components are blends of every input column. If your report needs named predictors, <code>step_pca()</code> is the wrong tool; use <code>step_corr()</code> or <code>step_select()</code> instead.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>step_pca() changes the column count and the column names.</strong> A baked frame replaces every selected predictor with <code>PC1</code>, <code>PC2</code>, and so on. Any downstream code that references original column names will break silently. Inspect <code>bake()</code> output once after adding the step.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a recipe on the built-in <code>USArrests</code> dataset, normalize the numeric predictors, and reduce them to two principal components with <code>step_pca()</code>. Save the baked training data to <code>ex_pca</code>.</p>
+<div class="webr-container" data-block-title="Your turn: PCA on USArrests">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: PCA on USArrests</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: normalize then PCA to 2 components
+ex_rec &lt;- recipe(~ ., data = USArrests) |&gt;
+  # add step_normalize and step_pca here
+  prep()
+
+ex_pca &lt;- # your code here
+ncol(ex_pca)
+#&gt; Expected: 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec &lt;- recipe(~ ., data = USArrests) |&gt;
+  step_normalize(all_numeric_predictors()) |&gt;
+  step_pca(all_numeric_predictors(), num_comp = 2) |&gt;
+  prep()
+
+ex_pca &lt;- bake(ex_rec, new_data = NULL)
+ncol(ex_pca)
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>USArrests</code> has four numeric columns and no outcome. <code>step_normalize()</code> puts them on a common scale, then <code>step_pca()</code> with <code>num_comp = 2</code> projects them onto two components, leaving a two-column frame.</p>
+
+</details>
+</section>
+
+<h2>Related recipes functions</h2>
+
+<p><strong>step_pca() rarely appears alone in a recipe.</strong> These steps commonly sit alongside it:</p>
+
+<ul>
+
+<li><code>step_normalize()</code> centers and scales predictors, the recommended step before <code>step_pca()</code>.</li>
+
+<li><code>step_corr()</code> drops correlated columns while keeping the survivors interpretable.</li>
+
+<li><code>step_kpca()</code> runs kernel PCA for nonlinear predictor structure.</li>
+
+<li><code>step_pls()</code> reduces predictors using the outcome, unlike unsupervised PCA.</li>
+
+<li><code>step_impute_mean()</code> fills <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>, since PCA cannot handle <code>NA</code> inputs.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does step_pca() do in R?</strong></p>
+
+<p><code>step_pca()</code> is a recipes step that performs principal component analysis as part of a preprocessing pipeline. During <code>prep()</code> it runs <code>prcomp()</code> on the selected numeric predictors and stores the rotation matrix. During <code>bake()</code> it projects the data onto those axes, replacing the original columns with components named <code>PC1</code>, <code>PC2</code>, and so on. Because the rotation is learned only from training data, the same projection applies cleanly to new data without leakage.</p>
+
+<p><strong>How many components should step_pca() keep?</strong></p>
+
+<p>Use <code>num_comp</code> to keep a fixed count or <code>threshold</code> to keep enough components for a variance fraction, such as <code>threshold = 0.9</code> for 90%. If you are unsure, set <code>num_comp = tune()</code> and let <code>tune_grid()</code> search for the value that gives the best cross-validated model performance. There is no universal number; it depends on how correlated the predictors are and which model consumes them.</p>
+
+<p><strong>Should I normalize before step_pca()?</strong></p>
+
+<p>Yes. <code>step_pca()</code> centers predictors but does not scale them by default, so a high-variance column on a large numeric scale can dominate the first component. Place <code>step_normalize()</code> before <code>step_pca()</code> in the recipe, or pass <code>options = list(scale. = TRUE)</code>. Without one of these, PCA reflects measurement units rather than genuine shared structure.</p>
+
+<p><strong>What is the difference between step_pca() and step_corr()?</strong></p>
+
+<p><code>step_pca()</code> replaces a correlated group of predictors with new orthogonal components, so the output columns are anonymous blends of the originals. <code>step_corr()</code> instead deletes redundant columns and keeps the survivors exactly as they were, with their original names. Use <code>step_pca()</code> for maximum compression and a decorrelated model input, and <code>step_corr()</code> when you need to keep interpretable, named predictors.</p>
+
+</content>
+
+</invoke>
+
+{% endraw %}
