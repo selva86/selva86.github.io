@@ -1,0 +1,365 @@
+---
+title: "parsnip poisson_reg() in R: Model Count Data"
+description: "Use parsnip poisson_reg() in R to fit Poisson regression for count outcomes. Syntax, glm and glmnet engines, predictions, overdispersion, and pitfalls."
+keywords: "parsnip poisson_reg, poisson_reg function R, parsnip poisson regression, poisson regression R tidymodels, poisson_reg examples, count data regression R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "poisson_reg()|parsnip poisson_reg|parsnip::poisson_reg()|Poisson regression in R|count data regression"
+auto_link_case_sensitive: true
+fr_parent: "Poisson-Regression-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>parsnip poisson_reg() in R: Model Count Data</h1>
+
+<p class="lead">The parsnip <code>poisson_reg()</code> function defines a <a class="auto-link" href="Poisson-and-Negative-Binomial-Regression-With-R.html" title="Poisson and Negative Binomial Regression with R">Poisson regression</a> model for non-negative count outcomes, such as events per period or defects per unit. It gives you one tidymodels interface that fits with the glm, glmnet, or zeroinfl engine underneath.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>poisson_reg()<span class="qa-cmt">                                       # default spec, glm engine</span>
+poisson_reg() |&gt; set_engine(&quot;glm&quot;)<span class="qa-cmt">                  # standard Poisson GLM</span>
+poisson_reg(penalty = 0.1) |&gt; set_engine(&quot;glmnet&quot;)<span class="qa-cmt">  # penalized Poisson fit</span>
+poisson_reg() |&gt; set_engine(&quot;zeroinfl&quot;)<span class="qa-cmt">             # zero-inflated count model</span>
+spec |&gt; set_mode(&quot;regression&quot;)<span class="qa-cmt">                      # only mode poisson_reg allows</span>
+fit(spec, breaks ~ ., data = warpbreaks)<span class="qa-cmt">            # train on a count outcome</span>
+predict(fit, new_data)<span class="qa-cmt">                              # expected count per row</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is poisson_reg() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">model non-negative event counts</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">poisson_reg() |&gt; set_engine(&quot;glm&quot;)</text><text x="125" y="126" class="branch-label">counts with many extra zeros</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">poisson_reg() |&gt; set_engine(&quot;zeroinfl&quot;)</text><text x="125" y="182" class="branch-label">variance far above the mean</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">negative binomial (<a class="auto-link" href="Negative-Binomial-Regression-in-R.html" title="Negative Binomial Regression in R: MASS::glm.nb() & Overdispersion Fix">MASS::glm.nb</a>)</text><text x="125" y="238" class="branch-label">predict a continuous number</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">linear_reg() |&gt; set_engine(&quot;lm&quot;)</text><text x="125" y="294" class="branch-label">predict a yes or no outcome</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">logistic_reg() |&gt; set_engine(&quot;glm&quot;)</text><text x="125" y="350" class="branch-label">predict 3+ unordered classes</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">multinom_reg() |&gt; set_engine(&quot;nnet&quot;)</text></svg></div>
+
+<h2>What poisson_reg() does</h2>
+
+<p><strong>poisson_reg() is a model specification, not a fitted model.</strong> It records your intent to build a Poisson regression and the hyperparameters you want, but no data touches it until you call <code>fit()</code>. This separation lets you reuse one specification across many datasets or resampling folds.</p>
+
+<p>Poisson <a class="auto-link" href="adv-regression-models.html" title="Advanced Regression Models">regression models</a> a count outcome whose values are non-negative integers, like the number of customer calls per day or breaks per loom. It assumes the log of the expected count is a linear function of the predictors, so coefficients describe multiplicative effects on the rate.</p>
+
+<p>The function belongs to the tidymodels framework. Because parsnip standardizes the interface, the same <code>poisson_reg()</code> code runs on the base glm engine or the penalized glmnet engine with only one line changed.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A parsnip spec is a recipe for a model, not the model itself.</strong> You build the specification once, then <code>fit()</code> turns it into a trained model object. Keeping those two steps apart is what makes tidymodels workflows reproducible across resamples.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>poisson_reg() lives in the poissonreg extension package, not core parsnip.</strong> Load it with <code>library(poissonreg)</code> after <code>library(tidymodels)</code>, or the function is not found. The extension registers the glm, glmnet, hurdle, zeroinfl, and stan engines.</div></div>
+
+<h2>poisson_reg() syntax and arguments</h2>
+
+<p><strong>poisson_reg() takes two tuning arguments and two setup verbs.</strong> The arguments control regularization, while <code>set_engine()</code> and <code>set_mode()</code> finish the specification.</p>
+
+<div class="webr-container" data-block-title="The poisson_reg specification skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The poisson_reg specification skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+library(poissonreg)
+
+poisson_reg(
+  mode = &quot;regression&quot;,  # the only valid mode
+  engine = &quot;glm&quot;,       # glm (default), glmnet, zeroinfl, hurdle, stan
+  penalty = NULL,       # amount of regularization, glmnet only
+  mixture = NULL        # ridge-to-lasso blend, glmnet only
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>penalty</code> argument sets the total amount of regularization applied to coefficients. The <code>mixture</code> argument, used only by glmnet, blends ridge (<code>mixture = 0</code>) and lasso (<code>mixture = 1</code>) penalties. The default glm engine ignores both because it fits an unpenalized model.</p>
+
+<p><strong>The mode is always regression.</strong> A Poisson model predicts an expected count, which is a number, so <code>set_mode(&quot;regression&quot;)</code> is the only legal choice. You can pass the engine through <code>set_engine()</code> instead of the <code>engine</code> argument, which is the more common tidymodels style.</p>
+
+<h2>Fit a Poisson model: four examples</h2>
+
+<p><strong>Every example below uses the built-in <code>warpbreaks</code> dataset.</strong> Its <code>breaks</code> column counts warp breaks per loom, and <code>wool</code> and <code>tension</code> are the categorical predictors, which makes it a natural fit for a count model.</p>
+
+<h3>Example 1: Fit with the default glm engine</h3>
+
+<p><strong>Build the specification, then fit it to data.</strong> The glm engine fits a standard Poisson <a class="auto-link" href="GLM-Exercises-in-R.html" title="GLM Exercises in R: 10 Poisson, Binomial & Gamma Practice Problems, Solved Step-by-Step">generalized linear model</a> with a log link.</p>
+
+<div class="webr-container" data-block-title="Fit poisson_reg on the warpbreaks data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit poisson_reg on the warpbreaks data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pois_spec &lt;- poisson_reg() |&gt;
+  set_engine(&quot;glm&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+pois_fit &lt;- pois_spec |&gt;
+  fit(breaks ~ wool + tension, data = warpbreaks)
+
+pois_fit
+#&gt; parsnip model object
+#&gt;
+#&gt; Call:  stats::glm(formula = breaks ~ wool + tension,
+#&gt;                    family = stats::poisson, data = data)
+#&gt;
+#&gt; Coefficients:
+#&gt; (Intercept)        woolB     tensionM     tensionH
+#&gt;      3.6920      -0.2060      -0.3213      -0.5185
+#&gt;
+#&gt; Degrees of Freedom: 53 Total (i.e. Null);  50 Residual
+#&gt; Null Deviance:      297.4
+#&gt; Residual Deviance: 210.4    AIC: 493.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fitted object reports one coefficient per predictor level on the log scale. The intercept is the log expected count for the reference levels, wool A and tension L.</p>
+
+<h3>Example 2: Predict expected counts</h3>
+
+<p><strong>predict() returns a tidy tibble with one row per input row.</strong> For a regression-mode model, the default prediction type gives the expected count.</p>
+
+<div class="webr-container" data-block-title="Predict expected counts for new rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict expected counts for new rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sample_rows &lt;- warpbreaks[c(1, 28, 54), ]
+
+predict(pois_fit, new_data = sample_rows)
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  40.1
+#&gt; 2  32.7
+#&gt; 3  19.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each output column from a parsnip model starts with <code>.pred</code>, which keeps prediction columns from clashing with your original data when you bind them back together.</p>
+
+<h3>Example 3: Interpret coefficients as rate ratios</h3>
+
+<p><strong>Exponentiate a coefficient to read it as a rate ratio.</strong> On the count scale, <code>exp(coef)</code> tells you the multiplicative change in expected count for that predictor level.</p>
+
+<div class="webr-container" data-block-title="Convert log coefficients to rate ratios">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert log coefficients to rate ratios</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">exp(coef(extract_fit_engine(pois_fit)))
+#&gt; (Intercept)       woolB    tensionM    tensionH
+#&gt;   40.124386   0.813835   0.725147   0.595403</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Wool B has a rate ratio of 0.81, so switching from wool A to wool B multiplies the expected break count by 0.81, a 19 percent drop. High tension cuts the rate to about 60 percent of the low-tension baseline.</p>
+
+<h3>Example 4: Fit a penalized model with glmnet</h3>
+
+<p><strong>Switch to glmnet for regularized coefficients.</strong> The glmnet engine needs a non-NULL <code>penalty</code>, and <code>mixture = 1</code> requests a pure lasso penalty that can shrink weak predictors to zero.</p>
+
+<div class="webr-container" data-block-title="Fit a penalized Poisson model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a penalized Poisson model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">glmnet_fit &lt;- poisson_reg(penalty = 0.05, mixture = 1) |&gt;
+  set_engine(&quot;glmnet&quot;) |&gt;
+  set_mode(&quot;regression&quot;) |&gt;
+  fit(breaks ~ wool + tension, data = warpbreaks)
+
+predict(glmnet_fit, new_data = warpbreaks[c(1, 54), ])
+#&gt; # A tibble: 2 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  37.8
+#&gt; 2  20.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Tune the penalty instead of guessing it.</strong> Set <code>penalty = tune()</code> in the specification, then pass it to <code>tune_grid()</code> with a resampling object. The framework searches a grid of penalty values and reports which one generalizes best.</div></div>
+
+<h2>poisson_reg() vs other regression models</h2>
+
+<p><strong>Pick the model by the type of outcome you are predicting.</strong> <code>poisson_reg()</code> handles non-negative counts; the alternatives below cover the other cases.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Outcome type</th>
+<th>Default engine</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>poisson_reg()</code></td>
+<td>non-negative counts</td>
+<td>glm</td>
+<td>Calls, defects, visits</td>
+</tr>
+<tr>
+<td><code>linear_reg()</code></td>
+<td>numeric, continuous</td>
+<td>lm</td>
+<td>Price, temperature, score</td>
+</tr>
+<tr>
+<td><code>logistic_reg()</code></td>
+<td>exactly 2 classes</td>
+<td>glm</td>
+<td>Yes/no, churn, spam</td>
+</tr>
+<tr>
+<td><code>multinom_reg()</code></td>
+<td>3+ unordered classes</td>
+<td>nnet</td>
+<td>Species, product category</td>
+</tr>
+<tr>
+<td><code>rand_forest()</code></td>
+<td>counts or any outcome</td>
+<td>ranger</td>
+<td>Non-linear effects, interactions</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>poisson_reg()</code> when the outcome is a count and its variance is close to its mean. When the variance is much larger, the data is overdispersed and a negative binomial model fits better.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes catch most newcomers to poisson_reg().</strong> Each one below shows the problem and the fix.</p>
+
+<p>The biggest is ignoring <a class="auto-link" href="Poisson-Regression-in-R.html" title="Poisson Regression in R: Model Count Data and Handle Overdispersion">overdispersion</a>. Poisson regression assumes the mean and variance of the count are equal. When the variance is far larger, standard errors come out too small and predictors look more significant than they are. Check the ratio of residual deviance to degrees of freedom; a value well above 1 signals trouble.</p>
+
+<div class="webr-container" data-block-title="Penalty ignored without the glmnet engine">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Penalty ignored without the glmnet engine</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Wrong: glm ignores penalty, model is unpenalized
+poisson_reg(penalty = 0.1) |&gt; set_engine(&quot;glm&quot;)
+
+# Right: glmnet actually applies the penalty
+poisson_reg(penalty = 0.1) |&gt; set_engine(&quot;glmnet&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A non-count outcome also trips people up. Poisson regression expects non-negative integers, so a continuous or negative response gives misleading results even though the fit may not error. Finally, forgetting <code>library(poissonreg)</code> makes <code>poisson_reg()</code> itself undefined, since the function ships in that extension package rather than core parsnip.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Overdispersion silently inflates significance.</strong> If residual deviance divided by residual degrees of freedom is much greater than 1, refit with a negative binomial model (<code>MASS::glm.nb</code>) or a quasi-Poisson family before trusting any <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a>.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a Poisson model on <code>warpbreaks</code> using only <code>tension</code> as the predictor, then predict the expected count for the 54th row. Save the prediction to <code>ex_pred</code>.</p>
+<div class="webr-container" data-block-title="Your turn: tension-only Poisson model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tension-only Poisson model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit with tension as the only predictor
+ex_spec &lt;- # your code here
+ex_fit  &lt;- # your code here
+ex_pred &lt;- # your code here
+
+ex_pred
+#&gt; Expected: a 1-row tibble with .pred near 24.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_spec &lt;- poisson_reg() |&gt;
+  set_engine(&quot;glm&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+ex_fit &lt;- ex_spec |&gt;
+  fit(breaks ~ tension, data = warpbreaks)
+
+ex_pred &lt;- predict(ex_fit, new_data = warpbreaks[54, ])
+ex_pred
+#&gt; # A tibble: 1 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  24.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The formula <code>breaks ~ tension</code> drops <code>wool</code> from the model. Row 54 has high tension, so the predicted expected count reflects only the tension effect against the low-tension baseline.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>poisson_reg() works alongside the rest of the parsnip model family.</strong> These functions cover the neighboring tasks in a tidymodels project.</p>
+
+<ul>
+
+<li><code>linear_reg()</code> defines a regression model for continuous numeric outcomes.</li>
+
+<li><code>logistic_reg()</code> defines a two-class <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">logistic regression</a> model.</li>
+
+<li><code>multinom_reg()</code> defines a multinomial model for three or more classes.</li>
+
+<li><code>set_engine()</code> chooses the computational backend for any specification.</li>
+
+<li><code>fit()</code> trains a specification on data and returns a model object.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What package is poisson_reg() in?</strong></p>
+
+<p><code>poisson_reg()</code> ships in the <code>poissonreg</code> package, a parsnip extension, not in core parsnip itself. Load it with <code>library(poissonreg)</code> after loading tidymodels, or R reports that the function cannot be found. Installing the extension also registers its engines, including glm, glmnet, zeroinfl, hurdle, and stan.</p>
+
+<p><strong>What is the difference between poisson_reg() and linear_reg()?</strong></p>
+
+<p><code>linear_reg()</code> models a continuous numeric outcome and assumes errors are roughly normal. <code>poisson_reg()</code> models a count outcome and assumes it follows a Poisson distribution with a log link. Because of the log link, Poisson coefficients describe multiplicative rate changes, while linear coefficients describe additive changes. Using <code>linear_reg()</code> on counts can predict impossible negative values.</p>
+
+<p><strong>How do I handle overdispersion with poisson_reg()?</strong></p>
+
+<p>First diagnose it by dividing the residual deviance by the residual degrees of freedom; a value well above 1 indicates overdispersion. Poisson regression assumes the mean equals the variance, and overdispersion violates that. The usual fix is a negative binomial model through <code>MASS::glm.nb</code>, or a quasi-Poisson family that inflates the standard errors.</p>
+
+<p><strong>Does poisson_reg() support an offset or exposure term?</strong></p>
+
+<p>Yes. When counts come from units of different size or exposure, add an offset directly in the model formula, for example <code>fit(spec, events ~ . + offset(log(exposure)), data = df)</code>. The offset enters the linear predictor with a fixed coefficient of one, so the model predicts a rate per unit of exposure rather than a raw count.</p>
+
+<p><strong>Can I tune the penalty in poisson_reg()?</strong></p>
+
+<p>Yes, set <code>penalty = tune()</code> in the specification and use the glmnet engine. Pass the specification to <code>tune_grid()</code> with a resampling object such as <code>vfold_cv()</code>, and the framework searches a grid of penalty values. Use <code>select_best()</code> to pick the value with the best metric, then <code>finalize_workflow()</code> to lock it in before the final fit.</p>
+
+<p>For the full argument reference, see the <a href="https://parsnip.tidymodels.org/reference/poisson_reg.html">parsnip poisson_reg() documentation</a>.</p>
+
+</content>
+
+</invoke>
