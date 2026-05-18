@@ -1,0 +1,363 @@
+---
+title: "parsnip multinom_reg() in R: Multinomial Logistic Regression"
+description: "Use parsnip multinom_reg() in R to fit multinomial logistic regression for 3+ class outcomes. Syntax, nnet and glmnet engines, predictions, and pitfalls."
+keywords: "parsnip multinom_reg, multinom_reg function R, parsnip multinomial regression, multinomial logistic regression R tidymodels, multinom_reg examples, R multiclass classification"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "multinom_reg()|parsnip multinom_reg|parsnip::multinom_reg()|multinomial logistic regression|multinomial regression in R"
+auto_link_case_sensitive: true
+fr_parent: "Multinomial-Logistic-Regression-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>parsnip multinom_reg() in R: Multinomial Logistic Regression</h1>
+
+<p class="lead">The parsnip <code>multinom_reg()</code> function defines a <a class="auto-link" href="Multinomial-Regression-With-R.html" title="Multinomial Regression with R">multinomial logistic regression</a> model for outcomes with three or more unordered classes. It gives you one consistent interface that fits with the nnet or glmnet engine underneath.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>multinom_reg()<span class="qa-cmt">                                       # default spec, nnet engine</span>
+multinom_reg() |&gt; set_engine(&quot;nnet&quot;)<span class="qa-cmt">                 # neural-net multinomial fit</span>
+multinom_reg(penalty = 0.1) |&gt; set_engine(&quot;glmnet&quot;)<span class="qa-cmt">  # penalized multinomial fit</span>
+spec |&gt; set_mode(&quot;classification&quot;)<span class="qa-cmt">                   # only mode multinom_reg allows</span>
+fit(spec, Species ~ ., data = iris)<span class="qa-cmt">                  # train on a 3+ class outcome</span>
+predict(fit, new_data)<span class="qa-cmt">                               # hard class label per row</span>
+predict(fit, new_data, type = &quot;prob&quot;)<span class="qa-cmt">               # one probability per class</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is multinom_reg() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">predict 3+ unordered classes</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">multinom_reg() |&gt; set_engine(&quot;nnet&quot;)</text><text x="125" y="126" class="branch-label">predict only 2 classes</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">logistic_reg() |&gt; set_engine(&quot;glm&quot;)</text><text x="125" y="182" class="branch-label">predict a numeric value</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">linear_reg() |&gt; set_engine(&quot;lm&quot;)</text><text x="125" y="238" class="branch-label">predict event counts</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">poisson_reg() |&gt; set_engine(&quot;glm&quot;)</text><text x="125" y="294" class="branch-label">want a tree-based multiclass model</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">rand_forest() or boost_tree()</text><text x="125" y="350" class="branch-label">tune the penalty by resampling</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">tune() plus tune_grid()</text></svg></div>
+
+<h2>What multinom_reg() does</h2>
+
+<p><strong>multinom_reg() is a model specification, not a fitted model.</strong> It records your intent to build a multinomial logistic regression and the hyperparameters you want, but no data touches it until you call <code>fit()</code>. This separation lets you reuse one specification across many datasets or resampling folds.</p>
+
+<p>Multinomial logistic regression extends binary logistic regression to outcomes with more than two categories. Instead of one set of coefficients, it estimates a separate set for each class relative to a reference class, then converts those scores into probabilities that sum to one across all classes.</p>
+
+<p>The function belongs to the tidymodels framework. Because parsnip standardizes the interface, the same <code>multinom_reg()</code> code runs on the nnet engine or the penalized glmnet engine with only one line changed.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A parsnip spec is a recipe for a model, not the model itself.</strong> You build the specification once, then <code>fit()</code> turns it into a trained model object. Keeping those two steps apart is what makes tidymodels workflows reproducible across resamples.</div></div>
+
+<h2>multinom_reg() syntax and arguments</h2>
+
+<p><strong>multinom_reg() takes two tuning arguments and two setup verbs.</strong> The arguments control regularization, while <code>set_engine()</code> and <code>set_mode()</code> finish the specification.</p>
+
+<div class="webr-container" data-block-title="The multinom_reg specification skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The multinom_reg specification skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+
+multinom_reg(
+  mode = &quot;classification&quot;,  # the only valid mode
+  engine = &quot;nnet&quot;,          # nnet (default) or glmnet
+  penalty = NULL,           # amount of regularization
+  mixture = NULL            # ridge-to-lasso blend, glmnet only
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>penalty</code> argument sets the total amount of regularization applied to coefficients. The <code>mixture</code> argument, used only by glmnet, blends ridge (<code>mixture = 0</code>) and lasso (<code>mixture = 1</code>) penalties. The nnet engine ignores both arguments because it fits an unpenalized model.</p>
+
+<p><strong>The mode is always classification.</strong> Unlike <code>linear_reg()</code>, a multinomial model never predicts numbers, so <code>set_mode(&quot;classification&quot;)</code> is the only legal choice. You can pass the engine through <code>set_engine()</code> instead of the <code>engine</code> argument, which is the more common tidymodels style.</p>
+
+<h2>Fit a multinomial model: four examples</h2>
+
+<p><strong>Every example below uses the built-in <code>iris</code> dataset.</strong> Its <code>Species</code> column has three classes, setosa, versicolor, and virginica, which makes it a natural fit for a multinomial model.</p>
+
+<h3>Example 1: Fit with the default nnet engine</h3>
+
+<p><strong>Build the specification, then fit it to data.</strong> The nnet engine fits a multinomial model through a single-layer neural network.</p>
+
+<div class="webr-container" data-block-title="Fit multinom_reg on the iris dataset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit multinom_reg on the iris dataset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">multi_spec &lt;- multinom_reg() |&gt;
+  set_engine(&quot;nnet&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+multi_fit &lt;- multi_spec |&gt;
+  fit(Species ~ ., data = iris)
+
+multi_fit
+#&gt; parsnip model object
+#&gt;
+#&gt; Call:
+#&gt; multinom(formula = Species ~ ., data = data, trace = FALSE)
+#&gt;
+#&gt; Coefficients:
+#&gt;            (Intercept) Sepal.Length Sepal.Width Petal.Length Petal.Width
+#&gt; versicolor    18.69037    -5.458424   -8.707401     14.24477   -3.097684
+#&gt; virginica    -23.83628    -7.923634  -15.370769     23.65978   15.135301
+#&gt;
+#&gt; Residual Deviance: 11.9
+#&gt; AIC: 31.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fitted object reports one row of coefficients per non-reference class. Setosa is the reference, so versicolor and virginica each get a coefficient row.</p>
+
+<h3>Example 2: Predict the most likely class</h3>
+
+<p><strong>predict() returns a tidy tibble with one row per input row.</strong> The default prediction type gives the hard class label.</p>
+
+<div class="webr-container" data-block-title="Predict class labels for new rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict class labels for new rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sample_rows &lt;- iris[c(1, 60, 120), ]
+
+predict(multi_fit, new_data = sample_rows)
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 setosa
+#&gt; 2 versicolor
+#&gt; 3 virginica</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each output column from a parsnip model starts with <code>.pred</code>, which keeps prediction columns from clashing with your original data when you bind them back together.</p>
+
+<h3>Example 3: Get per-class probabilities</h3>
+
+<p><strong>Set <code>type = &quot;prob&quot;</code> to see the probability of every class.</strong> This is essential when you need a confidence score, not just a label.</p>
+
+<div class="webr-container" data-block-title="Predict class probabilities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict class probabilities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(multi_fit, new_data = sample_rows, type = &quot;prob&quot;)
+#&gt; # A tibble: 3 x 3
+#&gt;   .pred_setosa .pred_versicolor .pred_virginica
+#&gt;          &lt;dbl&gt;            &lt;dbl&gt;           &lt;dbl&gt;
+#&gt; 1     1.00             0.000000        0.       
+#&gt; 2     0.0000234        0.998           0.00150  
+#&gt; 3     0.               0.00000877      1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three probability columns sum to one in every row. A near-1.0 value, as in row 1, signals a confident prediction.</p>
+
+<h3>Example 4: Fit a penalized model with glmnet</h3>
+
+<p><strong>Switch to glmnet for regularized coefficients.</strong> The glmnet engine needs a non-NULL <code>penalty</code>, and <code>mixture = 1</code> requests a pure lasso penalty that can shrink weak predictors to zero.</p>
+
+<div class="webr-container" data-block-title="Fit a penalized multinomial model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a penalized multinomial model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">glmnet_fit &lt;- multinom_reg(penalty = 0.01, mixture = 1) |&gt;
+  set_engine(&quot;glmnet&quot;) |&gt;
+  set_mode(&quot;classification&quot;) |&gt;
+  fit(Species ~ ., data = iris)
+
+predict(glmnet_fit, new_data = iris[c(1, 75, 150), ])
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 setosa
+#&gt; 2 versicolor
+#&gt; 3 virginica</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Tune the penalty instead of guessing it.</strong> Set <code>penalty = tune()</code> in the specification, then pass it to <code>tune_grid()</code> with a resampling object. The framework searches a grid of penalty values and reports which one generalizes best.</div></div>
+
+<h2>multinom_reg() vs logistic_reg() vs other models</h2>
+
+<p><strong>Pick the model by counting your outcome classes.</strong> <code>multinom_reg()</code> handles three or more unordered classes; the alternatives below cover the other cases.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Outcome type</th>
+<th>Default engine</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>multinom_reg()</code></td>
+<td>3+ unordered classes</td>
+<td>nnet</td>
+<td>Species, product category, region</td>
+</tr>
+<tr>
+<td><code>logistic_reg()</code></td>
+<td>exactly 2 classes</td>
+<td>glm</td>
+<td>Yes/no, churn, spam</td>
+</tr>
+<tr>
+<td><code>linear_reg()</code></td>
+<td>numeric</td>
+<td>lm</td>
+<td>Price, temperature, score</td>
+</tr>
+<tr>
+<td><code>poisson_reg()</code></td>
+<td>non-negative counts</td>
+<td>glm</td>
+<td>Visits, defects, calls</td>
+</tr>
+<tr>
+<td><code>rand_forest()</code></td>
+<td>any classification or regression</td>
+<td>ranger</td>
+<td>Non-linear effects, interactions</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>multinom_reg()</code> when the outcome categories have no natural order and you want interpretable coefficients. If the classes are ordered, such as low-medium-high, a multinomial model ignores that order and an ordinal model fits better.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python scikit-learn?</strong> The equivalent of <code>multinom_reg()</code> is <code>LogisticRegression(multi_class=&quot;multinomial&quot;)</code>. The glmnet engine with a <code>penalty</code> maps to scikit-learn's <code>C</code> parameter, which is the inverse of regularization strength.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes catch most newcomers to multinom_reg().</strong> Each one below shows the error and the fix.</p>
+
+<p>Forgetting the engine for glmnet leaves <code>penalty</code> unused. The nnet engine silently ignores <code>penalty</code>, so a model you expected to be regularized is not. Always call <code>set_engine(&quot;glmnet&quot;)</code> when you pass a <code>penalty</code>.</p>
+
+<div class="webr-container" data-block-title="Penalty ignored without the glmnet engine">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Penalty ignored without the glmnet engine</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Wrong: nnet ignores penalty, model is unpenalized
+multinom_reg(penalty = 0.1) |&gt; set_engine(&quot;nnet&quot;)
+
+# Right: glmnet actually applies the penalty
+multinom_reg(penalty = 0.1) |&gt; set_engine(&quot;glmnet&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A character outcome column also trips people up. parsnip expects the classification outcome to be a factor. Convert it first with <code>mutate(y = factor(y))</code> or the fit fails with a type error. Finally, the glmnet engine refuses to run when <code>penalty</code> is <code>NULL</code>, so always supply a numeric value or <code>tune()</code>.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a multinomial model on <code>iris</code> using only the two petal columns as predictors, then predict the class of the 100th row. Save the prediction to <code>ex_pred</code>.</p>
+<div class="webr-container" data-block-title="Your turn: petal-only multinomial">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: petal-only multinomial</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit with Petal.Length and Petal.Width only
+ex_spec &lt;- # your code here
+ex_fit  &lt;- # your code here
+ex_pred &lt;- # your code here
+
+ex_pred
+#&gt; Expected: a 1-row tibble with .pred_class = versicolor</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_spec &lt;- multinom_reg() |&gt;
+  set_engine(&quot;nnet&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+ex_fit &lt;- ex_spec |&gt;
+  fit(Species ~ Petal.Length + Petal.Width, data = iris)
+
+ex_pred &lt;- predict(ex_fit, new_data = iris[100, ])
+ex_pred
+#&gt; # A tibble: 1 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 versicolor</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The formula <code>Species ~ Petal.Length + Petal.Width</code> restricts the model to two predictors. Row 100 of <code>iris</code> is a versicolor flower, and the petal measurements alone classify it correctly.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>multinom_reg() works alongside the rest of the parsnip model family.</strong> These functions cover the neighboring tasks in a tidymodels project.</p>
+
+<ul>
+
+<li><code>logistic_reg()</code> defines a two-class logistic regression model.</li>
+
+<li><code>linear_reg()</code> defines a regression model for numeric outcomes.</li>
+
+<li><code>rand_forest()</code> defines a random forest for classification or regression.</li>
+
+<li><code>set_engine()</code> chooses the computational backend for any specification.</li>
+
+<li><code>fit()</code> trains a specification on data and returns a model object.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What engine does multinom_reg() use by default?</strong></p>
+
+<p>The default engine is <code>nnet</code>, which calls <code>nnet::multinom()</code> to fit the multinomial model through a single-layer neural network. It fits an unpenalized model and ignores the <code>penalty</code> and <code>mixture</code> arguments. To apply regularization, switch to the glmnet engine with <code>set_engine(&quot;glmnet&quot;)</code> and supply a numeric <code>penalty</code>. Always confirm the active engine with <code>show_engines(&quot;multinom_reg&quot;)</code> if you are unsure.</p>
+
+<p><strong>What is the difference between multinom_reg() and logistic_reg()?</strong></p>
+
+<p><code>logistic_reg()</code> models an outcome with exactly two classes, while <code>multinom_reg()</code> models an outcome with three or more classes. Internally, the multinomial model estimates a separate set of coefficients for each class against a reference class. If you pass a three-class outcome to <code>logistic_reg()</code>, the fit fails, so match the function to the number of classes in your target variable.</p>
+
+<p><strong>Does multinom_reg() require the outcome to be a factor?</strong></p>
+
+<p>Yes. parsnip expects the classification outcome to be a factor, not a character or numeric vector. If your outcome is stored as text, convert it first with <code>mutate(species = factor(species))</code> before calling <code>fit()</code>. The factor levels also determine the reference class, which is the first level by default and the baseline for every coefficient.</p>
+
+<p><strong>Can I tune the penalty in multinom_reg()?</strong></p>
+
+<p>Yes, set <code>penalty = tune()</code> in the specification and use the glmnet engine. Pass the specification to <code>tune_grid()</code> with a resampling object such as <code>vfold_cv()</code>, and the framework searches a grid of penalty values. Use <code>select_best()</code> to pick the value with the best metric, then <code>finalize_workflow()</code> to lock it in before the final fit.</p>
+
+<p><strong>Why do my predicted probabilities not match across engines?</strong></p>
+
+<p>The nnet and glmnet engines fit different models. nnet fits an unpenalized maximum-likelihood model, while glmnet adds an L1 or L2 penalty controlled by <code>penalty</code> and <code>mixture</code>. A non-zero penalty shrinks coefficients toward zero, which changes the predicted probabilities. This difference is expected, so compare engines with a resampled metric rather than raw probabilities.</p>
+
+<p>For the full argument reference, see the <a href="https://parsnip.tidymodels.org/reference/multinom_reg.html">parsnip multinom_reg() documentation</a>.</p>
