@@ -1,0 +1,372 @@
+---
+title: "parsnip bart() in R: Bayesian Additive Regression Trees"
+description: "Learn how parsnip bart() defines Bayesian Additive Regression Tree models in R. Load the dbarts engine, set trees and priors, then fit and predict with code."
+keywords: "parsnip bart, bart function R, parsnip bart examples, BART model R, Bayesian additive regression trees R, bart tidymodels, dbarts engine"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "bart()|parsnip bart|parsnip::bart()|Bayesian additive regression trees|BART model"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>parsnip bart() in R: Bayesian Additive Regression Trees</h1>
+
+<p class="lead">The parsnip bart() function defines a Bayesian Additive Regression Trees model in R, an additive ensemble of shallow trees fitted with Bayesian sampling instead of a tuned learning rate.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>bart()<span class="qa-cmt">                                       # bare spec, mode unset</span>
+bart(mode = &quot;regression&quot;)<span class="qa-cmt">                    # set mode inline</span>
+bart(trees = 50)<span class="qa-cmt">                             # number of trees in ensemble</span>
+bart(prior_terminal_node_coef = 0.95)<span class="qa-cmt">        # prior depth penalty base</span>
+bart(prior_terminal_node_expo = 2)<span class="qa-cmt">           # prior depth penalty exponent</span>
+bart() |&gt; set_engine(&quot;dbarts&quot;)<span class="qa-cmt">               # the only engine</span>
+bart() |&gt; set_mode(&quot;classification&quot;)<span class="qa-cmt">         # binary classification BART</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is bart() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">Bayesian tree ensemble with uncertainty</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">bart() |&gt; set_engine(&quot;dbarts&quot;)</text><text x="125" y="126" class="branch-label">sequential boosted trees</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code"><a class="auto-link" href="parsnip-boost_tree-in-R.html" title="parsnip boost_tree() in R: Define Gradient Boosting Models">boost_tree()</a></text><text x="125" y="182" class="branch-label">bagged de-correlated trees</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">rand_forest()</text><text x="125" y="238" class="branch-label">one interpretable tree</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code"><a class="auto-link" href="parsnip-decision_tree-in-R.html" title="parsnip decision_tree() in R: Build Tree-Based Models">decision_tree()</a></text><text x="125" y="294" class="branch-label">bagged plain trees</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">bag_tree()</text><text x="125" y="350" class="branch-label">straight-line numeric outcome</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">linear_reg()</text></svg></div>
+
+<h2>What bart() does</h2>
+
+<p><strong>bart() declares a Bayesian tree ensemble, it does not train one.</strong> The function returns a parsnip model specification, an engine-agnostic description of a Bayesian Additive Regression Trees model. BART sums many shallow trees, but unlike boosting it fits them with <a class="auto-link" href="Markov-Chain-With-R.html" title="Markov Chain with R">Markov chain</a> Monte Carlo sampling. No data touches the spec until you call <code>fit()</code>.</p>
+
+<p>Each tree in a BART ensemble is deliberately weak. The model adds their predictions together, and a prior pulls every tree toward being small so no single tree dominates. The Bayesian fitting step then explores many tree structures and averages over them, which gives you a prediction plus a natural sense of its uncertainty.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>BART is boosting with a Bayesian prior instead of a learning rate.</strong> Gradient boosting controls overfitting with a step size you tune by hand. BART controls it with a prior that keeps every tree shallow, then samples the ensemble with MCMC. You get regularization without a learning-rate grid, plus posterior intervals for free.</div></div>
+
+<h2>bart() syntax and arguments</h2>
+
+<p><strong>bart() takes a tree count and three prior controls.</strong> The constructor lives in parsnip, but the fitting backend comes from the dbarts package. Load dbarts, or the fit fails with a missing-package error.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>What it controls</th>
+<th>Typical value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>trees</code></td>
+<td>Number of trees in the ensemble</td>
+<td>50 to 200</td>
+</tr>
+<tr>
+<td><code>prior_terminal_node_coef</code></td>
+<td>Base of the prior that favors shallow trees</td>
+<td>0.95</td>
+</tr>
+<tr>
+<td><code>prior_terminal_node_expo</code></td>
+<td>Exponent of that depth prior</td>
+<td>2</td>
+</tr>
+<tr>
+<td><code>prior_outcome_range</code></td>
+<td>Width of the prior on the outcome scale</td>
+<td>2</td>
+</tr>
+</tbody>
+</table>
+
+<p>You build a spec by piping the constructor into <code>set_engine()</code> and <code>set_mode()</code>. dbarts is the only engine, and BART supports both regression and classification modes.</p>
+
+<div class="webr-container" data-block-title="Define a BART model spec">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define a BART model spec</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(parsnip)
+
+bart_spec &lt;- bart(trees = 50) |&gt;
+  set_engine(&quot;dbarts&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+bart_spec
+#&gt; BART Model Specification (regression)
+#&gt;
+#&gt; Main Arguments:
+#&gt;   trees = 50
+#&gt;
+#&gt; Computational engine: dbarts</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The printed spec lists your tree count and engine. Nothing is fitted yet, so the object stays cheap to copy and reuse across experiments.</p>
+
+<h2>Fit a BART model: regression and classification</h2>
+
+<p><strong>The same spec fits regression and classification by switching the mode.</strong> Pass a formula and a data frame to <code>fit()</code>, then call <code>predict()</code> on new rows. Here is a BART regression ensemble on the built-in <code>mtcars</code> dataset.</p>
+
+<div class="webr-container" data-block-title="Fit a BART regression model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a BART regression model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+bart_fit &lt;- bart_spec |&gt;
+  fit(mpg ~ ., data = mtcars)
+
+predict(bart_fit, mtcars[1:3, ])
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  21.8
+#&gt; 2  21.3
+#&gt; 3  25.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>BART regression returns a tidy tibble with a <code>.pred</code> column. Because the fit uses MCMC sampling, set a seed first so the predictions reproduce on the next run.</p>
+
+<p>For a categorical target, rebuild the spec in classification mode. The dbarts engine handles <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">binary classification</a>, so drop one <code>iris</code> species to get a clean two-class problem.</p>
+
+<div class="webr-container" data-block-title="Fit a BART classification model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a BART classification model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">iris2 &lt;- subset(iris, Species != &quot;setosa&quot;)
+iris2$Species &lt;- factor(iris2$Species)
+
+bart_clf &lt;- bart(trees = 50) |&gt;
+  set_engine(&quot;dbarts&quot;) |&gt;
+  set_mode(&quot;classification&quot;) |&gt;
+  fit(Species ~ ., data = iris2)
+
+predict(bart_clf, iris2[c(1, 60), ])
+#&gt; # A tibble: 2 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 versicolor
+#&gt; 2 virginica</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The dbarts engine does binary classification only.</strong> A BART classification spec expects a two-level factor outcome. For three or more classes, fit one model per class or reach for <code>rand_forest()</code> or <code>boost_tree()</code>, which handle multiclass targets directly.</div></div>
+
+<p>Classification predictions come back as <code>.pred_class</code>. Ask for <code>type = &quot;prob&quot;</code> to see the posterior class probabilities, which is where BART's Bayesian fitting really shows.</p>
+
+<div class="webr-container" data-block-title="Predict class probabilities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict class probabilities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(bart_clf, iris2[c(1, 60), ], type = &quot;prob&quot;)
+#&gt; # A tibble: 2 x 2
+#&gt;   .pred_versicolor .pred_virginica
+#&gt;              &lt;dbl&gt;           &lt;dbl&gt;
+#&gt; 1            0.962          0.0380
+#&gt; 2            0.041          0.959</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The probability columns are posterior means across the MCMC samples, so they carry the model's uncertainty rather than a single hard split.</p>
+
+<h2>Tune the priors and tree count</h2>
+
+<p><strong>The priors decide how hard BART regularizes.</strong> <code>trees</code> sets the ensemble size, and the two <code>prior_terminal_node</code> arguments shape how deep each tree is allowed to grow. A larger <code>prior_terminal_node_coef</code> and a smaller <code>prior_terminal_node_expo</code> permit deeper trees.</p>
+
+<div class="webr-container" data-block-title="Adjust the terminal node prior">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Adjust the terminal node prior</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">deep_spec &lt;- bart(
+  trees = 200,
+  prior_terminal_node_coef = 0.95,
+  prior_terminal_node_expo = 2
+) |&gt;
+  set_engine(&quot;dbarts&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+deep_spec
+#&gt; BART Model Specification (regression)
+#&gt;
+#&gt; Main Arguments:
+#&gt;   trees = 200
+#&gt;   prior_terminal_node_coef = 0.95
+#&gt;   prior_terminal_node_expo = 2
+#&gt;
+#&gt; Computational engine: dbarts</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>More trees give the ensemble more capacity, but BART rarely overfits because the depth prior keeps each tree small. A count of 50 works for quick fits, while 200 is a common default for a final model.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Tune trees with the dials package, not by hand.</strong> The <code>trees</code> argument is taggable for tuning. Pair <code>bart(trees = tune())</code> with <code>tune_grid()</code> and a <code>trees()</code> parameter range to let cross-validation pick the count instead of guessing.</div></div>
+
+<h2>bart() vs boost_tree() vs rand_forest()</h2>
+
+<p><strong>All three are tree ensembles, but they assemble the trees differently.</strong> Boosting adds trees sequentially to fix earlier errors. A random forest grows independent trees and averages them. BART sums shallow trees and fits them with Bayesian sampling.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Model</th>
+<th>How it builds trees</th>
+<th>Tuning effort</th>
+<th>Uncertainty estimates</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>boost_tree()</code></td>
+<td>Sequential, each fixes the last</td>
+<td>High, needs a learning rate</td>
+<td>None by default</td>
+</tr>
+<tr>
+<td><code>rand_forest()</code></td>
+<td>Independent trees, averaged</td>
+<td>Low</td>
+<td>None by default</td>
+</tr>
+<tr>
+<td><code>bart()</code></td>
+<td>Additive shallow trees, MCMC-fitted</td>
+<td>Low, priors self-regularize</td>
+<td>Posterior intervals</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is short. Use <code>boost_tree()</code> when you can afford to tune for peak accuracy. Use <code>rand_forest()</code> for a strong, low-effort baseline. Use <code>bart()</code> when you want competitive accuracy and honest uncertainty without a tuning grid.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most bart() errors trace back to the missing dbarts package.</strong> The constructor is in parsnip, but the engine is not. Calling <code>fit()</code> without dbarts installed raises a package error.</p>
+
+<div class="webr-container" data-block-title="Fitting without dbarts installed fails">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fitting without dbarts installed fails</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(parsnip)
+
+bart() |&gt;
+  set_engine(&quot;dbarts&quot;) |&gt;
+  set_mode(&quot;regression&quot;) |&gt;
+  fit(mpg ~ ., data = mtcars)
+#&gt; Error: The package &quot;dbarts&quot; is required but not installed.
+#&gt; Please install it with install.packages(&quot;dbarts&quot;).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Install dbarts and the fit succeeds. Two more traps to watch:</p>
+
+<ul>
+
+<li>BART fitting uses MCMC, so results shift between runs. Always call <code>set.seed()</code> before <code>fit()</code> to make predictions reproducible.</li>
+
+<li>A multiclass factor outcome fails, because the dbarts engine is binary only. Collapse the target to two levels or switch models.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>BART is slower than a random forest on large data.</strong> The <a class="auto-link" href="MCMC-in-R.html" title="Build MCMC From Scratch in R: The 50-Line Algorithm Behind brms and Stan">MCMC sampler</a> iterates over every tree many times, so a fit that takes seconds with <code>rand_forest()</code> can take minutes with <code>bart()</code>. Start with a small <code>trees</code> value and a data sample while prototyping.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a BART regression model with 100 trees, fit it to predict <code>hp</code> from all columns of <code>mtcars</code>, and save the fitted model to <code>ex_bart_fit</code>.</p>
+<div class="webr-container" data-block-title="Your turn: fit a BART regression model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit a BART regression model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: build and fit a BART regression model
+ex_bart_fit &lt;- # your code here
+
+ex_bart_fit
+#&gt; Expected: a parsnip BART model fit object</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_bart_fit &lt;- bart(trees = 100) |&gt;
+  set_engine(&quot;dbarts&quot;) |&gt;
+  set_mode(&quot;regression&quot;) |&gt;
+  fit(hp ~ ., data = mtcars)
+
+class(ex_bart_fit)
+#&gt; [1] &quot;_bart&quot;     &quot;model_fit&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The spec sets <code>trees = 100</code>, <code>set_engine(&quot;dbarts&quot;)</code> picks the only BART backend, <code>set_mode(&quot;regression&quot;)</code> declares a numeric outcome, and <code>fit()</code> runs the MCMC sampler on <code>mtcars</code>. The result is a parsnip <code>model_fit</code> wrapping a dbarts object.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>bart() is one model in a family of parsnip specifications.</strong> When a Bayesian ensemble is not the right fit, these neighbors share the same <code>set_engine()</code> and <code>fit()</code> workflow:</p>
+
+<ul>
+
+<li><code>boost_tree()</code> builds trees sequentially with gradient boosting.</li>
+
+<li><code>rand_forest()</code> averages many de-correlated trees.</li>
+
+<li><code>decision_tree()</code> builds one interpretable tree.</li>
+
+<li><code>bag_tree()</code> averages bagged trees to cut variance.</li>
+
+<li><code>set_engine()</code> chooses the computational backend for any spec.</li>
+
+</ul>
+
+<p>See the <a href="https://parsnip.tidymodels.org/reference/bart.html">tidymodels bart reference</a> for the full argument list and engine details.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What package provides bart() in R?</strong> The <code>bart()</code> constructor is exported by the parsnip package, but its fitting engine comes from the dbarts package. You need both: parsnip defines the engine-agnostic model spec, and dbarts implements the actual Bayesian sampler. Loading <code>library(tidymodels)</code> attaches parsnip, but dbarts is a separate install, so run <code>install.packages(&quot;dbarts&quot;)</code> once and load it before you fit.</p>
+
+<p><strong>What is the dbarts engine?</strong> dbarts is the discrete Bayesian Additive Regression Trees package, and it is the only engine parsnip registers for <code>bart()</code>. It runs the MCMC sampler that draws tree structures and leaf values from the posterior. The engine handles regression and binary classification. Any engine-specific control, such as the number of MCMC samples to keep, is passed through <code>set_engine(&quot;dbarts&quot;, ...)</code>.</p>
+
+<p><strong>How many trees should I use in a BART model?</strong> The <code>trees</code> argument sets the ensemble size. BART rarely overfits when you add trees, because the depth prior keeps each one shallow, so more trees mainly cost compute. A value of 50 is fine for quick experiments, and 200 is a widely used default for a final model. Tune it with <code>tune_grid()</code> if accuracy matters and the dataset is small enough to resample.</p>
+
+<p><strong>Is BART better than random forest or boosting?</strong> BART is competitive with both and often wins on tabular data with moderate sample sizes. Its edge is built-in regularization and posterior uncertainty, so you get prediction intervals without extra work. The cost is speed, since MCMC sampling is slower than a random forest. Choose BART when calibrated uncertainty matters, and choose boosting when you need the last bit of accuracy and can tune for it.</p>
+
+{% endraw %}
