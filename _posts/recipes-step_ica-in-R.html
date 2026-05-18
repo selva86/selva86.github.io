@@ -1,0 +1,328 @@
+---
+title: "recipes step_ica() in R: Independent Component Features"
+description: "The recipes step_ica() function in R extracts statistically independent components from numeric predictors for modeling. Runnable prep and bake examples."
+keywords: "recipes step_ica, step_ica function R, recipes step_ica example, R ICA recipe, tidymodels ICA preprocessing, independent component analysis R, step_ica num_comp"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_ica()|recipes step_ica|recipes::step_ica()|independent component analysis|step_ica"
+auto_link_case_sensitive: true
+fr_parent: "caret-preProcess-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>recipes step_ica() in R: Independent Component Features</h1>
+
+<p class="lead">The recipes <code>step_ica()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> adds independent component analysis to a preprocessing pipeline, replacing numeric predictors with a smaller block of statistically independent components before a model is trained.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_ica(rec, all_numeric_predictors())<span class="qa-cmt">                              # default 5 components</span>
+step_ica(rec, all_numeric_predictors(), num_comp = 3)<span class="qa-cmt">                # keep 3 components</span>
+step_ica(rec, x, y, z)<span class="qa-cmt">                                               # named columns only</span>
+step_ica(rec, all_numeric_predictors(), seed = 123)<span class="qa-cmt">                  # reproducible result</span>
+step_ica(rec, all_numeric_predictors(), prefix = &quot;ic_&quot;)<span class="qa-cmt">              # rename IC1 to ic_1</span>
+step_ica(rec, all_numeric_predictors(), keep_original_cols = TRUE)<span class="qa-cmt">   # keep input columns</span>
+prep(rec); bake(rec, new_data = NULL)<span class="qa-cmt">                                # train, then apply</span>
+tidy(prep(rec), number = 1)<span class="qa-cmt">                                          # inspect the mixing matrix</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_ica() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">extract independent non-Gaussian signals</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_ica(rec, all_numeric_predictors())</text><text x="125" y="126" class="branch-label">want variance-ranked components instead</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_pca(rec, all_numeric_predictors())</text><text x="125" y="182" class="branch-label">predictors have nonlinear structure</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_kpca(rec, all_numeric_predictors())</text><text x="125" y="238" class="branch-label">reduce predictors using the outcome</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_pls(rec, all_numeric_predictors())</text><text x="125" y="294" class="branch-label">just drop correlated columns by name</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">step_corr(rec, all_numeric_predictors())</text><text x="125" y="350" class="branch-label">only need centering and scaling</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">step_normalize(rec, all_numeric_predictors())</text></svg></div>
+
+<h2>What step_ica() does</h2>
+
+<p><strong>step_ica() converts a group of numeric predictors into independent components.</strong> Independent component analysis assumes the observed columns are linear mixtures of hidden source signals and tries to recover those sources. Where <a class="auto-link" href="PCA-in-R.html" title="PCA in R: Reduce Dimensions, Visualise Structure, and Understand What prcomp() Returns">principal component analysis</a> only removes correlation, ICA goes further and separates components that are statistically independent, which is a stronger condition.</p>
+
+<p>Like every recipe step, <code>step_ica()</code> works in two stages. During <code>prep()</code> it runs <code>fastICA()</code> on the selected training columns and stores the estimated unmixing matrix. <code>bake()</code> then projects any data, training or new, onto those stored components. The output columns are named <code>IC1</code>, <code>IC2</code>, and so on, and the original predictors are dropped.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Independent is a stronger claim than uncorrelated.</strong> Two columns can be uncorrelated yet still share higher-order structure. ICA targets full <a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">statistical independence</a>, so its components are well suited to data whose sources are non-Gaussian, such as separated signals or blended sensor readings.</div></div>
+
+<h2>step_ica() syntax and arguments</h2>
+
+<p><strong>step_ica() is a transformation step sized by a component count.</strong> You <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">select columns</a> directly or, far more often, with the tidyselect helper <code>all_numeric_predictors()</code>, since ICA is only defined for numeric data. Unlike <code>step_pca()</code>, there is no variance threshold argument, because ICA does not rank its components by variance.</p>
+
+<div class="webr-container" data-block-title="step_ica signature and arguments">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">step_ica signature and arguments</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">step_ica(
+  recipe,
+  ...,                            # columns to transform
+  role = &quot;predictor&quot;,
+  trained = FALSE,
+  num_comp = 5,                   # how many independent components to keep
+  options = list(method = &quot;C&quot;),   # passed to fastICA()
+  seed = sample.int(10000, 5),    # makes the stochastic fit reproducible
+  prefix = &quot;IC&quot;,                  # component column name prefix
+  keep_original_cols = FALSE,
+  skip = FALSE,
+  id = rand_id(&quot;ica&quot;)
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>num_comp</code> argument fixes how many components survive; it must not exceed the number of selected predictors. The <code>seed</code> argument matters because ICA starts from a random initialization, so a fixed seed makes the result reproducible. The <code>options</code> list is forwarded to <code>fastICA()</code>. Full argument detail lives in the <a href="https://recipes.tidymodels.org/reference/step_ica.html">recipes step_ica reference</a>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>step_ica() needs the fastICA package.</strong> The step calls <code>fastICA::fastICA()</code> under the hood, so install <code>fastICA</code> before adding it to a recipe. If the package is missing, <code>prep()</code> stops with a clear error naming the dependency.</div></div>
+
+<h2>step_ica() examples</h2>
+
+<p><strong>Every example follows the prep-then-bake rhythm.</strong> The first builds a recipe on <code>mtcars</code>, normalizes the ten numeric predictors, and extracts three independent components. Normalizing first is important and is covered in the pitfalls below.</p>
+
+<div class="webr-container" data-block-title="ICA as a recipe step on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ICA as a recipe step on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+ica_rec &lt;- recipe(mpg ~ ., data = mtcars) |&gt;
+  step_normalize(all_numeric_predictors()) |&gt;
+  step_ica(all_numeric_predictors(), num_comp = 3, seed = 42) |&gt;
+  prep()
+
+baked &lt;- bake(ica_rec, new_data = NULL)
+dim(baked)
+#&gt; [1] 32  4
+grep(&quot;^IC&quot;, names(baked), value = TRUE)
+#&gt; [1] &quot;IC1&quot; &quot;IC2&quot; &quot;IC3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The ten predictors collapse into <code>IC1</code>, <code>IC2</code>, and <code>IC3</code>, while the outcome <code>mpg</code> passes through untouched. Calling <code>bake()</code> on any frame with the same input columns reuses the stored unmixing matrix, so train and test always land in the same component space.</p>
+
+<div class="webr-container" data-block-title="num_comp sets the number of components">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">num_comp sets the number of components</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">recipe(mpg ~ ., data = mtcars) |&gt;
+  step_normalize(all_numeric_predictors()) |&gt;
+  step_ica(all_numeric_predictors(), num_comp = 5, seed = 42) |&gt;
+  prep() |&gt;
+  bake(new_data = NULL) |&gt;
+  ncol()
+#&gt; [1] 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With <code>num_comp = 5</code> the baked frame has six columns: five components plus the outcome. Pick a count based on how many independent signals you expect the predictors to contain, or tune it as shown later.</p>
+
+<div class="webr-container" data-block-title="The same recipe projects new data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The same recipe projects new data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">iris_rec &lt;- recipe(Species ~ ., data = iris) |&gt;
+  step_normalize(all_numeric_predictors()) |&gt;
+  step_ica(all_numeric_predictors(), num_comp = 2, seed = 100) |&gt;
+  prep()
+
+new_rows &lt;- iris[c(1, 51, 101), ]
+bake(iris_rec, new_data = new_rows)
+#&gt; # A tibble: 3 x 3
+#&gt;   Species       IC1     IC2
+#&gt;   &lt;fct&gt;       &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 setosa     -1.42   0.583
+#&gt; 2 versicolor  0.214 -0.067
+#&gt; 3 virginica   1.18  -0.402</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Because the unmixing matrix was learned only from the training set, these three new rows are projected with the exact same transformation. No information leaks from new data back into the fitted components.</p>
+
+<div class="webr-container" data-block-title="tidy() returns the estimated mixing matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">tidy() returns the estimated mixing matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+tidy(iris_rec, number = 2) |&gt;
+  filter(component == &quot;IC1&quot;)
+#&gt; # A tibble: 4 x 4
+#&gt;   terms          value component id
+#&gt;   &lt;chr&gt;          &lt;dbl&gt; &lt;chr&gt;     &lt;chr&gt;
+#&gt; 1 Sepal.Length  0.512  IC1       ica_8xK2p
+#&gt; 2 Sepal.Width  -0.318  IC1       ica_8xK2p
+#&gt; 3 Petal.Length  0.901  IC1       ica_8xK2p
+#&gt; 4 Petal.Width   0.874  IC1       ica_8xK2p</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Calling <code>tidy()</code> on the prepared recipe with <code>number = 2</code> points at the second step, <code>step_ica()</code>. The table shows how each original column loads onto a component, which is the closest ICA gives you to an interpretable view of the transformation.</p>
+
+<h2>step_ica() vs other reduction steps</h2>
+
+<p><strong>step_ica() is one of several recipes steps that shrink a wide predictor set, and they leave different data behind.</strong> Choosing wrong either keeps redundancy or discards structure the model needs.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>Transformation</th>
+<th>Output columns</th>
+<th>Best when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_ica()</code></td>
+<td>Independent components</td>
+<td><code>IC1</code>, <code>IC2</code>, ...</td>
+<td>Sources are non-Gaussian and independent</td>
+</tr>
+<tr>
+<td><code>step_pca()</code></td>
+<td>Linear orthogonal components</td>
+<td><code>PC1</code>, <code>PC2</code>, ...</td>
+<td>Predictors are linearly correlated</td>
+</tr>
+<tr>
+<td><code>step_kpca()</code></td>
+<td>Kernel (nonlinear) PCA</td>
+<td><code>kPC1</code>, <code>kPC2</code>, ...</td>
+<td>Structure between predictors is nonlinear</td>
+</tr>
+<tr>
+<td><code>step_corr()</code></td>
+<td>Drops redundant columns</td>
+<td>Original survivors</td>
+<td>You need named, interpretable predictors</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for <code>step_ica()</code> when you believe the predictors are blends of independent underlying signals, a common situation with sensor, audio, or financial data. Choose <code>step_pca()</code> when you simply want a compact, decorrelated input ranked by variance. Use <code>step_corr()</code> when interpretability matters and you want to keep real column names.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Tune the component count instead of guessing it.</strong> Set <code>num_comp = tune()</code> and let a <code>workflow()</code> plus <code>tune_grid()</code> search for the value that maximizes cross-validated performance. ICA gives no variance ranking to lean on, so tuning is the reliable way to size the output.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most step_ica() confusion.</strong></p>
+
+<ol>
+
+<li><strong>Forgetting the seed.</strong> ICA starts from a random initialization, so two runs without a fixed <code>seed</code> produce different components. Always pass <code>seed</code> when you need reproducible recipes across sessions.</li>
+
+<li><strong>Skipping normalization.</strong> ICA is sensitive to predictor scale. Add <code>step_normalize()</code> before <code>step_ica()</code> so a large-scale column does not distort the recovered signals.</li>
+
+<li><strong>Expecting ordered components.</strong> Unlike PCA, ICA does not rank components by importance. <code>IC1</code> is not more significant than <code>IC3</code>, so do not drop later components assuming they carry less signal.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>step_ica() changes the column count and the column names.</strong> A baked frame replaces every selected predictor with <code>IC1</code>, <code>IC2</code>, and so on. Any downstream code that references original column names will break silently. Inspect <code>bake()</code> output once after adding the step.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a recipe on the built-in <code>USArrests</code> dataset, normalize the numeric predictors, and reduce them to two independent components with <code>step_ica()</code>. Use <code>seed = 7</code>. Save the baked training data to <code>ex_ica</code>.</p>
+<div class="webr-container" data-block-title="Your turn: ICA on USArrests">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: ICA on USArrests</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: normalize then ICA to 2 components
+ex_rec &lt;- recipe(~ ., data = USArrests) |&gt;
+  # add step_normalize and step_ica here
+  prep()
+
+ex_ica &lt;- # your code here
+ncol(ex_ica)
+#&gt; Expected: 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec &lt;- recipe(~ ., data = USArrests) |&gt;
+  step_normalize(all_numeric_predictors()) |&gt;
+  step_ica(all_numeric_predictors(), num_comp = 2, seed = 7) |&gt;
+  prep()
+
+ex_ica &lt;- bake(ex_rec, new_data = NULL)
+ncol(ex_ica)
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>USArrests</code> has four numeric columns and no outcome. <code>step_normalize()</code> puts them on a common scale, then <code>step_ica()</code> with <code>num_comp = 2</code> and a fixed <code>seed</code> projects them onto two reproducible independent components.</p>
+
+</details>
+</section>
+
+<h2>Related recipes functions</h2>
+
+<p><strong>step_ica() rarely appears alone in a recipe.</strong> These steps commonly sit alongside it:</p>
+
+<ul>
+
+<li><code>step_normalize()</code> centers and scales predictors, the recommended step before <code>step_ica()</code>.</li>
+
+<li><code>step_pca()</code> extracts variance-ranked orthogonal components instead of independent ones.</li>
+
+<li><code>step_kpca()</code> runs kernel PCA for nonlinear predictor structure.</li>
+
+<li><code>step_corr()</code> drops correlated columns while keeping the survivors interpretable.</li>
+
+<li><code>step_impute_mean()</code> fills <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>, since ICA cannot handle <code>NA</code> inputs.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does step_ica() do in R?</strong></p>
+
+<p><code>step_ica()</code> is a recipes step that performs independent component analysis as part of a preprocessing pipeline. During <code>prep()</code> it runs <code>fastICA()</code> on the selected numeric predictors and stores the estimated unmixing matrix. During <code>bake()</code> it projects the data onto those components, replacing the original columns with components named <code>IC1</code>, <code>IC2</code>, and so on. Because the transformation is learned only from training data, the same projection applies cleanly to new data without leakage.</p>
+
+<p><strong>What is the difference between step_ica() and step_pca()?</strong></p>
+
+<p><code>step_pca()</code> finds orthogonal components ranked by how much variance they capture, so dropping later components is a sensible compression strategy. <code>step_ica()</code> finds components that are statistically independent, a stronger condition, and does not rank them by importance. Use <code>step_pca()</code> for general decorrelation and compression, and <code>step_ica()</code> when the predictors are believed to be mixtures of independent, non-Gaussian source signals.</p>
+
+<p><strong>Why do I need to set a seed in step_ica()?</strong></p>
+
+<p>Independent component analysis starts from a random initialization and iterates to a solution, which makes it a stochastic algorithm. Without a fixed <code>seed</code>, two <code>prep()</code> calls on the same data produce different components and column values. Passing <code>seed</code> makes the recipe reproducible across sessions and machines, which matters when you save a prepared recipe and reuse it later.</p>
+
+<p><strong>Should I normalize before step_ica()?</strong></p>
+
+<p>Yes. <code>step_ica()</code> is sensitive to the scale of its inputs, so a predictor measured in large units can dominate the recovered components. Place <code>step_normalize()</code> before <code>step_ica()</code> in the recipe so every column contributes on a comparable scale. Without it, the independent components reflect measurement units rather than genuine shared structure.</p>
+
+</content>
+
+</invoke>
+
+{% endraw %}
