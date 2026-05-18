@@ -1,0 +1,326 @@
+---
+title: "caret findCorrelation() in R: Drop Collinear Predictors"
+description: "Use caret findCorrelation() in R to detect and drop highly correlated predictors before modeling. Covers the cutoff argument, names, and worked examples."
+keywords: "caret findCorrelation, findCorrelation function R, caret findCorrelation example, R remove correlated variables, findCorrelation cutoff, remove highly correlated predictors R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "findCorrelation()|caret findCorrelation|caret::findCorrelation()|highly correlated predictors|remove correlated variables"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret findCorrelation() in R: Drop Collinear Predictors</h1>
+
+<p class="lead">caret <code>findCorrelation()</code> finds predictors that are highly correlated with each other and tells you which columns to drop. It scans a <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">correlation matrix</a>, finds every pair above a cutoff, and flags the more redundant member of each pair so you can remove collinearity before training a model.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>findCorrelation(cor(df))<span class="qa-cmt">                    # indices to drop, cutoff 0.9</span>
+findCorrelation(cor(df), names = TRUE)<span class="qa-cmt">      # column names instead</span>
+findCorrelation(cor(df), cutoff = 0.75)<span class="qa-cmt">     # stricter: catch weaker pairs</span>
+df[, -findCorrelation(cor(df))]<span class="qa-cmt">             # drop the flagged columns</span>
+findCorrelation(cor(df), verbose = TRUE)<span class="qa-cmt">    # print the pairwise decisions</span>
+cor(df, use = &quot;complete.obs&quot;)<span class="qa-cmt">               # build the matrix, NA-safe</span>
+findCorrelation(cor(df), exact = TRUE)<span class="qa-cmt">      # re-rank after each removal</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is findCorrelation() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">drop highly correlated predictors</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">findCorrelation(cor(df))</text><text x="125" y="126" class="branch-label">drop near-constant predictors</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">nearZeroVar(df, names = TRUE)</text><text x="125" y="182" class="branch-label">drop exact linear combinations</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">findLinearCombos(df)</text><text x="125" y="238" class="branch-label">compress correlated features into components</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">preProcess(df, method = &quot;pca&quot;)</text><text x="125" y="294" class="branch-label">rank predictors by model importance</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">varImp(model)</text><text x="125" y="350" class="branch-label">center and scale before modeling</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">preProcess(df, method = &quot;scale&quot;)</text></svg></div>
+
+<h2>What findCorrelation() does in one sentence</h2>
+
+<p><strong><code>findCorrelation()</code> searches a correlation matrix for redundant predictors.</strong> It looks at every pair of columns, finds the pairs whose absolute correlation exceeds a cutoff, and reports the column positions you should delete to break that redundancy.</p>
+
+<p>The function does not touch your data frame. It takes a correlation matrix, usually the output of <code>cor()</code>, and returns a vector of column indices. When two predictors carry nearly the same information, a model gains nothing from keeping both. Worse, near-duplicate columns inflate variance in linear models and make coefficients unstable. <code>findCorrelation()</code> automates the cleanup that you would otherwise do by squinting at a correlation table, and it scales to data frames with hundreds of columns where manual inspection is hopeless.</p>
+
+<h2>findCorrelation() syntax and arguments</h2>
+
+<p><strong><code>findCorrelation()</code> needs a correlation matrix, not raw data.</strong> Build the matrix with <code>cor()</code> first, then pass it in. Every other argument tunes how aggressive the filter is or changes the output shape.</p>
+
+<div class="webr-container" data-block-title="Load caret and build correlated predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and build correlated predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(100)
+n &lt;- 200
+sales   &lt;- rnorm(n)
+weather &lt;- rnorm(n)
+df &lt;- data.frame(
+  revenue_usd = sales * 1000 + 8000,
+  revenue_eur = sales * 920 + 7400,      # revenue in another currency
+  temp_c      = weather * 6 + 18,
+  temp_f      = weather * 10.8 + 64,     # the same temperature in Fahrenheit
+  staff_count = round(rnorm(n, 40, 8))
+)
+cor_mat &lt;- cor(df)
+round(cor_mat, 2)
+#&gt;             revenue_usd revenue_eur temp_c temp_f staff_count
+#&gt; revenue_usd        1.00        1.00  -0.04  -0.04        0.05
+#&gt; revenue_eur        1.00        1.00  -0.04  -0.04        0.05
+#&gt; temp_c            -0.04       -0.04   1.00   1.00       -0.09
+#&gt; temp_f            -0.04       -0.04   1.00   1.00       -0.09
+#&gt; staff_count        0.05        0.05  -0.09  -0.09        1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments that matter most are:</p>
+
+<ul>
+
+<li><code>x</code>: a correlation matrix, square and symmetric. Pass <code>cor(df)</code>, never the data frame.</li>
+
+<li><code>cutoff</code>: the absolute correlation above which a pair counts as redundant. Defaults to <code>0.90</code>.</li>
+
+<li><code>names</code>: if <code>TRUE</code>, return column names instead of column indices.</li>
+
+<li><code>verbose</code>: if <code>TRUE</code>, print each pairwise comparison and which column was flagged.</li>
+
+<li><code>exact</code>: if <code>TRUE</code>, recompute the average correlations after every removal. Defaults to <code>TRUE</code> when the matrix has fewer than 100 columns.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python scikit-learn?</strong> There is no single drop-in equivalent. You would compute <code>df.corr().abs()</code> and filter the upper triangle by hand, which is exactly the loop <code>findCorrelation()</code> wraps for you.</div></div>
+
+<h2>findCorrelation() examples by use case</h2>
+
+<p><strong>Call <code>findCorrelation()</code> on the correlation matrix to get the columns to drop.</strong> With the default cutoff of 0.90, only pairs above that threshold are flagged. Here both currency columns and both temperature columns are perfectly correlated, so one member of each pair is returned.</p>
+
+<div class="webr-container" data-block-title="Find the predictors to remove">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find the predictors to remove</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">findCorrelation(cor_mat, cutoff = 0.90)
+#&gt; [1] 4 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result <code>4 2</code> means columns <code>temp_f</code> and <code>revenue_eur</code> are the redundant ones. The function keeps the first column of each correlated pair and flags the later one.</p>
+
+<p><strong>Add <code>names = TRUE</code> to get column names instead of positions.</strong> Names are easier to read and safer to reuse, because they survive a column reorder that would break a position vector.</p>
+
+<div class="webr-container" data-block-title="Return column names instead">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Return column names instead</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">findCorrelation(cor_mat, cutoff = 0.90, names = TRUE)
+#&gt; [1] &quot;temp_f&quot;      &quot;revenue_eur&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Within a correlated pair, findCorrelation() drops the more redundant column.</strong> It compares each column's mean absolute correlation with all other predictors and removes the one with the higher average. The survivor is the predictor that overlaps least with the rest of the data.</div></div>
+
+<p><strong>Use the result to subset the data frame.</strong> Negative indexing drops the flagged columns and keeps the informative ones.</p>
+
+<div class="webr-container" data-block-title="Drop the redundant predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop the redundant predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">to_drop &lt;- findCorrelation(cor_mat, cutoff = 0.90)
+clean   &lt;- df[, -to_drop]
+names(clean)
+#&gt; [1] &quot;revenue_usd&quot; &quot;temp_c&quot;      &quot;staff_count&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Lower the <code>cutoff</code> to catch weaker correlations.</strong> A cutoff of 0.75 flags any pair above 0.75, so it removes more columns. Raising the cutoff toward 1 makes the filter conservative; a cutoff of exactly 1 flags nothing, since no pair can exceed it.</p>
+
+<div class="webr-container" data-block-title="A strict cutoff flags nothing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A strict cutoff flags nothing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">findCorrelation(cor_mat, cutoff = 1.0)
+#&gt; integer(0)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>findCorrelation() vs PCA and manual filtering</h2>
+
+<p><strong><code>findCorrelation()</code> is one of three common ways to handle collinearity.</strong> The right choice depends on whether you need interpretable columns, maximum variance retention, or only exact duplicates removed.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>What it does</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>findCorrelation()</code></td>
+<td>Drops one column from each correlated pair</td>
+<td>Keeping the data interpretable</td>
+</tr>
+<tr>
+<td><code>preProcess(method = &quot;pca&quot;)</code></td>
+<td>Replaces predictors with components</td>
+<td>Retaining variance, accepting opaque features</td>
+</tr>
+<tr>
+<td><code>findLinearCombos()</code></td>
+<td>Drops exact linear-combination columns</td>
+<td>Perfect collinearity only</td>
+</tr>
+<tr>
+<td>Manual <code>cor()</code> review</td>
+<td>You inspect and choose by hand</td>
+<td>Small data with domain knowledge</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for <code>findCorrelation()</code> when you want a fast, reproducible filter that leaves the surviving columns named and meaningful. Reach for PCA when even moderate correlation hurts and you do not need to explain individual features. Use <code>findLinearCombos()</code> only for columns that are exact linear combinations, such as a set of one-hot dummies that sum to a constant.</p>
+
+<p>The distinction matters once a model goes to production. PCA components are hard to monitor and explain to stakeholders, while a <code>findCorrelation()</code> result is just a shorter list of the original, named predictors.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Passing a data frame instead of a correlation matrix is the most common error.</strong> <code>findCorrelation()</code> expects the square output of <code>cor()</code>. Hand it raw data and it fails, because a data frame is not symmetric. Always wrap the data in <code>cor()</code> first.</p>
+
+<p><strong><code>cor()</code> cannot handle non-numeric columns.</strong> A factor or character column makes <code>cor()</code> fail. Select the numeric columns before building the matrix.</p>
+
+<div class="webr-container" data-block-title="Build the matrix from numeric columns only">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build the matrix from numeric columns only</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mixed &lt;- data.frame(
+  x1  = rnorm(50),
+  x2  = rnorm(50),
+  grp = sample(c(&quot;a&quot;, &quot;b&quot;), 50, replace = TRUE)   # a character column
+)
+
+num_only &lt;- mixed[, sapply(mixed, is.numeric)]
+findCorrelation(cor(num_only), cutoff = 0.90)
+#&gt; integer(0)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">Missing values</a> silently break the matrix.</strong> If any column has <code>NA</code>, <code>cor(df)</code> fills cells with <code>NA</code> and <code>findCorrelation()</code> errors out. Pass <code>use = &quot;complete.obs&quot;</code> or <code>use = &quot;pairwise.complete.obs&quot;</code> to <code>cor()</code> so the matrix is fully populated before you filter.</div></div>
+
+<p><strong><code>findCorrelation()</code> ranks by correlation, not by usefulness.</strong> It drops the statistically redundant column, which is not always the one you want gone. If the dropped predictor is the cheaper one to measure or the more interpretable one, override the choice manually after reviewing the flagged list.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a data frame where one column is another column in different units, then use findCorrelation() to flag the redundant column name. Save the result to <code>ex_drop</code>.</p>
+<div class="webr-container" data-block-title="Your turn: drop correlated predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: drop correlated predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: flag the redundant column
+set.seed(7)
+ex_v &lt;- rnorm(60)
+ex_df &lt;- data.frame(
+  meters = ex_v * 3 + 10,
+  feet   = ex_v * 9.84 + 33,   # meters converted to feet
+  score  = rnorm(60, 50, 9)
+)
+ex_drop &lt;- # your code here
+
+ex_drop
+#&gt; Expected: &quot;feet&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_drop &lt;- findCorrelation(cor(ex_df), cutoff = 0.90, names = TRUE)
+ex_drop
+#&gt; [1] &quot;feet&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>meters</code> and <code>feet</code> are the same measurement in different units, so their correlation is 1. findCorrelation() keeps the first column of the pair and flags the second, which is <code>feet</code>.</p>
+
+</details>
+</section>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Run findCorrelation() with <code>verbose = TRUE</code> while you are learning.</strong> It prints each pair it compares and the average correlation it used to pick a loser, so you can see exactly why a column was dropped instead of trusting the index vector blindly.</div></div>
+
+<h2>Related caret functions</h2>
+
+<p>These caret functions pair naturally with <code>findCorrelation()</code> when preparing predictors for a model:</p>
+
+<ul>
+
+<li><a href="caret-nearZeroVar-in-R.html">nearZeroVar()</a> drops near-constant predictors that barely vary.</li>
+
+<li><a href="caret-findLinearCombos-in-R.html">findLinearCombos()</a> drops columns that are exact linear combinations of others.</li>
+
+<li><a href="caret-preProcess-in-R.html">preProcess()</a> centers, scales, imputes, and can run PCA.</li>
+
+<li><a href="caret-dummyVars-in-R.html">dummyVars()</a> one-hot encodes categorical predictors.</li>
+
+<li><a href="caret-train-in-R.html">train()</a> fits and tunes a model on the cleaned data.</li>
+
+</ul>
+
+<p>See the <a href="https://topepo.github.io/caret/pre-processing.html">caret pre-processing documentation</a> for the full preprocessing toolkit.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does findCorrelation() do in caret?</strong></p>
+
+<p><code>findCorrelation()</code> scans a correlation matrix and identifies predictors that are highly correlated with one another. For each pair whose absolute correlation exceeds the cutoff, it flags the column with the larger mean absolute correlation across all predictors. It returns a vector of column indices, or names if <code>names = TRUE</code>, that you then drop from the data. The goal is to remove collinearity before fitting a model, which stabilizes coefficients and speeds up training.</p>
+
+<p><strong>Does findCorrelation() take a data frame or a correlation matrix?</strong></p>
+
+<p>It takes a correlation matrix, the square symmetric output of <code>cor()</code>. Passing a raw data frame fails because a data frame is not symmetric. The standard call is <code>findCorrelation(cor(df))</code>. If your data frame has missing values, compute the matrix with <code>cor(df, use = &quot;complete.obs&quot;)</code> so no cell is <code>NA</code>, since <code>findCorrelation()</code> cannot process a matrix that contains <code>NA</code>.</p>
+
+<p><strong>What cutoff should I use for findCorrelation()?</strong></p>
+
+<p>The default cutoff is 0.90, which removes only strongly redundant pairs and is a safe starting point. Lower it toward 0.75 when even moderate correlation hurts your model, such as with <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a> where <a class="auto-link" href="Multicollinearity-in-R.html" title="Multicollinearity in R: Detect It With VIF Before It Corrupts Your Coefficients">multicollinearity</a> inflates standard errors. Raise it toward 0.95 when you want to keep as many predictors as possible and only delete near-duplicates. Tree-based models tolerate correlation well, so a higher cutoff is usually fine for them.</p>
+
+<p><strong>How does findCorrelation() decide which column in a pair to drop?</strong></p>
+
+<p>For every flagged pair, it computes each column's average absolute correlation with all other predictors. It removes the column with the higher average, on the logic that this column overlaps most with the rest of the data and is therefore the most redundant. With <code>exact = TRUE</code>, the averages are recomputed after each removal so the decisions stay accurate as the matrix shrinks.</p>
+
+</content>
+
+</invoke>
