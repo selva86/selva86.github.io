@@ -1,0 +1,395 @@
+---
+title: "parsnip discrim_regularized() in R: Fit RDA Models"
+description: "Use parsnip discrim_regularized() to fit regularized discriminant analysis (RDA) models in R. Covers syntax, the two shrinkage knobs, tuning, and pitfalls."
+keywords: "parsnip discrim_regularized, discrim_regularized function R, parsnip discrim_regularized examples, regularized discriminant analysis R, RDA tidymodels, discrim_regularized tidymodels, RDA in R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "discrim_regularized()|parsnip discrim_regularized|discrim::discrim_regularized()|regularized discriminant analysis|discrim_regularized"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>parsnip discrim_regularized() in R: Fit RDA Models</h1>
+
+<p class="lead">The parsnip <code>discrim_regularized()</code> function defines a regularized discriminant analysis (RDA) model in R. It blends linear and <a class="auto-link" href="Quadratic-Discriminant-Analysis-in-R.html" title="Quadratic Discriminant Analysis in R: When LDA Assumptions Break">quadratic discriminant analysis</a> through two shrinkage knobs, so one model can sit anywhere between LDA and QDA.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>discrim_regularized()<span class="qa-cmt">                              # default RDA spec, klaR engine</span>
+discrim_regularized(frac_common_cov = 1)<span class="qa-cmt">           # behaves like LDA</span>
+discrim_regularized(frac_common_cov = 0)<span class="qa-cmt">           # behaves like QDA</span>
+discrim_regularized(frac_identity = 0.5)<span class="qa-cmt">           # shrink covariance to identity</span>
+discrim_regularized(frac_common_cov = tune())<span class="qa-cmt">      # mark a parameter for tuning</span>
+discrim_regularized() |&gt; set_engine(&quot;klaR&quot;)<span class="qa-cmt">        # the only engine</span>
+discrim_regularized() |&gt; fit(Species ~ ., train)<span class="qa-cmt">   # fit to training data</span>
+predict(rda_fit, test, type = &quot;prob&quot;)<span class="qa-cmt">              # per-class probabilities</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is discrim_regularized() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">many predictors, small classes, want shrinkage</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">discrim_regularized()</text><text x="125" y="126" class="branch-label">classes share covariance, linear boundary</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">discrim_linear()</text><text x="125" y="182" class="branch-label">classes differ in spread, curved boundary</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">discrim_quad()</text><text x="125" y="238" class="branch-label">nonlinear fit via basis expansion</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">discrim_flexible()</text><text x="125" y="294" class="branch-label">predictors far from normal</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">try <a class="auto-link" href="parsnip-decision_tree-in-R.html" title="parsnip decision_tree() in R: Build Tree-Based Models">decision_tree()</a></text><text x="125" y="350" class="branch-label">two classes, want interpretable odds</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">logistic_reg()</text></svg></div>
+
+<h2>What discrim_regularized() does</h2>
+
+<p><strong><code>discrim_regularized()</code> creates a regularized discriminant analysis specification.</strong> Like its siblings it belongs to the parsnip model family but ships in the companion <code>discrim</code> package, so you load both <code>tidymodels</code> and <code>discrim</code>. The function returns a model specification, not a fitted model. You pair it with the <code>klaR</code> engine, set the mode, then call <code>fit()</code>.</p>
+
+<p>RDA, introduced by Friedman in 1989, sits on a continuum between LDA and QDA. Two fractions control where it lands. <code>frac_common_cov</code> decides how much covariance is pooled across classes, and <code>frac_identity</code> decides how strongly each covariance is shrunk toward the identity matrix. Tuning those two values often beats picking plain LDA or QDA.</p>
+
+<h2>discrim_regularized() syntax and arguments</h2>
+
+<p><strong><code>discrim_regularized()</code> exposes two real hyperparameters, which is what sets it apart from <code>discrim_linear()</code> and <code>discrim_quad()</code>.</strong> Those siblings have nothing to tune. RDA has two knobs that move it across the LDA-to-QDA spectrum.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Purpose</th>
+<th>Range</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>frac_common_cov</code></td>
+<td>Fraction of covariance pooled across classes. 1 = LDA, 0 = QDA</td>
+<td>0 to 1</td>
+</tr>
+<tr>
+<td><code>frac_identity</code></td>
+<td>Fraction shrinking each covariance toward the identity matrix</td>
+<td>0 to 1</td>
+</tr>
+<tr>
+<td><code>mode</code></td>
+<td>Prediction type</td>
+<td><code>&quot;classification&quot;</code> (the only valid mode)</td>
+</tr>
+<tr>
+<td><code>engine</code></td>
+<td>Computational backend</td>
+<td><code>&quot;klaR&quot;</code> (the only engine)</td>
+</tr>
+</tbody>
+</table>
+
+<p>A complete specification chains the spec with <code>set_engine()</code> and <code>set_mode()</code>.</p>
+
+<div class="webr-container" data-block-title="Define a regularized discriminant spec">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define a regularized discriminant spec</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+library(discrim)
+
+rda_spec &lt;- discrim_regularized(frac_common_cov = 0.5, frac_identity = 0.1) |&gt;
+  set_engine(&quot;klaR&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+rda_spec
+#&gt; Regularized Discriminant Model Specification (classification)
+#&gt;
+#&gt; Main Arguments:
+#&gt;   frac_common_cov = 0.5
+#&gt;   frac_identity = 0.1
+#&gt;
+#&gt; Computational engine: klaR</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The printed object confirms both fractions, the mode, and the engine. Nothing is fitted yet, so this spec is reusable across resamples and workflows.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>klaR</code> is the only engine.</strong> Unlike <code>discrim_quad()</code>, which also offers <code>sparsediscrim</code>, <code>discrim_regularized()</code> always calls <code>klaR::rda()</code>. There is no engine choice to make, so <code>set_engine(&quot;klaR&quot;)</code> is optional but worth keeping for clarity.</div></div>
+
+<h2>Fit a regularized discriminant model</h2>
+
+<p><strong><code>fit()</code> estimates the class means and the regularized covariance matrices.</strong> Split the data first so you can measure honest accuracy on rows the model never saw. The <code>iris</code> dataset works well: three classes and four numeric predictors.</p>
+
+<div class="webr-container" data-block-title="Fit RDA on the iris data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit RDA on the iris data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+iris_split &lt;- initial_split(iris, prop = 0.75, strata = Species)
+iris_train &lt;- training(iris_split)
+iris_test  &lt;- testing(iris_split)
+
+rda_fit &lt;- rda_spec |&gt;
+  fit(Species ~ ., data = iris_train)
+
+rda_fit
+#&gt; parsnip model object
+#&gt;
+#&gt; Call:
+#&gt; rda(formula = Species ~ ., data = data, lambda = ~0.5, gamma = ~0.1)
+#&gt;
+#&gt; Regularization parameters:
+#&gt;  gamma lambda
+#&gt;    0.1    0.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Parsnip maps <code>frac_common_cov</code> to <code>klaR</code>'s <code>lambda</code> and <code>frac_identity</code> to <code>gamma</code>, so the printed call shows <code>lambda = 0.5</code> and <code>gamma = 0.1</code>. Predictions arrive as tidy tibbles.</p>
+
+<div class="webr-container" data-block-title="Predict classes and probabilities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict classes and probabilities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(rda_fit, iris_test) |&gt; head(3)
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 setosa
+#&gt; 2 setosa
+#&gt; 3 setosa
+
+predict(rda_fit, iris_test, type = &quot;prob&quot;) |&gt; head(3)
+#&gt; # A tibble: 3 x 3
+#&gt;   .pred_setosa .pred_versicolor .pred_virginica
+#&gt;          &lt;dbl&gt;            &lt;dbl&gt;           &lt;dbl&gt;
+#&gt; 1        1.000         0.000256      0.00000011
+#&gt; 2        1.000         0.000691      0.00000043
+#&gt; 3        1.000         0.000113      0.00000002</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Bind the predictions back to the test set to score the model with <code>yardstick</code>'s <code>accuracy()</code>.</p>
+
+<h2>Tune frac_common_cov and frac_identity</h2>
+
+<p><strong>The point of RDA is to let the data choose the LDA-to-QDA blend.</strong> Mark both arguments with <code>tune()</code>, build a grid, and resample with cross-validation. The <code>dials</code> package supplies parameter objects named after each argument.</p>
+
+<div class="webr-container" data-block-title="Tune the regularization parameters">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tune the regularization parameters</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rda_tune &lt;- discrim_regularized(
+  frac_common_cov = tune(),
+  frac_identity   = tune()
+) |&gt;
+  set_engine(&quot;klaR&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+set.seed(7)
+folds &lt;- vfold_cv(iris_train, v = 5, strata = Species)
+
+rda_grid &lt;- grid_regular(frac_common_cov(), frac_identity(), levels = 4)
+
+rda_res &lt;- tune_grid(rda_tune, Species ~ ., resamples = folds, grid = rda_grid)
+
+show_best(rda_res, metric = &quot;accuracy&quot;, n = 3)
+#&gt; # A tibble: 3 x 8
+#&gt;   frac_common_cov frac_identity .metric  .estimator  mean     n std_err .config
+#&gt;             &lt;dbl&gt;         &lt;dbl&gt; &lt;chr&gt;    &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1           0.333             0 accuracy multiclass 0.973     5  0.0163 Prepro~
+#&gt; 2           1                 0 accuracy multiclass 0.964     5  0.0201 Prepro~
+#&gt; 3           0.667             0 accuracy multiclass 0.964     5  0.0201 Prepro~</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>On <code>iris</code> the classes are well separated, so a <a class="auto-link" href="Bayesian-Hierarchical-Models-in-R.html" title="Bayesian Hierarchical Models in R: The Trick That Borrows Strength Across Groups">partial pooling</a> of covariance scores highest. The gap between settings widens on harder data.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Finalize the spec with the winning fractions.</strong> Pass <code>select_best(rda_res, metric = &quot;accuracy&quot;)</code> to <code>finalize_model()</code> to lock the tuned values, then refit on the full training set before predicting on test data.</div></div>
+
+<h2>discrim_regularized() vs LDA and QDA</h2>
+
+<p><strong>RDA contains LDA and QDA as special cases.</strong> Set <code>frac_common_cov</code> to 1 and RDA reproduces <a class="auto-link" href="Linear-Discriminant-Analysis-in-R.html" title="LDA in R: Classify Observations by Maximising Between-Group Separation">linear discriminant analysis</a>. Set it to 0 and RDA reproduces quadratic discriminant analysis. Every value in between is a mixture that neither sibling can express.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Setting</th>
+<th>Equivalent model</th>
+<th>Boundary</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>frac_common_cov = 1</code></td>
+<td>LDA (<code>discrim_linear()</code>)</td>
+<td>Linear</td>
+</tr>
+<tr>
+<td><code>frac_common_cov = 0</code></td>
+<td>QDA (<code>discrim_quad()</code>)</td>
+<td>Quadratic</td>
+</tr>
+<tr>
+<td><code>0 &lt; frac_common_cov &lt; 1</code></td>
+<td>Regularized blend</td>
+<td>Between</td>
+</tr>
+<tr>
+<td><code>frac_identity &gt; 0</code></td>
+<td>Extra shrinkage to identity</td>
+<td>Stabilized</td>
+</tr>
+</tbody>
+</table>
+
+<div class="webr-container" data-block-title="Reproduce LDA with RDA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reproduce LDA with RDA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">as_lda &lt;- discrim_regularized(frac_common_cov = 1, frac_identity = 0) |&gt;
+  set_engine(&quot;klaR&quot;) |&gt;
+  set_mode(&quot;classification&quot;) |&gt;
+  fit(Species ~ ., data = iris_train)
+
+iris_test |&gt;
+  bind_cols(predict(as_lda, iris_test)) |&gt;
+  accuracy(Species, .pred_class) |&gt;
+  pull(.estimate)
+#&gt; [1] 0.9736842</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>RDA is a dial, not a third model.</strong> LDA and QDA are the two endpoints of a single slider. <code>discrim_regularized()</code> exposes that slider so cross-validation can land between them, which is useful when classes are too small for stable QDA but too distinct for LDA.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>RDA fails in a few predictable ways.</strong> Each has a clear fix.</p>
+
+<ul>
+
+<li><strong><code>discrim</code> not loaded.</strong> <code>discrim_regularized()</code> is not in parsnip core. Without <code>library(discrim)</code> you get <code>could not find function</code>.</li>
+
+<li><strong>Fractions outside 0 to 1.</strong> Both <code>frac_common_cov</code> and <code>frac_identity</code> are fractions. Values above 1 or below 0 produce errors or meaningless covariance estimates.</li>
+
+<li><strong>Tuning on a single split.</strong> One train-test split makes the chosen fractions noisy. Always resample with <code>vfold_cv()</code> before trusting a setting.</li>
+
+</ul>
+
+<div class="webr-container" data-block-title="Pitfall: discrim package not loaded">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: discrim package not loaded</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># library(discrim) was never called
+discrim_regularized()
+#&gt; Error: could not find function &quot;discrim_regularized&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Loading <code>tidymodels</code> alone is not enough.</strong> The core <code>tidymodels</code> bundle does not attach <code>discrim</code>. Always call <code>library(discrim)</code> in the same script, or the model function will not be found.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Tune <code>frac_common_cov</code> only, holding <code>frac_identity</code> at 0, on <code>iris_train</code> with 5-fold cross-validation, and report the best accuracy. Save the tuning result to <code>ex_res</code>.</p>
+<div class="webr-container" data-block-title="Your turn: tune frac_common_cov">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tune frac_common_cov</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: tune frac_common_cov with frac_identity fixed
+ex_spec &lt;- discrim_regularized(frac_common_cov = tune(), frac_identity = 0) |&gt;
+  set_engine(&quot;klaR&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+ex_res &lt;- # your code here
+
+show_best(ex_res, metric = &quot;accuracy&quot;, n = 1)
+#&gt; Expected: one row with the best frac_common_cov</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_folds &lt;- vfold_cv(iris_train, v = 5, strata = Species)
+ex_grid  &lt;- grid_regular(frac_common_cov(), levels = 5)
+ex_res &lt;- tune_grid(ex_spec, Species ~ ., resamples = ex_folds, grid = ex_grid)
+
+show_best(ex_res, metric = &quot;accuracy&quot;, n = 1)
+#&gt; # A tibble: 1 x 7
+#&gt;   frac_common_cov .metric  .estimator  mean     n std_err .config
+#&gt;             &lt;dbl&gt; &lt;chr&gt;    &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1            0.25 accuracy multiclass 0.973     5  0.0163 Preprocessor1_Model1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Fixing <code>frac_identity</code> at 0 keeps the second regularizer off, so the grid only varies the LDA-to-QDA blend. <code>grid_regular()</code> with <code>levels = 5</code> spreads <code>frac_common_cov</code> evenly from 0 to 1.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>These functions pair naturally with <code>discrim_regularized()</code>.</strong></p>
+
+<ul>
+
+<li><a href="discrim_linear-in-R.html">discrim_linear()</a> defines an LDA model with a shared covariance.</li>
+
+<li><a href="discrim_quad-in-R.html">discrim_quad()</a> defines a QDA model with one covariance per class.</li>
+
+<li><code>discrim_flexible()</code> fits flexible discriminant analysis via basis expansion.</li>
+
+<li><code>set_engine()</code> selects the computational backend.</li>
+
+<li><code>tune()</code> marks an argument for grid search.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between discrim_regularized() and discrim_quad()?</strong></p>
+
+<p><code>discrim_quad()</code> fits quadratic discriminant analysis with a separate <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">covariance matrix</a> per class and has no tuning parameters. <code>discrim_regularized()</code> adds two fractions, <code>frac_common_cov</code> and <code>frac_identity</code>, that pull the covariance estimates toward a pooled matrix or toward the identity. QDA is one fixed point on that scale, recovered when <code>frac_common_cov</code> is 0. RDA can sit anywhere between LDA and QDA, which helps when a class is too small for stable QDA.</p>
+
+<p><strong>What do frac_common_cov and frac_identity control?</strong></p>
+
+<p><code>frac_common_cov</code> sets how much of each class covariance is replaced by one pooled covariance shared across all classes. A value of 1 gives linear discriminant analysis; 0 gives quadratic. <code>frac_identity</code> sets how strongly each covariance is shrunk toward the identity matrix, which stabilizes estimates when predictors are correlated or rows are scarce. Both are fractions between 0 and 1, and both can be tuned.</p>
+
+<p><strong>Which engine does discrim_regularized() support?</strong></p>
+
+<p><code>discrim_regularized()</code> supports a single engine, <code>&quot;klaR&quot;</code>, which calls <code>klaR::rda()</code> under the hood. There is no alternative backend, so <code>set_engine(&quot;klaR&quot;)</code> is optional, though keeping it makes the specification explicit. Run <code>discrim_regularized() |&gt; translate()</code> to see the exact engine call parsnip will make, including how the two fractions map to <code>klaR</code>'s <code>lambda</code> and <code>gamma</code>.</p>
+
+<p><strong>Does discrim_regularized() need feature scaling?</strong></p>
+
+<p>No. RDA is built on covariance matrices, and rescaling predictors does not change the fitted decision boundary. You can still center and scale inside a recipe for consistency with other models in a workflow, but <code>discrim_regularized()</code> does not require it. What does matter is roughly normal predictors within each class, since discriminant analysis assumes class-conditional normality.</p>
+
+<p><strong>How do I tune a regularized discriminant model in R?</strong></p>
+
+<p>Mark <code>frac_common_cov</code> and <code>frac_identity</code> with <code>tune()</code>, build a grid with <code>grid_regular(frac_common_cov(), frac_identity())</code>, and pass it to <code>tune_grid()</code> with a <code>vfold_cv()</code> resampling object. Inspect results with <code>show_best()</code> and lock the winner with <code>select_best()</code> plus <code>finalize_model()</code>. Cross-validation is essential here because the right blend depends on the data, not a fixed rule.</p>
+
+<p>For the full argument reference, see the <a href="https://discrim.tidymodels.org/reference/discrim_regularized.html">discrim package documentation</a>.</p>
