@@ -1,0 +1,377 @@
+---
+title: "caret preProcess() in R: Scale, Center and Impute Data"
+description: "Learn how caret preProcess() in R centers, scales, transforms, and imputes predictors. Examples, the predict() two-step pattern, method options, and pitfalls."
+keywords: "caret preProcess, preProcess function R, caret preProcess examples, R preprocess data, center and scale data in R, caret data preprocessing, preProcess predict R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "preProcess()|caret preProcess|caret::preProcess()|data preprocessing in caret|preProcess function"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret preProcess() in R: Scale, Center and Impute Data</h1>
+
+<p class="lead">The <code>preProcess()</code> function in caret estimates a <a class="auto-link" href="Univariate-EDA-in-R.html" title="Univariate EDA in R: Every Variable Deserves Individual Attention Before Modelling">data transformation</a>, such as centering, scaling, or imputation, from a training set. You apply it to any data with <code>predict()</code>, so the same recipe runs consistently on train and test sets.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>preProcess(df, method = c(&quot;center&quot;,&quot;scale&quot;))<span class="qa-cmt">   # standardize columns</span>
+preProcess(df, method = &quot;range&quot;)<span class="qa-cmt">                # scale to 0 to 1</span>
+preProcess(df, method = &quot;knnImpute&quot;)<span class="qa-cmt">            # impute + standardize</span>
+preProcess(df, method = &quot;medianImpute&quot;)<span class="qa-cmt">         # fast NA fill</span>
+preProcess(df, method = &quot;BoxCox&quot;)<span class="qa-cmt">               # correct skew</span>
+preProcess(df, method = &quot;nzv&quot;)<span class="qa-cmt">                  # drop near-zero-var cols</span>
+preProcess(df, method = &quot;pca&quot;, thresh = 0.95)<span class="qa-cmt">   # reduce dimensions</span>
+predict(pp, newdata)<span class="qa-cmt">                            # apply the recipe</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is preProcess() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">transform numeric predictors before modeling</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">preProcess(df, method = ...)</text><text x="125" y="126" class="branch-label">one-hot encode factor columns</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">dummyVars(~ ., data = df)</text><text x="125" y="182" class="branch-label">drop near-zero-variance columns</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">nearZeroVar(df, names = TRUE)</text><text x="125" y="238" class="branch-label">drop highly correlated columns</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">findCorrelation(cor(df))</text><text x="125" y="294" class="branch-label">split data into train and test</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">createDataPartition(y, p = 0.7)</text><text x="125" y="350" class="branch-label">tune a model with resampling</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">train(y ~ ., data = df, method = &quot;rf&quot;)</text></svg></div>
+
+<h2>What preProcess() does in one sentence</h2>
+
+<p><strong><code>preProcess()</code> learns a transformation; it does not apply one.</strong> You hand it a data frame of numeric predictors and a list of methods, and it returns a <code>preProcess</code> object that stores the parameters it estimated, such as each column's mean and standard deviation. The data itself comes back untouched.</p>
+
+<p>To actually transform data, you call <code>predict()</code> on that object. This two-step design is deliberate. A model that was trained on standardized data must see test data standardized with the <em>same</em> mean and standard deviation, not values recomputed from the test set. Storing the recipe once and replaying it everywhere is what keeps train and test consistent.</p>
+
+<h2>preProcess() syntax and arguments</h2>
+
+<p><strong><code>preProcess()</code> takes a numeric data frame plus a vector of method names.</strong> Non-numeric columns are passed through unchanged, so you can hand it a mixed data frame without filtering first.</p>
+
+<div class="webr-container" data-block-title="Load caret and build a dataset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and build a dataset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+# mtcars columns with two missing horsepower values
+df &lt;- mtcars[, c(&quot;mpg&quot;, &quot;hp&quot;, &quot;wt&quot;, &quot;disp&quot;)]
+df$hp[c(3, 8)] &lt;- NA
+
+summary(df$hp)
+#&gt;    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.    NA's
+#&gt;    52.0    96.5   136.5   151.3   180.0   335.0       2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The core signature is short:</p>
+
+<pre><code>preProcess(x, method = c(&quot;center&quot;, &quot;scale&quot;), ...)</code></pre>
+
+<ul>
+
+<li><code>x</code>: a data frame or matrix of predictors. Numeric columns are processed; others are ignored.</li>
+
+<li><code>method</code>: a character vector of transformations. caret applies them in a fixed internal order, not the order you list.</li>
+
+<li><code>thresh</code>: cumulative variance kept by <code>&quot;pca&quot;</code> (default <code>0.95</code>).</li>
+
+<li><code>k</code>: number of neighbours used by <code>&quot;knnImpute&quot;</code> (default <code>5</code>).</li>
+
+<li><code>na.remove</code>: drop <code>NA</code> values before estimating parameters (default <code>TRUE</code>).</li>
+
+</ul>
+
+<p>The <code>method</code> argument accepts many values, grouped by purpose:</p>
+
+<ul>
+
+<li>Centering and scaling: <code>&quot;center&quot;</code>, <code>&quot;scale&quot;</code>, <code>&quot;range&quot;</code></li>
+
+<li>Skew correction: <code>&quot;BoxCox&quot;</code>, <code>&quot;YeoJohnson&quot;</code>, <code>&quot;expoTrans&quot;</code></li>
+
+<li>Imputation: <code>&quot;knnImpute&quot;</code>, <code>&quot;bagImpute&quot;</code>, <code>&quot;medianImpute&quot;</code></li>
+
+<li>Filtering: <code>&quot;zv&quot;</code>, <code>&quot;nzv&quot;</code>, <code>&quot;corr&quot;</code></li>
+
+<li>Transformation: <code>&quot;pca&quot;</code>, <code>&quot;ica&quot;</code>, <code>&quot;spatialSign&quot;</code></li>
+
+</ul>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Estimate the recipe on training data, then reuse it.</strong> Build one <code>preProcess</code> object from the training set and call <code>predict()</code> with it on every later batch. Re-estimating on the test set leaks test statistics into your evaluation.</div></div>
+
+<h2>preProcess() examples by use case</h2>
+
+<h3>1. Center and scale (standardize)</h3>
+
+<p>The most common recipe subtracts each column's mean and divides by its standard deviation.</p>
+
+<div class="webr-container" data-block-title="Estimate centering and scaling">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Estimate centering and scaling</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pp &lt;- preProcess(df, method = c(&quot;center&quot;, &quot;scale&quot;))
+pp
+#&gt; Created from 30 samples and 4 variables
+#&gt;
+#&gt; Pre-processing:
+#&gt;   - centered (4)
+#&gt;   - ignored (0)
+#&gt;   - scaled (4)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The object reports what it estimated but holds no transformed data. Apply it with <code>predict()</code>.</p>
+
+<div class="webr-container" data-block-title="Apply the recipe with predict">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Apply the recipe with predict</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df_cs &lt;- predict(pp, df)
+round(head(df_cs, 3), 2)
+#&gt;                 mpg    hp    wt  disp
+#&gt; Mazda RX4      0.15 -0.54 -0.61 -0.57
+#&gt; Mazda RX4 Wag  0.15 -0.54 -0.35 -0.57
+#&gt; Datsun 710     0.45    NA -0.92 -0.99</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Notice the <code>NA</code> in row three. Centering and scaling never <a class="auto-link" href="tidyr-fill-in-R.html" title="tidyr fill() in R: Forward-Fill Missing Values">fill missing values</a>, they only shift and rescale the ones present. For gaps you need an imputation method.</p>
+
+<h3>2. Scale to a 0 to 1 range</h3>
+
+<p>Use <code>&quot;range&quot;</code> when an algorithm expects bounded inputs, such as neural networks or distance metrics on mixed units.</p>
+
+<div class="webr-container" data-block-title="Scale predictors to a 0 to 1 range">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Scale predictors to a 0 to 1 range</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pp_range &lt;- preProcess(df, method = &quot;range&quot;)
+df_range &lt;- predict(pp_range, df)
+summary(df_range$mpg)
+#&gt;    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
+#&gt;  0.0000  0.2138  0.3745  0.4124  0.5277  1.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every value now lands between 0 and 1, with the smallest observation mapped to 0 and the largest to 1.</p>
+
+<h3>3. Impute missing values</h3>
+
+<p>The <code>&quot;knnImpute&quot;</code> method fills gaps using the five nearest complete rows.</p>
+
+<div class="webr-container" data-block-title="Impute missing values with knnImpute">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Impute missing values with knnImpute</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pp_knn &lt;- preProcess(df, method = &quot;knnImpute&quot;)
+df_knn &lt;- predict(pp_knn, df)
+sum(is.na(df_knn$hp))
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>knnImpute also centers and scales.</strong> Distance-based imputation needs comparable units, so caret standardizes every column as part of <code>&quot;knnImpute&quot;</code>. If you want imputation without standardization, use <code>&quot;medianImpute&quot;</code> or <code>&quot;bagImpute&quot;</code> instead.</div></div>
+
+<h3>4. Use preProcess inside train()</h3>
+
+<p>You rarely call <code>preProcess()</code> by hand in a real workflow. The <code>train()</code> function takes a <code>preProcess</code> argument and builds the recipe inside each resampling fold for you.</p>
+
+<div class="webr-container" data-block-title="Pass preProcess straight to train()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pass preProcess straight to train()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+model &lt;- train(
+  mpg ~ hp + wt + disp,
+  data = mtcars,
+  method = &quot;lm&quot;,
+  preProcess = c(&quot;center&quot;, &quot;scale&quot;)
+)
+model$preProcess
+#&gt; Created from 32 samples and 3 variables
+#&gt;
+#&gt; Pre-processing:
+#&gt;   - centered (3)
+#&gt;   - scaled (3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The learn-then-apply split is the whole point of <code>preProcess()</code>.</strong> A plain <code>scale()</code> call recomputes statistics from whatever data you give it, so test data gets standardized against itself. <code>preProcess()</code> freezes the training parameters into an object, and <code>predict()</code> replays them, so a model never sees test-derived statistics.</div></div>
+
+<h2>preProcess() vs scale() and recipes</h2>
+
+<p><strong><code>preProcess()</code> is the caret-native choice; <code>scale()</code> and <code>recipes</code> cover the cases around it.</strong> Base R <code>scale()</code> is fine for a quick, throwaway transform. The <code>recipes</code> package is the modern tidymodels equivalent with a richer step API.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Best for</th>
+<th>Reusable on new data</th>
+<th>Imputation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>preProcess()</code> + <code>predict()</code></td>
+<td>caret modeling workflows</td>
+<td>Yes, recipe stored in an object</td>
+<td>Yes (knn, bag, median)</td>
+</tr>
+<tr>
+<td><code>scale()</code></td>
+<td>quick one-off standardizing</td>
+<td>No, recomputes every call</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>recipes</code> package</td>
+<td>tidymodels pipelines</td>
+<td>Yes, via <code>prep()</code> and <code>bake()</code></td>
+<td>Yes</td>
+</tr>
+</tbody>
+</table>
+
+<p>Choose <code>preProcess()</code> when your model is trained with <code>caret::train()</code>. Choose <code>recipes</code> when you have moved to tidymodels. Reach for <code>scale()</code> only for exploratory work that never touches a test set.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: expecting <code>preProcess()</code> to return transformed data.</strong> It returns a recipe object, not a data frame. You must call <code>predict()</code> to get values back. Skipping that step is the single most common mistake.</p>
+
+<p><strong>Pitfall 2: standardizing with <code>center</code>/<code>scale</code> but leaving <code>NA</code> values.</strong> These methods ignore missing values, they do not fill them. If your data has gaps, add an imputation method to the same <code>method</code> vector.</p>
+
+<p><strong>Pitfall 3: fitting the recipe on the full dataset.</strong> Estimating means and standard deviations from train and test combined leaks information and inflates your accuracy estimate.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never estimate <code>preProcess()</code> on data that includes your test set.</strong> Build the recipe from training rows only, then apply it to test rows with <code>predict()</code>. Otherwise test statistics bleed into the transformation and your evaluation is optimistic.</div></div>
+
+<div class="webr-container" data-block-title="Estimate on training data only">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Estimate on training data only</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+idx   &lt;- createDataPartition(mtcars$mpg, p = 0.7, list = FALSE)
+train &lt;- mtcars[idx, c(&quot;mpg&quot;, &quot;hp&quot;, &quot;wt&quot;)]
+test  &lt;- mtcars[-idx, c(&quot;mpg&quot;, &quot;hp&quot;, &quot;wt&quot;)]
+
+pp_train &lt;- preProcess(train, method = c(&quot;center&quot;, &quot;scale&quot;))
+test_cs  &lt;- predict(pp_train, test)
+nrow(test_cs)
+#&gt; [1] 9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a <code>preProcess</code> recipe on <code>iris[, 1:4]</code> that scales every numeric column to a 0 to 1 range, apply it, and save the result to <code>ex_scaled</code>.</p>
+<div class="webr-container" data-block-title="Your turn: range-scale iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: range-scale iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: range-scale the iris predictors
+ex_scaled &lt;- # your code here
+
+summary(ex_scaled$Sepal.Length)
+#&gt; Expected: Min. near 0.0, Max. near 1.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pp_iris   &lt;- preProcess(iris[, 1:4], method = &quot;range&quot;)
+ex_scaled &lt;- predict(pp_iris, iris[, 1:4])
+summary(ex_scaled$Sepal.Length)
+#&gt;    Min. 1st Qu.  Median    Mean 3rd Qu.    Max.
+#&gt;  0.0000  0.2222  0.4167  0.4287  0.5833  1.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>preProcess()</code> with <code>method = &quot;range&quot;</code> estimates the minimum and maximum of each column. <code>predict()</code> then rescales every value so the smallest becomes 0 and the largest becomes 1.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p>After <code>preProcess()</code>, these caret functions round out a preprocessing pipeline:</p>
+
+<ul>
+
+<li><code>predict.preProcess()</code>: applies a fitted recipe to new data</li>
+
+<li><code>dummyVars()</code>: one-hot encodes factor columns into numeric indicators</li>
+
+<li><code>nearZeroVar()</code>: flags predictors with near-zero variance for removal</li>
+
+<li><code>findCorrelation()</code>: identifies highly correlated columns to drop</li>
+
+<li><code>train()</code>: trains and tunes a model, accepting a <code>preProcess</code> argument directly</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>Does caret preProcess() change the data immediately?</strong></p>
+
+<p>No. <code>preProcess()</code> only estimates parameters and returns a <code>preProcess</code> object that stores them. The original data is returned unchanged. To get transformed values you call <code>predict()</code> on the object with the data you want processed. This separation lets you fit the recipe once on training data and replay it on any number of later batches.</p>
+
+<p><strong>What is the difference between preProcess() and scale()?</strong></p>
+
+<p><code>scale()</code> standardizes a matrix in place and recomputes the mean and standard deviation every time it runs. <code>preProcess()</code> freezes those statistics into a reusable object. Because a model trained on standardized data must see test data standardized with the training statistics, <code>preProcess()</code> plus <code>predict()</code> is the correct choice for any workflow that splits data.</p>
+
+<p><strong>In what order does preProcess() apply methods?</strong></p>
+
+<p>caret uses a fixed internal order regardless of how you list methods. It runs variance filters first, then skew corrections such as Box-Cox, then centering, scaling, and range, then imputation, and finally PCA, ICA, or spatial sign. So <code>method = c(&quot;scale&quot;, &quot;center&quot;)</code> and <code>method = c(&quot;center&quot;, &quot;scale&quot;)</code> produce identical results.</p>
+
+<p><strong>How does preProcess() handle missing values?</strong></p>
+
+<p>For <code>&quot;center&quot;</code>, <code>&quot;scale&quot;</code>, and <code>&quot;range&quot;</code>, missing values are ignored when estimating parameters and remain <code>NA</code> in the output. To fill gaps, add an imputation method: <code>&quot;knnImpute&quot;</code>, <code>&quot;bagImpute&quot;</code>, or <code>&quot;medianImpute&quot;</code>. Imputation runs after scaling in caret's internal order.</p>
+
+<p><strong>Can I use preProcess() outside of caret modeling?</strong></p>
+
+<p>Yes. <code>preProcess()</code> works as a standalone transformer on any numeric data frame, even if you never call <code>train()</code>. Many people use it purely to standardize or impute data before feeding it to a non-caret model, because the stored-recipe pattern is still the safe way to keep train and test consistent.</p>
+
+</content>
+
+</invoke>
