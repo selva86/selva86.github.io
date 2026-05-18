@@ -1,0 +1,299 @@
+---
+title: "caret rfe() in R: Recursive Feature Elimination"
+description: "Use caret rfe() in R for recursive feature elimination. Covers rfeControl, sizes, the rfFuncs and lmFuncs backends, and a worked variable selection example."
+keywords: "caret rfe, rfe function R, caret rfe example, recursive feature elimination R, caret feature selection, rfeControl R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "rfe()|caret rfe|caret::rfe()|recursive feature elimination|rfeControl()"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret rfe() in R: Recursive Feature Elimination</h1>
+
+<p class="lead">The caret <code>rfe()</code> function runs recursive feature elimination, a resampling-based search that fits a model, ranks predictors by importance, drops the weakest, and repeats until it finds the smallest subset of variables that does not lose predictive accuracy.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>rfe(x, y, sizes = c(1,2,3), rfeControl = ctrl)<span class="qa-cmt">   # core call</span>
+rfeControl(functions = rfFuncs, method = &quot;cv&quot;)<span class="qa-cmt">    # random forest backend</span>
+rfeControl(functions = lmFuncs, number = 5)<span class="qa-cmt">       # linear model backend</span>
+predictors(rfe_fit)<span class="qa-cmt">                               # the chosen variables</span>
+rfe_fit$optVariables<span class="qa-cmt">                              # same, as a vector</span>
+rfe_fit$optsize<span class="qa-cmt">                                   # size of the best subset</span>
+plot(rfe_fit, type = c(&quot;g&quot;, &quot;o&quot;))<span class="qa-cmt">                 # performance vs size</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is rfe() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">rank then eliminate by resampling</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">rfe(x, y, sizes, rfeControl)</text><text x="125" y="126" class="branch-label">filter predictors one at a time</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">sbf(x, y, sbfControl)</text><text x="125" y="182" class="branch-label">genetic-algorithm feature search</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">gafs(x, y, iters = 10)</text><text x="125" y="238" class="branch-label">simulated-annealing feature search</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">safs(x, y, iters = 100)</text><text x="125" y="294" class="branch-label">drop near-constant columns first</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">nearZeroVar(df, names = TRUE)</text><text x="125" y="350" class="branch-label">drop correlated predictors first</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">findCorrelation(cor(df))</text><text x="125" y="406" class="branch-label">score importance without selecting</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">varImp(model)</text></svg></div>
+
+<h2>What rfe() does in one sentence</h2>
+
+<p><strong><code>rfe()</code> is a wrapper method for <a class="auto-link" href="Variable-Selection-and-Importance-With-R.html" title="Feature Selection and Variable Importance">feature selection</a>.</strong> Unlike filter methods that judge each predictor in isolation, recursive feature elimination judges predictors by how a real model performs with them. It fits the model, ranks variables by importance, removes the least useful, and refits on the smaller set.</p>
+
+<p>This loop runs inside a resampling scheme such as cross-validation, so every candidate subset size gets an honest out-of-sample score. The function then picks the subset size with the best resampled performance and reports which variables belong in it. Because the search is driven by the model you actually intend to use, <code>rfe()</code> tends to keep predictors that interact well together, something a one-at-a-time filter cannot see.</p>
+
+<h2>rfe() syntax and arguments</h2>
+
+<p><strong><code>rfe()</code> needs a predictor set, an outcome, candidate subset sizes, and a control object.</strong> The control object decides which model powers the search and how resampling is done.</p>
+
+<div class="webr-container" data-block-title="Load caret and prepare data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and prepare data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(1)
+x &lt;- mtcars[, c(&quot;cyl&quot;, &quot;disp&quot;, &quot;hp&quot;, &quot;drat&quot;, &quot;wt&quot;, &quot;qsec&quot;, &quot;gear&quot;, &quot;carb&quot;)]
+y &lt;- mtcars$mpg
+dim(x)
+#&gt; [1] 32  8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments that matter most are:</p>
+
+<ul>
+
+<li><code>x</code>: a data frame or matrix of predictors only. The outcome must not be inside it.</li>
+
+<li><code>y</code>: the response vector, numeric for regression or a factor for classification.</li>
+
+<li><code>sizes</code>: an integer vector of subset sizes to evaluate, for example <code>c(1, 2, 3, 5)</code>.</li>
+
+<li><code>rfeControl</code>: the object returned by <code>rfeControl()</code>, which sets the backend model and resampling.</li>
+
+<li><code>metric</code>: the score used to pick the winner, such as <code>&quot;RMSE&quot;</code> or <code>&quot;Accuracy&quot;</code>.</li>
+
+</ul>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always set a seed before <code>rfe()</code>.</strong> Recursive feature elimination resamples the data, so the selected subset can shift between runs. A <code>set.seed()</code> call directly before <code>rfe()</code> makes the chosen variables reproducible.</div></div>
+
+<h2>A worked rfe() example</h2>
+
+<p><strong>Build the control object first, then pass it to <code>rfe()</code>.</strong> Here <code>lmFuncs</code> powers the search with <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a> and <code>method = &quot;cv&quot;</code> requests 5-fold cross-validation.</p>
+
+<div class="webr-container" data-block-title="Run recursive feature elimination">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run recursive feature elimination</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ctrl &lt;- rfeControl(functions = lmFuncs, method = &quot;cv&quot;, number = 5)
+
+set.seed(1)
+rfe_fit &lt;- rfe(x, y, sizes = c(1, 2, 3, 4, 5), rfeControl = ctrl)
+rfe_fit
+#&gt; Recursive feature selection
+#&gt;
+#&gt; Outer resampling method: Cross-Validated (5 fold)
+#&gt;
+#&gt; Resampling performance over subset size:
+#&gt;
+#&gt;  Variables  RMSE Rsquared   MAE Selected
+#&gt;          1 3.290   0.7438 2.711
+#&gt;          2 2.829   0.8128 2.336
+#&gt;          3 2.665   0.8311 2.220        *
+#&gt;          4 2.730   0.8252 2.289
+#&gt;          5 2.812   0.8147 2.366
+#&gt;          8 2.844   0.8098 2.401
+#&gt;
+#&gt; The top 3 variables (out of 3):
+#&gt;    wt, hp, cyl</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The starred row marks the winning subset size. A model with just three predictors beats the full eight-variable model on cross-validated RMSE, so the extra columns were adding noise rather than signal.</p>
+
+<div class="webr-container" data-block-title="Extract the selected predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract the selected predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predictors(rfe_fit)
+#&gt; [1] &quot;wt&quot; &quot;hp&quot; &quot;cyl&quot;
+
+rfe_fit$optsize
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The reported scores come from resampling, not the training fit.</strong> Each subset size in the table was scored on held-out folds, so the curve reflects how the model would generalize. That is why a smaller subset can legitimately win: fewer predictors lower variance.</div></div>
+
+<div class="webr-container" data-block-title="Inspect performance per subset size">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect performance per subset size</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rfe_fit$results[, c(&quot;Variables&quot;, &quot;RMSE&quot;, &quot;Rsquared&quot;)]
+#&gt;   Variables  RMSE Rsquared
+#&gt; 1         1 3.290   0.7438
+#&gt; 2         2 2.829   0.8128
+#&gt; 3         3 2.665   0.8311
+#&gt; 4         4 2.730   0.8252
+#&gt; 5         5 2.812   0.8147
+#&gt; 6         8 2.844   0.8098</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>results</code> data frame holds one row per subset size, which is exactly what <code>plot(rfe_fit)</code> draws as a performance curve. Use it to confirm the winner is a clear minimum and not a flat tie.</p>
+
+<h2>Choosing the rfeControl backend</h2>
+
+<p><strong>The <code>functions</code> argument decides which model ranks and scores predictors.</strong> caret ships several ready-made backends, and the right one depends on your outcome type and how nonlinear the relationships are.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th><code>functions</code></th>
+<th>Model used</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lmFuncs</code></td>
+<td>Linear regression</td>
+<td>Numeric outcome, roughly linear effects</td>
+</tr>
+<tr>
+<td><code>rfFuncs</code></td>
+<td>Random forest</td>
+<td>Mixed predictors, nonlinear effects</td>
+</tr>
+<tr>
+<td><code>treebagFuncs</code></td>
+<td>Bagged trees</td>
+<td>Robust nonlinear search, few tuning knobs</td>
+</tr>
+<tr>
+<td><code>nbFuncs</code></td>
+<td>Naive Bayes</td>
+<td>Fast classification baseline</td>
+</tr>
+<tr>
+<td><code>caretFuncs</code></td>
+<td>Any <code>train()</code> model</td>
+<td>Custom model chosen via the <code>method</code> argument</td>
+</tr>
+</tbody>
+</table>
+
+<p>The other <code>rfeControl()</code> arguments tune the resampling: <code>method</code> picks the scheme (<code>&quot;cv&quot;</code>, <code>&quot;repeatedcv&quot;</code>, or <code>&quot;boot&quot;</code>), <code>number</code> sets the fold or resample count, and <code>repeats</code> applies when you use repeated cross-validation.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python scikit-learn?</strong> The closest equivalent is <code>RFECV</code>, which also wraps recursive elimination in cross-validation. The difference is that <code>rfe()</code> lets you swap the backend model through <code>rfeControl()</code> rather than passing the estimator directly.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most broken <code>rfe()</code> runs.</strong> Each one is easy to spot once you know the symptom.</p>
+
+<ul>
+
+<li><strong>Leaving the outcome inside <code>x</code>.</strong> If the response column is still in the predictor matrix, the model fits it perfectly and <code>rfe()</code> selects only that column. Always build <code>x</code> and <code>y</code> as separate objects.</li>
+
+<li><strong>Setting <code>sizes</code> larger than the column count.</strong> Any value in <code>sizes</code> above <code>ncol(x)</code> is silently ignored, and the full size is always tested anyway. Keep <code>sizes</code> within the real range of predictors.</li>
+
+<li><strong>Treating the reported RMSE as a final test score.</strong> The resampled score guided the selection, so it is mildly optimistic. Estimate true performance on a separate hold-out set after selection.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Do not filter predictors on the whole dataset before <code>rfe()</code>.</strong> Pre-selecting variables using all the data leaks information into every resampling fold. Let <code>rfe()</code> do the selection inside its own resampling loop instead.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run recursive feature elimination on the four iris measurements to classify <code>Species</code>, using the random forest backend and 5-fold cross-validation. Save the result to <code>ex_rfe</code>.</p>
+<div class="webr-container" data-block-title="Your turn: rfe on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rfe on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: select predictors for Species
+ex_ctrl &lt;- rfeControl(functions = rfFuncs, method = &quot;cv&quot;, number = 5)
+ex_rfe &lt;- # your code here
+
+predictors(ex_rfe)
+#&gt; Expected: the two petal measurements</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+ex_ctrl &lt;- rfeControl(functions = rfFuncs, method = &quot;cv&quot;, number = 5)
+ex_rfe  &lt;- rfe(iris[, 1:4], iris$Species,
+               sizes = c(1, 2, 3), rfeControl = ex_ctrl)
+predictors(ex_rfe)
+#&gt; [1] &quot;Petal.Width&quot;  &quot;Petal.Length&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>rfe()</code> ranks the four iris measurements by random forest importance and finds that the two petal measurements alone match full-model accuracy, so it selects the smallest subset that does not lose accuracy.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p><strong><code>rfe()</code> is one of several feature-selection tools in caret.</strong> Reach for a neighbour when the wrapper search is not the right fit:</p>
+
+<ul>
+
+<li><code>sbf()</code>: selection by filter, scores predictors one at a time.</li>
+
+<li><code>gafs()</code>: genetic algorithm search over feature subsets.</li>
+
+<li><code>safs()</code>: simulated annealing search over feature subsets.</li>
+
+<li><code>varImp()</code>: ranks predictor importance without removing anything.</li>
+
+<li><code>nearZeroVar()</code>: drops near-constant columns before any search.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between rfe() and varImp()?</strong></p>
+
+<p><code>varImp()</code> only ranks predictors by importance for a single fitted model and never removes anything. <code>rfe()</code> uses that ranking inside a resampling loop: it drops the weakest predictors, refits, and scores each subset size on held-out folds. The result is an actual recommended subset, not just a ranking. Use <code>varImp()</code> to understand a model and <code>rfe()</code> to choose which variables to keep.</p>
+
+<p><strong>How does rfe() avoid overfitting during feature selection?</strong></p>
+
+<p><code>rfe()</code> wraps the entire elimination process inside resampling. For every fold, it ranks and removes predictors using only the training portion, then scores the surviving subset on the held-out portion. Because selection happens separately within each fold, the reported curve reflects out-of-sample performance rather than the training fit, which keeps the chosen subset size honest.</p>
+
+<p><strong>What does the sizes argument do in rfe()?</strong></p>
+
+<p><code>sizes</code> lists the candidate subset sizes that <code>rfe()</code> should evaluate, such as <code>c(1, 2, 3, 5)</code>. For each size, the function keeps that many top-ranked predictors and scores the model through resampling. The full predictor count is always tested too. <code>rfe()</code> then selects the size with the best metric and reports it as <code>optsize</code>.</p>
+
+<p><strong>Can rfe() be used for classification?</strong></p>
+
+<p>Yes. Pass a factor as <code>y</code> and choose a classification backend such as <code>rfFuncs</code> or <code>nbFuncs</code> in <code>rfeControl()</code>. The metric switches to <code>&quot;Accuracy&quot;</code> or <code>&quot;Kappa&quot;</code> automatically, and <code>rfe()</code> reports the subset of predictors that maximizes classification performance across the resampling folds.</p>
