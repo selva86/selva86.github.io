@@ -1,0 +1,366 @@
+---
+title: "parsnip tidy() in R: Tidy Model Coefficients"
+description: "Learn how parsnip tidy() in R turns a fitted model into a tidy tibble with one row per coefficient, plus regression, classification, and conf.int examples."
+keywords: "parsnip tidy, tidy parsnip fit, parsnip tidy function, tidy model_fit, tidymodels tidy coefficients, parsnip tidy examples, R tidy parsnip model"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "tidy()|parsnip tidy|parsnip::tidy()|tidy.model_fit|tidy model fit|parsnip tidy function"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>parsnip tidy() in R: Tidy Model Coefficients</h1>
+
+<p class="lead">The parsnip tidy() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> turns a fitted model into a tidy tibble with one row per coefficient, giving you estimates, standard errors, and p-values in a clean, plot-ready frame.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>tidy(fit)<span class="qa-cmt">                              # one row per model term</span>
+tidy(lm_fit)<span class="qa-cmt">                           # term, estimate, std.error, p.value</span>
+tidy(fit, conf.int = TRUE)<span class="qa-cmt">             # add conf.low and conf.high</span>
+tidy(fit)$estimate<span class="qa-cmt">                     # pull the coefficient vector</span>
+tidy(fit, exponentiate = TRUE)<span class="qa-cmt">         # odds ratios for glm fits</span>
+tidy(extract_fit_engine(fit))<span class="qa-cmt">          # tidy the raw engine object</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is tidy() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">per-term coefficient table</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">tidy(fit)</text><text x="125" y="126" class="branch-label">one-row model summary stats</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">glance(fit)</text><text x="125" y="182" class="branch-label">predictions joined to your data</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">augment(fit, new_data = df)</text><text x="125" y="238" class="branch-label">predictions only as a tibble</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">predict(fit, new_data = df)</text><text x="125" y="294" class="branch-label">the raw engine model object</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">extract_fit_engine(fit)</text><text x="125" y="350" class="branch-label">see the engine call parsnip builds</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">translate(spec)</text></svg></div>
+
+<h2>What tidy() does</h2>
+
+<p><strong>tidy() converts a fitted model into a rectangular tibble of coefficients.</strong> You pass a parsnip <code>model_fit</code> object and <code>tidy()</code> returns one row per model term, with columns for the estimate, standard error, <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">test statistic</a>, and p-value. The result is a regular tibble, so it works directly with <code>dplyr</code>, <code>ggplot2</code>, or <code>subset()</code>.</p>
+
+<p>This is the parsnip method <code>tidy.model_fit()</code>. It is a thin wrapper: parsnip hands the underlying engine object to the matching <code>broom</code> tidier, so a model fit with the <code>lm</code> engine gets <code>broom::tidy.lm()</code> applied for you. You never have to reach inside the fit yourself.</p>
+
+<p>The point of <code>tidy()</code> is consistency. A <code>summary()</code> call prints model output as text that differs by engine and cannot be filtered or joined. The tidy tibble has the same shape and column names across engines, which makes coefficient tables comparable and scriptable.</p>
+
+<p>The word "tidy" is precise here. Each variable is a column, each observation is a row, and each cell holds one value. A model term such as <code>(Intercept)</code> or <code>wt</code> is the observation, and its estimate, standard error, and p-value are the variables. That layout is exactly what <code>dplyr</code> verbs and <code>ggplot2</code> expect, so a tidy coefficient table drops straight into the rest of a tidyverse workflow with no reshaping.</p>
+
+<p><code>tidy()</code> is one of three broom verbs parsnip re-exports: <code>tidy()</code> for coefficients, <code>glance()</code> for whole-model statistics, and <code>augment()</code> for row-level predictions. Together they give an engine-agnostic vocabulary for inspecting any model you fit.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>tidy() is the "coefficients as data" verb.</strong> Whenever the next step needs to filter, sort, plot, or export model terms, tidy the fit first instead of parsing printed <code>summary()</code> text.</div></div>
+
+<h2>tidy() syntax and arguments</h2>
+
+<p><strong>The signature is short because tidy() infers almost everything from the fit.</strong> It is an S3 generic; the method that runs for a parsnip object is <code>tidy.model_fit()</code>.</p>
+
+<div class="webr-container" data-block-title="tidy generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">tidy generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(x, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td>A fitted <code>model_fit</code> object produced by <code>fit()</code> or <code>fit_xy()</code>.</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Extra arguments passed through to the engine's <code>broom</code> tidier, such as <code>conf.int</code> or <code>exponentiate</code>.</td>
+</tr>
+</tbody>
+</table>
+
+<p>The <code>...</code> is where most control lives. Arguments like <code>conf.int = TRUE</code> are forwarded to the underlying tidier, so what you can pass depends on the engine behind the model.</p>
+
+<p>Because dispatch happens at the engine level, support for <code>tidy()</code> is not universal. The <code>lm</code>, <code>glm</code>, and <code>glmnet</code> engines all have mature broom tidiers and return rich coefficient tables. Tree and ensemble engines such as <code>ranger</code> and <code>xgboost</code> raise an error, since they have no coefficients to report. When in doubt, call <code>tidy()</code> once interactively before building it into a script.</p>
+
+<h2>Tidy a model: four examples</h2>
+
+<p><strong>Each example uses a built-in dataset so you can run it as-is.</strong> Start by fitting a <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression model</a> through the <code>parsnip</code> interface.</p>
+
+<div class="webr-container" data-block-title="Fit a linear model with parsnip">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a linear model with parsnip</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(parsnip)
+
+lm_fit &lt;- linear_reg() |&gt;
+  set_engine(&quot;lm&quot;) |&gt;
+  fit(mpg ~ wt + hp, data = mtcars)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 1 tidies a regression fit into a coefficient table.</strong> The <code>lm</code> engine produces the standard five-column broom layout.</p>
+
+<div class="webr-container" data-block-title="Tidy a linear regression fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tidy a linear regression fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(lm_fit)
+#&gt; # A tibble: 3 x 5
+#&gt;   term        estimate std.error statistic  p.value
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 (Intercept)  37.2       1.60       23.3  2.57e-20
+#&gt; 2 wt           -3.88      0.633      -6.13 1.12e- 6
+#&gt; 3 hp           -0.0318    0.00903    -3.52 1.45e- 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one predictor. The <code>estimate</code> column holds the fitted coefficient, <code>std.error</code> its uncertainty, <code>statistic</code> the t-value, and <code>p.value</code> the significance test. Reading the <code>wt</code> row tells you that every extra 1,000 lbs lowers predicted <code>mpg</code> by about 3.88, and the tiny p-value confirms the effect is reliable.</p>
+
+<p><strong>Example 2 tidies a classification model.</strong> A <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">logistic regression</a> fit returns coefficients on the <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">log-odds</a> scale, one row per predictor.</p>
+
+<div class="webr-container" data-block-title="Tidy a logistic regression fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tidy a logistic regression fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars2 &lt;- transform(mtcars, vs = factor(vs))
+
+glm_fit &lt;- logistic_reg() |&gt;
+  set_engine(&quot;glm&quot;) |&gt;
+  fit(vs ~ mpg, data = mtcars2)
+
+tidy(glm_fit)
+#&gt; # A tibble: 2 x 5
+#&gt;   term        estimate std.error statistic p.value
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 (Intercept)   -8.83      3.16      -2.80 0.00518
+#&gt; 2 mpg            0.430     0.156      2.76 0.00578</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The classification fit has the same five columns as the regression one, which is the whole appeal of <code>tidy()</code>. The <code>mpg</code> estimate of 0.43 is a change in log-odds, not a probability, so a one-unit rise in <code>mpg</code> multiplies the odds of <code>vs = 1</code> by <code>exp(0.43)</code>, roughly 1.5.</p>
+
+<p><strong>Example 3 adds <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a>.</strong> Passing <code>conf.int = TRUE</code> flows through to the broom tidier, which appends <code>conf.low</code> and <code>conf.high</code>.</p>
+
+<div class="webr-container" data-block-title="Add confidence intervals to tidy output">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add confidence intervals to tidy output</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(lm_fit, conf.int = TRUE)[, c(&quot;term&quot;, &quot;estimate&quot;, &quot;conf.low&quot;, &quot;conf.high&quot;)]
+#&gt; # A tibble: 3 x 4
+#&gt;   term        estimate conf.low conf.high
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 (Intercept)  37.2     33.96     40.50
+#&gt; 2 wt           -3.88    -5.17     -2.58
+#&gt; 3 hp           -0.0318  -0.0503   -0.0133</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Confidence intervals turn point estimates into ranges. None of the three intervals here cross zero, so every term is significant at the chosen level. This is the same conclusion the p-values give, shown in a form that is easier to plot as <a class="auto-link" href="Communicating-Uncertainty.html" title="Communicating Uncertainty: Don't Mislead Your Audience with Data Viz">error bars</a>.</p>
+
+<p><strong>Example 4 filters the tidy tibble to significant terms.</strong> Because the output is plain data, ordinary subsetting selects the rows you want.</p>
+
+<div class="webr-container" data-block-title="Keep only significant coefficients">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keep only significant coefficients</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">coefs &lt;- tidy(lm_fit)
+subset(coefs, p.value &lt; 0.05, select = c(term, estimate, p.value))
+#&gt; # A tibble: 3 x 3
+#&gt;   term        estimate  p.value
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 (Intercept)  37.2     2.57e-20
+#&gt; 2 wt           -3.88    1.12e- 6
+#&gt; 3 hp           -0.0318  1.45e- 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>tidy() vs glance() vs summary()</h2>
+
+<p><strong>Pick tidy() for per-term detail, glance() for whole-model stats, and <a class="auto-link" href="Descriptive-Statistics-in-R.html" title="Descriptive Statistics in R: The 8 Numbers That Tell You What Your Data Is Doing">summary()</a> only for a quick console look.</strong> All three describe the same fit but answer different questions.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Aspect</th>
+<th><code>tidy()</code></th>
+<th><code>glance()</code></th>
+<th><code>summary()</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Returns</td>
+<td>Tibble, one row per term</td>
+<td>Tibble, one row per model</td>
+<td>Printed text</td>
+</tr>
+<tr>
+<td>Granularity</td>
+<td>Coefficient level</td>
+<td>Model level</td>
+<td>Mixed</td>
+</tr>
+<tr>
+<td>Scriptable</td>
+<td>Yes</td>
+<td>Yes</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Best for</td>
+<td>Coefficient plots, term filtering</td>
+<td>Comparing models, R-squared, <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a></td>
+<td>Eyeballing output</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is simple. If you need the individual coefficients as data, call <code>tidy()</code>. If you need a single-row report card for the model, call <code>glance()</code>. Reach for <code>summary()</code> only when a quick printed view is enough and you will not reuse the numbers.</p>
+
+<p>A common pattern combines the first two: run <code>glance()</code> across candidate models to compare AIC, then <code>tidy()</code> the winner to report its coefficients. Because both verbs return tibbles, model-comparison tables stay inside the tidyverse.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Tidy output is ggplot-ready.</strong> Because <code>tidy(fit, conf.int = TRUE)</code> returns <code>estimate</code>, <code>conf.low</code>, and <code>conf.high</code> as columns, you can build a coefficient plot with <code>geom_pointrange()</code> in a couple of lines, no manual data wrangling required.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most tidy() surprises.</strong> Each one below shows the failing pattern and the fix.</p>
+
+<p>The first is calling <code>tidy()</code> on a model whose engine has no tidier. Tree ensembles such as <code>ranger</code> random forests have thousands of split rules, not coefficients, so there is nothing to tidy.</p>
+
+<div class="webr-container" data-block-title="No tidy method for some engines">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">No tidy method for some engines</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># rf_fit &lt;- rand_forest(mode = &quot;regression&quot;) |&gt;
+#   set_engine(&quot;ranger&quot;) |&gt; fit(mpg ~ ., data = mtcars)
+# tidy(rf_fit)
+#&gt; Error: No tidy method for objects of class ranger</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second is confusing <code>tidy()</code> with <code>glance()</code>. If you want R-squared, AIC, or the <a class="auto-link" href="Interpreting-Regression-Output-Completely.html" title="Interpreting Regression Output Completely: Every Number in lm Summary">residual standard error</a>, those are model-level statistics that live in <code>glance(fit)</code>, not in the per-term <code>tidy()</code> tibble.</p>
+
+<p>The third is reading classification estimates as probabilities. A <code>logistic_reg()</code> fit reports coefficients on the log-odds scale. Pass <code>exponentiate = TRUE</code> to convert them to odds ratios, which are easier to interpret.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>tidy() on a workflow needs an extracted fit.</strong> Calling <code>tidy()</code> directly on a fitted <code>workflow</code> object can dispatch unexpectedly. Pull the parsnip model first with <code>extract_fit_parsnip(wf_fit)</code>, then tidy that.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a <code>logistic_reg()</code> model of <code>vs</code> on <code>mpg</code> and <code>wt</code> using the <code>glm</code> engine, then tidy it and store the result in <code>ex_tidy</code>.</p>
+<div class="webr-container" data-block-title="Your turn tidy a fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn tidy a fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit, then tidy
+ex_fit &lt;- # your code here
+ex_tidy &lt;- # your code here
+
+nrow(ex_tidy)
+#&gt; Expected: 3 rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- logistic_reg() |&gt;
+  set_engine(&quot;glm&quot;) |&gt;
+  fit(factor(vs) ~ mpg + wt, data = mtcars)
+
+ex_tidy &lt;- tidy(ex_fit)
+nrow(ex_tidy)
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The tidy tibble has one row per model term: the intercept plus the <code>mpg</code> and <code>wt</code> coefficients, giving 3 rows total.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>tidy() sits inside a small family of model-inspection verbs.</strong> These functions cover the rest of what you might extract from a fit.</p>
+
+<ul>
+
+<li><code>glance()</code> returns a one-row tibble of model-level statistics like R-squared and AIC.</li>
+
+<li><code>augment()</code> adds predictions and residuals to a data frame.</li>
+
+<li><code>predict()</code> returns predictions only, as a clean tibble.</li>
+
+<li><code>extract_fit_engine()</code> returns the raw underlying engine model object.</li>
+
+<li><code>fit()</code> trains the model specification that <code>tidy()</code> later inspects.</li>
+
+</ul>
+
+<p>See the official <a href="https://parsnip.tidymodels.org/reference/index.html">parsnip reference</a> for engine-specific tidier notes.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does tidy() return for a parsnip model?</strong></p>
+
+<p><code>tidy()</code> returns a tibble with one row per model term. For a linear or logistic regression fit, the columns are <code>term</code>, <code>estimate</code>, <code>std.error</code>, <code>statistic</code>, and <code>p.value</code>. The exact columns depend on the engine, because parsnip forwards the fit to the matching <code>broom</code> tidier. Some engines, such as <code>glmnet</code>, <a class="auto-link" href="dplyr-mutate-rename.html" title="dplyr mutate() and rename(): Create & Modify Columns (8 Examples)">add columns</a> like <code>penalty</code>. The result is always a rectangular tibble, so you can filter, sort, and plot it.</p>
+
+<p><strong>What is the difference between tidy() and glance() in parsnip?</strong></p>
+
+<p><code>tidy()</code> works at the coefficient level and returns one row per model term, so a three-predictor model gives three or four rows. <code>glance()</code> works at the model level and returns exactly one row holding whole-model statistics such as R-squared, AIC, and the residual standard error. Use <code>tidy()</code> when you care about individual predictors and <code>glance()</code> when you are comparing or summarizing entire models.</p>
+
+<p><strong>Why does tidy() fail on my random forest model?</strong></p>
+
+<p>Random forest engines like <code>ranger</code> have no <code>broom</code> tidier, because the model is an ensemble of trees rather than a set of coefficients. Calling <code>tidy()</code> on such a fit raises a "No tidy method" error. For tree-based models, inspect <a class="auto-link" href="Variable-Selection-and-Importance-With-R.html" title="Feature Selection and Variable Importance">variable importance</a> through the engine object returned by <code>extract_fit_engine()</code> instead, or use <code>vip::vi()</code>.</p>
+
+<p><strong>Can I get confidence intervals from tidy()?</strong></p>
+
+<p>Yes. Pass <code>conf.int = TRUE</code> and <code>tidy()</code> forwards it to the underlying broom tidier, which appends <code>conf.low</code> and <code>conf.high</code> columns. This works for <code>lm</code> and <code>glm</code> engines. You can also set the confidence level with <code>conf.level</code>, for example <code>tidy(fit, conf.int = TRUE, conf.level = 0.90)</code>. The interval columns make the output ready for a coefficient plot.</p>
+
+</content>
+
+</invoke>
+
+{% endraw %}
