@@ -1,0 +1,301 @@
+---
+title: "parsnip decision_tree() in R: Build Tree-Based Models"
+description: "Learn how parsnip decision_tree() defines classification and regression tree models in R. Set the engine, tune tree_depth and min_n, and fit with examples."
+keywords: "parsnip decision_tree, decision_tree function R, parsnip decision_tree examples, R decision tree tidymodels, decision_tree engine, tidymodels decision tree"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "decision_tree()|parsnip decision_tree|parsnip::decision_tree()|decision tree model spec|tidymodels decision tree"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>parsnip decision_tree() in R: Build Tree-Based Models</h1>
+
+<p class="lead">The parsnip decision_tree() function defines a tree-based model specification in R that works for both classification and regression, without locking you into one engine.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>decision_tree()<span class="qa-cmt">                                  # bare spec, mode unset</span>
+decision_tree(mode = &quot;classification&quot;)<span class="qa-cmt">           # set mode inline</span>
+decision_tree(tree_depth = 5)<span class="qa-cmt">                    # cap how deep the tree grows</span>
+decision_tree(min_n = 10)<span class="qa-cmt">                        # minimum rows to split a node</span>
+decision_tree(cost_complexity = 0.01)<span class="qa-cmt">            # pruning penalty</span>
+decision_tree() |&gt; set_engine(&quot;C5.0&quot;)<span class="qa-cmt">            # switch the fitting engine</span>
+decision_tree() |&gt; set_mode(&quot;regression&quot;)<span class="qa-cmt">        # build a regression tree</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is decision_tree() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">single interpretable tree</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">decision_tree() |&gt; set_engine(&quot;rpart&quot;)</text><text x="125" y="126" class="branch-label">many trees averaged for accuracy</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">rand_forest()</text><text x="125" y="182" class="branch-label">sequential boosted trees</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">boost_tree()</text><text x="125" y="238" class="branch-label">straight-line numeric outcome</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">linear_reg()</text><text x="125" y="294" class="branch-label">binary yes or no outcome</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">logistic_reg()</text><text x="125" y="350" class="branch-label">bagged trees to cut variance</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">bag_tree()</text></svg></div>
+
+<h2>What decision_tree() does</h2>
+
+<p><strong>decision_tree() declares a model, it does not train one.</strong> The function from the parsnip package returns a model specification: a tidy, engine-agnostic description of the tree you want. No data touches it until you call <code>fit()</code>. This split keeps your modeling code portable across the whole tidymodels stack.</p>
+
+<p>A decision tree splits the predictor space into rectangular regions and predicts a constant within each region. It handles both numeric and categorical predictors, needs no scaling, and produces a model you can read as plain if-then rules. That interpretability is the reason a single tree is still worth reaching for.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A parsnip spec is a recipe, not a meal.</strong> <code>decision_tree()</code> records your intent (depth, engine, mode). The <code>fit()</code> call is what actually runs <code>rpart</code> or <code>C5.0</code> on your data. Separating the two lets you reuse one spec across resamples and tuning grids.</div></div>
+
+<h2>decision_tree() syntax and arguments</h2>
+
+<p><strong>Three hyperparameters control the shape of the tree.</strong> Each argument is optional, and any you leave out falls back to the engine default.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>What it controls</th>
+<th>Typical range</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tree_depth</code></td>
+<td>Maximum depth the tree can grow</td>
+<td>1 to 15</td>
+</tr>
+<tr>
+<td><code>min_n</code></td>
+<td>Minimum data points needed to split a node</td>
+<td>2 to 40</td>
+</tr>
+<tr>
+<td><code>cost_complexity</code></td>
+<td>Penalty that prunes weak splits</td>
+<td>0 to 0.1</td>
+</tr>
+<tr>
+<td><code>mode</code></td>
+<td><code>&quot;classification&quot;</code> or <code>&quot;regression&quot;</code></td>
+<td>set inline or via <code>set_mode()</code></td>
+</tr>
+<tr>
+<td><code>engine</code></td>
+<td>Fitting backend, set with <code>set_engine()</code></td>
+<td><code>&quot;rpart&quot;</code>, <code>&quot;C5.0&quot;</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>You build a spec by piping the constructor into <code>set_engine()</code> and <code>set_mode()</code>.</p>
+
+<div class="webr-container" data-block-title="Define a decision tree spec">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define a decision tree spec</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(parsnip)
+
+tree_spec &lt;- decision_tree(tree_depth = 5, min_n = 10) |&gt;
+  set_engine(&quot;rpart&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+tree_spec
+#&gt; Decision Tree Model Specification (classification)
+#&gt;
+#&gt; Main Arguments:
+#&gt;   tree_depth = 5
+#&gt;   min_n = 10
+#&gt;
+#&gt; Computational engine: rpart</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The printed spec shows your chosen arguments and the engine. Nothing is fitted yet, so this object is cheap to create and copy.</p>
+
+<h2>Fit a decision tree: classification and regression</h2>
+
+<p><strong>The same spec fits classification and regression by switching the mode.</strong> Pass a formula and a data frame to <code>fit()</code>, then call <code>predict()</code> on new rows. Here is a classification tree on the built-in <code>iris</code> dataset.</p>
+
+<div class="webr-container" data-block-title="Fit a classification tree on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a classification tree on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tree_fit &lt;- tree_spec |&gt;
+  fit(Species ~ ., data = iris)
+
+predict(tree_fit, iris[c(1, 60, 130), ])
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 setosa
+#&gt; 2 versicolor
+#&gt; 3 virginica</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fitted object holds the trained <code>rpart</code> model and predicts a tidy tibble. For a numeric target, rebuild the spec in regression mode and fit against <code>mtcars</code>.</p>
+
+<div class="webr-container" data-block-title="Fit a regression tree on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a regression tree on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">reg_spec &lt;- decision_tree(tree_depth = 4, min_n = 5) |&gt;
+  set_engine(&quot;rpart&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+reg_fit &lt;- reg_spec |&gt; fit(mpg ~ ., data = mtcars)
+predict(reg_fit, mtcars[1:3, ])
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  20.4
+#&gt; 2  20.4
+#&gt; 3  26.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Regression trees return <code>.pred</code> instead of <code>.pred_class</code>. Notice the first two cars share a prediction: both fall into the same leaf, so the tree gives them the leaf average.</p>
+
+<h2>Choosing an engine: rpart vs C5.0</h2>
+
+<p><strong>The engine decides the splitting algorithm behind a shared interface.</strong> <code>rpart</code> is the default and the only engine that supports regression. <code>C5.0</code> is classification-only but builds compact, accurate trees with built-in boosting hooks.</p>
+
+<div class="webr-container" data-block-title="Switch to the C5.0 engine">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Switch to the C5.0 engine</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">c5_fit &lt;- decision_tree() |&gt;
+  set_engine(&quot;C5.0&quot;) |&gt;
+  set_mode(&quot;classification&quot;) |&gt;
+  fit(Species ~ ., data = iris)
+
+predict(c5_fit, iris[c(1, 60, 130), ])
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 setosa
+#&gt; 2 versicolor
+#&gt; 3 virginica</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>cost_complexity</code> only applies to <code>rpart</code>.</strong> The <code>C5.0</code> engine prunes internally and ignores that argument. Run <code>show_engines(&quot;decision_tree&quot;)</code> to see every engine and the modes each one supports.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most decision_tree() errors trace back to a missing mode.</strong> A spec with no mode cannot be fitted, because parsnip does not know whether to call a classification or regression routine.</p>
+
+<div class="webr-container" data-block-title="A spec with no mode fails to fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A spec with no mode fails to fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">decision_tree() |&gt;
+  fit(Species ~ ., data = iris)
+#&gt; Error: Please set the mode in the model specification.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Set the mode with <code>set_mode()</code> or the <code>mode</code> argument and the fit succeeds. Two more traps to watch:</p>
+
+<ul>
+
+<li>Passing <code>cost_complexity</code> to a <code>C5.0</code> spec does nothing. The argument is silently dropped because that engine prunes on its own.</li>
+
+<li>A regression target that is stored as a factor throws a type error. Convert it with <code>as.numeric()</code> before fitting.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A single tree overfits fast.</strong> With <code>tree_depth</code> left high and <code>min_n</code> low, the tree memorizes noise. Tune both with the dials package, or move to <code>rand_forest()</code> when one tree is too unstable.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a regression decision tree spec with <code>tree_depth = 3</code>, fit it to predict <code>hp</code> from all columns of <code>mtcars</code>, and save the fitted model to <code>ex_tree_fit</code>.</p>
+<div class="webr-container" data-block-title="Your turn: fit a regression tree">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit a regression tree</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: build and fit a depth-3 regression tree
+ex_tree_fit &lt;- # your code here
+
+ex_tree_fit
+#&gt; Expected: a parsnip model fit object</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_tree_fit &lt;- decision_tree(tree_depth = 3) |&gt;
+  set_engine(&quot;rpart&quot;) |&gt;
+  set_mode(&quot;regression&quot;) |&gt;
+  fit(hp ~ ., data = mtcars)
+
+class(ex_tree_fit)
+#&gt; [1] &quot;_rpart&quot;      &quot;model_fit&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The spec sets the depth and mode, <code>set_engine(&quot;rpart&quot;)</code> picks the backend, and <code>fit()</code> trains the tree on <code>mtcars</code>. The result is a parsnip <code>model_fit</code> wrapping the <code>rpart</code> object.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>decision_tree() is one model in a family of parsnip specifications.</strong> When a single tree is not the right fit, these neighbors share the same <code>set_engine()</code> and <code>fit()</code> workflow:</p>
+
+<ul>
+
+<li><code>rand_forest()</code> averages many trees to cut variance.</li>
+
+<li><code>boost_tree()</code> builds trees sequentially for higher accuracy.</li>
+
+<li><code>bag_tree()</code> bags trees for a stabilized ensemble.</li>
+
+<li><code>set_engine()</code> chooses the computational backend for any spec.</li>
+
+<li><code>fit()</code> trains a spec on a formula and data frame.</li>
+
+</ul>
+
+<p>See the <a href="https://parsnip.tidymodels.org/reference/decision_tree.html">tidymodels parsnip reference</a> for the full list of supported engines.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between decision_tree() and rpart()?</strong> <code>rpart()</code> from the rpart package fits a tree directly and returns an <code>rpart</code> object. <code>decision_tree()</code> is a parsnip wrapper that defines an engine-agnostic spec, then calls <code>rpart</code> (or another engine) under the hood when you <code>fit()</code>. The wrapper gives you tidy predictions, consistent argument names, and easy swapping between engines.</p>
+
+<p><strong>How do I plot a decision tree from parsnip?</strong> Extract the underlying engine object first with <code>extract_fit_engine()</code>, then pass it to a plotting function. The <code>rpart.plot</code> package works well: <code>library(rpart.plot); rpart.plot(extract_fit_engine(tree_fit))</code>. Plotting the parsnip <code>model_fit</code> object directly will not work.</p>
+
+<p><strong>Which engine should I use for decision_tree()?</strong> Use <code>rpart</code> for regression or when you want the classic CART algorithm; it is the default and needs no extra setup. Use <code>C5.0</code> for classification when you want smaller, often more accurate trees and rule-based output. Both share the same parsnip interface, so switching is one line.</p>
+
+<p><strong>Can decision_tree() handle <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>?</strong> The <code>rpart</code> engine handles missing predictor values automatically using surrogate splits, so you usually do not need to impute. The <code>C5.0</code> engine also tolerates missing data. Even so, inspecting and treating missingness with a recipes step often improves results.</p>
+
+<p><strong>How do I tune tree_depth and min_n?</strong> Mark an argument for tuning by setting it to <code>tune()</code>, as in <code>decision_tree(tree_depth = tune())</code>. Then build a grid with the dials package and pass it to <code>tune_grid()</code> with a resampling object. The tuning step searches the values and reports the best-performing combination.</p>
