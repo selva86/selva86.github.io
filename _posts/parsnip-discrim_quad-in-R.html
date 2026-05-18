@@ -1,0 +1,385 @@
+---
+title: "parsnip discrim_quad() in R: Fit QDA Models"
+description: "Use parsnip discrim_quad() to fit quadratic discriminant analysis (QDA) models in R. Covers syntax, engines, QDA vs LDA, predictions, and common pitfalls."
+keywords: "parsnip discrim_quad, discrim_quad function R, parsnip discrim_quad examples, quadratic discriminant analysis R, QDA tidymodels, discrim_quad tidymodels, QDA in R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "discrim_quad()|parsnip discrim_quad|discrim::discrim_quad()|quadratic discriminant analysis|discrim_quad"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>parsnip discrim_quad() in R: Fit QDA Models</h1>
+
+<p class="lead">The parsnip <code>discrim_quad()</code> function defines a <a class="auto-link" href="Quadratic-Discriminant-Analysis-in-R.html" title="Quadratic Discriminant Analysis in R: When LDA Assumptions Break">quadratic discriminant analysis</a> (QDA) model in R. It fits one <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">covariance matrix</a> per class, so the decision boundary can curve, which makes QDA a strong choice when classes have different spreads.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>discrim_quad()<span class="qa-cmt">                                   # default QDA spec, MASS engine</span>
+discrim_quad() |&gt; set_engine(&quot;MASS&quot;)<span class="qa-cmt">             # set engine explicitly</span>
+discrim_quad(mode = &quot;classification&quot;)<span class="qa-cmt">            # set mode inline</span>
+discrim_quad() |&gt; fit(Species ~ ., data = train)<span class="qa-cmt"> # fit to training data</span>
+predict(qda_fit, test)<span class="qa-cmt">                           # hard class predictions</span>
+predict(qda_fit, test, type = &quot;prob&quot;)<span class="qa-cmt">            # per-class probabilities</span>
+discrim_quad() |&gt; set_engine(&quot;sparsediscrim&quot;)<span class="qa-cmt">    # high-dimensional engine</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is discrim_quad() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">classes differ in spread, want curved boundary</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">discrim_quad()</text><text x="125" y="126" class="branch-label">classes share one covariance, linear boundary</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">discrim_linear()</text><text x="125" y="182" class="branch-label">many predictors, want shrinkage</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">discrim_regularized()</text><text x="125" y="238" class="branch-label">nonlinear fit via basis expansion</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">discrim_flexible()</text><text x="125" y="294" class="branch-label">predictors far from normal</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">try <a class="auto-link" href="parsnip-decision_tree-in-R.html" title="parsnip decision_tree() in R: Build Tree-Based Models">decision_tree()</a></text><text x="125" y="350" class="branch-label">two classes, want interpretable odds</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">logistic_reg()</text></svg></div>
+
+<h2>What discrim_quad() does</h2>
+
+<p><strong><code>discrim_quad()</code> creates a QDA model specification.</strong> It belongs to the parsnip model family but lives in the companion <code>discrim</code> package, so you load both <code>tidymodels</code> and <code>discrim</code> before using it. The function returns a specification object, not a fitted model. You pair it with an engine and a mode, then call <code>fit()</code> to estimate parameters from data.</p>
+
+<p>QDA learns a separate covariance matrix for every class. That extra flexibility lets it draw quadratic (curved) decision boundaries, unlike <a class="auto-link" href="Linear-Discriminant-Analysis-in-R.html" title="LDA in R: Classify Observations by Maximising Between-Group Separation">linear discriminant analysis</a>, which forces one shared covariance.</p>
+
+<h2>discrim_quad() syntax and arguments</h2>
+
+<p><strong><code>discrim_quad()</code> takes only two arguments because QDA has no tuning hyperparameters.</strong> The model is fully determined by the class means and covariances estimated from data, so there is no penalty or smoothing term to set.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Purpose</th>
+<th>Typical value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mode</code></td>
+<td>Prediction type</td>
+<td><code>&quot;classification&quot;</code> (the only valid mode)</td>
+</tr>
+<tr>
+<td><code>engine</code></td>
+<td>Computational backend</td>
+<td><code>&quot;MASS&quot;</code> (default) or <code>&quot;sparsediscrim&quot;</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>A complete specification chains the spec with <code>set_engine()</code> and <code>set_mode()</code>.</p>
+
+<div class="webr-container" data-block-title="Define a QDA model spec">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define a QDA model spec</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+library(discrim)
+
+qda_spec &lt;- discrim_quad() |&gt;
+  set_engine(&quot;MASS&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+qda_spec
+#&gt; Quadratic Discriminant Model Specification (classification)
+#&gt;
+#&gt; Computational engine: MASS</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The printed object confirms the mode and engine. Nothing is fitted yet, so this spec is reusable across resamples and workflows.</p>
+
+<h2>Fit a QDA model</h2>
+
+<p><strong><code>fit()</code> estimates the per-class means and covariances.</strong> Split the data first so you can measure honest accuracy on rows the model never saw. The <code>iris</code> dataset works well here: three classes and four numeric predictors.</p>
+
+<div class="webr-container" data-block-title="Fit QDA on the iris data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit QDA on the iris data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+iris_split &lt;- initial_split(iris, prop = 0.75, strata = Species)
+iris_train &lt;- training(iris_split)
+iris_test  &lt;- testing(iris_split)
+
+qda_fit &lt;- qda_spec |&gt;
+  fit(Species ~ ., data = iris_train)
+
+qda_fit
+#&gt; parsnip model object
+#&gt;
+#&gt; Call:
+#&gt; qda(formula = Species ~ ., data = data)
+#&gt;
+#&gt; Prior probabilities of groups:
+#&gt;     setosa versicolor  virginica
+#&gt;  0.3333333  0.3333333  0.3333333</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fitted object wraps <code>MASS::qda()</code>. Prior probabilities default to the observed class frequencies in the training data.</p>
+
+<p><strong><code>predict()</code> returns a tidy tibble.</strong> Ask for hard classes with the default call, or probabilities with <code>type = &quot;prob&quot;</code>.</p>
+
+<div class="webr-container" data-block-title="Predict classes and probabilities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict classes and probabilities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(qda_fit, iris_test) |&gt; head(3)
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 setosa
+#&gt; 2 setosa
+#&gt; 3 setosa
+
+predict(qda_fit, iris_test, type = &quot;prob&quot;) |&gt; head(3)
+#&gt; # A tibble: 3 x 3
+#&gt;   .pred_setosa .pred_versicolor .pred_virginica
+#&gt;          &lt;dbl&gt;            &lt;dbl&gt;           &lt;dbl&gt;
+#&gt; 1            1         3.21e-22        8.10e-41
+#&gt; 2            1         2.55e-18        1.04e-35
+#&gt; 3            1         5.99e-25        2.66e-44</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Bind the predictions back to the test set to score the model with <code>yardstick</code>.</p>
+
+<div class="webr-container" data-block-title="Evaluate QDA accuracy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Evaluate QDA accuracy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">iris_test |&gt;
+  bind_cols(predict(qda_fit, iris_test)) |&gt;
+  accuracy(truth = Species, estimate = .pred_class)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric  .estimator .estimate
+#&gt;   &lt;chr&gt;    &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 accuracy multiclass     0.974</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reuse the spec inside a workflow.</strong> Wrap <code>qda_spec</code> in <code>workflow()</code> with a recipe so preprocessing and the model fit together during resampling. The spec object itself never changes.</div></div>
+
+<h2>QDA vs LDA: when each fits</h2>
+
+<p><strong>Choose QDA when class covariances clearly differ; choose LDA when they look similar.</strong> QDA estimates more parameters, so it needs more rows per class to stay stable. LDA pools information across classes and is steadier on small samples.</p>
+
+<div class="webr-container" data-block-title="Compare QDA with LDA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare QDA with LDA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lda_fit &lt;- discrim_linear() |&gt;
+  set_engine(&quot;MASS&quot;) |&gt;
+  set_mode(&quot;classification&quot;) |&gt;
+  fit(Species ~ ., data = iris_train)
+
+iris_test |&gt;
+  bind_cols(predict(lda_fit, iris_test)) |&gt;
+  accuracy(Species, .pred_class) |&gt;
+  pull(.estimate)
+#&gt; [1] 0.9736842</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>On <code>iris</code> the two models score almost identically because the classes are well separated. The gap widens on data where one class is much more spread out than another.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The shared-covariance assumption is the dividing line.</strong> LDA assumes every class has the same covariance and draws straight boundaries. QDA drops that assumption, fits a covariance per class, and bends the boundary. More flexibility costs more parameters and more data.</div></div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Aspect</th>
+<th>discrim_quad() (QDA)</th>
+<th>discrim_linear() (LDA)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Covariance</td>
+<td>One per class</td>
+<td>One shared</td>
+</tr>
+<tr>
+<td>Boundary shape</td>
+<td>Quadratic (curved)</td>
+<td>Linear</td>
+</tr>
+<tr>
+<td>Parameters</td>
+<td>More</td>
+<td>Fewer</td>
+</tr>
+<tr>
+<td>Small samples</td>
+<td>Less stable</td>
+<td>More stable</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Choosing an engine</h2>
+
+<p><strong>The <code>&quot;MASS&quot;</code> engine handles most cases.</strong> It calls <code>MASS::qda()</code> and is the default. For wide data where predictors outnumber rows in a class, switch to <code>&quot;sparsediscrim&quot;</code>, which applies shrinkage to keep the per-class covariance matrices invertible.</p>
+
+<div class="webr-container" data-block-title="Switch to the sparsediscrim engine">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Switch to the sparsediscrim engine</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">discrim_quad() |&gt;
+  set_engine(&quot;sparsediscrim&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+#&gt; Quadratic Discriminant Model Specification (classification)
+#&gt;
+#&gt; Computational engine: sparsediscrim</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run <code>discrim_quad() |&gt; translate()</code> to see the exact engine call parsnip will make.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>QDA breaks in three predictable ways.</strong> Each has a clear fix.</p>
+
+<ul>
+
+<li><strong>Group too small.</strong> QDA needs more rows than predictors in every class. A tiny class triggers <code>some group is too small for &#x27;qda&#x27;</code>.</li>
+
+<li><strong>Collinear predictors.</strong> Perfectly correlated columns make a class covariance singular and the fit fails with a rank-deficiency error. Drop or combine the columns.</li>
+
+<li><strong>Skipping the assumption check.</strong> QDA assumes predictors are roughly normal within each class. Heavily skewed features hurt accuracy even when the code runs fine.</li>
+
+</ul>
+
+<div class="webr-container" data-block-title="Pitfall: too few rows per class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: too few rows per class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tiny &lt;- iris_train[1:8, ]
+discrim_quad() |&gt;
+  set_engine(&quot;MASS&quot;) |&gt;
+  set_mode(&quot;classification&quot;) |&gt;
+  fit(Species ~ ., data = tiny)
+#&gt; Error in qda.default(x, grouping): some group is too small for 'qda'</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>QDA is hungrier for data than LDA.</strong> Because it estimates a full covariance matrix per class, a class with fewer rows than predictors will fail outright. Use <code>discrim_regularized()</code> or <code>discrim_linear()</code> when classes are small.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a QDA model on the first 100 rows of <code>iris</code> (setosa and versicolor only) and report test accuracy. Save the fitted model to <code>ex_qda</code>.</p>
+<div class="webr-container" data-block-title="Your turn: fit QDA on two classes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit QDA on two classes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit QDA on a two-class subset
+two_class &lt;- droplevels(iris[1:100, ])
+ex_qda &lt;- # your code here
+
+ex_qda
+#&gt; Expected: a fitted parsnip QDA model object</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">two_class &lt;- droplevels(iris[1:100, ])
+ex_qda &lt;- discrim_quad() |&gt;
+  set_engine(&quot;MASS&quot;) |&gt;
+  set_mode(&quot;classification&quot;) |&gt;
+  fit(Species ~ ., data = two_class)
+
+class(ex_qda)
+#&gt; [1] &quot;_qda&quot;        &quot;model_fit&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>droplevels()</code> removes the unused <code>virginica</code> factor level so QDA only models the two classes present. The fitted object carries the <code>model_fit</code> class from parsnip.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>These functions pair naturally with <code>discrim_quad()</code>.</strong></p>
+
+<ul>
+
+<li><a href="discrim_linear-in-R.html">discrim_linear()</a> defines an LDA model with a shared covariance.</li>
+
+<li><a href="discrim_regularized-in-R.html">discrim_regularized()</a> blends QDA and LDA with shrinkage.</li>
+
+<li><code>set_engine()</code> selects the computational backend.</li>
+
+<li><code>fit()</code> estimates model parameters from data.</li>
+
+<li><code>predict()</code> produces class or probability predictions.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between discrim_quad() and discrim_linear()?</strong></p>
+
+<p><code>discrim_quad()</code> fits quadratic discriminant analysis with a separate covariance matrix for each class, so its decision boundary can curve. <code>discrim_linear()</code> fits linear discriminant analysis with one covariance shared across all classes, giving straight boundaries. QDA is more flexible but estimates more parameters, so it needs more data per class. LDA is steadier when samples are small or class covariances look similar.</p>
+
+<p><strong>Which engines does discrim_quad() support?</strong></p>
+
+<p><code>discrim_quad()</code> supports two engines. The default <code>&quot;MASS&quot;</code> engine calls <code>MASS::qda()</code> and suits most datasets. The <code>&quot;sparsediscrim&quot;</code> engine applies shrinkage to the per-class covariance matrices, which helps when predictors outnumber the rows in a class. Set the engine with <code>set_engine()</code> and inspect the underlying call with <code>translate()</code>.</p>
+
+<p><strong>Does discrim_quad() need feature scaling?</strong></p>
+
+<p>No. QDA is based on covariance matrices, and scaling the predictors does not change the fitted decision boundary or the predictions. You can still center and scale inside a recipe for consistency with other models in a workflow, but it is not required for <code>discrim_quad()</code> to work correctly.</p>
+
+<p><strong>Why does QDA fail with "some group is too small"?</strong></p>
+
+<p>QDA estimates a full covariance matrix for each class, which requires more rows than predictors within every class. When a class has too few observations, that matrix cannot be estimated and <code>MASS::qda()</code> stops with <code>some group is too small for &#x27;qda&#x27;</code>. Collect more data for the small class, drop predictors, or switch to <code>discrim_linear()</code> or <code>discrim_regularized()</code>.</p>
+
+<p><strong>Can discrim_quad() return class probabilities?</strong></p>
+
+<p>Yes. Call <code>predict()</code> with <code>type = &quot;prob&quot;</code> to get one probability column per class, named <code>.pred_&lt;class&gt;</code>. The default <code>predict()</code> call returns hard class labels in a <code>.pred_class</code> column. Both outputs arrive as tidy tibbles that align row-for-row with the input data, so you can bind them to the test set for scoring.</p>
+
+<p>For the full argument reference, see the <a href="https://discrim.tidymodels.org/reference/discrim_quad.html">discrim package documentation</a>.</p>
