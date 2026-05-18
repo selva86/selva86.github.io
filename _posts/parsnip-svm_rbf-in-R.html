@@ -1,0 +1,362 @@
+---
+title: "parsnip svm_rbf() in R: Radial Basis Kernel SVM"
+description: "parsnip svm_rbf() in R defines radial basis kernel support vector machines for tidymodels. Covers syntax, the kernlab engine, rbf_sigma, and examples."
+keywords: "parsnip svm_rbf, svm_rbf function R, parsnip svm_rbf examples, RBF kernel SVM R tidymodels, support vector machine R parsnip, svm_rbf kernlab engine"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "svm_rbf()|parsnip svm_rbf|parsnip::svm_rbf()|RBF kernel SVM|radial basis SVM in R"
+auto_link_case_sensitive: true
+fr_parent: "Support-Vector-Machines-With-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>parsnip svm_rbf() in R: Radial Basis Kernel SVM</h1>
+
+<p class="lead">The parsnip <code>svm_rbf()</code> function defines a radial basis kernel support vector machine for tidymodels. It gives you one interface for a model that draws smooth, locally flexible decision boundaries, fitted through the kernlab engine.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>svm_rbf()<span class="qa-cmt">                                   # default spec, kernlab engine</span>
+svm_rbf() |&gt; set_mode(&quot;classification&quot;)<span class="qa-cmt">     # classify a factor outcome</span>
+svm_rbf() |&gt; set_mode(&quot;regression&quot;)<span class="qa-cmt">         # predict a numeric outcome</span>
+svm_rbf(rbf_sigma = 0.1)<span class="qa-cmt">                    # set the kernel width</span>
+svm_rbf(cost = 2)<span class="qa-cmt">                           # set the margin-violation penalty</span>
+svm_rbf(margin = 0.1)<span class="qa-cmt">                       # epsilon band, regression only</span>
+fit(spec, Species ~ ., data = iris)<span class="qa-cmt">         # train on a dataset</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is svm_rbf() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">smooth non-linear boundary from an RBF kernel</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">svm_rbf() |&gt; set_engine(&quot;kernlab&quot;)</text><text x="125" y="126" class="branch-label">straight maximum-margin boundary</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">svm_linear() |&gt; set_engine(&quot;LiblineaR&quot;)</text><text x="125" y="182" class="branch-label">curved boundary from a polynomial kernel</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">svm_poly() |&gt; set_engine(&quot;kernlab&quot;)</text><text x="125" y="238" class="branch-label">a linear classifier with probabilities</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">logistic_reg() |&gt; set_engine(&quot;glm&quot;)</text><text x="125" y="294" class="branch-label">tree-based non-linear model</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">rand_forest() |&gt; set_engine(&quot;ranger&quot;)</text><text x="125" y="350" class="branch-label">tune cost and rbf_sigma by grid</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">tune_grid() with svm_rbf()</text></svg></div>
+
+<h2>What svm_rbf() does</h2>
+
+<p><strong>svm_rbf() is a model specification, not a fitted model.</strong> It records your choice of a radial basis kernel support vector machine and its hyperparameters, but no data touches it until you call <code>fit()</code>. This separation lets you reuse one specification across many datasets or resampling folds.</p>
+
+<p>A radial basis SVM maps the predictors into a high-dimensional space through a Gaussian kernel, then finds the widest-margin boundary there. Back in the original space, that boundary looks like a smooth curve. The <code>rbf_sigma</code> argument sets how far each training point's influence reaches, and <code>cost</code> trades margin width against misclassified points.</p>
+
+<p>The function belongs to the tidymodels framework. Because parsnip standardizes the interface, <code>svm_rbf()</code> shares the same <code>fit()</code> and <code>predict()</code> verbs used by every other parsnip model.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>rbf_sigma controls locality, cost controls tolerance.</strong> A large <code>rbf_sigma</code> makes each point influence only its near neighbors, so the boundary wiggles tightly; a small one smooths it out. A large <code>cost</code> punishes every margin violation, pulling the boundary toward the training data. Tuning the two together is what separates a good RBF SVM from an overfit one.</div></div>
+
+<h2>svm_rbf() syntax and arguments</h2>
+
+<p><strong>svm_rbf() takes three hyperparameters and two setup verbs.</strong> The arguments shape the radial basis kernel, while <code>set_engine()</code> and <code>set_mode()</code> finish the specification.</p>
+
+<div class="webr-container" data-block-title="The svm_rbf specification skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The svm_rbf specification skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+
+svm_rbf(
+  mode = &quot;unknown&quot;,      # set to &quot;classification&quot; or &quot;regression&quot;
+  engine = &quot;kernlab&quot;,    # kernlab is the standard engine
+  cost = NULL,           # penalty for margin violations
+  rbf_sigma = NULL,      # width of the radial basis kernel
+  margin = NULL          # epsilon insensitivity band (regression only)
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>rbf_sigma</code> argument is what makes this model non-linear: it sets the precision of the Gaussian kernel. The <code>cost</code> argument sets the penalty for margin violations, and <code>margin</code> sets the epsilon band used only in regression. Unlike <code>svm_poly()</code>, there is no <code>degree</code> argument, because the RBF kernel has no fixed shape to control.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>svm_rbf() ships in core parsnip, but its engine does not.</strong> The standard engine is <code>kernlab</code>, so you need the <code>kernlab</code> package installed before you fit. Install it first, or R reports that the engine is not available. When <code>rbf_sigma</code> is left <code>NULL</code>, kernlab estimates a sensible value from the data with its <code>sigest</code> heuristic.</div></div>
+
+<p><strong>The mode is never "unknown" at fit time.</strong> A radial basis SVM can predict a class or a number, so you must call <code>set_mode(&quot;classification&quot;)</code> or <code>set_mode(&quot;regression&quot;)</code> before fitting. You can pass the engine through <code>set_engine()</code> instead of the <code>engine</code> argument, which is the more common tidymodels style.</p>
+
+<h2>Fit an RBF SVM: four examples</h2>
+
+<p><strong>Every example below uses a built-in R dataset.</strong> The <code>iris</code> data drives the classification examples and <code>mtcars</code> drives the regression example, so the code runs anywhere with no downloads.</p>
+
+<h3>Example 1: Classify with the kernlab engine</h3>
+
+<p><strong>Build the specification, then fit it to data.</strong> Leaving <code>rbf_sigma</code> unset lets kernlab pick the kernel width, which works well on the iris species.</p>
+
+<div class="webr-container" data-block-title="Fit svm_rbf on the iris data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit svm_rbf on the iris data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">svm_spec &lt;- svm_rbf(cost = 1) |&gt;
+  set_engine(&quot;kernlab&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+svm_fit &lt;- svm_spec |&gt;
+  fit(Species ~ ., data = iris)
+
+preds &lt;- predict(svm_fit, new_data = iris)
+mean(preds$.pred_class == iris$Species)
+#&gt; [1] 0.973</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Comparing the predicted labels to the true species gives a training accuracy near 97%. The radial kernel bends the boundary smoothly, separating versicolor from virginica where the two species overlap.</p>
+
+<h3>Example 2: Predict species for new rows</h3>
+
+<p><strong>predict() returns a tidy tibble with one row per input row.</strong> Each prediction is the class on whichever side of the smooth boundary the row falls.</p>
+
+<div class="webr-container" data-block-title="Predict iris species for new rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict iris species for new rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sample_rows &lt;- iris[c(1, 70, 130), ]
+
+predict(svm_fit, new_data = sample_rows)
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 setosa
+#&gt; 2 versicolor
+#&gt; 3 virginica</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>.pred_class</code> column holds the predicted species as a factor. The output keeps the same row order as the input, so you can bind it back to <code>sample_rows</code> with <code>bind_cols()</code>.</p>
+
+<h3>Example 3: Fit a regression RBF SVM on mtcars</h3>
+
+<p><strong>Switch the mode to "regression" and the same function predicts a number.</strong> The <code>margin</code> argument now controls the width of the insensitivity band.</p>
+
+<div class="webr-container" data-block-title="Fit a regression RBF SVM on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a regression RBF SVM on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">svm_reg &lt;- svm_rbf(cost = 1, margin = 0.1) |&gt;
+  set_engine(&quot;kernlab&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+svm_reg_fit &lt;- svm_reg |&gt;
+  fit(mpg ~ ., data = mtcars)
+
+predict(svm_reg_fit, new_data = mtcars[1:3, ])
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  20.9
+#&gt; 2  20.8
+#&gt; 3  25.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The regression SVM returns a numeric <code>.pred</code> column. Residuals inside the <code>margin</code> band of 0.1 add nothing to the loss, so the fit ignores tiny errors.</p>
+
+<h3>Example 4: Get class probabilities</h3>
+
+<p><strong>The kernlab engine can return per-class probabilities.</strong> Pass <code>type = &quot;prob&quot;</code> to <code>predict()</code> to get them.</p>
+
+<div class="webr-container" data-block-title="Predict class probabilities with svm_rbf">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict class probabilities with svm_rbf</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prob_fit &lt;- svm_rbf(cost = 1) |&gt;
+  set_engine(&quot;kernlab&quot;) |&gt;
+  set_mode(&quot;classification&quot;) |&gt;
+  fit(Species ~ ., data = iris)
+
+predict(prob_fit, new_data = iris[c(1, 70, 130), ], type = &quot;prob&quot;)
+#&gt; # A tibble: 3 x 3
+#&gt;   .pred_setosa .pred_versicolor .pred_virginica
+#&gt;          &lt;dbl&gt;            &lt;dbl&gt;           &lt;dbl&gt;
+#&gt; 1        0.98             0.01            0.01
+#&gt; 2        0.02             0.95            0.03
+#&gt; 3        0.01             0.04            0.95</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The probability columns are named <code>.pred_&lt;class&gt;</code> and each row sums to one. kernlab estimates these with Platt scaling, which fits a logistic curve to the SVM decision values.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Normalize your predictors before fitting a radial basis SVM.</strong> The RBF kernel measures distance between points, so a variable measured in thousands swamps one measured in fractions. Add <code>step_normalize(all_numeric_predictors())</code> in a recipe so each predictor contributes fairly to the distance.</div></div>
+
+<h2>svm_rbf() vs svm_linear() vs svm_poly()</h2>
+
+<p><strong>parsnip ships three SVM specifications, one per kernel.</strong> They share the same verbs, so swapping between them is a one-line change.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Kernel</th>
+<th>Boundary shape</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>svm_linear()</code></td>
+<td>Linear</td>
+<td>Straight hyperplane</td>
+<td>Classes are close to linearly separable</td>
+</tr>
+<tr>
+<td><code>svm_poly()</code></td>
+<td>Polynomial</td>
+<td>Curved, degree-controlled</td>
+<td>You expect <a class="auto-link" href="Interaction-Effects-in-R.html" title="Interaction Effects in R: Add Them, Test Them, and Actually Understand the Output">interaction effects</a> or gentle curves</td>
+</tr>
+<tr>
+<td><code>svm_rbf()</code></td>
+<td>Radial basis</td>
+<td>Smooth, locally flexible</td>
+<td>The boundary is clearly non-linear and irregular</td>
+</tr>
+</tbody>
+</table>
+
+<p>Start with <code>svm_linear()</code> for speed, reach for <code>svm_poly()</code> when a low-degree curve fits, and use <code>svm_rbf()</code> when the boundary is too irregular for a polynomial. The RBF kernel is the most common default for non-linear classification.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes catch most newcomers to svm_rbf().</strong> Each one below shows the problem and the fix.</p>
+
+<p>The most common is forgetting to set the mode. A radial basis SVM can classify or predict a number, so parsnip cannot guess which one you want and <code>fit()</code> fails until you call <code>set_mode()</code>.</p>
+
+<div class="webr-container" data-block-title="Mode must be set before fitting">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mode must be set before fitting</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Wrong: no mode, fit() cannot dispatch
+svm_rbf(cost = 1) |&gt;
+  set_engine(&quot;kernlab&quot;) |&gt;
+  fit(Species ~ ., data = iris)
+#&gt; Error: Please set the mode in the model specification.
+
+# Right: set the mode first
+svm_rbf(cost = 1) |&gt;
+  set_engine(&quot;kernlab&quot;) |&gt;
+  set_mode(&quot;classification&quot;) |&gt;
+  fit(Species ~ ., data = iris)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second pitfall is pushing <code>rbf_sigma</code> too high. A large value makes each point influence only its immediate neighbors, so the boundary wraps tightly around individual training rows and fails to generalize. The third is leaving predictors unscaled, which lets a large-scale variable dominate the distance the RBF kernel measures.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A large rbf_sigma overfits fast.</strong> Each increase narrows the kernel and gives the model more freedom to memorize the training data. Leave <code>rbf_sigma</code> at <code>NULL</code> for kernlab's data-driven estimate, or tune it across resampling folds rather than trusting training accuracy.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a regression RBF SVM on <code>mtcars</code> with <code>cost = 2</code>, then predict <code>mpg</code> for the first row. Save the prediction to <code>ex_pred</code>.</p>
+<div class="webr-container" data-block-title="Your turn: regression SVM on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: regression SVM on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit a cost = 2 regression RBF SVM, then predict row 1
+ex_spec &lt;- # your code here
+ex_fit  &lt;- # your code here
+ex_pred &lt;- # your code here
+
+ex_pred
+#&gt; Expected: a 1-row tibble with one .pred value near 21</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_spec &lt;- svm_rbf(cost = 2) |&gt;
+  set_engine(&quot;kernlab&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+ex_fit &lt;- ex_spec |&gt;
+  fit(mpg ~ ., data = mtcars)
+
+ex_pred &lt;- predict(ex_fit, new_data = mtcars[1, ])
+ex_pred
+#&gt; # A tibble: 1 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  21.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Setting the mode to "regression" makes svm_rbf() predict the numeric <code>mpg</code> column, and <code>cost = 2</code> raises the penalty for margin violations. Row 1 of mtcars is the Mazda RX4, whose true mpg is 21, so the radial basis SVM lands close.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>svm_rbf() works alongside the rest of the parsnip model family.</strong> These functions cover the neighboring tasks in a tidymodels project.</p>
+
+<ul>
+
+<li><code>svm_linear()</code> defines a support vector machine with a straight, linear boundary.</li>
+
+<li><code>svm_poly()</code> defines a support vector machine with a polynomial kernel.</li>
+
+<li><code>set_engine()</code> chooses the computational backend for any specification.</li>
+
+<li><code>set_mode()</code> declares whether the model classifies or regresses.</li>
+
+<li><code>fit()</code> trains a specification on data and returns a model object.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What package is svm_rbf() in?</strong></p>
+
+<p><code>svm_rbf()</code> ships in core parsnip, so <code>library(tidymodels)</code> or <code>library(parsnip)</code> makes it available. The function only describes the model; the actual fitting happens in an engine package. The standard registered engine is <code>kernlab</code>, so install the <code>kernlab</code> package separately before you call <code>fit()</code>.</p>
+
+<p><strong>What is the difference between svm_rbf() and svm_poly()?</strong></p>
+
+<p><code>svm_rbf()</code> uses a radial basis kernel that produces a smooth boundary with no fixed shape. <code>svm_poly()</code> uses a polynomial kernel, so its boundary is a degree-controlled curve that bends a fixed number of times. Choose <code>svm_rbf()</code> when the boundary is irregular, and <code>svm_poly()</code> when you expect gentle curves or interaction effects. The RBF kernel is the more common default for non-linear problems.</p>
+
+<p><strong>What does rbf_sigma control in svm_rbf()?</strong></p>
+
+<p>The <code>rbf_sigma</code> argument sets the precision of the Gaussian kernel, controlling how far each training point's influence reaches. A small value spreads the influence wide for a smooth boundary; a large value narrows it, giving a wiggly boundary that can overfit. When <code>rbf_sigma</code> is <code>NULL</code>, the kernlab engine estimates a value from the data with its <code>sigest</code> heuristic.</p>
+
+<p><strong>Does svm_rbf() give class probabilities?</strong></p>
+
+<p>Yes. The kernlab engine supports probability predictions, so <code>predict(fit, type = &quot;prob&quot;)</code> returns one <code>.pred_&lt;class&gt;</code> column per class. kernlab estimates the probabilities with Platt scaling, which fits a logistic curve to the raw SVM decision values. The columns in each row sum to one, which makes them safe to use as calibrated class scores.</p>
+
+<p><strong>How do I tune svm_rbf() hyperparameters?</strong></p>
+
+<p>Mark the arguments with <code>tune()</code>, as in <code>svm_rbf(cost = tune(), rbf_sigma = tune())</code>, then pass the specification to <code>tune_grid()</code> with a resampling object such as <code>vfold_cv()</code>. The framework scores a grid of cost and sigma combinations with cross-validation. Use <code>select_best()</code> to pick the winner, then <code>finalize_workflow()</code> to lock the values before the final fit.</p>
+
+<p>For the full argument reference, see the <a href="https://parsnip.tidymodels.org/reference/svm_rbf.html">parsnip svm_rbf() documentation</a>.</p>
+
+{% endraw %}
