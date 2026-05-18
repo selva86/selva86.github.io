@@ -1,0 +1,364 @@
+---
+title: "caret sbf() in R: Filter-Based Feature Selection"
+description: "Use caret sbf() in R for selection by filtering, a resampling-based univariate feature selection method. Covers sbfControl, lmSBF, rfSBF, and a worked example."
+keywords: "caret sbf, sbf function R, caret sbf example, selection by filtering R, caret feature selection, sbfControl R, univariate filter feature selection"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "sbf()|caret sbf|caret::sbf()|selection by filtering|sbfControl()"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>caret sbf() in R: Filter-Based Feature Selection</h1>
+
+<p class="lead">The caret <code>sbf()</code> function runs selection by filtering, a resampling-based feature selection method that scores each predictor with a univariate filter and keeps only those that pass before fitting a model.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>sbf(x, y, sbfControl = sbfControl(functions = lmSBF))<span class="qa-cmt">   # regression filter</span>
+sbf(x, y, sbfControl = sbfControl(functions = rfSBF))<span class="qa-cmt">   # classification filter</span>
+sbfControl(functions = lmSBF, method = &quot;cv&quot;, number = 5)<span class="qa-cmt"> # 5-fold resampling</span>
+model$optVariables<span class="qa-cmt">                                       # variables kept</span>
+predict(model, newdata)<span class="qa-cmt">                                  # filter then predict</span>
+model$results<span class="qa-cmt">                                            # resampled performance</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is sbf() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">univariate filter then model</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">sbf(x, y, sbfControl = ctrl)</text><text x="125" y="126" class="branch-label">search variable subsets by fit</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">rfe(x, y, rfeControl = ctrl)</text><text x="125" y="182" class="branch-label">rank predictors inside a model</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">varImp(model)</text><text x="125" y="238" class="branch-label">drop near-constant predictors</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">nearZeroVar(df)</text><text x="125" y="294" class="branch-label">drop correlated predictors</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">findCorrelation(cor(df))</text><text x="125" y="350" class="branch-label">genetic-algorithm search</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">gafs(x, y)</text></svg></div>
+
+<h2>What sbf() does in one sentence</h2>
+
+<p><strong>sbf() applies a univariate filter to every predictor, then fits a model on the survivors.</strong> The name stands for Selection By Filtering. For each predictor, a scoring function computes a statistic that measures the predictor's relationship with the outcome on its own. A filter rule then decides which predictors to keep, and the chosen modeling function fits only on that subset.</p>
+
+<p>The important detail is <em>where</em> the filtering happens. <code>sbf()</code> repeats the entire filter-then-fit cycle inside each resampling fold, so the predictor set is re-selected on every training split. That keeps the performance estimate honest.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Filtering inside resampling is what makes sbf() trustworthy.</strong> If you filter predictors once on the full data and then resample, the test folds have already influenced selection, and the accuracy estimate is optimistic. <code>sbf()</code> avoids that leak by design.</div></div>
+
+<h2>sbf() syntax and arguments</h2>
+
+<p><strong>The core call passes predictors, an outcome, and a control object.</strong> The most common form uses the <code>x</code> / <code>y</code> interface, though a formula interface also exists.</p>
+
+<div class="webr-container" data-block-title="The sbf function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The sbf function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sbf(x, y, sbfControl = sbfControl(), ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td>Predictor data frame or matrix</td>
+</tr>
+<tr>
+<td><code>y</code></td>
+<td>Outcome vector; numeric triggers a regression filter, a factor triggers a classification filter</td>
+</tr>
+<tr>
+<td><code>sbfControl</code></td>
+<td>Control object built by <code>sbfControl()</code></td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Extra options passed to the modeling function</td>
+</tr>
+</tbody>
+</table>
+
+<p>The behaviour of <code>sbf()</code> is driven almost entirely by <code>sbfControl()</code>. Its key arguments:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>functions</code></td>
+<td>A filter-and-fit function set: <code>lmSBF</code>, <code>rfSBF</code>, <code>caretSBF</code>, <code>nbSBF</code>, <code>ldaSBF</code>, <code>treebagSBF</code></td>
+</tr>
+<tr>
+<td><code>method</code></td>
+<td>Resampling scheme: <code>&quot;boot&quot;</code>, <code>&quot;cv&quot;</code>, <code>&quot;repeatedcv&quot;</code>, <code>&quot;LOOCV&quot;</code></td>
+</tr>
+<tr>
+<td><code>number</code></td>
+<td>Number of folds or bootstrap resamples</td>
+</tr>
+<tr>
+<td><code>repeats</code></td>
+<td>Repeats when <code>method = &quot;repeatedcv&quot;</code></td>
+</tr>
+<tr>
+<td><code>saveDetails</code></td>
+<td>Keep the per-resample selections for inspection</td>
+</tr>
+</tbody>
+</table>
+
+<p>Each function set bundles a <code>score</code>, <code>filter</code>, <code>fit</code>, and <code>pred</code> function. <code>lmSBF</code> scores predictors with a linear-model <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> and suits numeric outcomes. <code>rfSBF</code> uses random forest importance and suits classification. The default filter keeps predictors with a p-value below 0.05.</p>
+
+<h2>A worked sbf() example</h2>
+
+<p><strong>Start with data where you know the answer.</strong> The example below builds 8 predictors but only <code>real1</code> and <code>real2</code> actually drive the outcome. A good feature selector should recover those two and discard the noise.</p>
+
+<div class="webr-container" data-block-title="Load caret and simulate data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and simulate data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(1)
+n &lt;- 200
+real1 &lt;- rnorm(n)
+real2 &lt;- rnorm(n)
+y &lt;- 2 * real1 - 1.5 * real2 + rnorm(n)      # only 2 true predictors
+noise &lt;- matrix(rnorm(n * 6), ncol = 6)
+colnames(noise) &lt;- paste0(&quot;noise&quot;, 1:6)
+predictors &lt;- data.frame(real1, real2, noise)
+
+dim(predictors)
+#&gt; [1] 200   8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With the data ready, build a control object and run <code>sbf()</code>. The <code>lmSBF</code> set fits a linear model, which matches the numeric outcome.</p>
+
+<div class="webr-container" data-block-title="Run sbf with the lmSBF filter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run sbf with the lmSBF filter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ctrl &lt;- sbfControl(functions = lmSBF, method = &quot;cv&quot;, number = 5)
+sbf_model &lt;- sbf(x = predictors, y = y, sbfControl = ctrl)
+sbf_model
+#&gt; Selection By Filter
+#&gt; 
+#&gt; Outer resampling method: Cross-Validated (5 fold) 
+#&gt; 
+#&gt; Resampling performance:
+#&gt; 
+#&gt;   RMSE Rsquared   MAE RMSESD RsquaredSD  MAESD
+#&gt;  1.014    0.889 0.812 0.0731     0.0322 0.0689
+#&gt; 
+#&gt; Using the training set, 2 variables were selected:
+#&gt;    real1, real2.
+#&gt; 
+#&gt; During resampling, the top 5 selected variables (out of 8):
+#&gt;    real1 (100%), real2 (100%), noise2 (20%), noise5 (20%), noise6 (20%)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The summary reports two things at once. The selection on the full training set kept exactly <code>real1</code> and <code>real2</code>. The resampling section shows how stable that choice was: both true predictors survived in 100% of folds, while each noise variable slipped through only occasionally by chance.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always set a seed before sbf().</strong> Resampling splits are random, so <code>set.seed()</code> makes the selected variables and the reported RMSE reproducible across runs.</div></div>
+
+<div class="webr-container" data-block-title="Inspect the selected variables">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the selected variables</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sbf_model$optVariables
+#&gt; [1] &quot;real1&quot; &quot;real2&quot;
+
+predictors(sbf_model)
+#&gt; [1] &quot;real1&quot; &quot;real2&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>To score new observations, call <code>predict()</code>. It applies the same filter and then the fitted model in one step.</p>
+
+<div class="webr-container" data-block-title="Predict on new data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict on new data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">new_obs &lt;- predictors[1:5, ]
+predict(sbf_model, newdata = new_obs)
+#&gt; [1]  1.9827 -0.4385 -1.2596  3.0518  0.6218</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>sbf() vs rfe(): choosing a feature selector</h2>
+
+<p><strong>Use sbf() when predictors can be judged one at a time, and rfe() when they cannot.</strong> Both are caret wrappers that run feature selection inside resampling, but they search very differently.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Aspect</th>
+<th><code>sbf()</code></th>
+<th><code>rfe()</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Strategy</td>
+<td>Univariate filter, each predictor scored alone</td>
+<td>Recursive elimination, predictors ranked together</td>
+</tr>
+<tr>
+<td>Speed</td>
+<td>Fast, one pass per predictor</td>
+<td>Slower, refits across subset sizes</td>
+</tr>
+<tr>
+<td>Redundancy</td>
+<td>Ignores it; keeps correlated predictors</td>
+<td>Handles it through joint importance</td>
+</tr>
+<tr>
+<td>Best for</td>
+<td>Quick screening, many predictors</td>
+<td>Final subset selection when interactions matter</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is short. Reach for <code>sbf()</code> as a fast first screen, especially with a wide predictor matrix. Reach for <a href="caret-rfe-in-R.html">caret rfe()</a> when predictors interact or are correlated and you need the smallest subset that holds accuracy.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>The outcome type silently changes the filter.</strong> A numeric <code>y</code> runs a regression filter; a factor <code>y</code> runs a classification filter. Encoding classes as 0 and 1 leaves them numeric, so <code>sbf()</code> quietly applies the wrong filter.</p>
+
+<div class="webr-container" data-block-title="Outcome type drives the filter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Outcome type drives the filter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># A 0/1 numeric vector triggers the regression filter
+class(ifelse(y &gt; 0, 1, 0))
+#&gt; [1] &quot;numeric&quot;
+
+# Fix: convert to a factor so sbf uses a classification filter
+y_class &lt;- factor(ifelse(y &gt; 0, &quot;high&quot;, &quot;low&quot;))
+class(y_class)
+#&gt; [1] &quot;factor&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A univariate filter cannot see redundancy.</strong> Two predictors that are strongly correlated will both pass the filter because each looks useful on its own. <code>sbf()</code> will keep both. Pair it with <a href="caret-findCorrelation-in-R.html">findCorrelation()</a> when collinearity is a concern.</div></div>
+
+<p>Two more traps to avoid. First, do not pre-filter predictors before calling <code>sbf()</code>; that reintroduces the <a class="auto-link" href="Bias-in-Data-and-Models.html" title="Bias in Data & Models: How to Detect & Reduce It in R">selection bias</a> the function exists to prevent. Second, the default p-value cutoff of 0.05 is a convention, not a law. With many predictors, a stricter threshold or a different <code>functions</code> set often yields a cleaner subset.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>sbf()</code> with the <code>lmSBF</code> filter to select predictors of <code>mpg</code> from the <code>mtcars</code> dataset. Save the fitted object to <code>ex_sbf</code>.</p>
+<div class="webr-container" data-block-title="Your turn: filter mtcars predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: filter mtcars predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: select predictors of mpg from mtcars with sbf
+ex_ctrl &lt;- sbfControl(functions = lmSBF, method = &quot;cv&quot;, number = 5)
+ex_sbf &lt;- # your code here
+
+ex_sbf$optVariables
+#&gt; Expected: most or all 10 mtcars predictors</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ctrl &lt;- sbfControl(functions = lmSBF, method = &quot;cv&quot;, number = 5)
+ex_sbf &lt;- sbf(x = mtcars[, -1], y = mtcars$mpg, sbfControl = ex_ctrl)
+ex_sbf$optVariables
+#&gt; [1] &quot;cyl&quot;  &quot;disp&quot; &quot;hp&quot;   &quot;drat&quot; &quot;wt&quot;   &quot;qsec&quot; &quot;vs&quot;   &quot;am&quot;   &quot;gear&quot; &quot;carb&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Every <code>mtcars</code> predictor is individually correlated with <code>mpg</code>, so the univariate filter keeps all ten. That is the expected behaviour: <code>sbf()</code> scores one variable at a time and never removes redundant predictors.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p><strong>sbf() sits inside a wider caret feature-selection toolkit.</strong> These functions cover the tasks <code>sbf()</code> deliberately leaves out.</p>
+
+<ul>
+
+<li><a href="caret-rfe-in-R.html">caret rfe()</a>: recursive feature elimination for subset search</li>
+
+<li><a href="caret-varImp-in-R.html">caret varImp()</a>: rank predictors inside an already-fitted model</li>
+
+<li><a href="caret-nearZeroVar-in-R.html">caret nearZeroVar()</a>: drop predictors with almost no variance</li>
+
+<li><a href="caret-findCorrelation-in-R.html">caret findCorrelation()</a>: remove highly correlated predictors</li>
+
+<li><a href="caret-preProcess-in-R.html">caret preProcess()</a>: centre, scale, and transform predictors</li>
+
+</ul>
+
+<p>See the official <a href="https://topepo.github.io/caret/feature-selection-using-univariate-filters.html">caret feature selection documentation</a> for the full list of <code>sbfControl</code> function sets.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does sbf stand for in caret?</strong></p>
+
+<p><code>sbf</code> stands for Selection By Filtering. It is a feature selection wrapper in the caret package that screens predictors with a univariate filter. Each predictor is scored on its own relationship with the outcome, a filter rule decides which ones to keep, and a model is fitted on the survivors. The whole cycle runs inside resampling so the reported performance is not biased by the selection step.</p>
+
+<p><strong>What is the difference between sbf and rfe in caret?</strong></p>
+
+<p><code>sbf()</code> filters predictors univariately: each one is judged alone, which is fast but blind to redundancy. <code>rfe()</code> runs recursive feature elimination, ranking predictors jointly and removing the weakest in repeated passes. Use <code>sbf()</code> as a quick screen on wide data, and <code>rfe()</code> when predictors interact or correlate and you need the smallest accurate subset.</p>
+
+<p><strong>Does caret sbf prevent selection bias?</strong></p>
+
+<p>Yes, when used as intended. <code>sbf()</code> re-runs the filter inside every resampling fold, so the held-out data never influences which predictors are selected. That produces an honest performance estimate. The bias returns only if you filter predictors manually before calling <code>sbf()</code>, which defeats the purpose of the wrapper.</p>
+
+<p><strong>Which sbfControl functions should I use?</strong></p>
+
+<p>Match the function set to the outcome. <code>lmSBF</code> suits numeric regression outcomes, while <code>rfSBF</code>, <code>ldaSBF</code>, and <code>nbSBF</code> suit classification. <code>caretSBF</code> is the most flexible because it delegates fitting to <code>train()</code>, and <code>treebagSBF</code> uses bagged trees. Start with <code>lmSBF</code> or <code>rfSBF</code> and switch only if a different model better fits your data.</p>
+
+{% endraw %}
