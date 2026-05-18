@@ -1,0 +1,330 @@
+---
+title: "recipes step_novel() in R: Handle Unseen Factor Levels"
+description: "Learn how the recipes step_novel() function in R assigns a placeholder level to unseen factor categories, with runnable prep, bake, and step_dummy examples."
+keywords: "recipes step_novel, step_novel function R, recipes step_novel example, R handle novel factor levels, step_novel tidymodels, unseen factor levels R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_novel()|recipes step_novel|recipes::step_novel()|novel factor levels|step_novel"
+auto_link_case_sensitive: true
+fr_parent: "Categorical-Data-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>recipes step_novel() in R: Handle Unseen Factor Levels</h1>
+
+<p class="lead">The recipes <code>step_novel()</code> function adds a reserved placeholder level to a factor column so categories never seen during training do not break predictions on new data.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_novel(rec, var)<span class="qa-cmt">                            # add a &quot;new&quot; placeholder level</span>
+step_novel(rec, var, new_level = &quot;unseen&quot;)<span class="qa-cmt">      # custom placeholder name</span>
+step_novel(rec, all_nominal_predictors())<span class="qa-cmt">       # apply to every factor column</span>
+recipe(...) |&gt; step_novel(x) |&gt; step_dummy(x)<span class="qa-cmt">   # use before dummy encoding</span>
+prep(rec); bake(rec, new_data = test)<span class="qa-cmt">           # train, then apply to new data</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_novel() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">factor level unseen in training</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_novel(rec, x)</text><text x="125" y="126" class="branch-label">factor value is missing (NA)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_unknown(rec, x)</text><text x="125" y="182" class="branch-label">rare training levels to collapse</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_other(rec, x)</text><text x="125" y="238" class="branch-label">convert factor to 0/1 columns</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_dummy(rec, x)</text><text x="125" y="294" class="branch-label">drop a constant factor column</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">step_zv(rec, x)</text><text x="125" y="350" class="branch-label">character column needs a factor first</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">step_string2factor(rec, x)</text></svg></div>
+
+<h2>What step_novel() does</h2>
+
+<p><strong>step_novel() reserves a new factor level for categories that appear only at prediction time.</strong> When you train a model on data where a factor column has the levels <code>Chicago</code>, <code>LA</code>, and <code>NYC</code>, the model has no representation for a row that later arrives with <code>Boston</code>. That mismatch produces <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> or an outright error during scoring.</p>
+
+<p><code>step_novel()</code> solves this by adding one extra level (named <code>&quot;new&quot;</code> by default) to the factor while the recipe is being prepared. Any value in fresh data that was not present in the training set is mapped to that reserved level instead of becoming <code>NA</code>. The model then treats every unseen category as a single known group.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A model can only score levels it saw during training.</strong> step_novel() pre-registers a catch-all level so the recipe stays valid no matter what categories the production data contains.</div></div>
+
+<h2>step_novel() syntax and arguments</h2>
+
+<p><strong>The function takes a recipe, one or more columns, and an optional name for the placeholder.</strong> It is a selection step, so you can name columns directly or use tidyselect helpers like <code>all_nominal_predictors()</code>.</p>
+
+<div class="webr-container" data-block-title="step_novel signature and arguments">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">step_novel signature and arguments</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">step_novel(
+  recipe,
+  ...,                  # columns: factor variables to process
+  role = NA,
+  trained = FALSE,
+  new_level = &quot;new&quot;,    # name of the reserved placeholder level
+  objects = NULL,
+  skip = FALSE,
+  id = rand_id(&quot;novel&quot;)
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The argument you will change most often is <code>new_level</code>. It must be a string that does <strong>not</strong> already exist among the column's training levels, otherwise <code>prep()</code> raises an error. Everything else can stay at its default for typical workflows. The full reference lives in the <a href="https://recipes.tidymodels.org/reference/step_novel.html">recipes documentation</a>.</p>
+
+<h2>step_novel() examples</h2>
+
+<p><strong>The pattern is always prep then bake.</strong> <code>prep()</code> learns the training levels; <code>bake()</code> applies the mapping to any new data frame. The examples below build a small housing-price dataset and process it step by step.</p>
+
+<div class="webr-container" data-block-title="Basic step_novel on unseen levels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Basic step_novel on unseen levels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+train &lt;- data.frame(
+  city  = factor(c(&quot;NYC&quot;, &quot;LA&quot;, &quot;NYC&quot;, &quot;Chicago&quot;, &quot;LA&quot;)),
+  price = c(420, 510, 395, 280, 530)
+)
+
+novel_rec &lt;- recipe(price ~ city, data = train) |&gt;
+  step_novel(city) |&gt;
+  prep()
+
+new_data &lt;- data.frame(city = factor(c(&quot;NYC&quot;, &quot;Boston&quot;, &quot;Denver&quot;)))
+bake(novel_rec, new_data = new_data)
+#&gt; # A tibble: 3 x 1
+#&gt;   city
+#&gt;   &lt;fct&gt;
+#&gt; 1 NYC
+#&gt; 2 new
+#&gt; 3 new</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>Boston</code> and <code>Denver</code> were absent from training, so both collapse into the <code>new</code> level while <code>NYC</code> passes through unchanged. Without <code>step_novel()</code>, those two rows would be <code>NA</code>.</p>
+
+<p>You can rename the placeholder when <code>&quot;new&quot;</code> could clash with a real category or when you want a clearer label in reports.</p>
+
+<div class="webr-container" data-block-title="Custom placeholder name">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Custom placeholder name</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">custom_rec &lt;- recipe(price ~ city, data = train) |&gt;
+  step_novel(city, new_level = &quot;unseen_city&quot;) |&gt;
+  prep()
+
+bake(custom_rec, new_data = new_data)
+#&gt; # A tibble: 3 x 1
+#&gt;   city
+#&gt;   &lt;fct&gt;
+#&gt; 1 NYC
+#&gt; 2 unseen_city
+#&gt; 3 unseen_city</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The most common production use is pairing <code>step_novel()</code> with <code>step_dummy()</code>. The novel step must run first so the dummy encoder has a column to represent unseen categories.</p>
+
+<div class="webr-container" data-block-title="step_novel before step_dummy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">step_novel before step_dummy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dummy_rec &lt;- recipe(price ~ city, data = train) |&gt;
+  step_novel(city) |&gt;
+  step_dummy(city) |&gt;
+  prep()
+
+bake(dummy_rec, new_data = new_data)
+#&gt; # A tibble: 3 x 3
+#&gt;   city_LA city_NYC city_new
+#&gt;     &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1       0        1        0
+#&gt; 2       0        0        1
+#&gt; 3       0        0        1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>city_new</code> indicator carries every unseen city. A model fit on these columns can score the <code>Boston</code> and <code>Denver</code> rows without complaint.</p>
+
+<p>To guard several factor columns at once, swap the bare column name for a tidyselect helper.</p>
+
+<div class="webr-container" data-block-title="Apply step_novel to all factor predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Apply step_novel to all factor predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">multi &lt;- data.frame(
+  city  = factor(c(&quot;NYC&quot;, &quot;LA&quot;, &quot;Chicago&quot;)),
+  size  = factor(c(&quot;S&quot;, &quot;M&quot;, &quot;L&quot;)),
+  price = c(420, 510, 280)
+)
+
+multi_rec &lt;- recipe(price ~ ., data = multi) |&gt;
+  step_novel(all_nominal_predictors()) |&gt;
+  prep()
+
+multi_new &lt;- data.frame(
+  city = factor(&quot;Boston&quot;),
+  size = factor(&quot;XL&quot;)
+)
+bake(multi_rec, new_data = multi_new)
+#&gt; # A tibble: 1 x 2
+#&gt;   city  size
+#&gt;   &lt;fct&gt; &lt;fct&gt;
+#&gt; 1 new   new</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python scikit-learn?</strong> The equivalent is <code>OneHotEncoder(handle_unknown=&quot;ignore&quot;)</code>, which silently zeroes unseen categories. step_novel() differs by giving them an explicit, modelable level instead of dropping them.</div></div>
+
+<h2>step_novel() vs step_unknown() vs step_other()</h2>
+
+<p><strong>Three recipes steps touch factor levels, but each fixes a different problem.</strong> Picking the wrong one either misses the case you care about or distorts data you wanted to keep.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>Problem it solves</th>
+<th>When the level is decided</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_novel()</code></td>
+<td>Category unseen during training appears later</td>
+<td>At <code>bake()</code> time, on new data</td>
+</tr>
+<tr>
+<td><code>step_unknown()</code></td>
+<td>Factor value is missing (<code>NA</code>)</td>
+<td>At <code>bake()</code> time, on any data</td>
+</tr>
+<tr>
+<td><code>step_other()</code></td>
+<td>Infrequent training levels inflate the model</td>
+<td>At <code>prep()</code> time, from training counts</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>step_novel()</code> for the future-proofing case: production data will contain categories your training sample never had. Use <code>step_unknown()</code> when missing factor values need an explicit bucket. Use <code>step_other()</code> to collapse rare-but-known levels before they add noise. Many pipelines chain all three.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most step_novel() bugs.</strong></p>
+
+<ol>
+
+<li><strong>Placing it after <code>step_dummy()</code>.</strong> The dummy step encodes whatever levels exist when it runs. If <code>step_novel()</code> runs later, the <code>new</code> column never gets created and unseen rows still break. Always put <code>step_novel()</code> first.</li>
+
+<li><strong>Reusing an existing level name.</strong> Passing <code>new_level = &quot;NYC&quot;</code> when <code>NYC</code> is already a training level makes <code>prep()</code> fail. Choose a label that cannot appear in the data.</li>
+
+<li><strong>Expecting it to work on character columns.</strong> <code>step_novel()</code> operates on factors. A character column is not selected by <code>all_nominal_predictors()</code> the same way; convert it with <code>step_string2factor()</code> first.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The reserved level is added even when no novel data ever appears.</strong> Baked training output gains an empty <code>new</code> level. Code that counts or loops over factor levels downstream will see one extra entry.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a recipe on the training frame below, add <code>step_novel()</code> to the <code>team</code> column, and bake a new data frame containing the unseen team <code>&quot;Hawks&quot;</code>. Save the result to <code>ex_baked</code>.</p>
+<div class="webr-container" data-block-title="Your turn: step_novel on team">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: step_novel on team</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_train &lt;- data.frame(
+  team  = factor(c(&quot;Lions&quot;, &quot;Bears&quot;, &quot;Lions&quot;)),
+  score = c(21, 14, 28)
+)
+# Try it: prep a recipe with step_novel, then bake &quot;Hawks&quot;
+ex_baked &lt;- # your code here
+
+ex_baked
+#&gt; Expected: Hawks shown as the level &quot;new&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec &lt;- recipe(score ~ team, data = ex_train) |&gt;
+  step_novel(team) |&gt;
+  prep()
+
+ex_baked &lt;- bake(ex_rec, new_data = data.frame(team = factor(&quot;Hawks&quot;)))
+ex_baked
+#&gt; # A tibble: 1 x 1
+#&gt;   team
+#&gt;   &lt;fct&gt;
+#&gt; 1 new</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>prep()</code> records the training levels <code>Bears</code> and <code>Lions</code> plus the reserved <code>new</code> level. Because <code>Hawks</code> was never in training, <code>bake()</code> maps it to <code>new</code>.</p>
+
+</details>
+</section>
+
+<h2>Related recipes functions</h2>
+
+<p><strong>step_novel() is one piece of a factor-handling toolkit.</strong> These steps commonly appear in the same recipe:</p>
+
+<ul>
+
+<li><code>step_unknown()</code> assigns a placeholder to missing factor values.</li>
+
+<li><code>step_other()</code> collapses infrequent training levels into a single <code>other</code> level.</li>
+
+<li><code>step_dummy()</code> converts factors into 0/1 indicator columns.</li>
+
+<li><code>step_string2factor()</code> turns character columns into factors so factor steps can select them.</li>
+
+<li><code>step_zv()</code> drops columns with only one observed value.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What value does step_novel() assign to unseen levels?</strong></p>
+
+<p>By default it assigns the string <code>&quot;new&quot;</code>. Every category in fresh data that was not present during <code>prep()</code> is mapped to this reserved level. You can rename it with the <code>new_level</code> argument, for example <code>step_novel(x, new_level = &quot;unseen&quot;)</code>. The chosen name must not already exist among the column's training levels, or <code>prep()</code> will stop with an error.</p>
+
+<p><strong>Does step_novel() change the training data?</strong></p>
+
+<p>It adds the reserved level to the factor's level set, but no training row is relabeled because every training value was, by definition, seen during training. Baked training output therefore contains an extra empty level. The actual relabeling only happens when <code>bake()</code> meets a category that the recipe never recorded.</p>
+
+<p><strong>Should step_novel() come before or after step_dummy()?</strong></p>
+
+<p>Before. <code>step_dummy()</code> builds indicator columns from the levels that exist when it runs. If <code>step_novel()</code> runs first, the dummy encoder includes a <code>_new</code> column that can absorb unseen categories. Reversing the order leaves no place for novel values and reintroduces the missing-data problem you were trying to fix.</p>
+
+<p><strong>What is the difference between step_novel() and step_other()?</strong></p>
+
+<p><code>step_other()</code> works on the training data: it pools levels that appear too rarely into an <code>other</code> bucket, decided from training frequencies during <code>prep()</code>. <code>step_novel()</code> works on future data: it reserves a level for categories that training never saw at all. One reduces known noise, the other future-proofs against unknown categories.</p>
+
+<p><strong>Can step_novel() handle several columns at once?</strong></p>
+
+<p>Yes. Pass multiple column names separated by commas, or use a tidyselect helper such as <code>all_nominal_predictors()</code> to cover every factor predictor in the recipe. Each selected column gets its own reserved level, so a novel value in one column does not affect the others.</p>
