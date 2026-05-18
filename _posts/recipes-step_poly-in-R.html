@@ -1,0 +1,317 @@
+---
+title: "recipes step_poly() in R: Add Polynomial Predictor Terms"
+description: "Learn how recipes step_poly() in R adds orthogonal polynomial terms to a tidymodels recipe, with runnable examples for degree, raw powers, and naming."
+keywords: "recipes step_poly, step_poly function R, recipes step_poly examples, polynomial features R recipes, tidymodels polynomial terms, orthogonal polynomial recipe R, step_poly degree"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_poly()|recipes step_poly|recipes::step_poly()|step_poly in R|polynomial recipe step|step_poly terms"
+auto_link_case_sensitive: true
+fr_parent: "Linear-Regression.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>recipes step_poly() in R: Add Polynomial Predictor Terms</h1>
+
+<p class="lead">The recipes step_poly() function adds polynomial terms to a tidymodels <a class="auto-link" href="recipes-recipe-in-R.html" title="recipes recipe() in R: Build a Preprocessing Blueprint">preprocessing recipe</a>, expanding one numeric predictor into several columns that let a model fit a curved relationship. By default it builds orthogonal polynomials, which stay uncorrelated and stable.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_poly(rec, x)<span class="qa-cmt">                              # degree-2 orthogonal (default)</span>
+step_poly(rec, x, degree = 3)<span class="qa-cmt">                  # cubic expansion</span>
+step_poly(rec, x, y, degree = 2)<span class="qa-cmt">               # expand several predictors</span>
+step_poly(rec, x, options = list(raw = TRUE))<span class="qa-cmt">  # raw powers x, x^2</span>
+step_poly(rec, x, keep_original_cols = TRUE)<span class="qa-cmt">   # keep the input column</span>
+step_poly(rec, all_numeric_predictors())<span class="qa-cmt">       # expand every numeric</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_poly() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">add curvature to one numeric predictor</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_poly(x, degree = 2)</text><text x="125" y="126" class="branch-label">flexible non-linear curves with knots</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_ns(x, deg_free = 4)</text><text x="125" y="182" class="branch-label">multiply two predictors together</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_interact(~ a:<a class="auto-link" href="Conditional-Probability-in-R.html" title="Conditional Probability in R: P(A|B), Independence, and Bayes — With Real Examples">b)</a></text><text x="125" y="238" class="branch-label">log or power transform for skew</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code"><a class="auto-link" href="recipes-step_log-in-R.html" title="recipes step_log() in R: Log-Transform Skewed Predictors">step_log</a>(x)</text><text x="125" y="294" class="branch-label">reduce many correlated columns</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">step_pca(all_numeric_predictors())</text><text x="125" y="350" class="branch-label">center and scale before modeling</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">step_normalize(all_numeric_predictors())</text></svg></div>
+
+<h2>What step_poly() does</h2>
+
+<p><strong>step_poly() turns one column into a polynomial basis.</strong> It is a recipe step from the <code>recipes</code> package that takes a numeric predictor and replaces it with several columns: the first captures the linear trend, the second the quadratic curve, and so on up to the requested degree.</p>
+
+<p>A straight line cannot describe every relationship. Fuel economy may fall fast as engine size grows, then level off. step_poly() gives a linear model the columns it needs to bend, without you computing <code>x^2</code> and <code>x^3</code> by hand.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A polynomial term is just an extra column, not a new model.</strong> step_poly() engineers a basis of derived features. A plain linear model still fits straight-line coefficients, but because the inputs now include curved components, the fitted prediction can curve.</div></div>
+
+<p>By default the step produces orthogonal polynomials. These columns are mathematically uncorrelated, so adding a quadratic term does not distort the linear coefficient. Raw powers like <code>x</code> and <code>x^2</code> are highly correlated and can make a fit unstable.</p>
+
+<h2>step_poly() syntax and arguments</h2>
+
+<p><strong>The step is short to write and most calls only set the degree.</strong> You add it to a recipe pipeline after declaring variable roles with <code>recipe()</code>.</p>
+
+<div class="webr-container" data-block-title="step_poly signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">step_poly signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">step_poly(
+  recipe,
+  ...,                        # selectors for numeric predictors
+  role = &quot;predictor&quot;,         # role for the new columns
+  degree = 2,                 # highest polynomial degree
+  options = list(),           # passed to stats::poly()
+  keep_original_cols = FALSE  # drop the input column
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>...</code> argument takes one or more predictors, named directly or through selectors like <code>all_numeric_predictors()</code>. <code>degree</code> sets how many polynomial columns each predictor expands into.</p>
+
+<p><code>options</code> is a list forwarded to <code>stats::poly()</code>. Pass <code>options = list(raw = TRUE)</code> to get plain powers instead of orthogonal polynomials. <code>keep_original_cols</code> defaults to <code>FALSE</code>, so step_poly() removes the input column and leaves only the expanded basis.</p>
+
+<h2>step_poly() examples by use case</h2>
+
+<p><strong>Start with a degree-2 expansion.</strong> Load <code>recipes</code>, declare a recipe, add the step, then <code>prep()</code> and <code>bake()</code> to inspect the result.</p>
+
+<div class="webr-container" data-block-title="Degree-2 polynomial expansion">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Degree-2 polynomial expansion</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+rec &lt;- recipe(mpg ~ disp, data = mtcars) |&gt;
+  step_poly(disp, degree = 2)
+
+baked &lt;- rec |&gt; prep() |&gt; bake(new_data = NULL)
+names(baked)
+#&gt; [1] &quot;mpg&quot;         &quot;disp_poly_1&quot; &quot;disp_poly_2&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>disp</code> column is gone and two new columns take its place. <code>disp_poly_1</code> holds the linear component and <code>disp_poly_2</code> the quadratic one. Because they are orthogonal, their correlation is zero.</p>
+
+<div class="webr-container" data-block-title="Orthogonal columns are uncorrelated">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Orthogonal columns are uncorrelated</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(cor(baked$disp_poly_1, baked$disp_poly_2), 8)
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Raise the degree and expand several predictors at once.</strong> List predictors in <code>...</code> and step_poly() applies the same degree to each.</p>
+
+<div class="webr-container" data-block-title="Cubic expansion of two predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cubic expansion of two predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_multi &lt;- recipe(mpg ~ disp + hp, data = mtcars) |&gt;
+  step_poly(disp, hp, degree = 3)
+
+names(prep(rec_multi) |&gt; bake(new_data = NULL))
+#&gt; [1] &quot;mpg&quot;         &quot;disp_poly_1&quot; &quot;disp_poly_2&quot; &quot;disp_poly_3&quot;
+#&gt; [5] &quot;hp_poly_1&quot;   &quot;hp_poly_2&quot;   &quot;hp_poly_3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each predictor becomes three columns, so two predictors at degree 3 yield six new features named with a <code>_poly_</code> suffix.</p>
+
+<p><strong>Switch to raw polynomials when you need plain powers.</strong> Pass <code>raw = TRUE</code> through <code>options</code> and the first column equals the predictor itself.</p>
+
+<div class="webr-container" data-block-title="Raw polynomial powers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Raw polynomial powers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_raw &lt;- recipe(mpg ~ disp, data = mtcars) |&gt;
+  step_poly(disp, degree = 2, options = list(raw = TRUE))
+
+baked_raw &lt;- prep(rec_raw) |&gt; bake(new_data = NULL)
+identical(baked_raw$disp_poly_1, mtcars$disp)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here <code>disp_poly_1</code> is the original <code>disp</code> and <code>disp_poly_2</code> is <code>disp^2</code>. Raw powers are easier to interpret but less numerically stable than the orthogonal default.</p>
+
+<p><strong>Keep the original column when later steps still need it.</strong> Set <code>keep_original_cols = TRUE</code> so the input survives alongside the basis.</p>
+
+<div class="webr-container" data-block-title="Keep the input column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keep the input column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_keep &lt;- recipe(mpg ~ disp + hp, data = mtcars) |&gt;
+  step_poly(disp, degree = 2, keep_original_cols = TRUE)
+
+names(prep(rec_keep) |&gt; bake(new_data = NULL))
+#&gt; [1] &quot;disp&quot;        &quot;hp&quot;          &quot;mpg&quot;         &quot;disp_poly_1&quot; &quot;disp_poly_2&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>disp</code> column stays in place and the two polynomial columns are appended after the outcome.</p>
+
+<h2>step_poly() vs other ways to add curvature</h2>
+
+<p><strong>Several tools add non-linear terms, and they trade interpretability against flexibility.</strong> step_poly() is the recipe-native choice for smooth global curves.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Where it runs</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_poly(x, degree = 2)</code></td>
+<td>recipe, before fitting</td>
+<td>smooth curvature in one predictor, tidymodels workflows</td>
+</tr>
+<tr>
+<td><code>step_ns(x, deg_free = 4)</code></td>
+<td>recipe</td>
+<td>flexible local curves using <a class="auto-link" href="Polynomial-and-Spline-Regression-in-R.html" title="Polynomial and Spline Regression in R: Model Curvature Without Transforming Variables">natural splines</a></td>
+</tr>
+<tr>
+<td><code>lm(y ~ poly(x, 2))</code></td>
+<td>model formula</td>
+<td>a quick base R polynomial fit, no recipe</td>
+</tr>
+<tr>
+<td><code>step_mutate(x2 = x^2)</code></td>
+<td>recipe</td>
+<td>one hand-picked power term</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use step_poly() when you build a tidymodels workflow and want a clean polynomial basis bundled with the model. Reach for <code>step_ns()</code> when a single global polynomial bends too much at the edges of the data.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python scikit-learn?</strong> The closest equivalent is <code>PolynomialFeatures</code> inside a <code>Pipeline</code>. Note that <code>PolynomialFeatures</code> produces raw powers, matching <code>step_poly(options = list(raw = TRUE))</code> rather than the orthogonal default.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most step_poly() surprises come from the dropped column and an over-high degree.</strong> Three mistakes show up repeatedly.</p>
+
+<p>First, expecting the original predictor to remain. Because <code>keep_original_cols</code> defaults to <code>FALSE</code>, a later step that references <code>disp</code> by name fails after step_poly() runs. Set <code>keep_original_cols = TRUE</code> or reorder the recipe so dependent steps run first.</p>
+
+<p>Second, setting the degree too high. A degree of 5 or more chases noise and produces a wiggly fit that generalizes poorly. Start at degree 2, raise it only if validation error improves, and consider <code>step_ns()</code> for very flexible shapes.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Do not read an orthogonal polynomial column as a plain power.</strong> <code>disp_poly_2</code> is not <code>disp</code> squared. Its values are a rescaled, recentered basis, so coefficients on orthogonal columns are not comparable to coefficients you would get from raw powers. Use <code>options = list(raw = TRUE)</code> if you need interpretable powers.</div></div>
+
+<p>Third, applying step_poly() to a predictor with very few unique values. <code>poly()</code> cannot build a degree-3 basis from a column that takes only two values, and <code>prep()</code> raises an error. Check the number of distinct values before choosing a degree.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a recipe on mtcars predicting mpg from hp, expand hp into a degree-3 polynomial, and bake the data. Save the result to ex_baked.</p>
+<div class="webr-container" data-block-title="Your turn: cubic expansion of hp">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: cubic expansion of hp</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: degree-3 polynomial on hp
+ex_baked &lt;- # your code here
+
+names(ex_baked)
+#&gt; Expected: includes &quot;hp_poly_1&quot;, &quot;hp_poly_2&quot;, &quot;hp_poly_3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_baked &lt;- recipe(mpg ~ hp, data = mtcars) |&gt;
+  step_poly(hp, degree = 3) |&gt;
+  prep() |&gt;
+  bake(new_data = NULL)
+names(ex_baked)
+#&gt; [1] &quot;mpg&quot;       &quot;hp_poly_1&quot; &quot;hp_poly_2&quot; &quot;hp_poly_3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A degree of 3 expands <code>hp</code> into three orthogonal columns: linear, quadratic, and cubic. step_poly() drops the original <code>hp</code> column because <code>keep_original_cols</code> defaults to <code>FALSE</code>.</p>
+
+</details>
+</section>
+
+<h2>Related recipes functions</h2>
+
+<p>These steps pair naturally with step_poly() in a preprocessing recipe:</p>
+
+<ul>
+
+<li><code>step_ns()</code> builds natural spline columns, a more flexible alternative for non-linear shapes.</li>
+
+<li><code>step_interact()</code> multiplies predictors into <a class="auto-link" href="Interaction-Effects-in-R.html" title="Interaction Effects in R: Add Them, Test Them, and Actually Understand the Output">interaction terms</a> when combined effects matter.</li>
+
+<li><code>step_normalize()</code> centers and scales predictors, useful before raw polynomial expansion.</li>
+
+<li><code>step_mutate()</code> creates a single derived column when a full basis is more than you need.</li>
+
+<li><code>recipe()</code> defines the variable roles every step operates on.</li>
+
+</ul>
+
+<p>See the official <a href="https://recipes.tidymodels.org/reference/step_poly.html">step_poly() reference</a> for the full argument list.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between orthogonal and raw polynomials in step_poly()?</strong></p>
+
+<p>Orthogonal polynomials, the default, are rescaled so the columns are mathematically uncorrelated. This keeps a linear model's coefficients stable when you add higher-degree terms. Raw polynomials, set with <code>options = list(raw = TRUE)</code>, are the plain powers <code>x</code>, <code>x^2</code>, and so on. Raw powers are easier to interpret but highly correlated, which can make the fit numerically unstable. Predictions from the two forms are identical; only the coefficients differ.</p>
+
+<p><strong>How does step_poly() name its new columns?</strong></p>
+
+<p>step_poly() names each output column with the predictor name, a <code>_poly_</code> separator, and the degree index. Expanding <code>disp</code> at degree 2 produces <code>disp_poly_1</code> and <code>disp_poly_2</code>. The index runs from 1 up to the <code>degree</code> argument, so a degree-3 expansion adds <code>disp_poly_3</code> as well. Consistent naming lets downstream steps select the basis with patterns like <code>starts_with(&quot;disp_poly_&quot;)</code>.</p>
+
+<p><strong>Does step_poly() keep the original predictor column?</strong></p>
+
+<p>No, not by default. <code>keep_original_cols</code> defaults to <code>FALSE</code>, so step_poly() removes the input column once it has built the polynomial basis. Set <code>keep_original_cols = TRUE</code> when a later recipe step or the model still needs the raw predictor. Otherwise the recipe returns only the expanded columns and the original is gone from the baked data.</p>
+
+<p><strong>What degree should I use with step_poly()?</strong></p>
+
+<p>Start with degree 2, which captures simple curvature, and raise it only when cross-validation shows a real improvement. Degrees of 4 or higher tend to overfit, fitting noise rather than signal, especially near the edges of the predictor range. If you need a flexible curve, <code>step_ns()</code> with natural splines usually generalizes better than a high-degree polynomial. You can also tune the degree as a model hyperparameter.</p>
+
+<p><strong>Can step_poly() expand <a class="auto-link" href="Multiple-Regression-in-R.html" title="Multiple Regression in R: How to Build, Interpret, and Refine a Real Model">multiple predictors</a> at once?</strong></p>
+
+<p>Yes. List several predictors in the <code>...</code> argument, or use a selector such as <code>all_numeric_predictors()</code>, and step_poly() applies the same degree to each one. Each predictor expands into its own set of <code>_poly_</code> columns. If different predictors need different degrees, add separate step_poly() calls, one per group of predictors.</p>
+
+</content>
+
+</invoke>
+
+{% endraw %}
