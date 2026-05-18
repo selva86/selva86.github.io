@@ -1,0 +1,371 @@
+---
+title: "caret findLinearCombos() in R: Detect Linear Dependencies"
+description: "Use caret findLinearCombos() in R to detect and remove linearly dependent predictor columns. Covers QR-based detection, the dummy variable trap, and fixes."
+keywords: "caret findLinearCombos, findLinearCombos function R, caret findLinearCombos examples, R remove linearly dependent columns, detect linear combinations R, findLinearCombos caret"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "findLinearCombos()|caret findLinearCombos|caret::findLinearCombos()|findLinearCombos|findLinearCombos function|linearly dependent columns"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret findLinearCombos() in R: Detect Linear Dependencies</h1>
+
+<p class="lead">caret findLinearCombos() in R finds exact linear dependencies among predictor columns and tells you which ones to drop, so your model matrix is full rank before you fit a model.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>findLinearCombos(x)<span class="qa-cmt">                  # x must be a numeric matrix</span>
+findLinearCombos(as.matrix(df))<span class="qa-cmt">      # convert a data frame first</span>
+findLinearCombos(x)$remove<span class="qa-cmt">           # column indices to drop</span>
+findLinearCombos(x)$linearCombos<span class="qa-cmt">     # which columns form each dependency</span>
+x[, -findLinearCombos(x)$remove]<span class="qa-cmt">     # drop the redundant columns</span>
+findLinearCombos(scale(x))<span class="qa-cmt">           # works on standardized data too</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is findLinearCombos() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">exact linear dependency among columns</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">findLinearCombos(x)</text><text x="125" y="126" class="branch-label">high pairwise correlation only</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">findCorrelation(cor(x), 0.9)</text><text x="125" y="182" class="branch-label">near-constant low-variance columns</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">nearZeroVar(x)</text><text x="125" y="238" class="branch-label">center, scale or impute predictors</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">preProcess(x)</text><text x="125" y="294" class="branch-label">build one-hot dummy columns</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">dummyVars(~ ., data = df)</text><text x="125" y="350" class="branch-label">drop one column manually by name</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">x[, colnames(x) != &quot;d&quot;]</text></svg></div>
+
+<h2>What findLinearCombos() does in one sentence</h2>
+
+<p><strong>findLinearCombos() finds exact linear dependencies in a numeric matrix.</strong> It runs a QR decomposition to measure the matrix rank, then enumerates every set of columns that can be written as a linear combination of the others. A linearly dependent column carries no new information, so it makes the matrix rank-deficient and can cause model fitting to fail or return <code>NA</code> coefficients.</p>
+
+<p>The return value has two parts. <code>$linearCombos</code> is a list describing each dependency, and <code>$remove</code> is a vector of column indices you can drop to make the matrix full rank.</p>
+
+<div class="webr-container" data-block-title="Load caret and build a matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and build a matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(1)
+x &lt;- matrix(rnorm(30), ncol = 3)
+x &lt;- cbind(x, x[, 1] + x[, 2])   # column 4 = column 1 + column 2
+colnames(x) &lt;- c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;d&quot;)
+dim(x)
+#&gt; [1] 10  4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Column <code>d</code> is the sum of columns <code>a</code> and <code>b</code>, so the matrix has only three independent columns even though it has four.</p>
+
+<h2>findLinearCombos() syntax and arguments</h2>
+
+<p><strong>findLinearCombos() takes a single argument.</strong> You pass <code>x</code>, a numeric matrix, and the function returns a list. It does not accept a data frame directly, so convert one with <code>as.matrix()</code> or build a numeric design matrix with <code>model.matrix()</code> first.</p>
+
+<div class="webr-container" data-block-title="The function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">findLinearCombos(x)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The return list always has the same two components.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Component</th>
+<th>Type</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>$linearCombos</code></td>
+<td>list of <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">integer vectors</a></td>
+<td>Each vector: the first index is the dependent column, the rest combine to produce it</td>
+</tr>
+<tr>
+<td><code>$remove</code></td>
+<td>integer vector or <code>NULL</code></td>
+<td>Column indices to drop so the matrix becomes full rank</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>findLinearCombos() needs a numeric matrix.</strong> A data frame with factor or character columns coerces to a character matrix and the QR step fails. Encode factors with <code>model.matrix()</code> before calling the function.</div></div>
+
+<h2>findLinearCombos() examples by use case</h2>
+
+<h3>Detect and read the result</h3>
+
+<p><strong>Run findLinearCombos() on the matrix to see the dependency.</strong> The output names both the redundant column and the columns it depends on.</p>
+
+<div class="webr-container" data-block-title="Detect the linear combination">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Detect the linear combination</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">findLinearCombos(x)
+#&gt; $linearCombos
+#&gt; $linearCombos[[1]]
+#&gt; [1] 4 1 2
+#&gt;
+#&gt;
+#&gt; $remove
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The vector <code>4 1 2</code> reads as "column 4 is a linear combination of columns 1 and 2". The <code>$remove</code> slot recommends dropping column 4 to resolve it.</p>
+
+<h3>Drop the recommended columns</h3>
+
+<p><strong>Use <code>$remove</code> to subset the matrix.</strong> Negative indexing keeps every column except the redundant ones.</p>
+
+<div class="webr-container" data-block-title="Drop the recommended columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop the recommended columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">combo &lt;- findLinearCombos(x)
+x_reduced &lt;- x[, -combo$remove]
+colnames(x_reduced)
+#&gt; [1] &quot;a&quot; &quot;b&quot; &quot;c&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The reduced matrix has three independent columns and is now full rank.</p>
+
+<h3>A full-rank matrix returns nothing</h3>
+
+<p><strong>A matrix with no dependencies returns empty results.</strong> <code>$linearCombos</code> is an empty list and <code>$remove</code> is <code>NULL</code>.</p>
+
+<div class="webr-container" data-block-title="A full-rank matrix returns nothing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A full-rank matrix returns nothing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2)
+clean &lt;- matrix(rnorm(40), ncol = 4)
+findLinearCombos(clean)
+#&gt; $linearCombos
+#&gt; list()
+#&gt;
+#&gt; $remove
+#&gt; NULL</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Catch the dummy variable trap</h3>
+
+<p><strong>The most common real-world dependency is one-hot encoding plus an intercept.</strong> When every factor level gets its own column, those columns sum to the intercept, producing an exact linear combination.</p>
+
+<div class="webr-container" data-block-title="Catch the dummy variable trap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Catch the dummy variable trap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(grp = factor(c(&quot;x&quot;, &quot;y&quot;, &quot;z&quot;, &quot;x&quot;, &quot;y&quot;, &quot;z&quot;, &quot;x&quot;, &quot;y&quot;)))
+dummies &lt;- model.matrix(~ grp - 1, df)   # one column per level
+full &lt;- cbind(intercept = 1, dummies)
+findLinearCombos(full)
+#&gt; $linearCombos
+#&gt; $linearCombos[[1]]
+#&gt; [1] 4 1 2 3
+#&gt;
+#&gt;
+#&gt; $remove
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Full dummy encoding plus an intercept is always rank-deficient.</strong> The level columns sum to 1, which equals the intercept. Drop one level (a <a class="auto-link" href="Dummy-Variables-in-R.html" title="Dummy Variables in R: What lm() Does With Factor Predictors Under the Hood">reference category</a>) or the intercept, and findLinearCombos() tells you exactly which column to cut.</div></div>
+
+<h2>findLinearCombos() vs findCorrelation() and nearZeroVar()</h2>
+
+<p><strong>Three caret functions screen problematic predictors, but each targets a different problem.</strong> <code>findLinearCombos()</code> catches exact rank deficiency, <code>findCorrelation()</code> catches strong pairwise correlation, and <code>nearZeroVar()</code> catches near-constant columns.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Targets</th>
+<th>Detection method</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>findLinearCombos()</code></td>
+<td>Exact linear dependencies</td>
+<td>QR decomposition</td>
+<td>Dummy traps, engineered sums, redundant ratios</td>
+</tr>
+<tr>
+<td><code>findCorrelation()</code></td>
+<td>High pairwise correlation</td>
+<td><a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">Correlation matrix</a></td>
+<td>Two predictors nearly duplicate each other</td>
+</tr>
+<tr>
+<td><code>nearZeroVar()</code></td>
+<td>Near-constant columns</td>
+<td>Variance and frequency ratio</td>
+<td>A column has one dominant value</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is simple. Run <code>findLinearCombos()</code> first to remove columns that break the math outright, then run <code>findCorrelation()</code> to thin out redundancy that only hurts stability.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>findLinearCombos() does not detect approximate collinearity.</strong> Two predictors correlated at 0.98 are not an exact linear combination, so the function ignores them. Pair it with <code>findCorrelation()</code> to handle near-redundant predictors.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most findLinearCombos() trouble.</strong> Each has a quick fix.</p>
+
+<p>First, passing a data frame with factors fails. The matrix coercion turns numbers into text, so encode factors numerically before the call.</p>
+
+<div class="webr-container" data-block-title="Factor columns break the matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Factor columns break the matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df2 &lt;- data.frame(a = rnorm(5), grp = factor(c(&quot;x&quot;, &quot;y&quot;, &quot;x&quot;, &quot;y&quot;, &quot;x&quot;)))
+# findLinearCombos(as.matrix(df2))  # fails: matrix becomes character
+m &lt;- model.matrix(~ . - 1, df2)     # encode factors numerically first
+findLinearCombos(m)
+#&gt; $linearCombos
+#&gt; list()
+#&gt;
+#&gt; $remove
+#&gt; NULL</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Second, findLinearCombos() only reports. It never modifies your data, so you must subset with <code>$remove</code> yourself.</p>
+
+<p>Third, an empty <code>$remove</code> is <code>NULL</code>, and <code>x[, -NULL]</code> silently drops every column. Always guard the subset.</p>
+
+<div class="webr-container" data-block-title="Guard against an empty remove vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Guard against an empty remove vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">combo &lt;- findLinearCombos(clean)   # clean is full rank
+combo$remove
+#&gt; NULL
+# clean[, -combo$remove] would drop EVERY column
+safe &lt;- if (length(combo$remove)) clean[, -combo$remove] else clean
+dim(safe)
+#&gt; [1] 10  4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a matrix where column 3 equals column 1 minus column 2, then use findLinearCombos() to find which column to drop. Save the result to <code>ex_combo</code>.</p>
+<div class="webr-container" data-block-title="Your turn: find the dependency">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the dependency</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_x &lt;- matrix(rnorm(24), ncol = 3)
+ex_x[, 3] &lt;- ex_x[, 1] - ex_x[, 2]
+ex_combo &lt;- # your code here
+
+ex_combo$remove
+#&gt; Expected: 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_combo &lt;- findLinearCombos(ex_x)
+ex_combo$remove
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Column 3 is an exact linear combination of columns 1 and 2, so the QR step flags it as redundant and <code>$remove</code> returns its index, 3.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p><strong>findLinearCombos() is one step in caret's predictor-screening toolkit.</strong> These functions handle the adjacent tasks.</p>
+
+<ul>
+
+<li><a href="caret-findCorrelation-in-R.html">findCorrelation()</a> flags highly correlated predictor pairs.</li>
+
+<li><a href="caret-nearZeroVar-in-R.html">nearZeroVar()</a> flags columns with almost no variance.</li>
+
+<li><a href="caret-preProcess-in-R.html">preProcess()</a> centers, scales, and imputes predictors.</li>
+
+<li><a href="caret-dummyVars-in-R.html">dummyVars()</a> builds one-hot encoded design matrices.</li>
+
+<li><a href="caret-train-in-R.html">train()</a> fits a model once the predictors are clean.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does findLinearCombos() return when there are no linear combinations?</strong></p>
+
+<p>It returns a list where <code>$linearCombos</code> is an empty list (<code>list()</code>) and <code>$remove</code> is <code>NULL</code>. That means the matrix is already full rank and no columns need to be dropped. Always test <code>length(combo$remove)</code> before subsetting, because indexing with <code>-NULL</code> drops every column instead of none.</p>
+
+<p><strong>Does findLinearCombos() detect correlated variables?</strong></p>
+
+<p>No. It only detects exact linear dependencies, where one column equals a precise weighted sum of others. Two predictors correlated at 0.95 are not an exact combination, so findLinearCombos() ignores them. Use <code>findCorrelation()</code> on a correlation matrix to screen for strong but inexact relationships.</p>
+
+<p><strong>Why does findLinearCombos() need a matrix instead of a data frame?</strong></p>
+
+<p>The function relies on a QR decomposition, which operates on a purely numeric matrix. A data frame with factor or character columns coerces to a character matrix and the math fails. Convert numeric frames with <code>as.matrix()</code>, or build a design matrix with <code>model.matrix()</code> to encode factors first.</p>
+
+<p><strong>How does findLinearCombos() decide which column to remove?</strong></p>
+
+<p>It works through the dependencies and, for each one, marks a later column in the combination for removal. After flagging a column it rechecks the rank, so the final <code>$remove</code> vector is a minimal set that makes the whole matrix full rank.</p>
