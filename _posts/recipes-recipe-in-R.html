@@ -1,0 +1,305 @@
+---
+title: "recipes recipe() in R: Build a Preprocessing Blueprint"
+description: "Learn how recipes recipe() in R builds reusable tidymodels preprocessing pipelines. Covers the formula interface, roles, steps, prep, and bake with examples."
+keywords: "recipes recipe, recipe function R, recipes recipe examples, R recipe preprocessing, tidymodels recipe, recipe tidymodels, create recipe R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "recipe()|recipes recipe|recipes::recipe()|preprocessing recipe|tidymodels recipe"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>recipes recipe() in R: Build a Preprocessing Blueprint</h1>
+
+<p class="lead">The recipes recipe() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> defines a preprocessing blueprint: a reusable plan for turning raw data into model-ready features. It records which columns are outcomes and predictors, then collects the transformation steps you apply later.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>recipe(y ~ ., data = train)<span class="qa-cmt">                      # formula interface</span>
+recipe(train)<span class="qa-cmt">                                    # bare data, roles assigned later</span>
+rec |&gt; update_role(id, new_role = &quot;ID&quot;)<span class="qa-cmt">          # tag a non-predictor</span>
+rec |&gt; step_normalize(all_numeric_predictors())<span class="qa-cmt">  # add a step</span>
+rec |&gt; step_dummy(all_nominal_predictors())<span class="qa-cmt">      # encode factors</span>
+prep(rec, training = train)<span class="qa-cmt">                      # estimate from training data</span>
+bake(prepped, new_data = NULL)<span class="qa-cmt">                   # get processed training set</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is recipe() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">build a reusable preprocessing blueprint</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">recipe(y ~ ., data = train)</text><text x="125" y="126" class="branch-label">apply a quick one-off transform</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code"><a class="auto-link" href="dplyr-mutate-in-R.html" title="dplyr mutate() in R: Create and Transform Columns">dplyr::mutate()</a> or scale()</text><text x="125" y="182" class="branch-label">bundle preprocessing with a model</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">workflow() then add_recipe()</text><text x="125" y="238" class="branch-label">add a single transformation</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_*() functions</text><text x="125" y="294" class="branch-label">estimate parameters from training data</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">prep(rec, training = train)</text><text x="125" y="350" class="branch-label">apply a trained recipe to new data</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">bake(prepped, new_data = test)</text></svg></div>
+
+<h2>What recipe() does</h2>
+
+<p><strong>recipe() declares structure, not transformations.</strong> When you call <code>recipe()</code>, R does not change a single value in your data. It builds a recipe object that records each column name, its data type, and its role: outcome, predictor, or something custom. The actual transformations come later, as <code>step_*()</code> functions chained onto the recipe.</p>
+
+<p>That separation is the core idea. A recipe is a plan estimated on training data and then applied identically to new data, which stops information from the test set leaking into preprocessing.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A recipe is a blueprint, not a result.</strong> recipe() plus step_*() defines what to do; prep() learns the parameters from training data; bake() carries them out. Applying the same prepped recipe to test data guarantees identical transformations.</div></div>
+
+<h2>recipe() syntax and arguments</h2>
+
+<p><strong>recipe() accepts a formula or a bare data frame.</strong> The most common call passes a formula and the training data. The left side of the formula is the outcome; the right side lists predictors, with <code>.</code> meaning "all remaining columns".</p>
+
+<div class="webr-container" data-block-title="The recipe function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The recipe function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Formula interface (most common)
+recipe(formula, data, ...)
+
+# Data-frame interface (assign roles afterwards)
+recipe(x, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Key arguments:</p>
+
+<ul>
+
+<li><code>formula</code>: a model formula such as <code>Species ~ .</code>. The outcome goes left, predictors right.</li>
+
+<li><code>data</code> / <code>x</code>: a data frame or tibble. Only column names and types are read, so a zero-row slice works fine.</li>
+
+<li><code>vars</code>: an optional character vector of column names, used instead of a formula.</li>
+
+<li><code>roles</code>: an optional character vector assigning a role to each entry in <code>vars</code>.</li>
+
+</ul>
+
+<p>The full argument list lives in the <a href="https://recipes.tidymodels.org/reference/recipe.html">recipes reference documentation</a>.</p>
+
+<h2>recipe() examples</h2>
+
+<p><strong>Start with the formula interface on a built-in dataset.</strong> Passing <code>Species ~ .</code> marks <code>Species</code> as the outcome and the four measurement columns as predictors.</p>
+
+<div class="webr-container" data-block-title="Create a recipe with a formula">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create a recipe with a formula</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+rec &lt;- recipe(Species ~ ., data = iris)
+rec
+#&gt; -- Recipe ------------------------------------------------
+#&gt; -- Inputs
+#&gt; Number of variables by role
+#&gt; outcome:   1
+#&gt; predictor: 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Chain step_*() functions to add transformations.</strong> Each step is recorded in order. Here two steps center-and-scale the numeric predictors and convert any <a class="auto-link" href="Dummy-Variables-in-R.html" title="Dummy Variables in R: What lm() Does With Factor Predictors Under the Hood">factor predictors</a> to dummy variables.</p>
+
+<div class="webr-container" data-block-title="Add preprocessing steps">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add preprocessing steps</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec &lt;- recipe(Species ~ ., data = iris) |&gt;
+  step_normalize(all_numeric_predictors()) |&gt;
+  step_dummy(all_nominal_predictors())
+rec
+#&gt; -- Operations
+#&gt; * Centering and scaling for: all_numeric_predictors()
+#&gt; * Dummy variables from: all_nominal_predictors()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Call prep() then bake() to run the recipe.</strong> <code>prep()</code> estimates each step's parameters, here the mean and standard deviation, from the training data. <code>bake(new_data = NULL)</code> returns the processed training set.</p>
+
+<div class="webr-container" data-block-title="Prepare and bake the recipe">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Prepare and bake the recipe</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prepped &lt;- prep(rec, training = iris)
+baked   &lt;- bake(prepped, new_data = NULL)
+head(baked, 3)
+#&gt; # A tibble: 3 x 5
+#&gt;   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+#&gt;          &lt;dbl&gt;       &lt;dbl&gt;        &lt;dbl&gt;       &lt;dbl&gt; &lt;fct&gt;
+#&gt; 1       -0.898      1.02          -1.34       -1.31 setosa
+#&gt; 2       -1.14      -0.131         -1.34       -1.31 setosa
+#&gt; 3       -1.39       0.328         -1.39       -1.31 setosa</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Use the data-frame interface when there is no clean formula.</strong> Passing the data alone leaves every column undeclared; <code>update_role()</code> then tags outcomes and predictors explicitly.</p>
+
+<div class="webr-container" data-block-title="Assign roles without a formula">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Assign roles without a formula</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_roles &lt;- recipe(mtcars) |&gt;
+  update_role(mpg, new_role = &quot;outcome&quot;) |&gt;
+  update_role(-mpg, new_role = &quot;predictor&quot;)
+summary(rec_roles)
+#&gt; # A tibble: 11 x 4
+#&gt;   variable type      role      source  
+#&gt;   &lt;chr&gt;    &lt;list&gt;    &lt;chr&gt;     &lt;chr&gt;   
+#&gt; 1 mpg      &lt;chr [2]&gt; outcome   original
+#&gt; 2 cyl      &lt;chr [2]&gt; predictor original
+#&gt; 3 disp     &lt;chr [2]&gt; predictor original</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>recipe() vs other preprocessing tools</h2>
+
+<p><strong>recipe() wins when preprocessing must be reproducible across datasets.</strong> Base R and dplyr transform data in place, which is fine for exploration but risks applying different parameters to training and test sets.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Best for</th>
+<th>Reusable on new data</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>recipe()</code> + steps</td>
+<td>Model preprocessing pipelines</td>
+<td>Yes, via prep() and bake()</td>
+</tr>
+<tr>
+<td><code>dplyr::mutate()</code></td>
+<td>One-off, exploratory transforms</td>
+<td>No, recomputed each time</td>
+</tr>
+<tr>
+<td><code>model.matrix()</code></td>
+<td>Quick design matrix for <code>lm()</code></td>
+<td>Partly, no stored parameters</td>
+</tr>
+<tr>
+<td><code>caret::preProcess()</code></td>
+<td>Older caret workflows</td>
+<td>Yes, but caret-only</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is simple. If a transformation must use the same parameters on training and test data, use a recipe. For a throwaway column tweak, reach for <code>mutate()</code>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python scikit-learn?</strong> A recipe is the R counterpart of a <code>Pipeline</code> built from <code>ColumnTransformer</code> steps. prep() maps to <code>fit()</code> and bake() maps to <code>transform()</code>.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>A bare recipe transforms nothing until it is prepped.</strong> Three mistakes cause most early confusion.</p>
+
+<ol>
+
+<li><strong>Skipping prep().</strong> A recipe object on its own is inert. Calling <code>bake()</code> on an un-prepped recipe errors. Always run <code>prep()</code> first to estimate the steps.</li>
+
+<li><strong>Selecting the outcome by accident.</strong> <code>all_numeric()</code> includes a numeric outcome, so a step can transform your target. Use <code>all_numeric_predictors()</code> to exclude outcomes.</li>
+
+<li><strong>Prepping on the full dataset.</strong> Calling <code>prep()</code> on combined train-and-test data learns means and standard deviations from test rows too, leaking information. Prep on the training split only.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>all_numeric() is not all_numeric_predictors().</strong> The first selector grabs every numeric column, including the outcome. Normalizing or imputing the outcome silently corrupts the model. Prefer the <code>_predictors()</code> selectors inside steps.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a recipe on <code>mtcars</code> predicting <code>mpg</code>, add a step that normalizes all numeric predictors, then prep and bake it. Save the baked training data to <code>ex_baked</code>.</p>
+<div class="webr-container" data-block-title="Your turn: build a recipe">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build a recipe</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: recipe on mtcars
+ex_rec &lt;- # your code here
+ex_baked &lt;- # your code here
+
+head(ex_baked, 3)
+#&gt; Expected: 3 rows of normalized predictors plus mpg</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec &lt;- recipe(mpg ~ ., data = mtcars) |&gt;
+  step_normalize(all_numeric_predictors())
+ex_baked &lt;- prep(ex_rec, training = mtcars) |&gt;
+  bake(new_data = NULL)
+head(ex_baked, 3)
+#&gt; # A tibble: 3 x 11
+#&gt;      cyl   disp     hp ...   mpg
+#&gt;    &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt; ... &lt;dbl&gt;
+#&gt; 1 -0.105 -0.571 -0.535 ...    21</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> recipe() declares mpg as the outcome, step_normalize() centers and scales every numeric predictor, and prep() plus bake(new_data = NULL) returns the transformed training set. The outcome mpg stays untouched because the selector targets predictors only.</p>
+
+</details>
+</section>
+
+<h2>Related recipes functions</h2>
+
+<p><strong>recipe() is the entry point to a family of preprocessing functions.</strong> These pair with it most often:</p>
+
+<ul>
+
+<li><code>step_normalize()</code>: center and scale numeric predictors to mean 0, standard deviation 1.</li>
+
+<li><code>step_dummy()</code>: convert factor predictors into indicator columns.</li>
+
+<li><code>prep()</code>: estimate step parameters from training data.</li>
+
+<li><code>bake()</code>: apply a prepped recipe to any dataset.</li>
+
+<li><code>workflow()</code> and <code>add_recipe()</code>: bundle a recipe with a model for one-call fitting.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is a recipe in R?</strong> A recipe is an object created by the recipes package that describes how to preprocess a dataset before modeling. It stores variable roles and an ordered list of transformation steps. The recipe itself holds no transformed data; it is a plan that prep() estimates and bake() executes. Recipes are part of the tidymodels framework and make preprocessing reproducible across training and test sets.</p>
+
+<p><strong>What is the difference between prep() and bake()?</strong> prep() estimates the parameters each step needs, such as column means for centering, using the training data. bake() applies those estimated parameters to produce transformed data. You prep once and bake many times: bake(new_data = NULL) returns the processed training set, while bake(new_data = test) applies the identical transformation to new data without re-estimating anything.</p>
+
+<p><strong>Do I have to use recipe() with workflows?</strong> No. A recipe works on its own through prep() and bake(). Pairing it with a workflow is still recommended, because workflow() plus add_recipe() bundles preprocessing and the model together, so a single fit() call handles both and predictions automatically apply the recipe to new data.</p>
+
+<p><strong>What is the difference between recipe() and a formula in lm()?</strong> A formula in lm() both selects variables and applies inline transformations at fit time, recomputed for every dataset. recipe() separates the plan from execution: it records steps once, estimates them on training data with prep(), and reuses the stored parameters. This prevents test data from influencing preprocessing.</p>
+
+<p><strong>Can I use recipe() without the full tidymodels?</strong> Yes. Install and load only the recipes package; it does not require parsnip, workflows, or the rest of tidymodels. You can prep() and bake() a recipe and feed the result into any modeling function, including base R lm() or <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">glm()</a>.</p>
+
+{% endraw %}
