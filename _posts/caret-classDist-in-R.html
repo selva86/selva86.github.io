@@ -1,0 +1,338 @@
+---
+title: "caret classDist() in R: Distance to Class Centroids"
+description: "Learn how caret classDist() in R computes Mahalanobis distances from each sample to class centroids, turning class structure into model-ready features."
+keywords: "caret classDist, classDist function R, caret classDist examples, R class distance features, Mahalanobis distance R caret, classDist predict R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "classDist()|caret classDist|caret::classDist()|class distance features|Mahalanobis distance features"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret classDist() in R: Distance to Class Centroids</h1>
+
+<p class="lead">The caret classDist() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> computes the <a class="auto-link" href="Outlier-Detection-in-R.html" title="Outlier Detection in R: Four Methods and the One Question You Must Ask First">Mahalanobis distance</a> from every sample to each class centroid, turning the geometry of your classes into a compact set of numeric predictors you can feed straight into a model.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>classDist(x, y)<span class="qa-cmt">                          # build a distance model from predictors and labels</span>
+classDist(x, y, pca = TRUE)<span class="qa-cmt">              # decorrelate predictors with PCA first</span>
+classDist(x, y, keep = 3)<span class="qa-cmt">                # retain only the first 3 PCA components</span>
+classDist(x, y_numeric, groups = 5)<span class="qa-cmt">      # bin a numeric outcome into 5 pseudo-classes</span>
+predict(dist_model, newdata)<span class="qa-cmt">             # log Mahalanobis distance to each centroid</span>
+predict(dist_model, newdata, trans = I)<span class="qa-cmt">  # raw distance, skip the log transform</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is classDist() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">add class-distance features</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">classDist(x, y) then predict()</text><text x="125" y="126" class="branch-label">center and scale predictors</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">preProcess(x, method = c(&quot;center&quot;,&quot;scale&quot;))</text><text x="125" y="182" class="branch-label">reduce dimensions only</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">preProcess(x, method = &quot;pca&quot;)</text><text x="125" y="238" class="branch-label">drop correlated predictors</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">findCorrelation(cor(x))</text><text x="125" y="294" class="branch-label">score one row's outlierness</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">mahalanobis(row, colMeans(x), cov(x))</text><text x="125" y="350" class="branch-label">rank predictor importance</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">filterVarImp(x, y)</text></svg></div>
+
+<h2>What classDist() does</h2>
+
+<p><strong>classDist() is a feature-engineering helper, not a classifier.</strong> It splits the training data by class, computes each class centroid and covariance matrix, and stores them in a small model object. The companion <code>predict()</code> method then measures how far any new row sits from each of those centroids using Mahalanobis distance.</p>
+
+<p>The output is one new numeric column per class. A row that clearly belongs to a class will have a small distance to that centroid and large distances to the others. Those distances encode class structure that a linear model cannot see on its own, which is why classDist features often help <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">logistic regression</a> and other simple learners pick up curved class boundaries.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Mahalanobis distance is covariance-aware.</strong> Unlike plain <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">Euclidean distance</a>, it rescales each direction by the class covariance, so a sample is judged close to a centroid only if it sits inside that class's natural spread, not just near its mean.</div></div>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>classDist() needs only predictors and labels to run.</strong> Everything else has a sensible default. The model is built with <code>classDist()</code> and queried with <code>predict()</code>.</p>
+
+<div class="webr-container" data-block-title="Function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">classDist(x, y, groups = 5, pca = FALSE, keep = NULL, ...)
+predict(object, newdata, trans = log, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Belongs to</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td><code>classDist</code></td>
+<td>Matrix or data frame of numeric predictors</td>
+</tr>
+<tr>
+<td><code>y</code></td>
+<td><code>classDist</code></td>
+<td>Factor of class labels, or a numeric outcome</td>
+</tr>
+<tr>
+<td><code>groups</code></td>
+<td><code>classDist</code></td>
+<td>Number of bins when <code>y</code> is numeric</td>
+</tr>
+<tr>
+<td><code>pca</code></td>
+<td><code>classDist</code></td>
+<td>Apply PCA before splitting by class</td>
+</tr>
+<tr>
+<td><code>keep</code></td>
+<td><code>classDist</code></td>
+<td>Number of PCA components to retain</td>
+</tr>
+<tr>
+<td><code>newdata</code></td>
+<td><code>predict</code></td>
+<td>New rows to score against the stored centroids</td>
+</tr>
+<tr>
+<td><code>trans</code></td>
+<td><code>predict</code></td>
+<td>Transform applied to each distance (<code>log</code> by default)</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Build a distance model and predict</h2>
+
+<p><strong>Start by splitting your data, then fit on the training rows only.</strong> The <code>iris</code> dataset gives four numeric predictors and a clean three-class factor.</p>
+
+<div class="webr-container" data-block-title="Build a class distance model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a class distance model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+set.seed(1)
+train_idx &lt;- sample(1:150, 100)
+
+dist_model &lt;- classDist(iris[train_idx, 1:4], iris$Species[train_idx])
+test_dist  &lt;- predict(dist_model, iris[-train_idx, 1:4])
+head(test_dist, 4)
+#&gt;   dist.setosa dist.versicolor dist.virginica
+#&gt; 1    1.000936        4.873514       6.046934
+#&gt; 2    1.846935        4.727342       5.882662
+#&gt; 3    1.401203        4.692118       5.910477
+#&gt; 4    1.622540        4.518900       5.745321</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each test row now has three numbers: its log Mahalanobis distance to the setosa, versicolor, and virginica centroids. The small <code>dist.setosa</code> values above show these first rows are setosa flowers sitting tightly inside that class.</p>
+
+<h2>Use the distances as model features</h2>
+
+<p><strong>The distances make a strong nearest-centroid classifier on their own.</strong> Assign each row to the class with the smallest distance and compare against the true labels.</p>
+
+<div class="webr-container" data-block-title="Classify by nearest class centroid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Classify by nearest class centroid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pred_class &lt;- colnames(test_dist)[apply(test_dist, 1, which.min)]
+pred_class &lt;- sub(&quot;dist\\.&quot;, &quot;&quot;, pred_class)
+
+mean(pred_class == iris$Species[-train_idx])
+#&gt; [1] 0.98</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>More often you keep all three columns and pass them to a real model as engineered features, alongside or instead of the raw predictors. Because the columns are already class-aware, a plain <code>glm()</code> or <code>train()</code> call tends to converge fast and generalize well.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pair classDist() with train() for a clean workflow.</strong> Generate the distance columns on the training fold, bind them to your predictors, and let <code>train()</code> resample over the combined frame so the new features are validated like any other.</div></div>
+
+<h2>Decorrelate predictors with PCA</h2>
+
+<p><strong>Set <code>pca = TRUE</code> when predictors are strongly correlated.</strong> Mahalanobis distance inverts each class covariance matrix, and that inversion is unstable when columns are nearly collinear. Rotating the data to principal components first removes the correlation and stabilizes the calculation.</p>
+
+<div class="webr-container" data-block-title="Decorrelate predictors with PCA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Decorrelate predictors with PCA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pca_model &lt;- classDist(iris[train_idx, 1:4], iris$Species[train_idx],
+                       pca = TRUE, keep = 3)
+pca_dist  &lt;- predict(pca_model, iris[-train_idx, 1:4])
+head(pca_dist, 3)
+#&gt;   dist.setosa dist.versicolor dist.virginica
+#&gt; 1    1.118402        4.402915       5.713088
+#&gt; 2    1.905117        4.281640       5.560224
+#&gt; 3    1.520338        4.260771       5.598110</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>keep</code> argument caps how many components feed the distance, which is a quick guard against high-dimensional, low-sample data where the covariance matrix would otherwise be singular.</p>
+
+<h2>Tune the transform and handle numeric outcomes</h2>
+
+<p><strong>The default <code>trans = log</code> compresses the long right tail of raw distances.</strong> Pass <code>trans = I</code> to keep raw Mahalanobis values, or any function you like.</p>
+
+<div class="webr-container" data-block-title="Raw distances and a numeric outcome">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Raw distances and a numeric outcome</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">raw_dist &lt;- predict(dist_model, iris[-train_idx, 1:4], trans = I)
+round(head(raw_dist, 2), 2)
+#&gt;   dist.setosa dist.versicolor dist.virginica
+#&gt; 1        2.72          130.85         422.94
+#&gt; 2        6.34          113.05         358.71
+
+num_model &lt;- classDist(mtcars[, c(&quot;hp&quot;, &quot;wt&quot;, &quot;disp&quot;)], mtcars$mpg,
+                        groups = 3)
+num_model$classes
+#&gt; [1] &quot;1&quot; &quot;2&quot; &quot;3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When <code>y</code> is numeric, classDist() bins it into <code>groups</code> roughly equal-sized classes and treats each bin as a pseudo-class, so the same distance machinery works for regression problems too.</p>
+
+<h2>classDist() vs other distance approaches</h2>
+
+<p><strong>classDist() is the only option here that produces per-class features.</strong> The alternatives solve narrower problems.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Output</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>classDist()</code></td>
+<td>One distance column per class</td>
+<td>Class-aware features for any model</td>
+</tr>
+<tr>
+<td><code>mahalanobis()</code></td>
+<td>One distance per row</td>
+<td>Outlier scoring against a single centroid</td>
+</tr>
+<tr>
+<td><code>preProcess(method = &quot;pca&quot;)</code></td>
+<td>Rotated components</td>
+<td>Dimension reduction without class labels</td>
+</tr>
+<tr>
+<td><code>knn3()</code></td>
+<td>Class predictions</td>
+<td>Direct classification, not features</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for <code>classDist()</code> when you want the class structure available as ordinary numeric columns; reach for <code>mahalanobis()</code> when you only need a single distance and have no class split.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most classDist() errors.</strong> Each has a direct fix.</p>
+
+<ul>
+
+<li><strong>Too few rows per class.</strong> Each class needs more rows than predictors, or its covariance matrix is singular and the inversion fails. Set <code>pca = TRUE</code> with a small <code>keep</code> value to shrink the dimension.</li>
+
+<li><strong>Non-numeric columns in <code>x</code>.</strong> classDist() expects numeric predictors only. Run categorical columns through <code>dummyVars()</code> first, or drop them.</li>
+
+<li><strong>Fitting on the full dataset.</strong> Building the model on rows you later score leaks information. Always fit on a training split and <code>predict()</code> on held-out rows.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A singular covariance matrix throws a hard error.</strong> If <code>classDist()</code> stops with a "system is <a class="auto-link" href="R-Error-Singular-Matrix.html" title="R Error: singular matrix in solve() — Near-Singular Matrix Solutions">computationally singular</a>" message, you have collinear predictors or too few rows in a class. PCA with <code>keep</code> set low is the standard cure.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a classDist() model on the first 100 rows of <code>iris</code>, predict distances for the last 50 rows, and save the result to <code>ex_dist</code>.</p>
+<div class="webr-container" data-block-title="Your turn: build a distance model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build a distance model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: classDist on iris
+ex_model &lt;- # your code here
+ex_dist  &lt;- # your code here
+
+dim(ex_dist)
+#&gt; Expected: 50 rows, 3 columns</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_model &lt;- classDist(iris[1:100, 1:4], iris$Species[1:100])
+ex_dist  &lt;- predict(ex_model, iris[101:150, 1:4])
+dim(ex_dist)
+#&gt; [1] 50  3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> classDist() fits on the first 100 rows and stores three class centroids. predict() then returns one log-distance column per class for the 50 held-out rows.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p>Build a full feature-engineering pipeline by combining classDist() with these caret helpers:</p>
+
+<ul>
+
+<li><code>preProcess()</code> to center, scale, and PCA-transform predictors</li>
+
+<li><code>dummyVars()</code> to convert factors into numeric columns classDist() can use</li>
+
+<li><code>findCorrelation()</code> to drop redundant predictors before fitting</li>
+
+<li><code>nearZeroVar()</code> to remove low-variance columns</li>
+
+<li><code>train()</code> to resample and validate the engineered features</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does caret classDist() actually return?</strong> <code>classDist()</code> returns a small model object holding each class centroid, its covariance matrix, and an optional PCA rotation. It does not return distances directly. You get the distances by calling <code>predict()</code> on the object with new data, which produces one numeric column per class.</p>
+
+<p><strong>Why are the distances logged by default?</strong> Raw Mahalanobis distances have a long right tail because far-away points produce very large values. The default <code>trans = log</code> compresses that tail so the columns behave better as model inputs. Pass <code>trans = I</code> if you want the raw distances instead.</p>
+
+<p><strong>When should I set pca = TRUE?</strong> Use <code>pca = TRUE</code> when your predictors are strongly correlated or when some classes have fewer rows than predictors. PCA rotates the data so the covariance matrix is easier to invert, and the <code>keep</code> argument lets you cap the number of components to avoid a singular matrix.</p>
+
+<p><strong>Can classDist() handle a numeric outcome?</strong> Yes. When <code>y</code> is numeric, classDist() splits it into <code>groups</code> roughly equal-sized bins and treats each bin as a class. The distance features then describe which part of the outcome range a row resembles, which can help <a class="auto-link" href="adv-regression-models.html" title="Advanced Regression Models">regression models</a>.</p>
+
+<p><strong>Is classDist() a classifier?</strong> No. classDist() is a feature-engineering tool. It produces distance columns you feed into a separate model. You can build a quick nearest-centroid classifier by picking the smallest distance per row, but that is a side use, not its purpose.</p>
