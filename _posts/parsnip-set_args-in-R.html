@@ -1,0 +1,369 @@
+---
+title: "parsnip set_args() in R: Update Model Arguments"
+description: "parsnip set_args() in R updates the main arguments of a model specification. Learn its syntax, tuning placeholders with tune(), examples, and common errors."
+keywords: "parsnip set_args, set_args function R, parsnip set_args examples, R set_args tidymodels, set_args vs set_engine, set model arguments parsnip"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "set_args()|parsnip set_args|parsnip::set_args()|set model arguments|update model arguments"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>parsnip set_args() in R: Update Model Arguments</h1>
+
+<p class="lead">The parsnip <code>set_args()</code> function in R updates the arguments of a model specification after you create it. You pass a spec and one or more named arguments, and parsnip returns an updated spec with those values changed or added.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>rand_forest() |&gt; set_args(mtry = 3)<span class="qa-cmt">               # set one main argument</span>
+rand_forest() |&gt; set_args(mtry = 3, trees = 500)<span class="qa-cmt">  # set several at once</span>
+linear_reg() |&gt; set_args(penalty = tune())<span class="qa-cmt">        # mark an argument for tuning</span>
+boost_tree() |&gt; set_args(learn_rate = 0.01)<span class="qa-cmt">       # update a hyperparameter</span>
+rand_forest(trees = 200) |&gt; set_args(trees = 500)<span class="qa-cmt"> # overwrite an existing value</span>
+spec |&gt; set_args(importance = &quot;impurity&quot;)<span class="qa-cmt">         # add an engine-specific arg</span>
+spec |&gt; set_args(min_n = tune(&quot;min_node&quot;))<span class="qa-cmt">        # named tuning placeholder</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is set_args() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">update main model arguments</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">set_args(spec, trees = 1000)</text><text x="125" y="126" class="branch-label">choose the fitting backend</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">set_engine(spec, &quot;ranger&quot;)</text><text x="125" y="182" class="branch-label">set regression or classification</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">set_mode(spec, &quot;classification&quot;)</text><text x="125" y="238" class="branch-label">see the resolved engine call</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">translate(spec)</text><text x="125" y="294" class="branch-label">list tunable arguments</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">tunable(spec)</text><text x="125" y="350" class="branch-label">train the finished spec</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">fit(spec, y ~ ., data = train)</text></svg></div>
+
+<h2>What set_args() does</h2>
+
+<p><strong>set_args() changes the arguments of a model specification that already exists.</strong> A model function such as <code>rand_forest()</code> builds a spec. <code>set_args()</code> lets you revise that spec later, setting hyperparameters like <code>trees</code> or <code>mtry</code> without rebuilding it from scratch.</p>
+
+<p>The function returns an updated specification, so it slots into a pipe. Nothing is fitted when you call it. <code>set_args()</code> only records the new argument values, and the actual computation waits until you call <code>fit()</code>.</p>
+
+<p>An argument you pass is matched against the model's main arguments first. A name like <code>trees</code> or <code>penalty</code> updates a main argument. Any name parsnip does not recognise becomes an engine-specific argument instead, forwarded to the underlying fitting function.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>set_args() is the verb for hyperparameters, not for the backend.</strong> The model function says what model, <code>set_engine()</code> says which package computes it, and <code>set_args()</code> tunes the numbers. Keeping argument updates in one named verb makes a model specification easy to build programmatically.</div></div>
+
+<h2>set_args() syntax and arguments</h2>
+
+<p><strong>set_args() takes a spec followed by named arguments.</strong> The signature is short, and every name after the spec is a value you want to set or change.</p>
+
+<div class="webr-container" data-block-title="The set_args argument skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The set_args argument skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set_args(
+  object,        # a parsnip model specification
+  ...            # one or more named arguments to set
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>object</code> argument is the spec you built with a model function like <code>rand_forest()</code> or <code>boost_tree()</code>. The <code>...</code> slot holds the arguments you want to update, each supplied by name.</p>
+
+<p><strong>Values in <code>...</code> can be literals or tuning placeholders.</strong> A literal such as <code>trees = 500</code> fixes the value. A placeholder such as <code>penalty = tune()</code> marks the argument for later tuning, which the <code>tune</code> package resolves during <code>tune_grid()</code>. You must supply at least one named argument, or <code>set_args()</code> raises an error.</p>
+
+<h2>Update model arguments: four examples</h2>
+
+<p><strong>Each example builds a spec and prints it.</strong> Building a spec needs only parsnip, so the code runs even before any engine package is installed.</p>
+
+<h3>Example 1: Set a single argument</h3>
+
+<p><strong>Pass one named argument to update one value.</strong> Here <code>set_args()</code> adds <code>mtry</code> to a random forest spec.</p>
+
+<div class="webr-container" data-block-title="Set one model argument with set_args">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Set one model argument with set_args</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+
+rf_spec &lt;- rand_forest() |&gt;
+  set_mode(&quot;regression&quot;) |&gt;
+  set_args(mtry = 3)
+
+rf_spec
+#&gt; Random Forest Model Specification (regression)
+#&gt;
+#&gt; Main Arguments:
+#&gt;   mtry = 3
+#&gt;
+#&gt; Computational engine: ranger</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The printed spec lists <code>mtry</code> under main arguments. The value is recorded but not used until <code>fit()</code> runs.</p>
+
+<h3>Example 2: Set several arguments and overwrite a value</h3>
+
+<p><strong>One <code>set_args()</code> call can change many arguments at once.</strong> It also overwrites values that were set in the model function.</p>
+
+<div class="webr-container" data-block-title="Update several arguments at once">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Update several arguments at once</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rf_spec2 &lt;- rand_forest(trees = 200) |&gt;
+  set_mode(&quot;regression&quot;) |&gt;
+  set_args(trees = 500, min_n = 10)
+
+rf_spec2
+#&gt; Random Forest Model Specification (regression)
+#&gt;
+#&gt; Main Arguments:
+#&gt;   trees = 500
+#&gt;   min_n = 10
+#&gt;
+#&gt; Computational engine: ranger</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The spec started with <code>trees = 200</code>, but <code>set_args()</code> replaced it with <code>500</code> and added <code>min_n</code>. The latest value always wins.</p>
+
+<h3>Example 3: Mark arguments for tuning</h3>
+
+<p><strong>Use <code>tune()</code> inside <code>set_args()</code> to defer a value.</strong> This is the standard way to flag hyperparameters before a grid search.</p>
+
+<div class="webr-container" data-block-title="Flag arguments for tuning">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Flag arguments for tuning</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tune_spec &lt;- boost_tree() |&gt;
+  set_mode(&quot;classification&quot;) |&gt;
+  set_args(trees = tune(), learn_rate = tune())
+
+tune_spec
+#&gt; Boosted Tree Model Specification (classification)
+#&gt;
+#&gt; Main Arguments:
+#&gt;   trees = tune()
+#&gt;   learn_rate = tune()
+#&gt;
+#&gt; Computational engine: xgboost</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The placeholders tell <code>tune_grid()</code> which arguments to search. Until tuning runs, the spec carries <code>tune()</code> markers instead of numbers.</p>
+
+<h3>Example 4: Add an engine-specific argument</h3>
+
+<p><strong>An unrecognised name becomes an engine argument.</strong> Here <code>importance</code> is not a main random forest argument, so parsnip forwards it to the <code>ranger</code> engine.</p>
+
+<div class="webr-container" data-block-title="Add an engine-specific argument">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add an engine-specific argument</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rf_imp &lt;- rand_forest(trees = 500) |&gt;
+  set_mode(&quot;regression&quot;) |&gt;
+  set_engine(&quot;ranger&quot;) |&gt;
+  set_args(importance = &quot;impurity&quot;)
+
+rf_imp
+#&gt; Random Forest Model Specification (regression)
+#&gt;
+#&gt; Main Arguments:
+#&gt;   trees = 500
+#&gt;
+#&gt; Engine-Specific Arguments:
+#&gt;   importance = impurity
+#&gt;
+#&gt; Computational engine: ranger</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The print output separates the two groups. <code>trees</code> is a main argument every random forest engine shares, while <code>importance</code> belongs to <code>ranger</code> alone.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Call tunable() to see which arguments you can tune.</strong> <code>tunable(spec)</code> returns a tibble of every argument the model and engine expose for tuning. Use it before writing <code>set_args(... = tune())</code> so you mark only valid arguments.</div></div>
+
+<h2>set_args() vs passing arguments directly</h2>
+
+<p><strong>set_args() is one of three ways to set model arguments.</strong> The right choice depends on when you know the values.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>When to use</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Model <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function arguments</a></td>
+<td>You know the values when you create the spec</td>
+<td><code>rand_forest(mtry = 3)</code></td>
+</tr>
+<tr>
+<td><code>set_args()</code></td>
+<td>You revise a spec that already exists</td>
+<td>`spec \</td>
+<td>> set_args(mtry = 3)`</td>
+</tr>
+<tr>
+<td><code>update()</code></td>
+<td>You revise a spec inside a workflow or tuning step</td>
+<td><code>update(spec, mtry = 5)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is direct. Put values in the model function when you build the spec in one shot. Reach for <code>set_args()</code> when a spec is passed around, built in stages, or generated by a loop. Use <code>update()</code> when the spec is wrapped in a workflow and you need to revise it in place.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>set_engine() also accepts arguments.</strong> Engine-specific options can be passed through <code>set_engine(&quot;ranger&quot;, importance = &quot;impurity&quot;)</code> or through <code>set_args()</code>. Both land in the same Engine-Specific Arguments slot, so pick whichever reads more clearly in your pipeline.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Two mistakes account for most set_args() trouble.</strong> Both are quick to spot once you know the pattern.</p>
+
+<p>The first is calling <code>set_args()</code> with no arguments. The function requires at least one named value and errors otherwise.</p>
+
+<div class="webr-container" data-block-title="set_args needs at least one named argument">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">set_args needs at least one named argument</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># This errors: no arguments supplied
+rand_forest() |&gt; set_args()
+#&gt; Error in set_args(): Please pass at least one named argument.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second is a misspelled argument name. parsnip does not reject unknown names. It quietly treats them as engine-specific arguments, which can cause a confusing failure later at <code>fit()</code> time.</p>
+
+<div class="webr-container" data-block-title="A typo becomes an engine-specific argument">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A typo becomes an engine-specific argument</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 'tree' is a typo for 'trees', so it is treated as engine-specific
+rand_forest() |&gt; set_mode(&quot;regression&quot;) |&gt; set_args(tree = 500)
+#&gt; Random Forest Model Specification (regression)
+#&gt;
+#&gt; Engine-Specific Arguments:
+#&gt;   tree = 500
+#&gt;
+#&gt; Computational engine: ranger</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>set_args() does not modify the spec in place.</strong> It returns a new spec, so you must assign the result. Writing <code>set_args(spec, trees = 500)</code> without <code>spec &lt;- ...</code> discards the update and leaves the original unchanged.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a <code>boost_tree()</code> spec, set the mode to classification, then use <code>set_args()</code> to set <code>trees = 1000</code> and mark <code>learn_rate</code> for tuning. Save the spec to <code>ex_spec</code>.</p>
+<div class="webr-container" data-block-title="Your turn: configure a boosted tree spec">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: configure a boosted tree spec</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: build a boost_tree spec with set_args
+ex_spec &lt;- # your code here
+
+ex_spec
+#&gt; Expected: trees = 1000 and learn_rate = tune()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_spec &lt;- boost_tree() |&gt;
+  set_mode(&quot;classification&quot;) |&gt;
+  set_args(trees = 1000, learn_rate = tune())
+
+ex_spec
+#&gt; Boosted Tree Model Specification (classification)
+#&gt;
+#&gt; Main Arguments:
+#&gt;   trees = 1000
+#&gt;   learn_rate = tune()
+#&gt;
+#&gt; Computational engine: xgboost</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>set_args()</code> updates two main arguments in a single call. The literal <code>1000</code> fixes <code>trees</code>, while <code>tune()</code> flags <code>learn_rate</code> for a later grid search.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>set_args() works alongside the other parsnip specification verbs.</strong> These functions cover the neighbouring steps of building and fitting a model.</p>
+
+<ul>
+
+<li><code>set_engine()</code> declares which package computes the model.</li>
+
+<li><code>set_mode()</code> declares regression or classification for dual-mode models.</li>
+
+<li><code>update()</code> revises a spec, often inside a workflow.</li>
+
+<li><code>tune()</code> is the placeholder that marks an argument for tuning.</li>
+
+<li><code>translate()</code> shows the exact engine call a spec will generate.</li>
+
+<li><code>fit()</code> trains the spec once its arguments are set.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does set_args() do in R?</strong></p>
+
+<p><code>set_args()</code> updates the arguments of a parsnip model specification after it has been created. You pass the spec and one or more named arguments, and it returns an updated spec with those values set or changed. The arguments can be main model arguments like <code>trees</code> or engine-specific options. No model is fitted when you call it. The values are only recorded, and computation happens later when you call <code>fit()</code>.</p>
+
+<p><strong>What is the difference between set_args() and set_engine()?</strong></p>
+
+<p>They configure different parts of a spec. <code>set_args()</code> sets the model's arguments, the hyperparameters that control how the model behaves. <code>set_engine()</code> chooses the computational backend, the package that actually fits the model. A random forest can run on <code>ranger</code> or <code>randomForest</code> through <code>set_engine()</code>, while its <code>trees</code> and <code>mtry</code> values come from <code>set_args()</code> or the model function. Both verbs return an updated spec for the pipe.</p>
+
+<p><strong>Can I use set_args() to set tuning parameters?</strong></p>
+
+<p>Yes. Pass <code>tune()</code> as the value, for example <code>set_args(penalty = tune())</code>. This marks the argument as a tuning parameter rather than a fixed number. The <code>tune</code> package then resolves it during <code>tune_grid()</code> or <code>tune_bayes()</code>. You can also pass a named placeholder like <code>tune(&quot;my_penalty&quot;)</code> when several arguments need distinct labels in the tuning grid. Until tuning runs, the spec carries the <code>tune()</code> marker instead of a value.</p>
+
+<p><strong>Should I use set_args() or pass arguments to the model function?</strong></p>
+
+<p>Pass arguments directly to the model function when you know the values as you build the spec, since <code>rand_forest(mtry = 3)</code> is shorter. Use <code>set_args()</code> when the spec already exists and you need to revise it, which is common when specs are built in stages or generated programmatically. Both produce the same result. <code>set_args()</code> simply lets you defer or change the values after creation.</p>
+
+<p><strong>Does set_args() change the spec in place?</strong></p>
+
+<p>No. <code>set_args()</code> returns a new, updated specification and leaves the original untouched. You must assign the result, as in <code>spec &lt;- set_args(spec, trees = 500)</code>, or chain it in a pipe. Forgetting to capture the return value is a common mistake that silently discards your changes. R objects are not modified in place, so the returned spec is the only one that carries the update.</p>
+
+<p>For the full argument reference, see the <a href="https://parsnip.tidymodels.org/reference/set_args.html">parsnip set_args() documentation</a>.</p>
