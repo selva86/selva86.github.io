@@ -1,0 +1,317 @@
+---
+title: "parsnip pls() in R: Partial Least Squares Models"
+description: "Learn how parsnip pls() builds partial least squares models in R. Load the plsmod engine, fit regression and PLS-DA classification, and tune components."
+keywords: "parsnip pls, pls function R, parsnip pls examples, partial least squares R tidymodels, plsmod, pls model spec R, PLS regression R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "pls()|parsnip pls|plsmod::pls()|partial least squares|PLS regression"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>parsnip pls() in R: Partial Least Squares Models</h1>
+
+<p class="lead">parsnip pls() defines a partial least squares model in R. It compresses many correlated predictors into a few latent components, choosing each component to maximize covariance with the outcome.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>pls(num_comp = 3)<span class="qa-cmt">                              # 3 latent components</span>
+pls(mode = &quot;regression&quot;)<span class="qa-cmt">                       # regression mode</span>
+pls(mode = &quot;classification&quot;)<span class="qa-cmt">                   # PLS-DA classification</span>
+pls(num_comp = 3, predictor_prop = 0.5)<span class="qa-cmt">        # sparse PLS, variable selection</span>
+pls() |&gt; set_engine(&quot;mixOmics&quot;)<span class="qa-cmt">                # the only engine</span>
+pls(num_comp = tune())<span class="qa-cmt">                         # tune the component count</span>
+fit(spec, mpg ~ ., data = mtcars)<span class="qa-cmt">              # fit the spec</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is pls() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">many correlated predictors, want components</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">pls(num_comp = 3)</text><text x="125" y="126" class="branch-label">few roughly independent predictors</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">linear_reg()</text><text x="125" y="182" class="branch-label">unsupervised reduction before any model</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_pca() recipe</text><text x="125" y="238" class="branch-label">penalize coefficients instead of reducing</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">linear_reg(penalty = 0.1)</text><text x="125" y="294" class="branch-label">classify using latent components</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">pls(mode = &quot;classification&quot;)</text><text x="125" y="350" class="branch-label">nonlinear structure in the data</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">rand_forest() or <a class="auto-link" href="parsnip-boost_tree-in-R.html" title="parsnip boost_tree() in R: Define Gradient Boosting Models">boost_tree()</a></text></svg></div>
+
+<h2>What pls() does</h2>
+
+<p><strong>pls() defines a partial least squares model specification.</strong> PLS builds a small set of latent components from the predictors and chooses each component to maximize its covariance with the outcome. It is the tool of choice when predictors are many and strongly correlated, such as spectra or gene expression columns.</p>
+
+<p>The function comes from the <strong>plsmod</strong> package, a parsnip extension. It returns a model specification, not a fitted model, so you pair it with <code>set_engine()</code>, <code>set_mode()</code>, and <code>fit()</code> like any other parsnip spec. The only engine is <code>mixOmics</code>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>plsmod and mixOmics are separate installs.</strong> pls() lives in plsmod, and the mixOmics engine is a Bioconductor package. Install plsmod from CRAN, install mixOmics with <code>BiocManager::install(&quot;mixOmics&quot;)</code>, then load <code>library(plsmod)</code> before defining a spec.</div></div>
+
+<h2>pls() syntax and arguments</h2>
+
+<p><strong>The signature has two model arguments plus a mode and an engine.</strong> Both model arguments default to <code>NULL</code>, which lets the mixOmics engine pick a value.</p>
+
+<div class="webr-container" data-block-title="pls signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">pls signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pls(
+  mode = &quot;unknown&quot;,
+  engine = &quot;mixOmics&quot;,
+  predictor_prop = NULL,
+  num_comp = NULL
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>What it controls</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mode</code></td>
+<td><code>&quot;regression&quot;</code> or <code>&quot;classification&quot;</code>. Required before fitting.</td>
+</tr>
+<tr>
+<td><code>num_comp</code></td>
+<td>Number of PLS components (latent variables) to retain.</td>
+</tr>
+<tr>
+<td><code>predictor_prop</code></td>
+<td>Maximum proportion of predictors with a non-zero coefficient per component. Values below 1 give sparse PLS.</td>
+</tr>
+<tr>
+<td><code>engine</code></td>
+<td>Always <code>&quot;mixOmics&quot;</code>.</td>
+</tr>
+</tbody>
+</table>
+
+<p>The <code>num_comp</code> argument is the main lever on fit quality. <code>predictor_prop</code> controls sparsity: at 1 every predictor loads on every component, while a value below 1 makes mixOmics zero out the weakest loadings, which performs variable selection.</p>
+
+<h2>Fit a PLS model: regression and classification</h2>
+
+<p><strong>Build the spec, <a class="auto-link" href="parsnip-set_engine-in-R.html" title="parsnip set_engine() in R: Choose the Model Engine">set the engine</a> and mode, then call fit().</strong> This regression example predicts <code>mpg</code> from every other column of <code>mtcars</code> using three components.</p>
+
+<div class="webr-container" data-block-title="Fit a PLS regression">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a PLS regression</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+library(plsmod)
+
+pls_spec &lt;- pls(num_comp = 3) |&gt;
+  set_engine(&quot;mixOmics&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+pls_fit &lt;- pls_spec |&gt;
+  fit(mpg ~ ., data = mtcars)
+
+predict(pls_fit, new_data = mtcars[1:3, ])
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  22.6
+#&gt; 2  22.1
+#&gt; 3  26.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Switching to classification needs only a different mode. With a factor outcome, mixOmics fits PLS-DA, partial least squares discriminant analysis.</p>
+
+<div class="webr-container" data-block-title="Fit a PLS-DA classifier">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a PLS-DA classifier</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pls_cls &lt;- pls(num_comp = 2) |&gt;
+  set_engine(&quot;mixOmics&quot;) |&gt;
+  set_mode(&quot;classification&quot;) |&gt;
+  fit(Species ~ ., data = iris)
+
+predict(pls_cls, new_data = iris[c(1, 70, 130), ])
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 setosa
+#&gt; 2 versicolor
+#&gt; 3 virginica</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>PLS regresses on components, not raw predictors.</strong> Each component is a weighted blend of the original columns. The components are uncorrelated by construction, so PLS stays stable even when the raw predictors are collinear, where <a class="auto-link" href="Simple-Linear-Regression-in-R.html" title="Linear Regression in R: Fit Your First Model With lm() and Understand Every Number">ordinary least squares</a> would break down.</div></div>
+
+<h2>Choose the number of components</h2>
+
+<p><strong>num_comp is the one setting that decides fit quality.</strong> Too few components underfit the data; too many reabsorb noise. Mark the argument with <code>tune()</code> and search a small grid with resampling.</p>
+
+<div class="webr-container" data-block-title="Tune the component count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tune the component count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pls_tune &lt;- pls(num_comp = tune()) |&gt;
+  set_engine(&quot;mixOmics&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+folds &lt;- vfold_cv(mtcars, v = 5)
+grid &lt;- tibble(num_comp = 1:6)
+
+res &lt;- tune_grid(pls_tune, mpg ~ ., resamples = folds, grid = grid)
+show_best(res, metric = &quot;rmse&quot;, n = 3)
+#&gt; # A tibble: 3 x 7
+#&gt;   num_comp .metric .estimator  mean     n std_err .config
+#&gt;      &lt;int&gt; &lt;chr&gt;   &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1        3 rmse    standard    2.71     5   0.402 Model3
+#&gt; 2        4 rmse    standard    2.78     5   0.391 Model4
+#&gt; 3        2 rmse    standard    2.95     5   0.508 Model2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here three components give the lowest cross-validated RMSE. Beyond that point the error climbs again, because later components fit noise rather than signal.</p>
+
+<h2>pls() vs linear_reg() vs a PCA recipe</h2>
+
+<p><strong>Reach for pls() when predictors are many and correlated.</strong> All three options handle collinear data, but they differ in how they build the reduced space.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>How it reduces dimensions</th>
+<th>Best when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pls()</code></td>
+<td>Components maximize covariance with the outcome</td>
+<td>Predictors are correlated and you want supervised reduction</td>
+</tr>
+<tr>
+<td><code>linear_reg()</code></td>
+<td>No reduction; one coefficient per predictor</td>
+<td>Predictors are few and roughly independent</td>
+</tr>
+<tr>
+<td><code>step_pca()</code> recipe</td>
+<td>Components maximize predictor variance, ignore outcome</td>
+<td>You want unsupervised reduction before any model</td>
+</tr>
+</tbody>
+</table>
+
+<p>A PCA recipe picks directions that explain the predictors alone. PLS picks directions that also predict the outcome, so it usually needs fewer components to reach the same accuracy.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most pls() errors.</strong> Each has a quick fix.</p>
+
+<ul>
+
+<li><strong>Forgetting plsmod.</strong> <code>library(plsmod)</code> must run before <code>pls()</code>. Loading only <code>tidymodels</code> triggers a "<a class="auto-link" href="R-Common-Errors.html" title="50 Most Common R Error Messages: What They Mean & How to Fix Them">could not find function</a>" error.</li>
+
+<li><strong>Skipping the mode.</strong> A spec left at <code>mode = &quot;unknown&quot;</code> fails at <code>fit()</code>. Set the mode with <code>set_mode()</code> or the <code>mode</code> argument.</li>
+
+<li><strong>Asking for too many components.</strong> <code>num_comp</code> cannot exceed the number of predictors. A value that is too large errors inside the mixOmics engine.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Predictor scale matters for PLS.</strong> PLS weights predictors by covariance, so a column on a large numeric scale dominates the components. Add <code>step_normalize()</code> in a recipe, or center and scale the predictors, before fitting.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a PLS regression on <code>mtcars</code> predicting <code>hp</code> from <code>disp</code>, <code>wt</code>, <code>cyl</code>, and <code>qsec</code> with two components. Save the fitted model to <code>ex_fit</code>.</p>
+<div class="webr-container" data-block-title="Your turn: PLS on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: PLS on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: build the spec, set engine and mode, fit
+ex_fit &lt;- # your code here
+
+predict(ex_fit, new_data = mtcars[1:3, ])
+#&gt; Expected: a 3-row tibble with a .pred column</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- pls(num_comp = 2) |&gt;
+  set_engine(&quot;mixOmics&quot;) |&gt;
+  set_mode(&quot;regression&quot;) |&gt;
+  fit(hp ~ disp + wt + cyl + qsec, data = mtcars)
+
+predict(ex_fit, new_data = mtcars[1:3, ])
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  124.
+#&gt; 2  118.
+#&gt; 3  103.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>pls(num_comp = 2)</code> requests two latent components, <code>set_engine()</code> and <code>set_mode()</code> complete the spec, and <code>fit()</code> trains it on the four predictors. <code>predict()</code> returns one value per row.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<ul>
+
+<li><a href="parsnip-linear_reg-in-R.html">parsnip linear_reg()</a> fits ordinary and penalized linear regression.</li>
+
+<li><a href="parsnip-discrim_linear-in-R.html">parsnip discrim_linear()</a> builds a linear discriminant classifier.</li>
+
+<li><a href="parsnip-mars-in-R.html">parsnip mars()</a> captures nonlinear structure with spline terms.</li>
+
+<li><a href="parsnip-rand_forest-in-R.html">parsnip rand_forest()</a> builds a random forest ensemble.</li>
+
+<li><a href="parsnip-fit-in-R.html">parsnip fit()</a> trains any model spec on a data frame.</li>
+
+</ul>
+
+<p>See the official <a href="https://parsnip.tidymodels.org/reference/pls.html">parsnip pls() reference</a> for the full argument list.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What package provides parsnip pls()?</strong> pls() ships in the plsmod package, a parsnip model extension maintained by the tidymodels team. parsnip itself does not include it. Install plsmod from CRAN, install the mixOmics engine from Bioconductor with <code>BiocManager::install(&quot;mixOmics&quot;)</code>, and load <code>library(plsmod)</code> alongside <code>library(tidymodels)</code>. Once loaded, pls() behaves like any built-in parsnip spec and works inside workflows and recipes.</p>
+
+<p><strong>What is the difference between PLS and PCA regression?</strong> Both compress correlated predictors into a few components, but they choose those components differently. PCA picks directions that explain the most variance in the predictors, ignoring the outcome. PLS picks directions that maximize covariance between predictors and the outcome, so its components are supervised. PLS usually reaches the same accuracy with fewer components, which is why it is preferred when the goal is prediction rather than description.</p>
+
+<p><strong>Can pls() do classification?</strong> Yes. Set <code>mode = &quot;classification&quot;</code> and pass a factor outcome. The mixOmics engine then fits PLS-DA, partial least squares discriminant analysis, which finds components that separate the classes. Use <code>predict(fit, new_data, type = &quot;prob&quot;)</code> for class probabilities or the default <code>type = &quot;class&quot;</code> for hard labels. The <code>num_comp</code> argument works the same way as in regression mode.</p>
+
+<p><strong>How many components should I use in PLS?</strong> There is no fixed answer; it depends on the data. Mark <code>num_comp</code> with <code>tune()</code>, build a grid such as <code>num_comp = 1:6</code>, and compare cross-validated RMSE or accuracy with <code>tune_grid()</code>. Pick the smallest component count whose error is close to the minimum. Adding components past that point fits noise and can hurt performance on new data.</p>
+
+</content>
+
+</invoke>
+
+{% endraw %}
