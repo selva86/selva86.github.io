@@ -1,0 +1,326 @@
+---
+title: "parsnip discrim_linear() in R: Build an LDA Classifier"
+description: "Learn how parsnip discrim_linear() defines a linear discriminant analysis model in R. Set the MASS, mda, or sda engine, fit LDA, and predict with examples."
+keywords: "parsnip discrim_linear, discrim_linear function R, parsnip discrim_linear examples, linear discriminant analysis tidymodels, discrim_linear LDA R, discrim package R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "discrim_linear()|parsnip discrim_linear|discrim::discrim_linear()|tidymodels LDA|discrim_linear LDA"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>parsnip discrim_linear() in R: Build an LDA Classifier</h1>
+
+<p class="lead">The parsnip discrim_linear() function defines a <a class="auto-link" href="Linear-Discriminant-Analysis-in-R.html" title="LDA in R: Classify Observations by Maximising Between-Group Separation">linear discriminant analysis</a> (LDA) model in R, a fast classifier that draws straight-line boundaries between classes and plugs into any tidymodels workflow.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>discrim_linear()<span class="qa-cmt">                                   # bare spec, classification</span>
+discrim_linear(mode = &quot;classification&quot;)<span class="qa-cmt">            # set mode inline</span>
+discrim_linear() |&gt; set_engine(&quot;MASS&quot;)<span class="qa-cmt">             # default MASS::lda engine</span>
+discrim_linear(penalty = 1) |&gt; set_engine(&quot;mda&quot;)<span class="qa-cmt">   # regularized LDA</span>
+discrim_linear() |&gt; set_engine(&quot;sda&quot;)<span class="qa-cmt">              # shrinkage discriminant</span>
+discrim_linear() |&gt; fit(y ~ ., data = df)<span class="qa-cmt">          # define and train</span>
+predict(fit, new_data, type = &quot;prob&quot;)<span class="qa-cmt">              # class probabilities</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is discrim_linear() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">linear boundary, shared covariance</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">discrim_linear() |&gt; set_engine(&quot;MASS&quot;)</text><text x="125" y="126" class="branch-label">curved boundary, per-class covariance</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">discrim_quad()</text><text x="125" y="182" class="branch-label">flexible nonlinear discriminant</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">discrim_flexible()</text><text x="125" y="238" class="branch-label">fast probabilistic baseline classifier</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">naive_Bayes()</text><text x="125" y="294" class="branch-label">predictor interactions matter</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">rand_forest()</text><text x="125" y="350" class="branch-label">numeric outcome instead of a class</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">linear_reg()</text></svg></div>
+
+<h2>What discrim_linear() does</h2>
+
+<p><strong>discrim_linear() declares a classifier, it does not train one.</strong> The function returns a model specification: an engine-agnostic description of the LDA model you want. No data touches it until you call <code>fit()</code>. That split keeps your modeling code portable across the whole tidymodels stack, so you can swap engines or resampling schemes without rewriting the spec.</p>
+
+<p>Linear discriminant analysis assumes every class follows a Gaussian distribution and that all classes share one common <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">covariance matrix</a>. Under that assumption the decision boundary between any two classes is a straight line (or a flat hyperplane in higher dimensions). LDA estimates each class mean and the pooled covariance, then assigns a new observation to the class whose centre is closest in that covariance-adjusted distance.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The shared-covariance assumption is what makes the boundary linear.</strong> Give each class its own covariance matrix and the boundary curves, which is exactly what discrim_quad() does. LDA trades that flexibility for fewer parameters, so it stays stable on small datasets and rarely overfits.</div></div>
+
+<h2>discrim_linear() syntax and arguments</h2>
+
+<p><strong>Two optional arguments plus the engine control how LDA is estimated.</strong> Any argument you leave out falls back to the engine default, so a bare <code>discrim_linear()</code> call is valid on its own.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>What it controls</th>
+<th>Typical value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mode</code></td>
+<td>Only <code>&quot;classification&quot;</code> is supported</td>
+<td><code>&quot;classification&quot;</code></td>
+</tr>
+<tr>
+<td><code>engine</code></td>
+<td>Fitting backend, set with <code>set_engine()</code></td>
+<td><code>&quot;MASS&quot;</code>, <code>&quot;mda&quot;</code>, <code>&quot;sda&quot;</code></td>
+</tr>
+<tr>
+<td><code>penalty</code></td>
+<td>Amount of regularization (mda and sda engines)</td>
+<td>0 to 1</td>
+</tr>
+<tr>
+<td><code>regularization_method</code></td>
+<td>Covariance shrinkage style for the sparsediscrim engine</td>
+<td><code>&quot;diagonal&quot;</code>, <code>&quot;shrink_cov&quot;</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>You build a spec by piping the constructor into <code>set_engine()</code> and <code>set_mode()</code>.</p>
+
+<div class="webr-container" data-block-title="Define an LDA spec">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Define an LDA spec</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(parsnip)
+library(discrim)
+
+lda_spec &lt;- discrim_linear() |&gt;
+  set_engine(&quot;MASS&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+lda_spec
+#&gt; Linear Discriminant Model Specification (classification)
+#&gt;
+#&gt; Computational engine: MASS</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The printed spec shows the engine and any arguments you set. Nothing is fitted yet, so this object is cheap to create and reuse across resamples.</p>
+
+<h2>Fit an LDA model</h2>
+
+<p><strong>Pass a formula and a data frame to fit(), then predict on new rows.</strong> LDA needs numeric predictors and no scaling, since the pooled covariance handles differing variances. Here it classifies the three species in the built-in <code>iris</code> dataset.</p>
+
+<div class="webr-container" data-block-title="Fit an LDA model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit an LDA model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lda_fit &lt;- lda_spec |&gt;
+  fit(Species ~ ., data = iris)
+
+predict(lda_fit, iris[c(1, 60, 130), ])
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 setosa
+#&gt; 2 versicolor
+#&gt; 3 virginica</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fitted object wraps the trained <code>MASS::lda</code> model and predicts a tidy tibble. Because LDA produces posterior probabilities, you can also ask for the class probabilities behind each label.</p>
+
+<div class="webr-container" data-block-title="Get class probabilities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Get class probabilities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(lda_fit, iris[c(1, 60, 130), ], type = &quot;prob&quot;)
+#&gt; # A tibble: 3 x 3
+#&gt;   .pred_setosa .pred_versicolor .pred_virginica
+#&gt;          &lt;dbl&gt;            &lt;dbl&gt;           &lt;dbl&gt;
+#&gt; 1     1.00            5.05e-22        2.59e-42
+#&gt; 2     2.84e-16        1.00            8.30e-08
+#&gt; 3     2.55e-43        1.20e-05        1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>type = &quot;prob&quot;</code> argument returns one <code>.pred_&lt;class&gt;</code> column per class, and the values in each row sum to 1. These probabilities feed straight into yardstick metrics such as <code>roc_auc()</code>.</p>
+
+<h2>Choosing an engine: MASS, mda, and sda</h2>
+
+<p><strong>The engine decides the algorithm behind a shared interface.</strong> The default <code>MASS</code> engine wraps <code>MASS::lda()</code> and gives you textbook LDA with no tuning parameters. The other engines add regularization, which helps when you have many predictors relative to rows.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Engine</th>
+<th>Backend</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>MASS</code></td>
+<td><code>MASS::lda()</code></td>
+<td>Standard LDA, the default, no tuning</td>
+</tr>
+<tr>
+<td><code>mda</code></td>
+<td><code>mda::fda()</code></td>
+<td>Penalized LDA via a ridge penalty</td>
+</tr>
+<tr>
+<td><code>sda</code></td>
+<td><code>sda::sda()</code></td>
+<td>Shrinkage estimates for wide data</td>
+</tr>
+<tr>
+<td><code>sparsediscrim</code></td>
+<td>sparsediscrim methods</td>
+<td>Regularized covariance, high dimensions</td>
+</tr>
+</tbody>
+</table>
+
+<p>The <code>penalty</code> argument is ignored by the <code>MASS</code> engine but active on <code>mda</code> and <code>sda</code>. Switching engines is a one-line change.</p>
+
+<div class="webr-container" data-block-title="Regularized LDA with the mda engine">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Regularized LDA with the mda engine</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ridge_fit &lt;- discrim_linear(penalty = 1) |&gt;
+  set_engine(&quot;mda&quot;) |&gt;
+  set_mode(&quot;classification&quot;) |&gt;
+  fit(Species ~ ., data = iris)
+
+predict(ridge_fit, iris[c(1, 60, 130), ])
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 setosa
+#&gt; 2 versicolor
+#&gt; 3 virginica</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Each engine lives in its own package.</strong> The <code>mda</code> engine needs the mda package installed, <code>sda</code> needs sda, and <code>sparsediscrim</code> needs sparsediscrim. Run <code>show_engines(&quot;discrim_linear&quot;)</code> to list every engine and the modes it supports.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most discrim_linear() errors trace back to a missing package.</strong> The function is exported by the discrim package, a parsnip extension, so loading parsnip alone is not enough to register the model.</p>
+
+<div class="webr-container" data-block-title="discrim_linear needs the discrim package">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">discrim_linear needs the discrim package</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(parsnip)
+
+discrim_linear()
+#&gt; Error in discrim_linear(): could not find function &quot;discrim_linear&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Adding <code>library(discrim)</code> registers the model and the spec builds cleanly. Two more traps to watch:</p>
+
+<ul>
+
+<li>LDA has no regression mode. Calling <code>set_mode(&quot;regression&quot;)</code> errors because discriminant analysis only predicts class labels, never a continuous number.</li>
+
+<li>LDA fails when a predictor is constant within a class or when two predictors are perfectly collinear, because the pooled covariance matrix becomes singular. Drop or combine those columns before fitting.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>LDA assumes equal covariance across classes, and that assumption can mislead.</strong> When one class is far more spread out than another, the linear boundary sits in the wrong place. Compare against discrim_quad(), which fits a separate covariance per class, before trusting an LDA result on heteroscedastic data.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build an LDA spec with the MASS engine, fit it to classify <code>Species</code> from all columns of <code>iris</code>, and save the fitted model to <code>ex_lda_fit</code>.</p>
+<div class="webr-container" data-block-title="Your turn: fit an LDA model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit an LDA model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: build and fit an LDA classifier
+ex_lda_fit &lt;- # your code here
+
+ex_lda_fit
+#&gt; Expected: a parsnip model fit object</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_lda_fit &lt;- discrim_linear() |&gt;
+  set_engine(&quot;MASS&quot;) |&gt;
+  set_mode(&quot;classification&quot;) |&gt;
+  fit(Species ~ ., data = iris)
+
+class(ex_lda_fit)
+#&gt; [1] &quot;_lda&quot;      &quot;model_fit&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The bare <code>discrim_linear()</code> constructor builds the spec, <code>set_engine(&quot;MASS&quot;)</code> picks the backend, and <code>fit()</code> trains the classifier on <code>iris</code>. The result is a parsnip <code>model_fit</code> wrapping the underlying <code>lda</code> object.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>discrim_linear() is one classifier in a family of parsnip specifications.</strong> When the linear boundary is too rigid or the problem is not classification, these neighbors share the same <code>set_engine()</code> and <code>fit()</code> workflow:</p>
+
+<ul>
+
+<li><code>discrim_quad()</code> fits <a class="auto-link" href="Quadratic-Discriminant-Analysis-in-R.html" title="Quadratic Discriminant Analysis in R: When LDA Assumptions Break">quadratic discriminant analysis</a> with a per-class covariance for curved boundaries.</li>
+
+<li><code>discrim_flexible()</code> fits flexible discriminant analysis for nonlinear decision regions.</li>
+
+<li><code>naive_Bayes()</code> is a fast probabilistic classifier that assumes feature independence.</li>
+
+<li><code>multinom_reg()</code> fits <a class="auto-link" href="Multinomial-Regression-With-R.html" title="Multinomial Regression with R">multinomial logistic regression</a> as a linear alternative.</li>
+
+<li><code>set_engine()</code> chooses the computational backend for any spec.</li>
+
+</ul>
+
+<p>See the <a href="https://discrim.tidymodels.org/reference/discrim_linear.html">discrim package reference</a> for the full list of supported engines.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What package is discrim_linear() in?</strong> The <code>discrim_linear()</code> function is exported by the discrim package, a parsnip extension for discriminant analysis models. Loading parsnip alone throws a "<a class="auto-link" href="R-Common-Errors.html" title="50 Most Common R Error Messages: What They Mean & How to Fix Them">could not find function</a>" error. Always run <code>library(discrim)</code> (or <code>library(tidymodels)</code> plus <code>library(discrim)</code>) before defining the spec. The discrim package registers the MASS, mda, sda, and sparsediscrim engines.</p>
+
+<p><strong>What is the difference between discrim_linear() and discrim_quad()?</strong> Both fit discriminant analysis classifiers, but they differ in the covariance assumption. <code>discrim_linear()</code> assumes every class shares one covariance matrix, which produces a straight-line decision boundary. <code>discrim_quad()</code> gives each class its own covariance, which produces a curved boundary and adds flexibility at the cost of more parameters. Use LDA on small or noisy data and QDA when classes clearly differ in spread.</p>
+
+<p><strong>Does discrim_linear() support regression?</strong> No. Linear discriminant analysis is a classification-only algorithm, so the spec accepts <code>set_mode(&quot;classification&quot;)</code> and nothing else. Calling <code>set_mode(&quot;regression&quot;)</code> raises an error stating that regression is not a known mode. For a numeric outcome, use <code>linear_reg()</code> or another regression model spec instead.</p>
+
+<p><strong>How do I tune discrim_linear()?</strong> Mark the <code>penalty</code> argument for tuning by setting it to <code>tune()</code>, as in <code>discrim_linear(penalty = tune())</code>, and pick the <code>mda</code> or <code>sda</code> engine since the <code>MASS</code> engine has no tunable parameter. Build a grid with the dials package and pass it to <code>tune_grid()</code> with a resampling object. The tuning step reports the penalty that scores best on your chosen metric.</p>
+
+<p><strong>What engines does discrim_linear() support?</strong> The default <code>MASS</code> engine fits classic LDA with <code>MASS::lda()</code>. The <code>mda</code> engine adds a ridge <code>penalty</code>, <code>sda</code> applies shrinkage estimates for wide datasets, and <code>sparsediscrim</code> exposes the <code>regularization_method</code> argument for high-dimensional covariance shrinkage. Call <code>show_engines(&quot;discrim_linear&quot;)</code> to see every registered engine and its supported mode.</p>
+
+{% endraw %}
