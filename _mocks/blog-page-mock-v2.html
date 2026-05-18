@@ -227,12 +227,13 @@
   footer{background:#0d1426;color:#9fb0d6;padding:30px 0;font-size:13px;margin-top:30px}
   footer .fl{display:flex;justify-content:space-between;max-width:1340px;margin:0 auto;padding:0 22px;flex-wrap:wrap;gap:10px}
 
-  .fab{position:fixed;right:22px;z-index:55;border:0;cursor:pointer;font-family:inherit}
-  .fab-top{bottom:22px;width:42px;height:42px;border-radius:50%;background:var(--card);
+  .fab{position:fixed;z-index:55;border:0;cursor:pointer;font-family:inherit}
+  .fab-top{left:22px;bottom:22px;width:42px;height:42px;border-radius:50%;background:var(--card);
     border:1px solid var(--border);color:var(--mut);font-size:16px;display:none}
   .fab-top.show{display:block}
 
-  .nudge{position:fixed;right:22px;bottom:74px;width:312px;background:var(--card);
+  /* save-progress nudge - inline passwordless email signup */
+  .nudge{position:fixed;right:22px;bottom:22px;width:316px;background:var(--card);
     border:1px solid var(--border);border-radius:14px;padding:16px;z-index:58;
     box-shadow:0 22px 46px -14px rgba(13,20,38,.45);
     opacity:0;transform:translateY(16px);pointer-events:none;transition:opacity .3s,transform .3s}
@@ -242,11 +243,18 @@
   .nudge .nico{width:38px;height:38px;border-radius:10px;background:var(--accent-soft);
     color:var(--accent);display:flex;align-items:center;justify-content:center;font-size:19px;margin-bottom:9px}
   .nudge b{font-family:'IBM Plex Serif',serif;font-size:15.5px;display:block;line-height:1.3}
-  .nudge p{font-size:12.5px;color:var(--mut);margin:5px 0 12px;line-height:1.55}
-  .nudge .nbtns{display:flex;gap:8px}
-  .nudge .nbtns .btn{flex:1;justify-content:center;font-size:12.5px;padding:8px}
-  .nudge .nbtns .ghost{background:none;border:1px solid var(--border);color:var(--mut)}
-  .nudge .nbtns .ghost:hover{border-color:var(--navy);color:var(--ink)}
+  .nudge p{font-size:12.5px;color:var(--mut);margin:5px 0 11px;line-height:1.55}
+  .nudge .nform input{width:100%;border:1px solid var(--border);border-radius:8px;padding:9px 11px;
+    font-size:13px;font-family:inherit;background:var(--bg);color:var(--ink);margin-bottom:8px}
+  .nudge .nform .btn{width:100%;justify-content:center;font-size:13px;padding:9px}
+  .nudge .nopt{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--mut);
+    margin-top:10px;cursor:pointer}
+  .nudge .nopt input{accent-color:var(--accent)}
+  .nudge .nalt{font-size:11.5px;color:var(--faint);margin-top:9px;padding-top:9px;border-top:1px solid var(--line)}
+  .nudge .nalt a{color:var(--accent);font-weight:600;cursor:pointer}
+  .nudge .ndone{display:none;font-size:13px;color:var(--green);line-height:1.55}
+  .nudge.sent p,.nudge.sent .nform,.nudge.sent .nopt,.nudge.sent .nalt{display:none}
+  .nudge.sent .ndone{display:block}
 
   .ovl{position:fixed;inset:0;background:rgba(13,20,38,.5);z-index:80;display:none}
   .ovl.show{display:block}
@@ -278,7 +286,7 @@
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   body.dark .toast{background:#e7ecf6;color:#0b1120}
 
-  .mocknote{position:fixed;bottom:14px;left:14px;background:var(--amber);color:#fff;
+  .mocknote{position:fixed;top:70px;left:14px;background:var(--amber);color:#fff;
     font-size:10.5px;font-weight:700;padding:5px 11px;border-radius:999px;z-index:99;
     font-family:'IBM Plex Mono',monospace}
   @media(max-width:1100px){.shell{grid-template-columns:236px 1fr}.rside{display:none}}
@@ -501,11 +509,14 @@ model <span class="k">&lt;-</span> <span class="f">lm</span>(mpg <span class="k"
   <button class="nx" onclick="dismissNudge()">&times;</button>
   <div class="nico">&#128209;</div>
   <b>Save your progress across devices</b>
-  <p>You've read 2 lessons today. Create a free account to keep your progress, streak, and saved posts &mdash; on any device.</p>
-  <div class="nbtns">
-    <a class="btn btn-primary">Create free account</a>
-    <a class="btn ghost">Sign in</a>
-  </div>
+  <p>Keep your progress, streak, and saved posts on any device. No password &mdash; we'll email you a sign-in link.</p>
+  <form class="nform" onsubmit="event.preventDefault();nudgeSend('account')">
+    <input type="email" id="nudgeEmail" placeholder="you@example.com" required>
+    <button class="btn btn-primary" type="submit">Save my progress</button>
+  </form>
+  <label class="nopt"><input type="checkbox" id="nudgeNews" checked> Send me updates and tips</label>
+  <div class="nalt">Already have an account? <a onclick="nudgeSend('magic')">Send magic link</a></div>
+  <div class="ndone">&#10003; Check your inbox &mdash; we sent a sign-in link to <b id="nudgeSentTo"></b>.</div>
 </div>
 
 <div class="ovl" id="ovl" onclick="closeSearch()"></div>
@@ -587,6 +598,13 @@ model <span class="k">&lt;-</span> <span class="f">lm</span>(mpg <span class="k"
   function dismissNudge(){
     document.getElementById('nudge').classList.remove('show');
     try{sessionStorage.setItem('nudgeDismissed','1')}catch(e){}
+  }
+  function nudgeSend(mode){
+    var inp=document.getElementById('nudgeEmail'),email=inp.value.trim();
+    if(!email){inp.focus();showToast('Enter your email first');return;}
+    document.getElementById('nudgeSentTo').textContent=email;
+    document.getElementById('nudge').classList.add('sent');
+    showToast(mode==='magic'?'Magic link sent':'Sign-in link sent - check your inbox');
   }
   function openSearch(){document.getElementById('ovl').classList.add('show');
     document.getElementById('smodal').classList.add('show');
