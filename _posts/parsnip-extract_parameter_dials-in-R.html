@@ -1,0 +1,385 @@
+---
+title: "parsnip extract_parameter_dials() in R: Get Tuning Ranges"
+description: "Learn how parsnip extract_parameter_dials() in R pulls a single dials parameter object, like trees() or mtry(), from a tunable model spec, recipe, or workflow."
+keywords: "parsnip extract_parameter_dials, extract_parameter_dials function R, parsnip extract_parameter_dials examples, R extract tuning parameter dials, tidymodels extract_parameter_dials, get dials parameter from model spec R, extract_parameter_dials vs extract_parameter_set_dials"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "extract_parameter_dials()|parsnip extract_parameter_dials|parsnip::extract_parameter_dials()|extract_parameter_dials function|extract a dials parameter"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>parsnip extract_parameter_dials() in R: Get Tuning Ranges</h1>
+
+<p class="lead">The parsnip extract_parameter_dials() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> returns a single <code>dials</code> parameter object, such as <code>trees()</code> or <code>mtry()</code>, pulled from one tunable argument of a model specification, recipe, or workflow.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>extract_parameter_dials(spec, &quot;trees&quot;)<span class="qa-cmt">        # one param from a model spec</span>
+extract_parameter_dials(rec, &quot;num_comp&quot;)<span class="qa-cmt">      # one param from a recipe</span>
+extract_parameter_dials(wf, &quot;penalty&quot;)<span class="qa-cmt">        # one param from a workflow</span>
+extract_parameter_dials(pset, &quot;min_n&quot;)<span class="qa-cmt">        # one param from a parameter set</span>
+finalize(extract_parameter_dials(spec, &quot;mtry&quot;), df)<span class="qa-cmt">  # resolve a [1, ?] range</span>
+extract_parameter_set_dials(spec)<span class="qa-cmt">             # every tunable param at once</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is extract_parameter_dials() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">inspect one tuning parameter's range</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">extract_parameter_dials(spec, &quot;trees&quot;)</text><text x="125" y="126" class="branch-label">get every tunable parameter at once</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">extract_parameter_set_dials(spec)</text><text x="125" y="182" class="branch-label">mark a model argument for tuning</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">boost_tree(trees = tune())</text><text x="125" y="238" class="branch-label">resolve a data-dependent range</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">finalize(param, train_data)</text><text x="125" y="294" class="branch-label">build the tuning grid from params</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">grid_regular(param_set, levels = 5)</text><text x="125" y="350" class="branch-label">pull the fitted engine model object</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">extract_fit_engine(model_fit)</text></svg></div>
+
+<h2>What extract_parameter_dials() does</h2>
+
+<p><strong>extract_parameter_dials() returns the dials object that controls one tunable argument.</strong> When you tag a model argument with <code>tune()</code>, parsnip records that the argument is unknown and must be searched. <code>extract_parameter_dials()</code> looks up which <code>dials</code> parameter governs that argument and hands it back, ready to inspect or modify.</p>
+
+<p>A <code>dials</code> parameter object carries the search space for tuning: a numeric range, a scale (linear or log), and a human-readable label. For <code>trees</code> that is the integer range <code>[1, 2000]</code>. For <code>penalty</code> it is a log-scaled range. You reach for this object whenever you want to see, or change, the values a tuning grid will draw from.</p>
+
+<p>The function is an S3 generic from the <code>hardhat</code> package. The <code>tune</code> package supplies the methods for <code>model_spec</code>, <code>recipe</code>, <code>workflow</code>, and <code>parameters</code> objects, so the same call works at every layer of a tidymodels pipeline. Because this page is parsnip-focused, the examples below pass a parsnip <code>model_spec</code>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A model spec only knows an argument is tunable; the dials object knows what to tune it over.</strong> extract_parameter_dials() is the bridge between the two: it turns a bare <code>tune()</code> tag into a concrete, editable search range.</div></div>
+
+<h2>extract_parameter_dials() syntax and arguments</h2>
+
+<p><strong>The signature has two arguments because the function locates one parameter and returns it unchanged.</strong> It is an S3 generic, so the method that runs depends on the class of <code>x</code>.</p>
+
+<div class="webr-container" data-block-title="extract_parameter_dials generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">extract_parameter_dials generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">extract_parameter_dials(x, parameter)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td>A tunable object: a parsnip <code>model_spec</code>, a <code>recipe</code>, a <code>workflow</code>, a <code>parameters</code> set, or <code>tune_results</code>.</td>
+</tr>
+<tr>
+<td><code>parameter</code></td>
+<td>A single string: the id of the parameter to extract. This is the argument name, or the custom id you passed to <code>tune()</code>.</td>
+</tr>
+</tbody>
+</table>
+
+<p>The return value is one <code>dials</code> parameter object whose class is <code>quant_param</code> (numeric) or <code>qual_param</code> (categorical). If <code>x</code> has no tunable parameter with that id, the function returns a logical <code>NA</code> rather than raising an error.</p>
+
+<p>The argument must already be tagged with <code>tune()</code>. A fully specified spec has nothing to extract, because <code>extract_parameter_dials()</code> reads the tuning tags, not the engine defaults. See the official <a href="https://hardhat.tidymodels.org/reference/hardhat-extract.html">hardhat extract reference</a> for the full method list.</p>
+
+<h2>Extract tuning parameters: four examples</h2>
+
+<p><strong>Each example below uses a built-in dataset and a different kind of parameter.</strong> Start by tagging two arguments of a boosted tree for tuning, then pull one of them out.</p>
+
+<div class="webr-container" data-block-title="Extract one parameter from a model spec">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract one parameter from a model spec</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(parsnip)
+library(tune)
+library(dials)
+
+bt_spec &lt;- boost_tree(trees = tune(), tree_depth = tune()) |&gt;
+  set_engine(&quot;xgboost&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+extract_parameter_dials(bt_spec, &quot;trees&quot;)
+#&gt; Trees (quantitative)
+#&gt; Range: [1, 2000]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Some parameters have a range that depends on the data. <code>mtry</code> cannot exceed the number of predictors, so its upper bound prints as <code>?</code> until you resolve it with <code>finalize()</code>.</p>
+
+<div class="webr-container" data-block-title="Resolve a data-dependent range">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Resolve a data-dependent range</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rf_spec &lt;- rand_forest(mtry = tune(), min_n = tune()) |&gt;
+  set_engine(&quot;ranger&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+mtry_param &lt;- extract_parameter_dials(rf_spec, &quot;mtry&quot;)
+mtry_param
+#&gt; Randomly Selected Predictors (quantitative)
+#&gt; Range: [1, ?]
+
+finalize(mtry_param, mtcars[, -1])
+#&gt; Randomly Selected Predictors (quantitative)
+#&gt; Range: [1, 10]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Parameters can also live on a transformed scale. A regularization penalty is searched on a log-10 scale, which the returned object reports directly.</p>
+
+<div class="webr-container" data-block-title="Extract a log-scaled parameter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract a log-scaled parameter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lasso_spec &lt;- linear_reg(penalty = tune()) |&gt;
+  set_engine(&quot;glmnet&quot;)
+
+extract_parameter_dials(lasso_spec, &quot;penalty&quot;)
+#&gt; Amount of Regularization (quantitative)
+#&gt; Transformer: log-10 [1e-100, Inf]
+#&gt; Range (transformed scale): [-10, 0]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Because the result is a real <code>dials</code> object, you can edit its range and feed it straight into a grid builder.</p>
+
+<div class="webr-container" data-block-title="Modify a range and build a grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Modify a range and build a grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">trees_param &lt;- extract_parameter_dials(bt_spec, &quot;trees&quot;)
+trees_param &lt;- range_set(trees_param, c(100, 500))
+
+grid_regular(trees_param, levels = 3)
+#&gt; # A tibble: 3 x 1
+#&gt;   trees
+#&gt;   &lt;int&gt;
+#&gt; 1   100
+#&gt; 2   300
+#&gt; 3   500</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Extract once, then reuse the object.</strong> Assign the result to a variable so you can inspect it, narrow its range with <code>range_set()</code>, and pass the same object into <code>grid_regular()</code> or <code>grid_latin_hypercube()</code> without re-extracting.</div></div>
+
+<h2>extract_parameter_dials() vs extract_parameter_set_dials()</h2>
+
+<p><strong>Use extract_parameter_dials() for one parameter and extract_parameter_set_dials() for all of them.</strong> The plural function returns the whole tuning blueprint; the singular function drills into one row of it.</p>
+
+<div class="webr-container" data-block-title="Compare with extract_parameter_set_dials">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare with extract_parameter_set_dials</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">extract_parameter_set_dials(bt_spec)
+#&gt; Collection of 2 parameters for tuning
+#&gt;
+#&gt;  identifier       type    object
+#&gt;       trees      trees nparam[+]
+#&gt;  tree_depth tree_depth nparam[+]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The set is what you finalize and pass to <code>tune_grid()</code>. The single object is what you inspect or hand-tune when one parameter needs a custom range.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Aspect</th>
+<th>extract_parameter_dials()</th>
+<th>extract_parameter_set_dials()</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Returns</td>
+<td>One <code>dials</code> parameter object</td>
+<td>A <code>parameters</code> set (all tunable params)</td>
+</tr>
+<tr>
+<td>Needs a <code>parameter</code> id</td>
+<td>Yes</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Use it to</td>
+<td>Inspect or edit one range</td>
+<td>Build or finalize the full grid</td>
+</tr>
+<tr>
+<td>Result class</td>
+<td><code>quant_param</code> or <code>qual_param</code></td>
+<td><code>parameters</code></td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The methods ship with the tune package, not parsnip.</strong> <code>extract_parameter_dials()</code> is a <code>hardhat</code> generic, and <code>tune</code> registers the <code>model_spec</code> method. Load <code>library(tune)</code> (or <code>library(tidymodels)</code>) so the parsnip method is available.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most failures trace back to a parameter that was never tagged for tuning.</strong> These three mistakes account for nearly every confusing result.</p>
+
+<p>Extracting an argument that holds a fixed value returns <code>NA</code>, because there is no tuning tag to read.</p>
+
+<div class="webr-container" data-block-title="Pitfall: argument is not tunable">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: argument is not tunable</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fixed_spec &lt;- boost_tree(trees = 500) |&gt;
+  set_engine(&quot;xgboost&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+extract_parameter_dials(fixed_spec, &quot;trees&quot;)
+#&gt; [1] NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When you give <code>tune()</code> a custom id, you must extract by that id, not the argument name.</p>
+
+<div class="webr-container" data-block-title="Pitfall: wrong parameter id">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: wrong parameter id</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bt2 &lt;- boost_tree(trees = tune(&quot;n_trees&quot;)) |&gt;
+  set_engine(&quot;xgboost&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+extract_parameter_dials(bt2, &quot;trees&quot;)    # argument name: returns NA
+#&gt; [1] NA
+extract_parameter_dials(bt2, &quot;n_trees&quot;)  # the tune() id: works
+#&gt; Trees (quantitative)
+#&gt; Range: [1, 2000]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Building a grid from a parameter with an unresolved range fails. Call <code>finalize()</code> first.</p>
+
+<div class="webr-container" data-block-title="Pitfall: grid built before finalize">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: grid built before finalize</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grid_regular(extract_parameter_dials(rf_spec, &quot;mtry&quot;), levels = 3)
+#&gt; Error: These arguments contain unknowns: `mtry`. See the dials::finalize() function.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a <code>rand_forest()</code> spec with <code>min_n = tune()</code>, then extract the <code>min_n</code> dials parameter and save it to <code>ex_param</code>.</p>
+<div class="webr-container" data-block-title="Your turn: extract min_n">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: extract min_n</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: extract the min_n parameter
+ex_spec &lt;- rand_forest(min_n = tune()) |&gt;
+  set_engine(&quot;ranger&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+ex_param &lt;- # your code here
+
+ex_param
+#&gt; Expected: a &quot;Minimal Node Size&quot; dials parameter</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_param &lt;- extract_parameter_dials(ex_spec, &quot;min_n&quot;)
+ex_param
+#&gt; Minimal Node Size (quantitative)
+#&gt; Range: [2, 40]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> extract_parameter_dials() reads the <code>tune()</code> tag on <code>min_n</code> and returns the matching dials object, <code>min_n()</code>, with its default search range of 2 to 40.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip and tune functions</h2>
+
+<p><strong>These functions sit next to extract_parameter_dials() in a tidymodels tuning workflow.</strong> Reach for them when you need a whole set, a finalized range, or the fitted model.</p>
+
+<ul>
+
+<li><code>extract_parameter_set_dials()</code>: returns every tunable parameter as one <code>parameters</code> set.</li>
+
+<li><code>finalize()</code>: resolves data-dependent ranges such as <code>mtry</code> to concrete bounds.</li>
+
+<li><code>grid_regular()</code>: turns parameter objects into a tuning grid.</li>
+
+<li><a href="extract_fit_engine-in-R.html">extract_fit_engine()</a>: pulls the raw engine model from a fitted object, not a tuning range.</li>
+
+<li><a href="parsnip-set_engine-in-R.html">set_engine()</a> and <a href="parsnip-boost_tree-in-R.html">boost_tree()</a>: build the spec you extract parameters from.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does extract_parameter_dials() return?</strong></p>
+
+<p>It returns one <code>dials</code> parameter object describing the search space for a single tunable argument. The object holds a range, a label, and a scale, and prints as something like <code>Trees (quantitative) Range: [1, 2000]</code>. The class is <code>quant_param</code> for numeric parameters and <code>qual_param</code> for categorical ones. You can inspect it, edit its range with <code>range_set()</code>, or pass it to a grid function.</p>
+
+<p><strong>Why does extract_parameter_dials() return NA?</strong></p>
+
+<p>A logical <code>NA</code> means the object has no tunable parameter with the id you asked for. The usual cause is an argument that holds a fixed value instead of a <code>tune()</code> tag, so there is nothing to extract. The second cause is an id mismatch: if you wrote <code>tune(&quot;my_id&quot;)</code>, you must extract by <code>&quot;my_id&quot;</code>, not the argument name. Check the spec with <code>extract_parameter_set_dials()</code> to see the valid ids.</p>
+
+<p><strong>What is the difference between extract_parameter_dials() and extract_parameter_set_dials()?</strong></p>
+
+<p><code>extract_parameter_dials()</code> returns one parameter object and needs a <code>parameter</code> id. <code>extract_parameter_set_dials()</code> returns the whole <code>parameters</code> set and takes no id. Use the set to build or finalize a complete tuning grid, and use the single object when one parameter needs a hand-tuned range before it joins the grid.</p>
+
+<p><strong>Do I need the tune package to use extract_parameter_dials()?</strong></p>
+
+<p>Yes, for parsnip objects. The generic is defined in <code>hardhat</code>, but the method for a <code>model_spec</code> is registered by <code>tune</code>. Load <code>library(tune)</code> or <code>library(tidymodels)</code> before calling it on a parsnip spec, otherwise R cannot find the method and falls back to a default that returns <code>NA</code>.</p>
+
+{% endraw %}
