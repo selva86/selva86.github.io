@@ -1,0 +1,374 @@
+---
+title: "parsnip predict() in R: Score New Data With a Fit"
+description: "parsnip predict() in R scores new data from a fitted model. Covers the new_data argument, prediction types like class and prob, the .pred tibble, and errors."
+keywords: "parsnip predict, predict function R, parsnip predict examples, predict tidymodels R, parsnip predict new data, model_fit predict"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "predict()|parsnip predict|parsnip::predict()|predict.model_fit|parsnip predict()"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>parsnip predict() in R: Score New Data With a Fit</h1>
+
+<p class="lead">The parsnip <code>predict()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> scores new data from a fitted model and returns a tidy tibble. You pass a <code>model_fit</code> object and a <code>new_data</code> frame, and predict() returns one row per input row with standardized <code>.pred</code> columns.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>predict(model_fit, new_data = df)<span class="qa-cmt">                     # default prediction</span>
+predict(model_fit, new_data = df, type = &quot;class&quot;)<span class="qa-cmt">     # predicted class label</span>
+predict(model_fit, new_data = df, type = &quot;prob&quot;)<span class="qa-cmt">      # class probabilities</span>
+predict(model_fit, new_data = df, type = &quot;conf_int&quot;)<span class="qa-cmt">  # confidence interval</span>
+predict(model_fit, new_data = df, type = &quot;pred_int&quot;)<span class="qa-cmt">  # prediction interval</span>
+predict(model_fit, new_data = df, type = &quot;raw&quot;)<span class="qa-cmt">       # raw engine output</span>
+augment(model_fit, new_data = df)<span class="qa-cmt">                     # predictions joined to data</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is predict() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">score new rows from a fit</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">predict(model_fit, new_data = df)</text><text x="125" y="126" class="branch-label">predictions joined to the data</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">augment(model_fit, new_data = df)</text><text x="125" y="182" class="branch-label">fit then predict the test split</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">last_fit(spec, split)</text><text x="125" y="238" class="branch-label">predictions across CV folds</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">collect_predictions(resamples)</text><text x="125" y="294" class="branch-label">compare predicted vs actual</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">bind_cols(predict(fit, df), df)</text><text x="125" y="350" class="branch-label">reach the raw engine method</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">extract_fit_engine(model_fit)</text></svg></div>
+
+<h2>What predict() does</h2>
+
+<p><strong>predict() turns a fitted model into predictions on new data.</strong> It takes a <code>model_fit</code> object produced by <code>fit()</code> and a data frame of rows to score, then returns a tibble of predicted values. The parsnip method behind it is <code>predict.model_fit()</code>.</p>
+
+<p>The headline feature is consistency. Base R prediction methods each return a different shape: <code>lm</code> gives a named vector, <code>glm</code> gives probabilities, <code>ranger</code> gives a list. parsnip wraps all of them so <code>predict()</code> always returns a tibble with the same number of rows as <code>new_data</code>, in the same order.</p>
+
+<p>That tidy output is what makes the result safe to bind back onto your data with <code>bind_cols()</code>. No row scrambling, no length mismatches, no guessing which column holds the answer.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>predict() always returns a tibble, never a bare vector.</strong> Because the row count and order match <code>new_data</code> exactly, you can column-bind the result straight onto the input frame. This single guarantee removes the most common class of prediction bugs in base R.</div></div>
+
+<h2>predict() syntax and arguments</h2>
+
+<p><strong>predict() needs a fitted model and new data, with type controlling the output.</strong> Every other argument is optional.</p>
+
+<div class="webr-container" data-block-title="The predict argument skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The predict argument skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(
+  object,            # a fitted model_fit object
+  new_data,          # a data frame of rows to score
+  type = NULL,       # &quot;numeric&quot;, &quot;class&quot;, &quot;prob&quot;, &quot;conf_int&quot;, ...
+  opts = list(),     # options passed to the engine predict method
+  ...                # passed on to the engine
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>object</code> argument is the result of <code>fit()</code>. The <code>new_data</code> argument holds the rows you want scored, and it must contain every predictor column the model was trained on. When <code>type</code> is <code>NULL</code>, parsnip picks a sensible default: <code>&quot;numeric&quot;</code> for regression and <code>&quot;class&quot;</code> for classification.</p>
+
+<p><strong>The type argument decides which prediction you get.</strong> Setting <code>type = &quot;prob&quot;</code> returns class probabilities, while <code>type = &quot;conf_int&quot;</code> returns interval bounds. The column names in the returned tibble follow from the type, so the output is predictable before you run it.</p>
+
+<h2>Predict from a model: four examples</h2>
+
+<p><strong>Each example below uses a built-in R dataset.</strong> The <code>mtcars</code> data drives regression, and a factor version of its <code>am</code> column drives classification, so the code runs anywhere with no downloads.</p>
+
+<h3>Example 1: Predict numeric values</h3>
+
+<p><strong>For a regression fit, predict() returns a single .pred column.</strong> This is the default, so no <code>type</code> argument is needed.</p>
+
+<div class="webr-container" data-block-title="Predict numeric values from a regression fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict numeric values from a regression fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+
+lm_fit &lt;- linear_reg() |&gt;
+  set_engine(&quot;lm&quot;) |&gt;
+  fit(mpg ~ wt + hp, data = mtcars)
+
+predict(lm_fit, new_data = mtcars[1:5, ])
+#&gt; # A tibble: 5 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  23.6
+#&gt; 2  22.6
+#&gt; 3  25.3
+#&gt; 4  21.3
+#&gt; 5  18.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result is a five-row tibble with one <code>.pred</code> column, matching the five rows passed in. Predicted fuel economy falls as weight and horsepower rise, which tracks the data.</p>
+
+<h3>Example 2: Predict the class label</h3>
+
+<p><strong>For classification, predict() returns a .pred_class factor.</strong> The fitted spec must be a classifier and the outcome a factor.</p>
+
+<div class="webr-container" data-block-title="Predict the class label of new rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict the class label of new rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cars &lt;- mtcars
+cars$am &lt;- factor(cars$am, labels = c(&quot;auto&quot;, &quot;manual&quot;))
+
+glm_fit &lt;- logistic_reg() |&gt;
+  set_engine(&quot;glm&quot;) |&gt;
+  fit(am ~ mpg + hp, data = cars)
+
+predict(glm_fit, new_data = cars[1:5, ], type = &quot;class&quot;)
+#&gt; # A tibble: 5 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 manual
+#&gt; 2 manual
+#&gt; 3 manual
+#&gt; 4 auto
+#&gt; 5 auto</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>.pred_class</code> column holds the predicted label for each row. parsnip applies the standard 0.5 probability cutoff to turn the model output into a class.</p>
+
+<h3>Example 3: Predict class probabilities</h3>
+
+<p><strong>Set type = "prob" to get one probability column per class.</strong> The columns are named <code>.pred_&lt;level&gt;</code> using the factor levels.</p>
+
+<div class="webr-container" data-block-title="Predict class probabilities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict class probabilities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(glm_fit, new_data = cars[1:5, ], type = &quot;prob&quot;)
+#&gt; # A tibble: 5 x 2
+#&gt;   .pred_auto .pred_manual
+#&gt;        &lt;dbl&gt;        &lt;dbl&gt;
+#&gt; 1     0.244        0.756
+#&gt; 2     0.244        0.756
+#&gt; 3     0.110        0.890
+#&gt; 4     0.621        0.379
+#&gt; 5     0.665        0.335</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row's probabilities sum to one. Use this output when you need a score rather than a hard label, for example to set a custom decision threshold or to compute <code>roc_auc()</code>.</p>
+
+<h3>Example 4: Join predictions back to the data</h3>
+
+<p><strong>Because predict() preserves row order, <a class="auto-link" href="dplyr-bind_rows-in-R.html" title="dplyr bind_rows() and bind_cols() in R: Combine Tables">bind_cols()</a> lines predictions up with actuals.</strong> This is the standard way to build a results table for plotting or scoring.</p>
+
+<div class="webr-container" data-block-title="Bind predictions to the original rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bind predictions to the original rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">results &lt;- mtcars[1:5, ] |&gt;
+  bind_cols(predict(lm_fit, new_data = mtcars[1:5, ]))
+
+results[, c(&quot;mpg&quot;, &quot;.pred&quot;)]
+#&gt; # A tibble: 5 x 2
+#&gt;     mpg .pred
+#&gt;   &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1  21    23.6
+#&gt; 2  21    22.6
+#&gt; 3  22.8  25.3
+#&gt; 4  21.4  21.3
+#&gt; 5  18.7  18.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>augment()</code> function does this same join in one call and also adds a <code>.resid</code> column for regression. Use <code>bind_cols()</code> when you want only the prediction, and <code>augment()</code> when you want the full annotated frame.</p>
+
+<h2>Prediction types in parsnip</h2>
+
+<p><strong>The type argument is the same across every engine, which is the whole point of parsnip.</strong> A <code>decision_tree()</code> and a <code>rand_forest()</code> accept the identical <code>type</code> values even though their engines differ.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>type</th>
+<th>Returns columns</th>
+<th>Works with</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&quot;numeric&quot;</code></td>
+<td><code>.pred</code></td>
+<td><a class="auto-link" href="adv-regression-models.html" title="Advanced Regression Models">Regression models</a></td>
+</tr>
+<tr>
+<td><code>&quot;class&quot;</code></td>
+<td><code>.pred_class</code></td>
+<td>Classification models</td>
+</tr>
+<tr>
+<td><code>&quot;prob&quot;</code></td>
+<td><code>.pred_&lt;level&gt;</code></td>
+<td>Classification models</td>
+</tr>
+<tr>
+<td><code>&quot;conf_int&quot;</code></td>
+<td><code>.pred_lower</code>, <code>.pred_upper</code></td>
+<td>Regression, engine permitting</td>
+</tr>
+<tr>
+<td><code>&quot;pred_int&quot;</code></td>
+<td><code>.pred_lower</code>, <code>.pred_upper</code></td>
+<td>Regression, engine permitting</td>
+</tr>
+<tr>
+<td><code>&quot;raw&quot;</code></td>
+<td>Engine-native output</td>
+<td>Any model</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is simple. Use <code>&quot;numeric&quot;</code> or <code>&quot;class&quot;</code> for point predictions, <code>&quot;prob&quot;</code> when you need scores, and the interval types when you need uncertainty. Reach for <code>&quot;raw&quot;</code> only when an engine offers something parsnip does not standardize, since <code>&quot;raw&quot;</code> gives back the unwrapped engine result.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Not every engine supports every type.</strong> Interval types such as <code>&quot;conf_int&quot;</code> need an engine that can produce them, and <code>predict()</code> raises a clear error if you ask for an unsupported type. The <code>lm</code> engine supports intervals; many tree engines do not.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Two mistakes catch most newcomers to predict().</strong> Each one below shows the problem and the fix.</p>
+
+<p>The most common is naming the data argument <code>data</code> instead of <code>new_data</code>. Base R <code>predict()</code> methods use <code>newdata</code>, and parsnip deliberately renamed it to <code>new_data</code>, so the wrong name fails.</p>
+
+<div class="webr-container" data-block-title="predict() needs new_data, not data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">predict() needs new_data, not data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Wrong: parsnip predict() has no data argument
+predict(lm_fit, data = mtcars)
+#&gt; Error: argument &quot;new_data&quot; is missing, with no default
+
+# Right: name the argument new_data
+predict(lm_fit, new_data = mtcars)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second pitfall is a <code>new_data</code> frame missing a predictor column. parsnip checks that every column used in the training formula is present, and stops with an error naming the missing variable. Build <code>new_data</code> with the same columns as the training data, even if some are not the outcome.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Asking for type = "prob" on a regression fit fails.</strong> Probability output only exists for classification models. If <code>predict()</code> reports that the type is not supported, check that your spec set <code>set_mode(&quot;classification&quot;)</code> and the outcome column is a factor.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a <code>linear_reg()</code> model with the <code>lm</code> engine predicting <code>mpg</code> from <code>disp</code> on <code>mtcars</code>, then predict the first three rows. Save the prediction tibble to <code>ex_pred</code>.</p>
+<div class="webr-container" data-block-title="Your turn: predict mpg from disp">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: predict mpg from disp</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit then predict with parsnip
+ex_fit  &lt;- # your code here
+ex_pred &lt;- # your code here
+
+ex_pred
+#&gt; Expected: a 3-row tibble with one .pred column</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- linear_reg() |&gt;
+  set_engine(&quot;lm&quot;) |&gt;
+  fit(mpg ~ disp, data = mtcars)
+
+ex_pred &lt;- predict(ex_fit, new_data = mtcars[1:3, ])
+
+ex_pred
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  23.0
+#&gt; 2  23.0
+#&gt; 3  25.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>fit()</code> trains the model and <code>predict()</code> scores the three rows. The result is a tibble with one <code>.pred</code> column and three rows, matching the rows passed to <code>new_data</code>.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>predict() is the scoring step of the parsnip workflow.</strong> These functions cover the neighboring steps in a tidymodels project.</p>
+
+<ul>
+
+<li><code>fit()</code> trains a model specification and returns the <code>model_fit</code> that <code>predict()</code> consumes.</li>
+
+<li><code>augment()</code> predicts and binds the result onto <code>new_data</code> in one call.</li>
+
+<li><code>set_mode()</code> sets classification or regression, which decides the default prediction type.</li>
+
+<li><code>last_fit()</code> fits on the training split and predicts the test split together.</li>
+
+<li><code>extract_fit_engine()</code> pulls the raw engine object when you need its native predict method.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does parsnip predict() return?</strong></p>
+
+<p><code>predict()</code> returns a tibble, never a bare vector. It has the same number of rows as <code>new_data</code> and keeps the original row order, so you can bind it back onto your data safely. The column names depend on the prediction type: <code>.pred</code> for regression, <code>.pred_class</code> for class labels, and <code>.pred_&lt;level&gt;</code> columns for probabilities. This consistent shape is the main reason parsnip wraps the many different base R predict methods.</p>
+
+<p><strong>What is the difference between data and new_data in predict()?</strong></p>
+
+<p>parsnip <code>predict()</code> uses the argument name <code>new_data</code>, with an underscore. Base R methods use <code>newdata</code> and some functions use <code>data</code>, so it is easy to type the wrong one. If you pass <code>data =</code>, parsnip does not recognize it and reports that <code>new_data</code> is missing. Always name the scoring frame <code>new_data</code> when calling the parsnip method.</p>
+
+<p><strong>How do I get class probabilities from predict()?</strong></p>
+
+<p>Pass <code>type = &quot;prob&quot;</code> to <code>predict()</code>. The model must be a classification spec, meaning its mode is <code>&quot;classification&quot;</code> and the outcome column is a factor. The result has one column per class, named <code>.pred_&lt;level&gt;</code>, and each row's probabilities sum to one. Use probability output to compute metrics like <code>roc_auc()</code> or to apply a custom decision threshold instead of the default 0.5 cutoff.</p>
+
+<p><strong>Why does predict() say a column is missing?</strong></p>
+
+<p>parsnip checks that <code>new_data</code> contains every predictor used in the training formula. If a column is absent, <code>predict()</code> stops and names the missing variable. Build <code>new_data</code> with the same predictor columns as the training data. The outcome column does not need to be present, but every predictor does, and the column types should match the training data.</p>
+
+<p><strong>Can I predict from a workflow the same way?</strong></p>
+
+<p>Yes. When you <code>fit()</code> a workflow, the result is a fitted workflow, and <code>predict()</code> works on it identically. The workflow first applies its recipe or formula preprocessing to <code>new_data</code>, then runs the model prediction. You do not re-apply the recipe yourself, which is one of the main reasons to wrap a model and preprocessing in a workflow.</p>
+
+<p>For the full argument reference, see the <a href="https://parsnip.tidymodels.org/reference/predict.model_fit.html">parsnip predict() documentation</a>.</p>
+
+</content>
+
+</invoke>
+
+{% endraw %}
