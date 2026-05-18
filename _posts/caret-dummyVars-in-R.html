@@ -1,0 +1,341 @@
+---
+title: "caret dummyVars() in R: One-Hot Encode Categorical Data"
+description: "Learn caret dummyVars() in R to one-hot encode categorical predictors. Covers syntax, fullRank, applying the encoder to new data, and common pitfalls."
+keywords: "caret dummyVars, dummyVars function R, caret dummyVars examples, R one-hot encoding, dummyVars predict, dummyVars fullRank, one-hot encode in R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "dummyVars()|caret dummyVars|caret::dummyVars()|one-hot encoding|one-hot encode"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret dummyVars() in R: One-Hot Encode Categorical Data</h1>
+
+<p class="lead">The <code>dummyVars()</code> function in caret turns categorical predictors into numeric indicator columns, a process called one-hot encoding. It defines the encoding once and replays it on any data with <code>predict()</code>, keeping train and test columns aligned.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>dv &lt;- dummyVars(~ ., data = df)<span class="qa-cmt">              # define the encoder</span>
+predict(dv, newdata = df)<span class="qa-cmt">                    # apply it -&gt; numeric matrix</span>
+dummyVars(~ ., data = df, fullRank = TRUE)<span class="qa-cmt">   # drop the reference level</span>
+dummyVars(~ color, data = df)<span class="qa-cmt">                # encode one column only</span>
+predict(dv, newdata = test)<span class="qa-cmt">                  # apply to unseen data</span>
+as.data.frame(predict(dv, newdata = df))<span class="qa-cmt">     # matrix -&gt; data frame</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is dummyVars() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">one-hot encode factor columns</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">dummyVars(~ ., data = df)</text><text x="125" y="126" class="branch-label">center and scale numeric columns</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">preProcess(df, method = &quot;scale&quot;)</text><text x="125" y="182" class="branch-label">drop near-zero-variance columns</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">nearZeroVar(df, names = TRUE)</text><text x="125" y="238" class="branch-label">drop highly correlated columns</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">findCorrelation(cor(df))</text><text x="125" y="294" class="branch-label">encode inside a tidymodels pipeline</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">recipes::step_dummy(all_nominal())</text><text x="125" y="350" class="branch-label">collapse rare factor levels first</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code"><a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">forcats</a>::fct_lump(x, n = 5)</text></svg></div>
+
+<h2>What dummyVars() does in one sentence</h2>
+
+<p><strong><code>dummyVars()</code> defines an encoder; <code>predict()</code> applies it.</strong> You pass it a formula and a data frame, and it returns a <code>dummyVars</code> object that records every factor level it saw. The data itself is not transformed yet. Numeric columns are left alone, and each factor column is marked for expansion into one indicator column per level.</p>
+
+<p>To produce the encoded numbers, you call <code>predict()</code> on that object. This two-step split matters because a model trained on encoded data must see new data encoded with the <em>same</em> set of columns. Storing the encoding rule once and replaying it everywhere is what stops a missing or extra category from silently breaking your test set.</p>
+
+<h2>dummyVars() syntax and arguments</h2>
+
+<p><strong><code>dummyVars()</code> reads a formula and a data frame, nothing else is required.</strong> The formula picks which columns to consider, and the data frame supplies the factor levels.</p>
+
+<div class="webr-container" data-block-title="Load caret and inspect the data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and inspect the data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+data(warpbreaks)
+str(warpbreaks)
+#&gt; 'data.frame':	54 obs. of  3 variables:
+#&gt;  $ breaks : num  26 30 54 25 70 52 51 26 67 18 ...
+#&gt;  $ wool   : Factor w/ 2 levels &quot;A&quot;,&quot;B&quot;: 1 1 1 1 1 1 1 1 1 2 ...
+#&gt;  $ tension: Factor w/ 3 levels &quot;L&quot;,&quot;M&quot;,&quot;H&quot;: 1 1 1 1 1 1 1 1 1 2 ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The main arguments are:</p>
+
+<ul>
+
+<li><code>formula</code>: use <code>~ .</code> for every column, or <code>~ col1 + col2</code> to encode a subset.</li>
+
+<li><code>data</code>: the data frame used to learn the factor levels.</li>
+
+<li><code>fullRank</code>: if <code>TRUE</code>, drop one level per factor (the reference level) to avoid collinearity. Defaults to <code>FALSE</code>.</li>
+
+<li><code>sep</code>: the separator between the variable name and the level in output column names. Defaults to <code>&quot;.&quot;</code>.</li>
+
+<li><code>levelsOnly</code>: if <code>TRUE</code>, name columns by the level alone and drop the variable prefix.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The closest equivalent of <code>dummyVars()</code> plus <code>predict()</code> is <code>pd.get_dummies(df)</code>, and <code>fullRank = TRUE</code> matches <code>drop_first=True</code>.</div></div>
+
+<h2>dummyVars() examples by use case</h2>
+
+<p><strong>Encode every column at once with the <code>~ .</code> formula.</strong> Numeric columns pass straight through, and each factor expands into one indicator per level.</p>
+
+<div class="webr-container" data-block-title="One-hot encode every column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One-hot encode every column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dv &lt;- dummyVars(~ ., data = warpbreaks)
+encoded &lt;- predict(dv, newdata = warpbreaks)
+head(encoded)
+#&gt;   breaks wool.A wool.B tension.L tension.M tension.H
+#&gt; 1     26      1      0         1         0         0
+#&gt; 2     30      1      0         1         0         0
+#&gt; 3     54      1      0         1         0         0
+#&gt; 4     25      1      0         1         0         0
+#&gt; 5     70      1      0         1         0         0
+#&gt; 6     52      1      0         1         0         0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>wool</code> factor with two levels became <code>wool.A</code> and <code>wool.B</code>; <code>tension</code> with three levels became three columns. The numeric <code>breaks</code> column is untouched.</p>
+
+<p><strong>Use <code>fullRank = TRUE</code> to drop the reference level.</strong> This produces <code>k - 1</code> columns per factor, which is what linear and <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">logistic regression</a> expect.</p>
+
+<div class="webr-container" data-block-title="Drop the reference level with fullRank">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop the reference level with fullRank</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dv_fr &lt;- dummyVars(~ ., data = warpbreaks, fullRank = TRUE)
+head(predict(dv_fr, newdata = warpbreaks))
+#&gt;   breaks wool.B tension.M tension.H
+#&gt; 1     26      0         0         0
+#&gt; 2     30      0         0         0
+#&gt; 3     54      0         0         0
+#&gt; 4     25      0         0         0
+#&gt; 5     70      0         0         0
+#&gt; 6     52      0         0         0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A full indicator set breaks linear models.</strong> With the default <code>fullRank = FALSE</code>, the <code>k</code> dummy columns of a factor sum to 1, so they are perfectly collinear with the intercept. Always set <code>fullRank = TRUE</code> for <code>lm()</code> or <code>glm()</code>.</div></div>
+
+<p><strong>Encode a single column by naming it in the formula.</strong> Only the columns on the right side of <code>~</code> appear in the output.</p>
+
+<div class="webr-container" data-block-title="Encode a single factor column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Encode a single factor column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dv_one &lt;- dummyVars(~ tension, data = warpbreaks)
+head(predict(dv_one, newdata = warpbreaks), 3)
+#&gt;   tension.L tension.M tension.H
+#&gt; 1         1         0         0
+#&gt; 2         1         0         0
+#&gt; 3         1         0         0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Apply a fitted encoder to new rows.</strong> Because the <code>dummyVars</code> object stores every level, new data always comes back with the same columns in the same order.</p>
+
+<div class="webr-container" data-block-title="Apply the encoder to new rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Apply the encoder to new rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">new_rows &lt;- warpbreaks[c(1, 20, 40), ]
+predict(dv, newdata = new_rows)
+#&gt;    breaks wool.A wool.B tension.L tension.M tension.H
+#&gt; 1      26      1      0         1         0         0
+#&gt; 20     21      1      0         0         0         1
+#&gt; 40     16      0      1         0         1         0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>dummyVars() vs model.matrix() and recipes</h2>
+
+<p><strong><code>dummyVars()</code> is one of three common ways to build a numeric design matrix.</strong> The right choice depends on whether you want a saved, reusable encoder and how you handle the reference level.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Reference level</th>
+<th>Output type</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dummyVars()</code></td>
+<td>Kept unless <code>fullRank = TRUE</code></td>
+<td>Numeric matrix</td>
+<td>Tree models, reusable encoders</td>
+</tr>
+<tr>
+<td><code>model.matrix()</code></td>
+<td>Always dropped, adds an intercept</td>
+<td>Numeric matrix</td>
+<td>Quick design matrix for <code>lm()</code></td>
+</tr>
+<tr>
+<td><code>recipes::step_dummy()</code></td>
+<td>Dropped by default</td>
+<td>Step in a workflow</td>
+<td>tidymodels pipelines</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for <code>model.matrix()</code> when you just need a one-off matrix for a base R model. Reach for <code>recipes::step_dummy()</code> when the encoding is part of a tidymodels workflow that bundles preprocessing with the model. Reach for <code>dummyVars()</code> when you want a standalone object you can save, share, and replay on many data sets, especially with tree-based models that benefit from the full indicator set.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>The output is a matrix, not a data frame.</strong> <code>predict()</code> on a <code>dummyVars</code> object returns a numeric matrix, so <code>dplyr</code> verbs and <code>$</code> column access do not work until you convert it.</p>
+
+<div class="webr-container" data-block-title="Convert the matrix to a data frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert the matrix to a data frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">class(predict(dv, newdata = warpbreaks))
+#&gt; [1] &quot;matrix&quot; &quot;array&quot;
+
+encoded_df &lt;- as.data.frame(predict(dv, newdata = warpbreaks))
+class(encoded_df)
+#&gt; [1] &quot;data.frame&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Numeric codes are not encoded.</strong> If a category is stored as numbers, such as grade <code>1</code>, <code>2</code>, <code>3</code>, <code>dummyVars()</code> treats it as a numeric column and leaves it alone. Convert it to a factor first.</p>
+
+<div class="webr-container" data-block-title="Numeric codes are not encoded">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Numeric codes are not encoded</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grades &lt;- data.frame(level = c(1, 2, 3, 1), score = c(80, 92, 71, 65))
+predict(dummyVars(~ ., data = grades), newdata = grades)
+#&gt;   level score
+#&gt; 1     1    80
+#&gt; 2     2    92
+#&gt; 3     3    71
+#&gt; 4     1    65
+
+grades$level &lt;- factor(grades$level)
+predict(dummyVars(~ ., data = grades), newdata = grades)
+#&gt;   level.1 level.2 level.3 score
+#&gt; 1       1       0       0    80
+#&gt; 2       0       1       0    92
+#&gt; 3       0       0       1    71
+#&gt; 4       1       0       0    65</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Unseen levels in new data become all-zero rows.</strong> If test data contains a category the encoder never saw, that row gets <code>0</code> for every dummy of that factor rather than a new column. Fit the encoder on the full training set so every level is captured.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use dummyVars to one-hot encode all columns of the iris data set, then save the encoded result to ex_encoded.</p>
+<div class="webr-container" data-block-title="Your turn: encode iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: encode iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: one-hot encode iris
+ex_dv &lt;- # your code here
+ex_encoded &lt;- # your code here
+
+ncol(ex_encoded)
+#&gt; Expected: 7 columns</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_dv &lt;- dummyVars(~ ., data = iris)
+ex_encoded &lt;- predict(ex_dv, newdata = iris)
+ncol(ex_encoded)
+#&gt; [1] 7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> iris has four numeric columns that pass through unchanged plus the three-level Species factor, which expands into three indicator columns, giving 7 columns in total.</p>
+
+</details>
+</section>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Fit the encoder on training data only.</strong> Build the <code>dummyVars</code> object from your training set, then call <code>predict()</code> on both train and test. This guarantees identical columns and prevents leakage of test-set information.</div></div>
+
+<h2>Related caret functions</h2>
+
+<p>These caret functions pair naturally with <code>dummyVars()</code> in a preprocessing pipeline:</p>
+
+<ul>
+
+<li><a href="caret-preProcess-in-R.html">preProcess()</a> centers, scales, and imputes numeric predictors.</li>
+
+<li><a href="caret-nearZeroVar-in-R.html">nearZeroVar()</a> drops constant or near-constant columns.</li>
+
+<li><a href="caret-findCorrelation-in-R.html">findCorrelation()</a> removes highly correlated predictors.</li>
+
+<li><a href="caret-createDataPartition-in-R.html">createDataPartition()</a> splits data into train and test sets.</li>
+
+<li><a href="caret-train-in-R.html">train()</a> fits and tunes a model on the encoded data.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between dummyVars() and model.matrix() in R?</strong></p>
+
+<p>Both build a numeric design matrix from factors, but they differ in two ways. <code>model.matrix()</code> always drops one reference level and adds an intercept column, so it is rank-correct for regression by default. <code>dummyVars()</code> keeps every level unless you set <code>fullRank = TRUE</code>, and it returns a reusable object you can <code>predict()</code> on later. Use <code>model.matrix()</code> for a quick one-off matrix and <code>dummyVars()</code> when you need a saved, replayable encoder.</p>
+
+<p><strong>Does dummyVars() drop a reference level?</strong></p>
+
+<p>Not by default. With <code>fullRank = FALSE</code>, a factor with <code>k</code> levels expands into <code>k</code> indicator columns. Set <code>fullRank = TRUE</code> to drop the first level and get <code>k - 1</code> columns, which avoids the dummy variable trap. Tree-based models such as random forests are fine with the full set, but linear and logistic regression need <code>fullRank = TRUE</code>.</p>
+
+<p><strong>How do I convert the dummyVars() output to a data frame?</strong></p>
+
+<p><code>predict()</code> on a <code>dummyVars</code> object returns a numeric matrix. Wrap it in <code>as.data.frame()</code> to get a data frame you can use with <code>dplyr</code> or base <code>$</code> access. For example, <code>encoded_df &lt;- as.data.frame(predict(dv, newdata = df))</code>. You can then <code>cbind()</code> it back to other columns or pass it directly to a modeling function.</p>
+
+<p><strong>Can dummyVars() handle new factor levels in test data?</strong></p>
+
+<p>It handles missing levels gracefully but not brand-new ones. If test data lacks a level the encoder saw, that column still appears, filled with zeros. If test data contains a level the encoder never saw, that observation gets zeros for every dummy of the factor and the new level is ignored. Always fit the encoder on a training set that covers all expected categories.</p>
