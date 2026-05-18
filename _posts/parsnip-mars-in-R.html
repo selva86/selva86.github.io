@@ -1,0 +1,358 @@
+---
+title: "parsnip mars() in R: Adaptive Regression Splines"
+description: "parsnip mars() in R defines a multivariate adaptive regression splines model for tidymodels. Covers syntax, the earth engine, num_terms, and four examples."
+keywords: "parsnip mars, mars function R, parsnip mars examples, MARS model R tidymodels, multivariate adaptive regression splines R, mars earth engine"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "mars()|parsnip mars|parsnip::mars()|MARS model in R|multivariate adaptive regression splines"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>parsnip mars() in R: Adaptive Regression Splines</h1>
+
+<p class="lead">The parsnip <code>mars()</code> function defines a multivariate adaptive <a class="auto-link" href="Polynomial-and-Spline-Regression-in-R.html" title="Polynomial and Spline Regression in R: Model Curvature Without Transforming Variables">regression splines</a> model for tidymodels. It gives you one interface for a model that fits non-linear relationships automatically, by stitching together hinged line segments through the earth engine.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>mars()<span class="qa-cmt">                                  # default spec, earth engine</span>
+mars() |&gt; set_mode(&quot;regression&quot;)<span class="qa-cmt">        # predict a numeric outcome</span>
+mars() |&gt; set_mode(&quot;classification&quot;)<span class="qa-cmt">    # classify a factor outcome</span>
+mars(num_terms = 10)<span class="qa-cmt">                    # cap the number of model terms</span>
+mars(prod_degree = 2)<span class="qa-cmt">                   # allow pairwise interactions</span>
+mars(prune_method = &quot;backward&quot;)<span class="qa-cmt">         # choose the pruning algorithm</span>
+fit(spec, mpg ~ ., data = mtcars)<span class="qa-cmt">       # train on a dataset</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is mars() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">non-linear fit with automatic hinges</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">mars() |&gt; set_engine(&quot;earth&quot;)</text><text x="125" y="126" class="branch-label">straight-line additive model</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">linear_reg() |&gt; set_engine(&quot;lm&quot;)</text><text x="125" y="182" class="branch-label">axis-aligned splits and rules</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code"><a class="auto-link" href="parsnip-decision_tree-in-R.html" title="parsnip decision_tree() in R: Build Tree-Based Models">decision_tree()</a> |&gt; set_engine(&quot;rpart&quot;)</text><text x="125" y="238" class="branch-label">many trees averaged</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">rand_forest() |&gt; set_engine(&quot;ranger&quot;)</text><text x="125" y="294" class="branch-label">smooth kernel boundary</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">svm_rbf() |&gt; set_engine(&quot;kernlab&quot;)</text><text x="125" y="350" class="branch-label">tune num_terms by grid</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">tune_grid() with mars()</text></svg></div>
+
+<h2>What mars() does</h2>
+
+<p><strong>mars() is a model specification, not a fitted model.</strong> It records your choice of a multivariate adaptive regression splines model and its hyperparameters, but no data touches it until you call <code>fit()</code>. This separation lets you reuse one specification across many datasets or resampling folds.</p>
+
+<p>A MARS model captures curves and interactions without you naming them. It builds hinge functions, paired line segments of the form <code>max(0, x - knot)</code> and <code>max(0, knot - x)</code>, then chooses knots in a forward pass and trims weak terms in a backward pruning pass. The result is a piecewise linear surface that bends where the data bends.</p>
+
+<p>The function belongs to the tidymodels framework. Because parsnip standardizes the interface, <code>mars()</code> shares the same <code>fit()</code> and <code>predict()</code> verbs used by every other parsnip model.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Hinge functions are what let MARS bend.</strong> A plain linear model forces one slope across the whole range of a predictor. MARS instead places knots where the slope should change and joins straight segments there, so it can model a flat region followed by a steep one. The forward pass adds these hinges greedily, and the backward pass prunes the ones that do not earn their keep.</div></div>
+
+<h2>mars() syntax and arguments</h2>
+
+<p><strong>mars() takes three hyperparameters and two setup verbs.</strong> The arguments shape how many spline terms the model keeps, while <code>set_engine()</code> and <code>set_mode()</code> finish the specification.</p>
+
+<div class="webr-container" data-block-title="The mars specification skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The mars specification skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+
+mars(
+  mode = &quot;unknown&quot;,       # set to &quot;regression&quot; or &quot;classification&quot;
+  engine = &quot;earth&quot;,       # earth is the only standard engine
+  num_terms = NULL,       # maximum number of model terms to keep
+  prod_degree = NULL,     # highest interaction degree (1 = additive)
+  prune_method = NULL     # how earth prunes terms in the backward pass
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>num_terms</code> argument caps how many hinge terms survive pruning, so a smaller value gives a simpler model. The <code>prod_degree</code> argument controls interactions: <code>1</code> keeps the model additive, while <code>2</code> lets two predictors combine in a single term. The <code>prune_method</code> argument names the backward-pass algorithm, with <code>&quot;backward&quot;</code> as the earth default.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>mars() ships in core parsnip, but its engine does not.</strong> The standard engine is <code>earth</code>, so you need the <code>earth</code> package installed before you fit. Install it first, or R reports that the engine is not available. When <code>num_terms</code> and <code>prod_degree</code> are left <code>NULL</code>, earth picks sensible values from the data and its own defaults.</div></div>
+
+<h2>Fit a MARS model: four examples</h2>
+
+<p><strong>Every example below uses a built-in R dataset.</strong> The <code>mtcars</code> data drives the regression examples and <code>iris</code> drives the classification example, so the code runs anywhere with no downloads.</p>
+
+<h3>Example 1: Fit a regression MARS on mtcars</h3>
+
+<p><strong>Build the specification, then fit it to data.</strong> Leaving the hyperparameters unset lets earth choose the number of terms and the knots.</p>
+
+<div class="webr-container" data-block-title="Fit mars on the mtcars data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit mars on the mtcars data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mars_spec &lt;- mars() |&gt;
+  set_engine(&quot;earth&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+mars_fit &lt;- mars_spec |&gt;
+  fit(mpg ~ ., data = mtcars)
+
+preds &lt;- predict(mars_fit, new_data = mtcars)
+cor(preds$.pred, mtcars$mpg)^2
+#&gt; [1] 0.886</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Squaring the correlation between predicted and actual <code>mpg</code> gives a training R-squared near 0.89. MARS found the knots where fuel economy changes pace, mostly along weight and horsepower.</p>
+
+<h3>Example 2: Predict mpg for new rows</h3>
+
+<p><strong>predict() returns a tidy tibble with one row per input row.</strong> Each prediction comes from the piecewise linear surface MARS built.</p>
+
+<div class="webr-container" data-block-title="Predict mpg for new rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict mpg for new rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sample_rows &lt;- mtcars[c(1, 15, 30), ]
+
+predict(mars_fit, new_data = sample_rows)
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  21.8
+#&gt; 2  11.5
+#&gt; 3  19.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>.pred</code> column holds the predicted miles per gallon as a number. The output keeps the same row order as the input, so you can bind it back to <code>sample_rows</code> with <code>bind_cols()</code>.</p>
+
+<h3>Example 3: Allow interactions with prod_degree</h3>
+
+<p><strong>Set prod_degree to 2 and MARS may combine two predictors in one term.</strong> An additive model misses effects that only appear when variables move together.</p>
+
+<div class="webr-container" data-block-title="Allow pairwise interactions with prod_degree">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Allow pairwise interactions with prod_degree</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mars_int &lt;- mars(prod_degree = 2) |&gt;
+  set_engine(&quot;earth&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+mars_int_fit &lt;- mars_int |&gt;
+  fit(mpg ~ ., data = mtcars)
+
+predict(mars_int_fit, new_data = mtcars[1:3, ])
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  21.3
+#&gt; 2  21.1
+#&gt; 3  26.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With <code>prod_degree = 2</code>, earth can build a hinge on weight that also depends on horsepower. Keep this value low to avoid overfitting.</p>
+
+<h3>Example 4: Classify iris species with mars</h3>
+
+<p><strong>Switch the mode to "classification" and the same function predicts a factor.</strong> earth fits one MARS surface per class and picks the highest score.</p>
+
+<div class="webr-container" data-block-title="Classify iris species with mars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Classify iris species with mars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mars_cls &lt;- mars() |&gt;
+  set_engine(&quot;earth&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+mars_cls_fit &lt;- mars_cls |&gt;
+  fit(Species ~ ., data = iris)
+
+cls_preds &lt;- predict(mars_cls_fit, new_data = iris)
+mean(cls_preds$.pred_class == iris$Species)
+#&gt; [1] 0.973</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Comparing the predicted labels to the true species gives a training accuracy near 97%. The hinge functions bend the class boundary where petal measurements separate versicolor from virginica.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for prod_degree before you reach for a bigger model.</strong> If a MARS fit underperforms, raising <code>prod_degree</code> from 1 to 2 often recovers more signal than switching algorithms. It lets the model express interactions it could not see as a purely additive surface, at a small and controllable cost in complexity.</div></div>
+
+<h2>mars() vs linear_reg() vs decision_tree()</h2>
+
+<p><strong>parsnip ships several ways to fit a non-linear or linear surface.</strong> They share the same verbs, so swapping between them is a one-line change.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Shape it fits</th>
+<th>Handles interactions</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>linear_reg()</code></td>
+<td>One straight slope per predictor</td>
+<td>Only if you add terms by hand</td>
+<td>The relationship is close to linear</td>
+</tr>
+<tr>
+<td><code>mars()</code></td>
+<td>Piecewise linear hinges</td>
+<td>Automatically, via <code>prod_degree</code></td>
+<td>Curves and interactions are unknown</td>
+</tr>
+<tr>
+<td><code>decision_tree()</code></td>
+<td>Axis-aligned step regions</td>
+<td>Automatically, through splits</td>
+<td>The surface has sharp jumps</td>
+</tr>
+</tbody>
+</table>
+
+<p>Start with <code>linear_reg()</code> when a straight line is plausible, reach for <code>mars()</code> when the relationship curves but stays smooth, and use <code>decision_tree()</code> when the response jumps in steps.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes catch most newcomers to mars().</strong> Each one below shows the problem and the fix.</p>
+
+<p>The most common is forgetting to set the mode. A MARS model can predict a number or a class, so parsnip cannot guess which one you want and <code>fit()</code> fails until you call <code>set_mode()</code>.</p>
+
+<div class="webr-container" data-block-title="Mode must be set before fitting">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mode must be set before fitting</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Wrong: no mode, fit() cannot dispatch
+mars() |&gt;
+  set_engine(&quot;earth&quot;) |&gt;
+  fit(mpg ~ ., data = mtcars)
+#&gt; Error: Please set the mode in the model specification.
+
+# Right: set the mode first
+mars() |&gt;
+  set_engine(&quot;earth&quot;) |&gt;
+  set_mode(&quot;regression&quot;) |&gt;
+  fit(mpg ~ ., data = mtcars)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second pitfall is pushing <code>prod_degree</code> too high. A degree of 3 or more lets the model build deep interactions that memorize noise instead of signal. The third is treating <code>num_terms</code> as a target rather than a cap, since earth still prunes below it whenever the extra terms do not help.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A large prod_degree overfits fast.</strong> Each step up multiplies the number of candidate hinge terms, giving the model room to fit random wiggles in the training data. Leave <code>prod_degree</code> at <code>1</code> or <code>2</code> for most problems, and tune it across resampling folds rather than trusting training accuracy.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit an additive regression MARS on <code>mtcars</code> with <code>prod_degree = 1</code>, then predict <code>mpg</code> for the first row. Save the prediction to <code>ex_pred</code>.</p>
+<div class="webr-container" data-block-title="Your turn: additive MARS on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: additive MARS on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit a prod_degree = 1 regression MARS, then predict row 1
+ex_spec &lt;- # your code here
+ex_fit  &lt;- # your code here
+ex_pred &lt;- # your code here
+
+ex_pred
+#&gt; Expected: a 1-row tibble with one .pred value near 22</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_spec &lt;- mars(prod_degree = 1) |&gt;
+  set_engine(&quot;earth&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+ex_fit &lt;- ex_spec |&gt;
+  fit(mpg ~ ., data = mtcars)
+
+ex_pred &lt;- predict(ex_fit, new_data = mtcars[1, ])
+ex_pred
+#&gt; # A tibble: 1 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  21.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Setting <code>prod_degree = 1</code> keeps the model additive, so each predictor contributes its own hinge terms with no cross-products. Row 1 of mtcars is the Mazda RX4, whose true mpg is 21, so the MARS surface lands close.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>mars() works alongside the rest of the parsnip model family.</strong> These functions cover the neighboring tasks in a tidymodels project.</p>
+
+<ul>
+
+<li><code>linear_reg()</code> defines a <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression model</a> with one slope per predictor.</li>
+
+<li><code>decision_tree()</code> defines a single tree of axis-aligned splits.</li>
+
+<li><code>bag_mars()</code> defines a bagged ensemble of MARS models for steadier predictions.</li>
+
+<li><code>set_engine()</code> chooses the computational backend for any specification.</li>
+
+<li><code>fit()</code> trains a specification on data and returns a model object.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What package is mars() in?</strong></p>
+
+<p><code>mars()</code> ships in core parsnip, so <code>library(tidymodels)</code> or <code>library(parsnip)</code> makes it available. The function only describes the model; the actual fitting happens in an engine package. The standard registered engine is <code>earth</code>, which implements the MARS algorithm, so install the <code>earth</code> package separately before you call <code>fit()</code>.</p>
+
+<p><strong>What is the difference between mars() and linear_reg()?</strong></p>
+
+<p><code>linear_reg()</code> fits one straight slope for each predictor across its whole range. <code>mars()</code> places knots where the slope should change and joins straight segments at those knots, so it can model curves that a linear model cannot. MARS also adds interactions on its own when <code>prod_degree</code> is above 1. Choose <code>linear_reg()</code> when a straight line is plausible and <code>mars()</code> when the relationship clearly bends.</p>
+
+<p><strong>What does prod_degree control in mars()?</strong></p>
+
+<p>The <code>prod_degree</code> argument sets the highest interaction degree the model may build. A value of <code>1</code> keeps the model additive, so each term involves a single predictor. A value of <code>2</code> lets earth multiply two hinge functions, capturing effects that appear only when two variables move together. Higher values are rarely worth the overfitting risk, so <code>1</code> and <code>2</code> cover almost every practical case.</p>
+
+<p><strong>Does mars() work for classification?</strong></p>
+
+<p>Yes. Call <code>set_mode(&quot;classification&quot;)</code> and the earth engine fits a MARS surface for each class, then predicts the class with the highest score. <code>predict()</code> returns a <code>.pred_class</code> column, and <code>predict(fit, type = &quot;prob&quot;)</code> returns one <code>.pred_&lt;class&gt;</code> probability column per class. MARS classification works best when the class boundary curves smoothly rather than jumping in steps.</p>
+
+<p><strong>How do I tune mars() hyperparameters?</strong></p>
+
+<p>Mark the arguments with <code>tune()</code>, as in <code>mars(num_terms = tune(), prod_degree = tune())</code>, then pass the specification to <code>tune_grid()</code> with a resampling object such as <code>vfold_cv()</code>. The framework scores a grid of term counts and interaction degrees with cross-validation. Use <code>select_best()</code> to pick the winner, then <code>finalize_workflow()</code> to lock the values before the final fit.</p>
+
+<p>For the full argument reference, see the <a href="https://parsnip.tidymodels.org/reference/mars.html">parsnip mars() documentation</a>.</p>
+
+{% endraw %}
