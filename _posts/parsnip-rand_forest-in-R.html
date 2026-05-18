@@ -1,0 +1,394 @@
+---
+title: "parsnip rand_forest() in R: Specify Random Forest Models"
+description: "parsnip rand_forest() in R defines random forest models for tidymodels. Covers syntax, the ranger and randomForest engines, classification, and regression."
+keywords: "parsnip rand_forest, rand_forest function R, parsnip rand_forest examples, random forest tidymodels R, rand_forest ranger engine, tidymodels random forest"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "rand_forest()|parsnip rand_forest|parsnip::rand_forest()|random forest in R|tidymodels random forest"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>parsnip rand_forest() in R: Specify Random Forest Models</h1>
+
+<p class="lead">The parsnip <code>rand_forest()</code> function defines a random forest model, an ensemble of many decision trees, for classification or regression in tidymodels. It gives you one interface that fits with the ranger, randomForest, or h2o engine underneath.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>rand_forest()<span class="qa-cmt">                                  # default spec, ranger engine</span>
+rand_forest() |&gt; set_mode(&quot;classification&quot;)<span class="qa-cmt">    # classify a factor outcome</span>
+rand_forest() |&gt; set_mode(&quot;regression&quot;)<span class="qa-cmt">        # predict a numeric outcome</span>
+rand_forest(trees = 1000)<span class="qa-cmt">                      # set the number of trees</span>
+rand_forest(mtry = 3, min_n = 5)<span class="qa-cmt">               # set split count and leaf size</span>
+rand_forest() |&gt; set_engine(&quot;randomForest&quot;)<span class="qa-cmt">    # swap the backend engine</span>
+fit(spec, Species ~ ., data = iris)<span class="qa-cmt">            # train on a dataset</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is rand_forest() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">bagged trees with random splits</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">rand_forest() |&gt; set_engine(&quot;ranger&quot;)</text><text x="125" y="126" class="branch-label">one interpretable tree</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">decision_tree() |&gt; set_engine(&quot;rpart&quot;)</text><text x="125" y="182" class="branch-label">gradient-boosted trees</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">boost_tree() |&gt; set_engine(&quot;xgboost&quot;)</text><text x="125" y="238" class="branch-label">a plain linear model</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">linear_reg() |&gt; set_engine(&quot;lm&quot;)</text><text x="125" y="294" class="branch-label">bagged trees, no feature sampling</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">bag_tree() |&gt; set_engine(&quot;rpart&quot;)</text><text x="125" y="350" class="branch-label">tune mtry and min_n by grid</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">tune_grid() with rand_forest()</text></svg></div>
+
+<h2>What rand_forest() does</h2>
+
+<p><strong>rand_forest() is a model specification, not a fitted model.</strong> It records your intent to build a random forest and the hyperparameters you want, but no data touches it until you call <code>fit()</code>. This separation lets you reuse one specification across many datasets or resampling folds.</p>
+
+<p>A random forest grows hundreds of decision trees on bootstrap samples of the data, and at each split it considers only a random subset of predictors. Predictions average the trees for regression or take a majority vote for classification. The randomness decorrelates the trees, which lowers variance and usually beats a single tree.</p>
+
+<p>The function belongs to the tidymodels framework. Because parsnip standardizes the interface, the same <code>rand_forest()</code> code runs on the fast ranger engine or the classic randomForest engine with only one line changed.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A parsnip spec is a recipe for a model, not the model itself.</strong> You build the specification once, then <code>fit()</code> turns it into a trained model object. Keeping those two steps apart is what makes tidymodels workflows reproducible across resamples.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>rand_forest() ships in core parsnip, but the engines do not.</strong> The default <code>ranger</code> engine needs the <code>ranger</code> package installed, and <code>set_engine(&quot;randomForest&quot;)</code> needs the <code>randomForest</code> package. Install the engine package before you fit, or R reports that the engine is not available.</div></div>
+
+<h2>rand_forest() syntax and arguments</h2>
+
+<p><strong>rand_forest() takes three hyperparameters and two setup verbs.</strong> The arguments control how each tree is grown, while <code>set_engine()</code> and <code>set_mode()</code> finish the specification.</p>
+
+<div class="webr-container" data-block-title="The rand_forest specification skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The rand_forest specification skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+
+rand_forest(
+  mode = &quot;unknown&quot;,   # set to &quot;classification&quot; or &quot;regression&quot;
+  engine = &quot;ranger&quot;,  # ranger (default), randomForest, h2o, aorsf, spark
+  mtry = NULL,        # predictors sampled at each split
+  trees = NULL,       # number of trees in the forest
+  min_n = NULL        # minimum rows in a node before a split
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>mtry</code> argument sets how many predictors are sampled as split candidates at each node, the main source of forest randomness. The <code>trees</code> argument sets the number of trees, where more trees stabilize predictions at a higher compute cost. The <code>min_n</code> argument sets the smallest node size allowed before a split, which controls how deep each tree grows.</p>
+
+<p><strong>The mode is never "unknown" at fit time.</strong> A random forest can predict a class or a number, so you must call <code>set_mode(&quot;classification&quot;)</code> or <code>set_mode(&quot;regression&quot;)</code> before fitting. You can pass the engine through <code>set_engine()</code> instead of the <code>engine</code> argument, which is the more common tidymodels style.</p>
+
+<h2>Fit a random forest: four examples</h2>
+
+<p><strong>Every example below uses a built-in R dataset.</strong> The <code>iris</code> data drives the classification examples and <code>mtcars</code> drives the regression example, so the code runs anywhere with no downloads.</p>
+
+<h3>Example 1: Classify with the default ranger engine</h3>
+
+<p><strong>Build the specification, then fit it to data.</strong> The ranger engine grows the forest quickly and is the parsnip default.</p>
+
+<div class="webr-container" data-block-title="Fit rand_forest on the iris data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit rand_forest on the iris data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rf_spec &lt;- rand_forest(trees = 500) |&gt;
+  set_engine(&quot;ranger&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+rf_fit &lt;- rf_spec |&gt;
+  fit(Species ~ ., data = iris)
+
+rf_fit
+#&gt; parsnip model object
+#&gt;
+#&gt; Ranger result
+#&gt;
+#&gt; Type:                             Classification
+#&gt; Number of trees:                  500
+#&gt; Sample size:                      150
+#&gt; Number of independent variables:  4
+#&gt; Mtry:                             2
+#&gt; Target node size:                 1
+#&gt; OOB prediction error:             4.00 %</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The out-of-bag (OOB) error estimates accuracy on rows each tree never saw during training, so it works like built-in cross-validation. Here an OOB error of 4% means the forest classifies roughly 96% of iris flowers correctly.</p>
+
+<h3>Example 2: Predict classes and probabilities</h3>
+
+<p><strong>predict() returns a tidy tibble with one row per input row.</strong> Use <code>type = &quot;prob&quot;</code> to get per-class probabilities instead of the hard label.</p>
+
+<div class="webr-container" data-block-title="Predict iris species and class probabilities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict iris species and class probabilities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sample_rows &lt;- iris[c(1, 70, 130), ]
+
+predict(rf_fit, new_data = sample_rows)
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 setosa
+#&gt; 2 versicolor
+#&gt; 3 virginica
+
+predict(rf_fit, new_data = sample_rows, type = &quot;prob&quot;)
+#&gt; # A tibble: 3 x 3
+#&gt;   .pred_setosa .pred_versicolor .pred_virginica
+#&gt;          &lt;dbl&gt;            &lt;dbl&gt;           &lt;dbl&gt;
+#&gt; 1        1.00             0               0
+#&gt; 2        0                0.97            0.03
+#&gt; 3        0                0.02            0.98</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The probability columns are named <code>.pred_&lt;class&gt;</code> and each row sums to one. Probabilities are the share of trees that voted for each class, which makes them useful for ranking or for a custom decision threshold.</p>
+
+<h3>Example 3: Fit a regression forest on mtcars</h3>
+
+<p><strong>Switch the mode to "regression" and the same function predicts a number.</strong> Nothing else about the call changes.</p>
+
+<div class="webr-container" data-block-title="Fit a regression forest on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a regression forest on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rf_reg &lt;- rand_forest(trees = 500, min_n = 5) |&gt;
+  set_engine(&quot;ranger&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+rf_reg_fit &lt;- rf_reg |&gt;
+  fit(mpg ~ ., data = mtcars)
+
+rf_reg_fit
+#&gt; parsnip model object
+#&gt;
+#&gt; Ranger result
+#&gt;
+#&gt; Type:                             Regression
+#&gt; Number of trees:                  500
+#&gt; Sample size:                      32
+#&gt; Number of independent variables:  10
+#&gt; Mtry:                             3
+#&gt; OOB prediction error (MSE):       5.83
+#&gt; R squared (OOB):                  0.834</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The regression forest reports <a class="auto-link" href="Point-Estimation-in-R.html" title="Point Estimation in R: What Makes an Estimator Good? Bias, Variance, and MSE">mean squared error</a> and an OOB R-squared instead of a classification error rate. An R-squared of 0.83 means the forest explains most of the variation in fuel economy.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Set a seed before fitting when you need repeatable results.</strong> A random forest draws bootstrap samples and random split candidates, so two fits differ slightly unless you call <code>set.seed()</code> first. Seeding also makes OOB error and importance scores stable across runs.</div></div>
+
+<h3>Example 4: Rank predictors by importance</h3>
+
+<p><strong>Pass engine-specific arguments through set_engine() to unlock <a class="auto-link" href="Variable-Selection-and-Importance-With-R.html" title="Feature Selection and Variable Importance">variable importance</a>.</strong> The ranger engine computes importance only when you ask for it.</p>
+
+<div class="webr-container" data-block-title="Rank iris predictors by importance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank iris predictors by importance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rf_imp &lt;- rand_forest(trees = 500) |&gt;
+  set_engine(&quot;ranger&quot;, importance = &quot;impurity&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+imp_fit &lt;- rf_imp |&gt;
+  fit(Species ~ ., data = iris)
+
+sort(imp_fit$fit$variable.importance, decreasing = TRUE)
+#&gt;  Petal.Width Petal.Length Sepal.Length  Sepal.Width
+#&gt;         43.9         43.1          9.4          2.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Petal width and petal length dominate, which matches the known biology of the iris dataset. The <code>importance = &quot;impurity&quot;</code> value passes straight through <code>set_engine()</code> to <code>ranger::ranger()</code> without parsnip needing its own argument.</p>
+
+<h2>Compare rand_forest() engines</h2>
+
+<p><strong>rand_forest() runs on several engines that share the same code.</strong> You swap engines with one <code>set_engine()</code> call, and parsnip translates <code>mtry</code>, <code>trees</code>, and <code>min_n</code> to each backend.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Engine</th>
+<th>Package</th>
+<th>Strengths</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ranger</code></td>
+<td>ranger</td>
+<td>Fast, parallel, default</td>
+<td>Almost always; the standard choice</td>
+</tr>
+<tr>
+<td><code>randomForest</code></td>
+<td>randomForest</td>
+<td>Classic Breiman implementation</td>
+<td>You need results matching older code</td>
+</tr>
+<tr>
+<td><code>aorsf</code></td>
+<td>aorsf</td>
+<td>Oblique splits on linear combinations</td>
+<td>Predictors interact strongly</td>
+</tr>
+<tr>
+<td><code>h2o</code></td>
+<td>h2o, agua</td>
+<td>Scales beyond memory</td>
+<td>Data is too large for one machine</td>
+</tr>
+<tr>
+<td><code>partykit</code></td>
+<td>partykit</td>
+<td>Unbiased conditional inference trees</td>
+<td>Predictors differ in scale or type</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is simple. Use <code>ranger</code> unless you have a specific reason not to, switch to <code>randomForest</code> for parity with legacy scripts, and reach for <code>h2o</code> only when the data outgrows local memory.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes catch most newcomers to rand_forest().</strong> Each one below shows the problem and the fix.</p>
+
+<p>The most common is forgetting to set the mode. A random forest can classify or predict a number, so parsnip cannot guess which one you want and <code>fit()</code> fails until you call <code>set_mode()</code>.</p>
+
+<div class="webr-container" data-block-title="Mode must be set before fitting">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mode must be set before fitting</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Wrong: no mode, fit() cannot dispatch
+rand_forest(trees = 500) |&gt;
+  set_engine(&quot;ranger&quot;) |&gt;
+  fit(Species ~ ., data = iris)
+#&gt; Error: Please set the mode in the model specification.
+
+# Right: set the mode first
+rand_forest(trees = 500) |&gt;
+  set_engine(&quot;ranger&quot;) |&gt;
+  set_mode(&quot;classification&quot;) |&gt;
+  fit(Species ~ ., data = iris)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second pitfall is an <code>mtry</code> larger than the predictor count. If you set <code>mtry = 10</code> on the four-column iris data, the ranger engine stops with an error because it cannot sample more predictors than exist. The third is expecting identical results without a seed, since the forest is random by design.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>An mtry value above the number of predictors errors at fit time.</strong> The ranger engine reports <code>mtry can not be larger than number of variables in data</code>. Either lower <code>mtry</code> or set <code>mtry = tune()</code> and let <code>tune_grid()</code> search only valid values for your dataset.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a classification forest on <code>iris</code> with 300 trees and <code>min_n = 10</code>, then predict the class for the 100th row. Save the prediction to <code>ex_pred</code>.</p>
+<div class="webr-container" data-block-title="Your turn: classify iris with rand_forest">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: classify iris with rand_forest</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit a 300-tree forest, then predict row 100
+ex_spec &lt;- # your code here
+ex_fit  &lt;- # your code here
+ex_pred &lt;- # your code here
+
+ex_pred
+#&gt; Expected: a 1-row tibble with .pred_class = versicolor</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_spec &lt;- rand_forest(trees = 300, min_n = 10) |&gt;
+  set_engine(&quot;ranger&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+ex_fit &lt;- ex_spec |&gt;
+  fit(Species ~ ., data = iris)
+
+ex_pred &lt;- predict(ex_fit, new_data = iris[100, ])
+ex_pred
+#&gt; # A tibble: 1 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 versicolor</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>trees</code> and <code>min_n</code> arguments tune the forest, while <code>set_mode(&quot;classification&quot;)</code> tells parsnip to predict the <code>Species</code> factor. Row 100 of iris is a versicolor flower, so the trained forest votes that class.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>rand_forest() works alongside the rest of the parsnip model family.</strong> These functions cover the neighboring tasks in a tidymodels project.</p>
+
+<ul>
+
+<li><code>decision_tree()</code> defines a single classification or regression tree.</li>
+
+<li><code>boost_tree()</code> defines a gradient-boosted tree ensemble such as xgboost.</li>
+
+<li><code>bag_tree()</code> defines a bagged tree ensemble without feature sampling.</li>
+
+<li><code>set_engine()</code> chooses the computational backend for any specification.</li>
+
+<li><code>fit()</code> trains a specification on data and returns a model object.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What package is rand_forest() in?</strong></p>
+
+<p><code>rand_forest()</code> ships in core parsnip, so <code>library(tidymodels)</code> or <code>library(parsnip)</code> makes it available. The function itself only describes the model, though, and the actual fitting happens in an engine package. The default <code>ranger</code> engine needs the <code>ranger</code> package, and <code>set_engine(&quot;randomForest&quot;)</code> needs the <code>randomForest</code> package installed separately.</p>
+
+<p><strong>What is the difference between rand_forest() and randomForest()?</strong></p>
+
+<p><code>rand_forest()</code> is the parsnip specification, a model-agnostic description of a random forest. <code>randomForest()</code> is one concrete engine that actually fits the model. When you call <code>set_engine(&quot;randomForest&quot;)</code>, parsnip translates your <code>mtry</code>, <code>trees</code>, and <code>min_n</code> settings into a <code>randomForest()</code> call. The parsnip layer lets you switch to ranger or h2o without rewriting code.</p>
+
+<p><strong>What engine does rand_forest() use by default?</strong></p>
+
+<p>The default engine is <code>ranger</code>, a fast C++ implementation that supports parallel tree growing. You can confirm or change it with <code>set_engine()</code>, and <code>show_engines(&quot;rand_forest&quot;)</code> lists every registered option. Most projects keep ranger because it is quick and well maintained, switching only for legacy parity or out-of-memory scaling.</p>
+
+<p><strong>How do I tune mtry and trees in rand_forest()?</strong></p>
+
+<p>Set the arguments to <code>tune()</code>, as in <code>rand_forest(mtry = tune(), min_n = tune())</code>, then pass the specification to <code>tune_grid()</code> with a resampling object such as <code>vfold_cv()</code>. The framework searches a grid of values and scores each with cross-validation. Use <code>select_best()</code> to pick the winner, then <code>finalize_workflow()</code> to lock the values before the final fit.</p>
+
+<p><strong>How do I get variable importance from rand_forest()?</strong></p>
+
+<p>Importance is an engine argument, not a parsnip one. For the ranger engine, add <code>importance = &quot;impurity&quot;</code> or <code>importance = &quot;permutation&quot;</code> inside <code>set_engine()</code>, then read the scores from <code>fit$fit$variable.importance</code>. The <code>vip</code> package turns those scores into a ranked plot directly from the parsnip fit object.</p>
+
+<p>For the full argument reference, see the <a href="https://parsnip.tidymodels.org/reference/rand_forest.html">parsnip rand_forest() documentation</a>.</p>
+
+{% endraw %}
