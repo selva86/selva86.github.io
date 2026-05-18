@@ -1,0 +1,326 @@
+---
+title: "recipes step_nzv() in R: Drop Near-Zero-Variance Predictors"
+description: "The recipes step_nzv() function in R removes near-zero-variance predictors using freq_cut and unique_cut thresholds. Runnable prep and bake examples included."
+keywords: "recipes step_nzv, step_nzv function R, recipes step_nzv example, near-zero variance R, remove near-zero variance predictors R, step_nzv tidymodels, nearZeroVar recipes"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_nzv()|recipes step_nzv|recipes::step_nzv()|near-zero-variance predictors|step_nzv"
+auto_link_case_sensitive: true
+fr_parent: "caret-preProcess-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>recipes step_nzv() in R: Drop Near-Zero-Variance Predictors</h1>
+
+<p class="lead">The recipes <code>step_nzv()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> removes near-zero-variance predictors, columns that are overwhelmingly one value but not perfectly constant, before they can destabilize a model.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_nzv(rec, all_predictors())<span class="qa-cmt">                  # screen every predictor</span>
+step_nzv(rec, all_numeric_predictors())<span class="qa-cmt">          # numeric predictors only</span>
+step_nzv(rec, x, y)<span class="qa-cmt">                              # named columns only</span>
+step_nzv(rec, all_predictors(), freq_cut = 5)<span class="qa-cmt">    # stricter frequency rule</span>
+step_nzv(rec, all_predictors(), unique_cut = 20)<span class="qa-cmt"> # stricter uniqueness rule</span>
+prep(rec); bake(rec, new_data = NULL)<span class="qa-cmt">            # train, then apply</span>
+tidy(prep(rec), number = 1)<span class="qa-cmt">                      # list removed columns</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_nzv() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">column nearly constant, not exactly</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_nzv(rec, all_predictors())</text><text x="125" y="126" class="branch-label">column has exactly one value</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_zv(rec, all_predictors())</text><text x="125" y="182" class="branch-label">predictors strongly correlated</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_corr(rec, all_numeric_predictors())</text><text x="125" y="238" class="branch-label">columns are exact linear combos</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_lincomb(rec, all_numeric_predictors())</text><text x="125" y="294" class="branch-label">drop a named column outright</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">step_rm(rec, bad_col)</text><text x="125" y="350" class="branch-label">compress many predictors into few</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">step_pca(rec, all_numeric_predictors())</text></svg></div>
+
+<h2>What step_nzv() does</h2>
+
+<p><strong>step_nzv() deletes columns that carry almost no information because one value dominates them.</strong> A column where 996 of 1,000 rows read <code>&quot;no&quot;</code> technically has variance, so <code>step_zv()</code> leaves it alone. Yet that column is nearly useless to a model and can break a cross-validation fold the moment the rare value disappears from a resample.</p>
+
+<p><code>step_nzv()</code> screens the columns you select while the recipe is prepared. During <code>prep()</code> it measures two quantities for each column and flags a column as near-zero variance only when both criteria are met. <code>bake()</code> then drops every flagged column from training data and new data alike.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A column is flagged only when both thresholds fire, not either one.</strong> The frequency ratio (most common value over second most common) must exceed <code>freq_cut</code>, and the percentage of distinct values must fall below <code>unique_cut</code>. A column that trips just one test survives.</div></div>
+
+<h2>step_nzv() syntax and arguments</h2>
+
+<p><strong>step_nzv() is a selection step controlled by two numeric thresholds.</strong> You name columns directly or use tidyselect helpers such as <code>all_predictors()</code> or <code>all_numeric_predictors()</code>, then optionally tune how aggressive the filter is.</p>
+
+<div class="webr-container" data-block-title="step_nzv signature and arguments">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">step_nzv signature and arguments</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">step_nzv(
+  recipe,
+  ...,                  # columns to screen
+  role = NA,
+  trained = FALSE,
+  freq_cut = 95 / 5,    # frequency-ratio cutoff (default 19)
+  unique_cut = 10,      # percent-unique cutoff (default 10)
+  options = list(freq_cut = 95 / 5, unique_cut = 10),
+  removals = NULL,
+  skip = FALSE,
+  id = rand_id(&quot;nzv&quot;)
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>removals</code> slot is filled automatically at <code>prep()</code> time with the names of the flagged columns. <code>freq_cut</code> defaults to <code>95/5</code>, so a column is suspicious when its top value is at least 19 times more common than its runner-up. <code>unique_cut</code> defaults to <code>10</code>, meaning the column must also have fewer than 10 percent distinct values. The full reference lives in the <a href="https://recipes.tidymodels.org/reference/step_nzv.html">recipes documentation</a>.</p>
+
+<h2>step_nzv() examples</h2>
+
+<p><strong>The pattern is always prep then bake.</strong> <code>prep()</code> measures each column and decides what to remove; <code>bake()</code> applies that decision. The examples below build a 200-row frame where one predictor is heavily skewed.</p>
+
+<div class="webr-container" data-block-title="Drop a near-zero-variance column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop a near-zero-variance column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+set.seed(1)
+train &lt;- data.frame(
+  age    = sample(20:60, 200, replace = TRUE),
+  rare   = c(rep(&quot;no&quot;, 196), rep(&quot;yes&quot;, 4)),
+  income = rnorm(200, 50, 10)
+)
+
+nzv_rec &lt;- recipe(income ~ ., data = train) |&gt;
+  step_nzv(all_predictors()) |&gt;
+  prep()
+
+names(bake(nzv_rec, new_data = NULL))
+#&gt; [1] &quot;age&quot;    &quot;income&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>rare</code> column is 196 <code>&quot;no&quot;</code> against 4 <code>&quot;yes&quot;</code>, a frequency ratio of 49 and only 1 percent distinct values, so both thresholds fire and the column is dropped. <code>age</code> spreads across many values and survives. To confirm exactly what was removed, call <code>tidy()</code> on the prepared recipe.</p>
+
+<div class="webr-container" data-block-title="See which columns step_nzv removed">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">See which columns step_nzv removed</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(nzv_rec, number = 1)
+#&gt; # A tibble: 1 x 2
+#&gt;   terms id
+#&gt;   &lt;chr&gt; &lt;chr&gt;
+#&gt; 1 rare  nzv_a1B2c</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>terms</code> column lists every flagged predictor; an empty tibble means nothing tripped both thresholds. The <code>freq_cut</code> argument controls how skewed a column must be before it counts.</p>
+
+<div class="webr-container" data-block-title="Tighten freq_cut to catch a milder skew">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tighten freq_cut to catch a milder skew</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train2 &lt;- data.frame(
+  mostly = c(rep(&quot;a&quot;, 180), rep(&quot;b&quot;, 20)),
+  spread = rnorm(200),
+  y      = rnorm(200)
+)
+
+# default freq_cut = 19: ratio is only 180/20 = 9, so nothing drops
+recipe(y ~ ., data = train2) |&gt;
+  step_nzv(all_predictors()) |&gt; prep() |&gt;
+  bake(new_data = NULL) |&gt; ncol()
+#&gt; [1] 3
+
+# freq_cut = 4: now 9 &gt; 4, so mostly is removed
+recipe(y ~ ., data = train2) |&gt;
+  step_nzv(all_predictors(), freq_cut = 4) |&gt; prep() |&gt;
+  bake(new_data = NULL) |&gt; ncol()
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At the default cutoff the <code>mostly</code> column survives because its 9-to-1 split is not extreme enough. Lowering <code>freq_cut</code> to 4 makes the filter stricter and the column is dropped. <code>step_nzv()</code> is also valuable right after <code>step_dummy()</code>, where rare factor levels produce skewed indicator columns.</p>
+
+<div class="webr-container" data-block-title="step_nzv after step_dummy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">step_nzv after step_dummy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2)
+train3 &lt;- data.frame(
+  plan  = factor(c(rep(&quot;basic&quot;, 195), rep(&quot;pro&quot;, 5))),
+  usage = rnorm(200, 100, 20),
+  churn = rnorm(200)
+)
+
+dummy_rec &lt;- recipe(churn ~ ., data = train3) |&gt;
+  step_dummy(plan) |&gt;
+  step_nzv(all_predictors()) |&gt;
+  prep()
+
+names(bake(dummy_rec, new_data = NULL))
+#&gt; [1] &quot;usage&quot; &quot;churn&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>step_dummy()</code> turns <code>plan</code> into <code>plan_pro</code>, a column of 195 zeros and 5 ones. That column has variance, so <code>step_zv()</code> would keep it, but <code>step_nzv()</code> recognizes the 39-to-1 skew and removes it before it reaches the model.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python scikit-learn?</strong> There is no exact one-line equivalent. <code>VarianceThreshold</code> removes only strictly low-variance features; the <a class="auto-link" href="dplyr-join_by-in-R.html" title="dplyr join_by() in R: Modern Key Specification for Joins">closest match</a> to step_nzv() is a custom filter on value-frequency ratios, which caret originally provided through <code>nearZeroVar()</code>.</div></div>
+
+<h2>step_nzv() vs step_zv()</h2>
+
+<p><strong>Both steps remove uninformative columns, but they apply different tests.</strong> Picking the wrong one either keeps near-dead columns or, worse, deletes useful predictors.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>Removes</th>
+<th>Decided from</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_zv()</code></td>
+<td>Columns with exactly one unique value</td>
+<td>Count of distinct values</td>
+</tr>
+<tr>
+<td><code>step_nzv()</code></td>
+<td>Columns that are nearly constant</td>
+<td><code>freq_cut</code> ratio and <code>unique_cut</code> percentage</td>
+</tr>
+<tr>
+<td><code>step_corr()</code></td>
+<td>Columns highly correlated with another</td>
+<td>Pairwise <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">correlation matrix</a></td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>step_zv()</code> as a cheap, guaranteed-safe filter for strictly constant columns. Reach for <code>step_nzv()</code> when a column is overwhelmingly one value but not perfectly constant, such as a rare-event flag. Many pipelines run <code>step_zv()</code> first, then <code>step_nzv()</code> for the borderline cases.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Place step_nzv() after encoding and imputation, not before.</strong> Dummy columns and imputed columns change value frequencies, so screening too early misses the skewed columns those steps create.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most step_nzv() confusion.</strong></p>
+
+<ol>
+
+<li><strong>Expecting it to fire on small datasets.</strong> With only 5 rows, even 1 distinct value is 20 percent unique, above the default <code>unique_cut</code> of 10. The filter rarely triggers until you have a few hundred rows or you raise <code>unique_cut</code>.</li>
+
+<li><strong>Assuming one threshold is enough.</strong> A column needs both a high frequency ratio and a low unique percentage. A skewed numeric column with many distinct values passes the <code>unique_cut</code> test and survives.</li>
+
+<li><strong>Treating the removal list as fixed.</strong> Near-zero variance is judged from the data given to <code>prep()</code>. Under resampling, a column flagged in one fold may be kept in another.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>step_nzv() silently changes the column count.</strong> A baked frame can have fewer columns than the input with no message. If downstream code expects columns by position, call <code>tidy()</code> to confirm what was dropped.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a recipe on the frame below, add <code>step_nzv()</code> to all predictors, and bake the training data. The <code>signup</code> column is 198 <code>&quot;free&quot;</code> against 2 <code>&quot;paid&quot;</code> and should disappear. Save the result to <code>ex_baked</code>.</p>
+<div class="webr-container" data-block-title="Your turn: step_nzv on all predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: step_nzv on all predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_train &lt;- data.frame(
+  signup = c(rep(&quot;free&quot;, 198), rep(&quot;paid&quot;, 2)),
+  visits = sample(1:50, 200, replace = TRUE),
+  spend  = rnorm(200, 30, 8)
+)
+# Try it: prep a recipe with step_nzv(all_predictors()), then bake
+ex_baked &lt;- # your code here
+
+names(ex_baked)
+#&gt; Expected: signup removed, visits and spend remain</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec &lt;- recipe(spend ~ ., data = ex_train) |&gt;
+  step_nzv(all_predictors()) |&gt;
+  prep()
+
+ex_baked &lt;- bake(ex_rec, new_data = NULL)
+names(ex_baked)
+#&gt; [1] &quot;visits&quot; &quot;spend&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>signup</code> has a 99-to-1 frequency ratio and 1 percent distinct values, so both thresholds fire during <code>prep()</code> and <code>bake()</code> drops it. <code>visits</code> spreads across many values and stays.</p>
+
+</details>
+</section>
+
+<h2>Related recipes functions</h2>
+
+<p><strong>step_nzv() is one filter in a larger column-cleaning toolkit.</strong> These steps often appear together in the same recipe:</p>
+
+<ul>
+
+<li><code>step_zv()</code> removes strictly constant columns with exactly one unique value.</li>
+
+<li><code>step_corr()</code> drops predictors highly correlated with another column.</li>
+
+<li><code>step_lincomb()</code> removes columns that form exact linear combinations of others.</li>
+
+<li><code>step_rm()</code> deletes specific columns you name by hand.</li>
+
+<li><code>step_dummy()</code> converts factors into indicator columns, often paired before <code>step_nzv()</code>.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does step_nzv() do in R?</strong></p>
+
+<p><code>step_nzv()</code> is a recipes step that removes near-zero-variance predictors, columns that are overwhelmingly one value but not perfectly constant. During <code>prep()</code> it measures each selected column's frequency ratio and percentage of unique values. A column is flagged only when the frequency ratio exceeds <code>freq_cut</code> and the unique percentage falls below <code>unique_cut</code>. <code>bake()</code> then drops the flagged columns from training and new data alike.</p>
+
+<p><strong>What is the difference between step_zv() and step_nzv()?</strong></p>
+
+<p><code>step_zv()</code> removes only strictly constant columns, those with exactly one unique value. <code>step_nzv()</code> is more aggressive: it removes columns that are almost constant, judged by a frequency ratio and a unique-value percentage. A column with 999 identical entries and one different entry survives <code>step_zv()</code> but is caught by <code>step_nzv()</code>. Use <code>step_zv()</code> for truly dead columns and <code>step_nzv()</code> for skewed ones.</p>
+
+<p><strong>What do freq_cut and unique_cut mean?</strong></p>
+
+<p><code>freq_cut</code> is the ratio of the most common value's frequency to the second most common value's frequency; the default <code>95/5</code> equals 19. <code>unique_cut</code> is the percentage of distinct values out of all rows, defaulting to 10. A column is flagged as near-zero variance only when its frequency ratio is above <code>freq_cut</code> and its unique percentage is below <code>unique_cut</code>. Lower <code>freq_cut</code> or raise <code>unique_cut</code> to make the filter stricter.</p>
+
+<p><strong>Why did step_nzv() not remove any columns?</strong></p>
+
+<p>The most common reason is a small dataset. With few rows, the percentage of distinct values stays above the default <code>unique_cut</code> of 10, so the second criterion never passes. Either test more data or raise <code>unique_cut</code>. The other reason is that a column trips only one threshold; both the frequency ratio and the unique percentage must qualify before a column is removed.</p>
+
+</content>
+
+</invoke>
+
+{% endraw %}
