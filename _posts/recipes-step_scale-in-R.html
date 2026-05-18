@@ -1,0 +1,336 @@
+---
+title: "recipes step_scale() in R: Scale Predictors to Unit SD"
+description: "recipes step_scale() in R divides numeric predictors by their training standard deviation, giving each column unit variance. Syntax, examples, and pitfalls."
+keywords: "recipes step_scale, step_scale function R, recipes step_scale examples, R scale predictors, tidymodels step_scale, scale data recipe R, step_scale recipe"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_scale()|recipes step_scale|recipes::step_scale()|step_scale|scale numeric predictors"
+auto_link_case_sensitive: true
+fr_parent: "caret-preProcess-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>recipes step_scale() in R: Scale Predictors to Unit SD</h1>
+
+<p class="lead">The <code>recipes</code> <code>step_scale()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> divides each numeric predictor by its training-set standard deviation, giving every column unit variance while leaving its mean untouched. You add it to a <code>recipe()</code>, estimate the spreads with <code>prep()</code>, and apply them with <code>bake()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_scale(rec, all_numeric_predictors())<span class="qa-cmt">        # scale all numeric predictors</span>
+step_scale(rec, mpg, hp)<span class="qa-cmt">                         # scale named columns</span>
+step_scale(rec, all_numeric())<span class="qa-cmt">                   # scale every numeric column</span>
+step_scale(rec, contains(&quot;score&quot;))<span class="qa-cmt">               # scale by name pattern</span>
+step_scale(rec, all_numeric(), factor = 2)<span class="qa-cmt">       # divide by two SDs</span>
+prep(rec) |&gt; bake(new_data = NULL)<span class="qa-cmt">                # estimate SDs, then apply</span>
+tidy(prep(rec), number = 1)<span class="qa-cmt">                      # inspect the estimated SDs</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_scale() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">rescale to unit variance, keep the mean</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_scale(rec, all_numeric_predictors())</text><text x="125" y="126" class="branch-label">also shift to mean zero</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_normalize(rec, all_numeric_predictors())</text><text x="125" y="182" class="branch-label">only shift, keep the spread</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_center(rec, all_numeric_predictors())</text><text x="125" y="238" class="branch-label">squeeze into a 0-1 range</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_range(rec, all_numeric_predictors())</text><text x="125" y="294" class="branch-label">fix skew before scaling</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">step_YeoJohnson(rec, all_numeric_predictors())</text><text x="125" y="350" class="branch-label">drop constant columns first</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">step_zv(rec, all_predictors())</text></svg></div>
+
+<h2>What step_scale() does in R</h2>
+
+<p><strong>step_scale() divides every value in a column by that column's standard deviation.</strong> During <code>prep()</code> it computes the standard deviation of each selected column. During <code>bake()</code> it returns <code>value / sd</code>. The transformed column ends up with a standard deviation of one, but its mean and sign are unchanged.</p>
+
+<p>Scaling matters because predictors measured on wildly different units can distort models that depend on magnitude. A car's <code>disp</code> runs into the hundreds while <code>drat</code> sits near three, and any distance-based or penalized model will let <code>disp</code> dominate. <code>step_scale()</code> is the recipes way to put predictors on a comparable spread inside a modeling pipeline rather than by hand.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The standard deviation is learned once, on training data only.</strong> <code>step_scale()</code> stores the training standard deviations inside the prepped recipe. When you <code>bake()</code> new data, it reuses those stored values, so test rows are divided by training statistics and no information leaks across the split.</div></div>
+
+<h2>step_scale() syntax and arguments</h2>
+
+<p><strong>step_scale() attaches a scaling operation to a recipe.</strong> You pass the recipe first, then a set of columns selected with tidyselect helpers.</p>
+
+<div class="webr-container" data-block-title="The step_scale skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The step_scale skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+recipe(mpg ~ ., data = mtcars) |&gt;
+  step_scale(all_numeric_predictors())
+#&gt; -- Recipe ---------------------------------------------------------------
+#&gt; -- Inputs
+#&gt; Number of variables by role
+#&gt; outcome:    1
+#&gt; predictor: 10
+#&gt; -- Operations
+#&gt; * Scaling for: all_numeric_predictors()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments you will actually touch:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>recipe</code></td>
+<td>The recipe object the step is added to.</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Columns to scale, chosen with selectors like <code>all_numeric_predictors()</code>.</td>
+</tr>
+<tr>
+<td><code>factor</code></td>
+<td>Divisor multiplier. <code>1</code> (default) divides by one SD; <code>2</code> divides by two SDs.</td>
+</tr>
+<tr>
+<td><code>na_rm</code></td>
+<td>If <code>TRUE</code> (default), <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> are dropped when computing the SD.</td>
+</tr>
+<tr>
+<td><code>sds</code></td>
+<td>Filled in by <code>prep()</code>; holds the estimated standard deviation per column.</td>
+</tr>
+<tr>
+<td><code>skip</code></td>
+<td>If <code>TRUE</code>, the step is ignored when baking new data. Leave <code>FALSE</code> for scaling.</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Scaling predictors: worked examples</h2>
+
+<p><strong>Build the recipe, prep it, then bake.</strong> A recipe is just a plan until <code>prep()</code> estimates the statistics from data. The first example scales every numeric predictor in <code>mtcars</code>.</p>
+
+<div class="webr-container" data-block-title="Scale predictors in a recipe">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Scale predictors in a recipe</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec &lt;- recipe(mpg ~ ., data = mtcars) |&gt;
+  step_scale(all_numeric_predictors())
+
+scaled &lt;- prep(rec) |&gt; bake(new_data = NULL)
+round(head(scaled[c(&quot;hp&quot;, &quot;wt&quot;, &quot;mpg&quot;)]), 2)
+#&gt;     hp   wt  mpg
+#&gt; 1 1.60 2.68 21.0
+#&gt; 2 1.60 2.94 21.0
+#&gt; 3 1.36 2.37 22.8
+#&gt; 4 1.60 3.29 21.4
+#&gt; 5 2.55 3.52 18.7
+#&gt; 6 1.53 3.54 18.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The outcome <code>mpg</code> is untouched because <code>all_numeric_predictors()</code> excludes it. Notice the scaled values stay positive: scaling changes spread, not location. To confirm the step worked, check the standard deviation of each result column.</p>
+
+<div class="webr-container" data-block-title="Verify the scaled standard deviations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Verify the scaled standard deviations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sapply(scaled[c(&quot;hp&quot;, &quot;wt&quot;, &quot;disp&quot;)], sd)
+#&gt;   hp   wt disp
+#&gt;    1    1    1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every column now has a standard deviation of exactly one. To see the actual divisors, call <code>tidy()</code> on the prepped recipe with the step number.</p>
+
+<div class="webr-container" data-block-title="Inspect the estimated standard deviations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the estimated standard deviations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prepped &lt;- prep(rec)
+tidy(prepped, number = 1)[1:3, ]
+#&gt; # A tibble: 3 x 3
+#&gt;   terms value id
+#&gt;   &lt;chr&gt; &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 cyl    1.79 scale_AbC12
+#&gt; 2 disp 124.   scale_AbC12
+#&gt; 3 hp    68.6  scale_AbC12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>factor</code> argument changes the divisor. Setting <code>factor = 2</code> divides by two standard deviations, a convention recommended for comparing continuous predictors with binary ones on the same footing.</p>
+
+<div class="webr-container" data-block-title="Scale by two standard deviations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Scale by two standard deviations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_f2 &lt;- recipe(mpg ~ ., data = mtcars) |&gt;
+  step_scale(all_numeric_predictors(), factor = 2)
+
+scaled_f2 &lt;- prep(rec_f2) |&gt; bake(new_data = NULL)
+round(sapply(scaled_f2[c(&quot;hp&quot;, &quot;wt&quot;)], sd), 2)
+#&gt;  hp  wt
+#&gt; 0.5 0.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Dividing by two SDs halves the resulting spread, so each column lands at a standard deviation of 0.5. With <code>factor = 1</code> the columns would each read 1.</p>
+
+<h2>step_scale() vs step_center() vs step_normalize()</h2>
+
+<p><strong>Pick the step that matches the transformation you need.</strong> Scaling, centering, and normalizing are related but distinct, and recipes gives each its own step.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What it does</th>
+<th>Resulting column</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_scale()</code></td>
+<td>Divides by the standard deviation</td>
+<td>SD 1, original center</td>
+</tr>
+<tr>
+<td><code>step_center()</code></td>
+<td>Subtracts the mean</td>
+<td>Mean 0, original spread</td>
+</tr>
+<tr>
+<td><code>step_normalize()</code></td>
+<td>Centers and scales together</td>
+<td>Mean 0, SD 1</td>
+</tr>
+<tr>
+<td><code>step_range()</code></td>
+<td>Rescales to a fixed interval</td>
+<td>Bounded, default 0 to 1</td>
+</tr>
+</tbody>
+</table>
+
+<p>If you want both unit variance and mean zero, use <code>step_normalize()</code> rather than chaining <code>step_center()</code> and <code>step_scale()</code>. It is shorter, and one <code>tidy()</code> call returns both statistics. Reach for a bare <code>step_scale()</code> only when you specifically want to preserve each column's original mean and sign.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reduce skew before you scale.</strong> Run <code>step_YeoJohnson()</code> or <code>step_BoxCox()</code> first when predictors are heavily skewed, then scale. Dividing a skewed column by its SD shrinks the numbers but leaves the shape of the distribution exactly as lopsided as before.</div></div>
+
+<h2>Common pitfalls with step_scale()</h2>
+
+<p><strong>Watch what you select and when you scale.</strong> The most frequent mistakes come from choosing the wrong columns or scaling at the wrong point in the recipe.</p>
+
+<ol>
+
+<li><strong>Scaling the outcome.</strong> <code>all_numeric()</code> includes the response variable. Use <code>all_numeric_predictors()</code> so the model still trains and predicts on the original target scale.</li>
+
+<li><strong>Forgetting to prep.</strong> Calling <code>bake()</code> on a recipe that was never prepped throws an error, because the standard deviations have not been estimated yet.</li>
+
+<li><strong>Scaling dummy variables.</strong> If <code>step_dummy()</code> runs before <code>step_scale()</code>, the 0/1 indicator columns get divided by their SD too, which distorts their interpretation. Scale before creating dummies, or select numeric columns explicitly.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never compute the standard deviation on the full dataset before splitting.</strong> Scaling with an SD that saw the test rows leaks information and inflates your performance estimate. Always wrap scaling in a recipe and let <code>prep()</code> use training data only.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Scale only the <code>hp</code> and <code>wt</code> columns of <code>mtcars</code> in a recipe, prep it, and save the baked result to <code>ex_scaled</code>.</p>
+<div class="webr-container" data-block-title="Your turn: scale two columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: scale two columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: scale hp and wt only
+ex_rec &lt;- recipe(mpg ~ ., data = mtcars) |&gt;
+  step_scale(# your code here)
+
+ex_scaled &lt;- # your code here
+
+round(sd(ex_scaled$hp), 6)
+#&gt; Expected: 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec &lt;- recipe(mpg ~ ., data = mtcars) |&gt;
+  step_scale(hp, wt)
+
+ex_scaled &lt;- prep(ex_rec) |&gt; bake(new_data = NULL)
+round(sd(ex_scaled$hp), 6)
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Passing bare column names to <code>step_scale()</code> limits the step to just <code>hp</code> and <code>wt</code>. After <code>prep()</code> estimates their standard deviations and <code>bake()</code> divides by them, the <code>hp</code> column has a standard deviation of one.</p>
+
+</details>
+</section>
+
+<h2>Related recipes steps</h2>
+
+<p><strong>step_scale() is one of several recipes preprocessing steps.</strong> These pair naturally with it in a tidymodels workflow:</p>
+
+<ul>
+
+<li><a href="recipes-step_center-in-R.html">step_center()</a> subtracts the mean instead of dividing by the SD.</li>
+
+<li><a href="recipes-step_normalize-in-R.html">step_normalize()</a> centers and scales in a single step.</li>
+
+<li><a href="recipes-step_range-in-R.html">step_range()</a> rescales predictors to a fixed interval.</li>
+
+<li><a href="recipes-step_YeoJohnson-in-R.html">step_YeoJohnson()</a> reduces skew before scaling.</li>
+
+<li><a href="recipes-step_zv-in-R.html">step_zv()</a> drops zero-variance columns that cannot be scaled.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The equivalent of <code>step_scale()</code> is <code>df / df.std()</code>, or scikit-learn's <code>StandardScaler(with_mean=False)</code>. The recipes version differs by learning the standard deviation on training data and reapplying it automatically to new data.</div></div>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between step_scale() and step_normalize()?</strong></p>
+
+<p><code>step_scale()</code> only divides each column by its standard deviation, so the column ends with unit variance but keeps its original mean. <code>step_normalize()</code> does two things: it subtracts the mean and divides by the SD, leaving the column with mean zero and SD one. Use <code>step_normalize()</code> when a model needs both, such as <a class="auto-link" href="Ridge-and-Lasso-Regression-in-R.html" title="Ridge and Lasso in R: How Penalised Regression Shrinks Coefficients and Selects Variables">regularized regression</a> or <a class="auto-link" href="PCA-in-R.html" title="PCA in R: Reduce Dimensions, Visualise Structure, and Understand What prcomp() Returns">principal component analysis</a>. Use <code>step_scale()</code> alone when the original center carries meaning you want to keep.</p>
+
+<p><strong>Does step_scale() center the data?</strong></p>
+
+<p>No. <code>step_scale()</code> is a pure division step. It changes the spread of a column but never shifts its location, so a column of positive values stays positive after scaling. If you need the mean shifted to zero as well, add <code>step_center()</code> to the recipe or use <code>step_normalize()</code>, which combines both operations into one step and one <code>tidy()</code> summary.</p>
+
+<p><strong>What is the factor argument in step_scale()?</strong></p>
+
+<p>The <code>factor</code> argument controls how many standard deviations the divisor represents. With the default <code>factor = 1</code>, each value is divided by one SD and the result has unit variance. With <code>factor = 2</code>, values are divided by two SDs, which is a convention from Andrew Gelman for putting continuous predictors on a scale comparable to centered binary predictors. Only <code>1</code> and <code>2</code> are accepted.</p>
+
+<p><strong>Should I scale predictors before every model?</strong></p>
+
+<p>No. Tree-based models such as random forests and boosted trees are invariant to scaling, so the step adds nothing. Scaling matters for distance-based and penalized methods: k-nearest neighbors, <a class="auto-link" href="Support-Vector-Machines-With-R.html" title="Support Vector Machines with R">support vector machines</a>, principal component analysis, and regularized regression all let large-magnitude predictors dominate unless you put columns on a common spread first.</p>
+
+{% endraw %}
