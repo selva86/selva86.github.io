@@ -1,0 +1,384 @@
+---
+title: "parsnip nearest_neighbor() in R: Specify a KNN Model"
+description: "parsnip nearest_neighbor() in R defines a K-nearest neighbor model for tidymodels. Covers syntax, the kknn engine, neighbors, weight_func, and dist_power."
+keywords: "parsnip nearest_neighbor, nearest_neighbor function R, parsnip nearest_neighbor examples, knn tidymodels R, nearest_neighbor kknn engine, tidymodels knn model"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "nearest_neighbor()|parsnip nearest_neighbor|parsnip::nearest_neighbor()|knn in R|tidymodels knn"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>parsnip nearest_neighbor() in R: Specify a KNN Model</h1>
+
+<p class="lead">The parsnip <code>nearest_neighbor()</code> function defines a K-nearest neighbor (KNN) model for classification or regression in tidymodels. It gives you one interface that predicts each new point from its closest labeled neighbors, fitted with the kknn engine underneath.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>nearest_neighbor()<span class="qa-cmt">                                # default spec, kknn engine</span>
+nearest_neighbor() |&gt; set_mode(&quot;classification&quot;)<span class="qa-cmt">  # classify a factor outcome</span>
+nearest_neighbor() |&gt; set_mode(&quot;regression&quot;)<span class="qa-cmt">      # predict a numeric outcome</span>
+nearest_neighbor(neighbors = 5)<span class="qa-cmt">                   # set K, the neighbor count</span>
+nearest_neighbor(weight_func = &quot;triangular&quot;)<span class="qa-cmt">      # distance-weighted voting</span>
+nearest_neighbor(dist_power = 1)<span class="qa-cmt">                  # Manhattan distance metric</span>
+fit(spec, Species ~ ., data = iris)<span class="qa-cmt">               # train on a dataset</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is nearest_neighbor() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">classify by closest labeled points</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">nearest_neighbor() |&gt; set_mode(&quot;classification&quot;)</text><text x="125" y="126" class="branch-label">predict a number from neighbors</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">nearest_neighbor() |&gt; set_mode(&quot;regression&quot;)</text><text x="125" y="182" class="branch-label">a tree-based ensemble instead</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">rand_forest() |&gt; set_engine(&quot;ranger&quot;)</text><text x="125" y="238" class="branch-label">a linear decision boundary</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">logistic_reg() |&gt; set_engine(&quot;glm&quot;)</text><text x="125" y="294" class="branch-label">gradient-boosted trees</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">boost_tree() |&gt; set_engine(&quot;xgboost&quot;)</text><text x="125" y="350" class="branch-label">tune the neighbor count K</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">tune_grid() with nearest_neighbor(neighbors = tune())</text></svg></div>
+
+<h2>What nearest_neighbor() does</h2>
+
+<p><strong>nearest_neighbor() is a model specification, not a fitted model.</strong> It records your intent to build a KNN model and the hyperparameters you want, but no data touches it until you call <code>fit()</code>. This separation lets you reuse one specification across many datasets or resampling folds.</p>
+
+<p>A K-nearest neighbor model makes no assumptions about the shape of the data. To predict a new point, it finds the K training rows closest to it in feature space, then takes a majority vote for classification or an average for regression. There is no training phase in the usual sense, so KNN is called a lazy learner.</p>
+
+<p>The function belongs to the tidymodels framework. Because parsnip standardizes the interface, the same <code>nearest_neighbor()</code> code drops straight into a <code>workflow()</code> or <code>tune_grid()</code> call.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A parsnip spec is a recipe for a model, not the model itself.</strong> You build the specification once, then <code>fit()</code> turns it into a trained model object. Keeping those two steps apart is what makes tidymodels workflows reproducible across resamples.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>nearest_neighbor() ships in core parsnip, but the engine does not.</strong> The only engine is <code>kknn</code>, which needs the <code>kknn</code> package installed before you fit. Install it once with <code>install.packages(&quot;kknn&quot;)</code>, or <code>fit()</code> reports that the engine is not available.</div></div>
+
+<h2>nearest_neighbor() syntax and arguments</h2>
+
+<p><strong>nearest_neighbor() takes three hyperparameters and two setup verbs.</strong> The arguments control how neighbors are counted and weighted, while <code>set_engine()</code> and <code>set_mode()</code> finish the specification.</p>
+
+<div class="webr-container" data-block-title="The nearest_neighbor specification skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The nearest_neighbor specification skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+
+nearest_neighbor(
+  mode = &quot;unknown&quot;,     # set to &quot;classification&quot; or &quot;regression&quot;
+  engine = &quot;kknn&quot;,      # kknn is the only engine
+  neighbors = NULL,     # K, the number of neighbors to poll
+  weight_func = NULL,   # how to weight neighbors by distance
+  dist_power = NULL     # Minkowski power: 1 = Manhattan, 2 = Euclidean
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>neighbors</code> argument sets K, the number of nearest points each prediction polls, where small K tracks local detail and large K smooths the boundary. The <code>weight_func</code> argument names a kernel that weights closer neighbors more heavily, such as <code>&quot;rectangular&quot;</code> for an unweighted vote or <code>&quot;triangular&quot;</code> for distance-weighted voting. The <code>dist_power</code> argument sets the Minkowski distance exponent, where <code>1</code> gives Manhattan distance and <code>2</code> gives <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">Euclidean distance</a>.</p>
+
+<p><strong>The mode is never "unknown" at fit time.</strong> A KNN model can predict a class or a number, so you must call <code>set_mode(&quot;classification&quot;)</code> or <code>set_mode(&quot;regression&quot;)</code> before fitting. You can pass the engine through <code>set_engine()</code> instead of the <code>engine</code> argument, which is the more common tidymodels style.</p>
+
+<h2>Fit a KNN model: four examples</h2>
+
+<p><strong>Every example below uses a built-in R dataset.</strong> The <code>iris</code> data drives the classification examples and <code>mtcars</code> drives the regression example, so the code runs anywhere with no downloads.</p>
+
+<h3>Example 1: Classify with the default kknn engine</h3>
+
+<p><strong>Build the specification, then fit it to data.</strong> The kknn engine polls the five closest flowers and votes on the species.</p>
+
+<div class="webr-container" data-block-title="Fit nearest_neighbor on the iris data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit nearest_neighbor on the iris data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">knn_spec &lt;- nearest_neighbor(neighbors = 5) |&gt;
+  set_engine(&quot;kknn&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+knn_fit &lt;- knn_spec |&gt;
+  fit(Species ~ ., data = iris)
+
+knn_fit
+#&gt; parsnip model object
+#&gt;
+#&gt; Type of response variable: nominal
+#&gt; Minimal misclassification: 0.04
+#&gt; Best kernel: optimal
+#&gt; Best k: 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The reported misclassification of 0.04 is a leave-one-out estimate the kknn engine computes while fitting. It means the model labels roughly 96% of iris flowers correctly when each row is predicted from the others.</p>
+
+<h3>Example 2: Predict classes and probabilities</h3>
+
+<p><strong>predict() returns a tidy tibble with one row per input row.</strong> Use <code>type = &quot;prob&quot;</code> to get per-class probabilities instead of the hard label.</p>
+
+<div class="webr-container" data-block-title="Predict iris species and class probabilities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict iris species and class probabilities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sample_rows &lt;- iris[c(1, 70, 130), ]
+
+predict(knn_fit, new_data = sample_rows)
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 setosa
+#&gt; 2 versicolor
+#&gt; 3 virginica
+
+predict(knn_fit, new_data = sample_rows, type = &quot;prob&quot;)
+#&gt; # A tibble: 3 x 3
+#&gt;   .pred_setosa .pred_versicolor .pred_virginica
+#&gt;          &lt;dbl&gt;            &lt;dbl&gt;           &lt;dbl&gt;
+#&gt; 1        1.00             0               0
+#&gt; 2        0                0.98            0.02
+#&gt; 3        0                0.01            0.99</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The probability columns are named <code>.pred_&lt;class&gt;</code> and each row sums to one. They come from the weighted share of neighbors voting for each class, useful for ranking or a custom decision threshold.</p>
+
+<h3>Example 3: Fit a KNN regression model on mtcars</h3>
+
+<p><strong>Switch the mode to "regression" and the same function predicts a number.</strong> Nothing else about the call changes.</p>
+
+<div class="webr-container" data-block-title="Fit a KNN regression model on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a KNN regression model on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">knn_reg &lt;- nearest_neighbor(neighbors = 5) |&gt;
+  set_engine(&quot;kknn&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+knn_reg_fit &lt;- knn_reg |&gt;
+  fit(mpg ~ ., data = mtcars)
+
+predict(knn_reg_fit, new_data = mtcars[c(1, 15, 30), ])
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  20.4
+#&gt; 2  12.8
+#&gt; 3  18.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A regression KNN averages the <code>mpg</code> of the five closest cars instead of voting. The single <code>.pred</code> column holds those averaged predictions, one per input row.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Tune K with cross-validation rather than guessing.</strong> The best <code>neighbors</code> value depends on the dataset, so set <code>neighbors = tune()</code> and let <code>tune_grid()</code> score a range of values on resamples. A common starting grid is the odd numbers from 3 to 25.</div></div>
+
+<h3>Example 4: Weight neighbors by distance</h3>
+
+<p><strong>Pass weight_func to make closer neighbors count more.</strong> The default <code>&quot;rectangular&quot;</code> kernel weights every neighbor equally, while <code>&quot;triangular&quot;</code> fades the weight with distance.</p>
+
+<div class="webr-container" data-block-title="Fit a distance-weighted KNN model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a distance-weighted KNN model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">knn_weighted &lt;- nearest_neighbor(
+    neighbors = 10,
+    weight_func = &quot;triangular&quot;
+  ) |&gt;
+  set_engine(&quot;kknn&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+knn_weighted_fit &lt;- knn_weighted |&gt;
+  fit(Species ~ ., data = iris)
+
+predict(knn_weighted_fit, new_data = iris[c(71, 84), ])
+#&gt; # A tibble: 2 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 versicolor
+#&gt; 2 versicolor</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Distance weighting helps most when K is large. With a weighted kernel you can raise <code>neighbors</code> for stability without letting distant points blur the boundary.</p>
+
+<h2>Compare nearest_neighbor() weight functions</h2>
+
+<p><strong>The weight_func argument changes how neighbor votes are combined.</strong> All kernels run on the same kknn engine, so you swap them with one argument and keep the rest of the specification.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>weight_func</th>
+<th>Voting behavior</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rectangular</code></td>
+<td>Every neighbor counts equally</td>
+<td>You want plain, classic KNN</td>
+</tr>
+<tr>
+<td><code>triangular</code></td>
+<td>Weight fades linearly with distance</td>
+<td>K is large and you want smoothing</td>
+</tr>
+<tr>
+<td><code>epanechnikov</code></td>
+<td>Smooth quadratic distance decay</td>
+<td>A balanced default for weighting</td>
+</tr>
+<tr>
+<td><code>gaussian</code></td>
+<td>Weight decays on a bell curve</td>
+<td>Distant neighbors should still count a little</td>
+</tr>
+<tr>
+<td><code>inv</code></td>
+<td>Weight is the inverse of distance</td>
+<td>Very close neighbors should dominate</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is simple. Start with <code>rectangular</code> for an interpretable baseline, switch to <code>triangular</code> or <code>epanechnikov</code> when a large K needs smoothing, and tune <code>weight_func</code> when accuracy matters most.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes catch most newcomers to nearest_neighbor().</strong> Each one below shows the problem and the fix.</p>
+
+<p>The most common is forgetting to set the mode. A KNN model can classify or predict a number, so parsnip cannot guess which one you want and <code>fit()</code> fails until you call <code>set_mode()</code>.</p>
+
+<div class="webr-container" data-block-title="Mode must be set before fitting">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mode must be set before fitting</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Wrong: no mode, fit() cannot dispatch
+nearest_neighbor(neighbors = 5) |&gt;
+  set_engine(&quot;kknn&quot;) |&gt;
+  fit(Species ~ ., data = iris)
+#&gt; Error: Please set the mode in the model specification.
+
+# Right: set the mode first
+nearest_neighbor(neighbors = 5) |&gt;
+  set_engine(&quot;kknn&quot;) |&gt;
+  set_mode(&quot;classification&quot;) |&gt;
+  fit(Species ~ ., data = iris)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second pitfall is leaving predictors on different scales, since KNN measures distance and a wide-range column dominates the neighbor search. The kknn engine standardizes predictors by default, but a recipe-based workflow should still add <code>step_normalize()</code>. The third is setting <code>neighbors</code> too high, since a K near the row count washes out every local pattern.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>An even K can produce tie votes in <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">binary classification</a>.</strong> With <code>neighbors = 4</code> and two classes, a 2-2 split has no clear winner and the engine must break the tie arbitrarily. Prefer odd values of <code>neighbors</code> so a majority class always exists.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a classification KNN model on <code>iris</code> with 7 neighbors, then predict the class for the 120th row. Save the prediction to <code>ex_pred</code>.</p>
+<div class="webr-container" data-block-title="Your turn: classify iris with nearest_neighbor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: classify iris with nearest_neighbor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit a 7-neighbor KNN model, then predict row 120
+ex_spec &lt;- # your code here
+ex_fit  &lt;- # your code here
+ex_pred &lt;- # your code here
+
+ex_pred
+#&gt; Expected: a 1-row tibble with .pred_class = virginica</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_spec &lt;- nearest_neighbor(neighbors = 7) |&gt;
+  set_engine(&quot;kknn&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+ex_fit &lt;- ex_spec |&gt;
+  fit(Species ~ ., data = iris)
+
+ex_pred &lt;- predict(ex_fit, new_data = iris[120, ])
+ex_pred
+#&gt; # A tibble: 1 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 virginica</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>neighbors</code> argument sets K to 7, and <code>set_mode(&quot;classification&quot;)</code> tells parsnip to predict the <code>Species</code> factor. Row 120 of iris is a virginica flower, so the seven closest neighbors vote that class.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>nearest_neighbor() works alongside the rest of the parsnip model family.</strong> These functions cover the neighboring tasks in a tidymodels project.</p>
+
+<ul>
+
+<li><code>rand_forest()</code> defines a random forest ensemble of decision trees.</li>
+
+<li><code>decision_tree()</code> defines a single classification or regression tree.</li>
+
+<li><code>logistic_reg()</code> defines a logistic regression classifier.</li>
+
+<li><code>set_engine()</code> chooses the computational backend for any specification.</li>
+
+<li><code>fit()</code> trains a specification on data and returns a model object.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What package is nearest_neighbor() in?</strong></p>
+
+<p><code>nearest_neighbor()</code> ships in core parsnip, so <code>library(tidymodels)</code> or <code>library(parsnip)</code> makes it available. The function itself only describes the model, though, and the actual fitting happens in an engine package. The single supported engine is <code>kknn</code>, so you must install the <code>kknn</code> package before you call <code>fit()</code> on a KNN specification.</p>
+
+<p><strong>What is the default engine for nearest_neighbor()?</strong></p>
+
+<p>The default and only engine is <code>kknn</code>, which implements weighted K-nearest neighbors in R. Name it explicitly with <code>set_engine(&quot;kknn&quot;)</code> for clarity, and <code>show_engines(&quot;nearest_neighbor&quot;)</code> confirms it is the lone registered option. Because there is one engine, swapping backends is never a concern here.</p>
+
+<p><strong>How do I choose the number of neighbors in nearest_neighbor()?</strong></p>
+
+<p>Treat <code>neighbors</code> as a hyperparameter to tune. A small K like 3 captures local detail but reacts to noise, while a large K smooths the boundary and can underfit. Set <code>neighbors = tune()</code>, pass it to <code>tune_grid()</code> with a resampling object such as <code>vfold_cv()</code>, and let cross-validation pick the best value.</p>
+
+<p><strong>Does nearest_neighbor() scale the predictors automatically?</strong></p>
+
+<p>The kknn engine standardizes predictors by default before measuring distance, so raw <code>iris</code> or <code>mtcars</code> columns work without manual scaling. In a <code>workflow()</code> built from a recipe, it is still good practice to add <code>step_normalize()</code> so the preprocessing is explicit and portable. Scaling matters because KNN distance is dominated by whichever column has the widest range.</p>
+
+<p><strong>How do I tune neighbors and weight_func together?</strong></p>
+
+<p>Set both arguments to <code>tune()</code>, as in <code>nearest_neighbor(neighbors = tune(), weight_func = tune())</code>, then pass the specification to <code>tune_grid()</code> with a grid and a resampling object. The framework searches every combination and scores each with cross-validation. Use <code>select_best()</code> to pick the winner, then <code>finalize_workflow()</code> to lock the values before the final fit.</p>
+
+<p>For the full argument reference, see the <a href="https://parsnip.tidymodels.org/reference/nearest_neighbor.html">parsnip nearest_neighbor() documentation</a>.</p>
+
+{% endraw %}
