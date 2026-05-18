@@ -1,0 +1,319 @@
+---
+title: "parsnip required_pkgs() in R: Find a Model's Packages"
+description: "Use parsnip required_pkgs() in R to list every package a model spec or fit needs. See worked examples, the infra argument, and how tidymodels uses it."
+keywords: "parsnip required_pkgs, required_pkgs function R, parsnip required_pkgs examples, required_pkgs tidymodels, R model package dependencies, required_pkgs infra argument"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "required_pkgs()|parsnip required_pkgs|parsnip::required_pkgs()|required_pkgs|model package dependencies"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>parsnip required_pkgs() in R: Find a Model's Packages</h1>
+
+<p class="lead">The parsnip <code>required_pkgs()</code> function returns a character vector of every R package needed to fit and predict with a model specification or fitted model. It is how tidymodels knows which packages to load on parallel workers.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>required_pkgs(spec)<span class="qa-cmt">                  # all packages a model spec needs</span>
+required_pkgs(spec, infra = FALSE)<span class="qa-cmt">   # engine package only, drop parsnip</span>
+required_pkgs(fitted_model)<span class="qa-cmt">          # packages for a fitted model object</span>
+required_pkgs(linear_reg())<span class="qa-cmt">          # errors: engine not set</span>
+spec |&gt; set_engine(&quot;ranger&quot;) |&gt; required_pkgs()<span class="qa-cmt">   # pipe-friendly form</span>
+generics::required_pkgs(spec)<span class="qa-cmt">        # the S3 generic behind the method</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is required_pkgs() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">list packages a model needs</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">required_pkgs(spec)</text><text x="125" y="126" class="branch-label">see which engines exist</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">show_engines(&quot;rand_forest&quot;)</text><text x="125" y="182" class="branch-label">view the engine's actual call</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">translate(spec)</text><text x="125" y="238" class="branch-label">pull the underlying fitted model</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">extract_fit_engine(fit)</text><text x="125" y="294" class="branch-label">check if a package is installed</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">rlang::is_installed(&quot;ranger&quot;)</text><text x="125" y="350" class="branch-label">load packages on parallel workers</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">tune does this internally</text></svg></div>
+
+<h2>What required_pkgs() does</h2>
+
+<p><strong>required_pkgs() answers one question: what do I need installed to run this model?</strong> You pass a parsnip model specification or a fitted model, and it returns the names of every package that fitting and prediction depend on. The result is a plain character vector, so it slots straight into <code>install.packages()</code> or a dependency check.</p>
+
+<p>The function is an <a class="auto-link" href="S3-Classes-in-R.html" title="S3 Classes in R: Create, Inherit & Write Methods — Complete Tutorial">S3 method</a> dispatched on the object class. parsnip registers methods for both <code>model_spec</code> (an unfitted specification) and <code>model_fit</code> (a fitted model). The underlying generic lives in the <code>generics</code> package, which is why recipes, workflows, and tune can all answer the same question for their own object types.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>required_pkgs() reads the parsnip registry, not your library.</strong> It reports what a model <em>would</em> need, so it works even when the engine package is not installed yet. That is exactly what makes it useful for a pre-flight dependency check.</div></div>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>The signature is short.</strong> Both methods take the object plus one meaningful argument.</p>
+
+<div class="webr-container" data-block-title="required_pkgs signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">required_pkgs signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">required_pkgs(x, infra = TRUE, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td>A parsnip <code>model_spec</code> or <code>model_fit</code> object</td>
+</tr>
+<tr>
+<td><code>infra</code></td>
+<td>If <code>TRUE</code> (default), include infrastructure packages such as <code>parsnip</code> itself</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Unused; present for S3 method consistency</td>
+</tr>
+</tbody>
+</table>
+
+<p>Set <code>infra = FALSE</code> when you only care about the engine package and not the tidymodels plumbing. The model must have an engine assigned with <code>set_engine()</code> first, otherwise the function stops with an error.</p>
+
+<h2>required_pkgs() examples</h2>
+
+<p><strong>Start with a model specification.</strong> Load parsnip, build a spec, and ask for its packages. The <code>glmnet</code> engine pulls in the <code>glmnet</code> package alongside <code>parsnip</code>.</p>
+
+<div class="webr-container" data-block-title="Packages for a model spec">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Packages for a model spec</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(parsnip)
+
+spec &lt;- linear_reg() |&gt;
+  set_engine(&quot;glmnet&quot;)
+
+required_pkgs(spec)
+#&gt; [1] &quot;parsnip&quot; &quot;glmnet&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Drop the infrastructure packages with infra = FALSE.</strong> This leaves only the engine package, which is handy when you already know tidymodels is installed.</p>
+
+<div class="webr-container" data-block-title="Engine package only">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Engine package only</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">required_pkgs(spec, infra = FALSE)
+#&gt; [1] &quot;glmnet&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>A fitted model can report different packages.</strong> Once you fit, the result reflects what prediction actually touches. Here the <code>lm</code> engine adds <code>stats</code>, the base package that powers it.</p>
+
+<div class="webr-container" data-block-title="Packages for a fitted model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Packages for a fitted model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fitted &lt;- linear_reg() |&gt;
+  set_engine(&quot;lm&quot;) |&gt;
+  fit(mpg ~ ., data = mtcars)
+
+required_pkgs(fitted)
+#&gt; [1] &quot;parsnip&quot; &quot;stats&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Compare several engines at once.</strong> Because the result is a character vector, <code>lapply()</code> over a list of specs gives a tidy dependency map for a whole modeling workflow.</p>
+
+<div class="webr-container" data-block-title="Compare packages across engines">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare packages across engines</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">specs &lt;- list(
+  rf  = rand_forest(mode = &quot;regression&quot;) |&gt; set_engine(&quot;ranger&quot;),
+  xgb = boost_tree(mode = &quot;regression&quot;)  |&gt; set_engine(&quot;xgboost&quot;),
+  knn = nearest_neighbor(mode = &quot;regression&quot;) |&gt; set_engine(&quot;kknn&quot;)
+)
+
+lapply(specs, required_pkgs, infra = FALSE)
+#&gt; $rf
+#&gt; [1] &quot;ranger&quot;
+#&gt;
+#&gt; $xgb
+#&gt; [1] &quot;xgboost&quot;
+#&gt;
+#&gt; $knn
+#&gt; [1] &quot;kknn&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>None of these calls need the engine package installed. <code>required_pkgs()</code> only looks up the registered model definition, so you can audit dependencies before downloading a single package.</p>
+
+<h2>required_pkgs() vs related parsnip helpers</h2>
+
+<p><strong>required_pkgs() is one of several model-inspection tools.</strong> Each answers a different question about a spec or fit.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>Use it to</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>required_pkgs()</code></td>
+<td>character vector of package names</td>
+<td>know what to install or load for a model</td>
+</tr>
+<tr>
+<td><code>show_engines()</code></td>
+<td>tibble of engines and modes</td>
+<td>discover which engines a model supports</td>
+</tr>
+<tr>
+<td><code>translate()</code></td>
+<td>the literal engine function call</td>
+<td>see the exact code parsnip will run</td>
+</tr>
+<tr>
+<td><code>extract_fit_engine()</code></td>
+<td>the raw fitted model object</td>
+<td>reach the underlying engine output</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for <code>required_pkgs()</code> when the question is about dependencies. Reach for <code>translate()</code> when the question is about the call parsnip generates. They complement each other during debugging.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>This is the function behind parallel tuning.</strong> When <code>tune_grid()</code> or <code>fit_resamples()</code> runs across multiple cores, tune calls <code>required_pkgs()</code> to learn which packages each worker must load. If a parallel run fails with "<a class="auto-link" href="R-Common-Errors.html" title="50 Most Common R Error Messages: What They Mean & How to Fix Them">could not find function</a>", a manual <code>required_pkgs()</code> check usually shows the missing piece.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Calling it before <a class="auto-link" href="parsnip-set_engine-in-R.html" title="parsnip set_engine() in R: Choose the Model Engine">set_engine()</a> is the most frequent mistake.</strong> A bare model spec has no engine, so parsnip cannot know the dependencies.</p>
+
+<div class="webr-container" data-block-title="Pitfall: no engine set">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: no engine set</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">required_pkgs(linear_reg())
+#&gt; Error in `required_pkgs()`:
+#&gt; ! Please set an engine.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fix is to pipe through <code>set_engine()</code> first. Second, remember that <code>required_pkgs()</code> does not check whether packages are installed. It only lists names. To verify availability, pass the result to <code>rlang::is_installed()</code> or wrap it in a <code>requireNamespace()</code> loop.</p>
+
+<p>Third, the default <code>infra = TRUE</code> always includes <code>parsnip</code>. If you feed the output straight into a "missing engine packages" report, switch to <code>infra = FALSE</code> so tidymodels infrastructure does not show up as a dependency you need to chase.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a <code>boost_tree()</code> regression spec with the <code>xgboost</code> engine and list only its engine packages, excluding parsnip. Save the result to <code>ex_pkgs</code>.</p>
+<div class="webr-container" data-block-title="Your turn: list engine packages">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: list engine packages</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: engine packages for an xgboost spec
+ex_pkgs &lt;- # your code here
+
+ex_pkgs
+#&gt; Expected: &quot;xgboost&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pkgs &lt;- boost_tree(mode = &quot;regression&quot;) |&gt;
+  set_engine(&quot;xgboost&quot;) |&gt;
+  required_pkgs(infra = FALSE)
+
+ex_pkgs
+#&gt; [1] &quot;xgboost&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Setting <code>infra = FALSE</code> drops <code>parsnip</code> from the result, leaving just the engine package. The spec never has to be fitted, because <code>required_pkgs()</code> reads the registered model definition.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p>These functions pair naturally with <code>required_pkgs()</code> when inspecting or debugging a model:</p>
+
+<ul>
+
+<li><code>show_engines()</code> lists every engine available for a model type.</li>
+
+<li><code>set_engine()</code> assigns the engine that <code>required_pkgs()</code> reports on.</li>
+
+<li><code>translate()</code> reveals the exact engine call parsnip builds.</li>
+
+<li><code>extract_fit_engine()</code> returns the raw model object after fitting.</li>
+
+<li><code>fit()</code> trains the spec so you can call <code>required_pkgs()</code> on the result.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does required_pkgs() return in R?</strong></p>
+
+<p>It returns a character vector of package names. For a model specification, the vector lists every package needed to fit and predict with that model, including <code>parsnip</code> itself by default. For a fitted model, the vector reflects what prediction touches, which can differ slightly from the spec. The output is ordinary character data, so you can pass it to <code>install.packages()</code> or a dependency check directly.</p>
+
+<p><strong>What is the infra argument in required_pkgs()?</strong></p>
+
+<p>The <code>infra</code> argument controls whether infrastructure packages appear in the result. When <code>infra = TRUE</code>, the default, parsnip and other tidymodels plumbing packages are included. When <code>infra = FALSE</code>, only the engine package is returned, such as <code>glmnet</code> or <code>ranger</code>. Use <code>infra = FALSE</code> when you already know tidymodels is installed and only want to confirm the engine dependency.</p>
+
+<p><strong>Does required_pkgs() install missing packages?</strong></p>
+
+<p>No. The function only reports package names; it never downloads or attaches anything. It also works when the engine package is not installed, because it reads the parsnip model registry rather than your library. To act on the result, pass it to <code>rlang::is_installed()</code> to check availability or to <code>install.packages()</code> to fetch the missing ones.</p>
+
+<p><strong>Why does required_pkgs() say "Please set an engine"?</strong></p>
+
+<p>A parsnip model specification has no engine until you call <code>set_engine()</code>. Without an engine, parsnip cannot look up which package implements the model, so <code>required_pkgs()</code> stops with that error. Fix it by piping the spec through <code>set_engine()</code> before calling <code>required_pkgs()</code>, for example <code>linear_reg() |&gt; set_engine(&quot;lm&quot;) |&gt; required_pkgs()</code>.</p>
+
+<p><strong>How does tidymodels use required_pkgs() for <a class="auto-link" href="Parallel-Computing-With-R.html" title="Parallel Computing with R">parallel processing</a>?</strong></p>
+
+<p>When the tune package runs <code>tune_grid()</code> or <code>fit_resamples()</code> across multiple workers, each worker is a fresh R process with nothing loaded. tune calls <code>required_pkgs()</code> on the model and recipe to learn which packages every worker needs, then loads them automatically. This is why parallel tidymodels runs usually work without you attaching engine packages by hand.</p>
+
+{% endraw %}
