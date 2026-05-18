@@ -1,0 +1,332 @@
+---
+title: "recipes step_impute_bag() in R: Bagged Tree Imputation"
+description: "Learn how recipes step_impute_bag() imputes missing values in R using bagged decision trees. Syntax, airquality examples, tuning trees, and common pitfalls."
+keywords: "recipes step_impute_bag, step_impute_bag function R, recipes step_impute_bag examples, bagged tree imputation R, impute missing values recipes, tidymodels imputation"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_impute_bag()|recipes step_impute_bag|recipes::step_impute_bag()|bagged tree imputation|bagged imputation"
+auto_link_case_sensitive: true
+fr_parent: "Missing-Value-Treatment-With-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>recipes step_impute_bag() in R: Bagged Tree Imputation</h1>
+
+<p class="lead">The recipes step_impute_bag() function fills <a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">missing values in R</a> by training bagged decision trees on the remaining variables, making it a strong model-based choice when your data mixes numeric and categorical columns.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_impute_bag(rec, Ozone)<span class="qa-cmt">                            # impute one column</span>
+step_impute_bag(rec, Ozone, Solar.R)<span class="qa-cmt">                   # impute several</span>
+step_impute_bag(rec, all_numeric_predictors())<span class="qa-cmt">         # all numeric predictors</span>
+step_impute_bag(rec, Ozone, trees = 50)<span class="qa-cmt">                # more trees, steadier</span>
+step_impute_bag(rec, Ozone, impute_with = imp_vars(Wind, Temp))<span class="qa-cmt">  # pick predictors</span>
+step_impute_bag(rec, Ozone, seed_val = 42)<span class="qa-cmt">             # reproducible result</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_impute_bag() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">impute mixed numeric and nominal</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_impute_bag(rec, vars)</text><text x="125" y="126" class="branch-label">fast numeric-only imputation</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_impute_knn(rec, vars)</text><text x="125" y="182" class="branch-label">simple central-tendency fill</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_impute_mean(rec, vars)</text><text x="125" y="238" class="branch-label">linear-model imputation</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_impute_linear(rec, vars)</text><text x="125" y="294" class="branch-label">impute factor columns by frequency</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">step_impute_mode(rec, vars)</text><text x="125" y="350" class="branch-label">drop rows with NA instead</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">step_naomit(rec, vars)</text></svg></div>
+
+<h2>What step_impute_bag() does</h2>
+
+<p><strong>step_impute_bag() imputes missing values with an ensemble of bagged decision trees.</strong> It is a step in the <code>recipes</code> package, the preprocessing engine behind tidymodels. For every column you select, it trains a bagged CART model that uses the other variables as predictors, then predicts the missing entries from that model.</p>
+
+<p>Because trees handle both numeric and categorical predictors and capture nonlinear relationships, bagged tree imputation is more flexible than mean, median, or linear imputation. The cost is speed: each column gets its own ensemble, so the step is slower than simpler alternatives.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Bagged tree imputation treats every gap as a prediction problem.</strong> Instead of substituting one fixed number, it learns a model from the rows that are complete, then predicts the missing cell from each row's other values. That is why it adapts to interactions a single mean could never capture.</div></div>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>The step takes a recipe, column selectors, and tuning arguments.</strong> You add it to a recipe with the <a class="auto-link" href="R-Pipe-Operator.html" title="The Pipe Operator in R: %>% vs |> — Master the Most Important Concept">native pipe</a> and tune how the trees are built.</p>
+
+<div class="webr-container" data-block-title="Basic step_impute_bag signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Basic step_impute_bag signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">step_impute_bag(
+  recipe,
+  ...,
+  impute_with = imp_vars(all_predictors()),
+  trees = 25,
+  options = list(keepX = FALSE),
+  seed_val = sample.int(10^4, 1)
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>...</code></td>
+<td>Columns to impute, chosen with tidyselect helpers like <code>all_numeric_predictors()</code>.</td>
+</tr>
+<tr>
+<td><code>impute_with</code></td>
+<td>Predictors used to build each model, wrapped in <code>imp_vars()</code>. Defaults to all other predictors.</td>
+</tr>
+<tr>
+<td><code>trees</code></td>
+<td>Number of bagged trees per column. More trees give steadier imputations.</td>
+</tr>
+<tr>
+<td><code>options</code></td>
+<td>List passed to <code>ipred::bagging()</code>, for example <code>nbagg</code> or <code>keepX</code>.</td>
+</tr>
+<tr>
+<td><code>seed_val</code></td>
+<td>Integer seed so the bootstrap sampling is reproducible.</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>step_impute_bag() requires the ipred package.</strong> The step calls <code>ipred::bagging()</code> under the hood, so <code>prep()</code> fails with a "package ipred is required" message if <code>ipred</code> is not installed. Run <code>install.packages(&quot;ipred&quot;)</code> once before using the step.</div></div>
+
+<h2>step_impute_bag() examples</h2>
+
+<p><strong>These examples use airquality, a built-in dataset with real missing values.</strong> Its <code>Ozone</code> and <code>Solar.R</code> columns contain <code>NA</code> entries, which makes it ideal for imputation practice.</p>
+
+<div class="webr-container" data-block-title="Load recipes and inspect missing data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load recipes and inspect missing data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+colSums(is.na(airquality))
+#&gt;   Ozone Solar.R    Wind    Temp   Month     Day
+#&gt;      37       7       0       0       0       0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Add <code>step_impute_bag()</code> to a recipe, then <code>prep()</code> learns the tree models and <code>bake()</code> applies them.</p>
+
+<div class="webr-container" data-block-title="Impute Ozone and Solar.R with bagged trees">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Impute Ozone and Solar.R with bagged trees</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec &lt;- recipe(Temp ~ ., data = airquality) |&gt;
+  step_impute_bag(Ozone, Solar.R)
+
+prepped &lt;- prep(rec, training = airquality)
+imputed &lt;- bake(prepped, new_data = airquality)
+
+colSums(is.na(imputed))
+#&gt;   Ozone Solar.R    Wind    Temp   Month     Day
+#&gt;       0       0       0       0       0       0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Use <code>impute_with</code> and <code>imp_vars()</code> to restrict which variables build the model. This helps when some predictors are noisy or leak information.</p>
+
+<div class="webr-container" data-block-title="Choose predictors and tune the tree count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Choose predictors and tune the tree count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_tuned &lt;- recipe(Temp ~ ., data = airquality) |&gt;
+  step_impute_bag(
+    Ozone, Solar.R,
+    impute_with = imp_vars(Wind, Temp, Month),
+    trees = 50,
+    seed_val = 42
+  )
+
+prepped_tuned &lt;- prep(rec_tuned, training = airquality)
+sum(is.na(bake(prepped_tuned, new_data = airquality)$Ozone))
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Call <code>tidy()</code> on the prepped recipe to confirm which columns were imputed.</p>
+
+<div class="webr-container" data-block-title="Inspect the fitted imputation models">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the fitted imputation models</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(prepped, number = 1)
+#&gt; # A tibble: 2 x 3
+#&gt;   terms   model       id
+#&gt;   &lt;chr&gt;   &lt;list&gt;      &lt;chr&gt;
+#&gt; 1 Ozone   &lt;classbagg&gt; impute_bag_a1b2c
+#&gt; 2 Solar.R &lt;classbagg&gt; impute_bag_a1b2c</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>step_impute_bag() vs other imputation steps</h2>
+
+<p><strong>Choose the step that matches your data types and speed budget.</strong> Bagged trees are the most general option, but simpler steps win when relationships are linear or you only need a fast baseline.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>Method</th>
+<th>Handles</th>
+<th>Speed</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_impute_bag()</code></td>
+<td>Bagged CART trees</td>
+<td>Numeric + nominal</td>
+<td>Slow</td>
+<td>Mixed types, nonlinear patterns</td>
+</tr>
+<tr>
+<td><code>step_impute_knn()</code></td>
+<td>K nearest neighbors</td>
+<td>Numeric + nominal</td>
+<td>Medium</td>
+<td>Local similarity between rows</td>
+</tr>
+<tr>
+<td><code>step_impute_linear()</code></td>
+<td><a class="auto-link" href="Linear-Regression.html" title="Linear Regression">Linear regression</a></td>
+<td>Numeric only</td>
+<td>Fast</td>
+<td>Strong linear relationships</td>
+</tr>
+<tr>
+<td><code>step_impute_mean()</code></td>
+<td>Column mean</td>
+<td>Numeric only</td>
+<td>Fastest</td>
+<td>Quick numeric baseline</td>
+</tr>
+<tr>
+<td><code>step_impute_mode()</code></td>
+<td>Most frequent value</td>
+<td>Nominal only</td>
+<td>Fastest</td>
+<td>Quick categorical baseline</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Decision rule:</strong> reach for <code>step_impute_bag()</code> when columns interact in nonlinear ways or you must impute factors and numbers in one step. If every column is numeric and you need speed, <code>step_impute_knn()</code> or <code>step_impute_linear()</code> are lighter.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python scikit-learn?</strong> The closest equivalent is <code>IterativeImputer</code> with a tree estimator, or <code>sklearn.ensemble</code>-based imputation. Both predict each missing column from the others rather than filling a constant.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most step_impute_bag() trouble.</strong> Each has a clear fix.</p>
+
+<ol>
+
+<li><strong>Missing the ipred dependency.</strong> <code>prep()</code> aborts with <code>package &quot;ipred&quot; is required</code> when the package is absent. Install it once with <code>install.packages(&quot;ipred&quot;)</code>.</li>
+
+<li><strong>Imputing the outcome variable.</strong> Selecting your response column leaks model targets into preprocessing. Restrict selectors to predictors, for example <code>step_impute_bag(all_numeric_predictors())</code>, so the outcome is never touched.</li>
+
+<li><strong>Expecting it to be fast.</strong> Twenty-five trees per column is heavy on wide or large data. Lower <code>trees</code>, narrow <code>impute_with</code>, or switch to <code>step_impute_knn()</code> if <code>prep()</code> runs too long.</li>
+
+</ol>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Impute only the <code>Ozone</code> column of <code>airquality</code> using <code>Wind</code> and <code>Temp</code> as predictors, with 30 trees. Save the baked result to <code>ex_imputed</code>.</p>
+<div class="webr-container" data-block-title="Your turn: impute Ozone with bagged trees">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: impute Ozone with bagged trees</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: impute Ozone only
+ex_rec &lt;- # your code here
+
+ex_imputed &lt;- # prep then bake
+sum(is.na(ex_imputed$Ozone))
+#&gt; Expected: 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec &lt;- recipe(Temp ~ ., data = airquality) |&gt;
+  step_impute_bag(Ozone, impute_with = imp_vars(Wind, Temp), trees = 30)
+
+ex_imputed &lt;- bake(prep(ex_rec, training = airquality), new_data = airquality)
+sum(is.na(ex_imputed$Ozone))
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>imp_vars()</code> limits the predictors to <code>Wind</code> and <code>Temp</code>, <code>trees = 30</code> sets the ensemble size, and <code>prep()</code> then <code>bake()</code> learns and applies the imputation models.</p>
+
+</details>
+</section>
+
+<h2>Related recipes steps</h2>
+
+<p><strong>These steps pair naturally with bagged tree imputation in a recipe.</strong></p>
+
+<ul>
+
+<li><a href="recipes-step_impute_knn-in-R.html">step_impute_knn()</a> for distance-based imputation of mixed columns.</li>
+
+<li><a href="recipes-step_impute_linear-in-R.html">step_impute_linear()</a> for fast linear-model imputation of numeric columns.</li>
+
+<li><a href="recipes-step_impute_mean-in-R.html">step_impute_mean()</a> for a quick numeric baseline fill.</li>
+
+<li><a href="recipes-step_impute_median-in-R.html">step_impute_median()</a> for a skew-resistant central-tendency fill.</li>
+
+<li><a href="recipes-step_impute_mode-in-R.html">step_impute_mode()</a> for imputing categorical columns by frequency.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>How does step_impute_bag() handle missing values?</strong> For each selected column, the step trains a bagged ensemble of decision trees using the other predictors as inputs and the complete rows as training data. It then predicts the missing cells from each row's observed values. Because the model learns from the data, the imputed values reflect relationships between variables rather than a single constant.</p>
+
+<p><strong>Does step_impute_bag() work on <a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">categorical variables</a>?</strong> Yes. Bagged CART trees handle both numeric and nominal outcomes, so the step can impute factor columns as well as numeric ones. This is its main advantage over <code>step_impute_linear()</code> and <code>step_impute_mean()</code>, which are numeric-only. The same <code>imp_vars()</code> predictors can mix numeric and categorical inputs.</p>
+
+<p><strong>How many trees should I use in step_impute_bag()?</strong> The default of 25 trees is a reasonable starting point. More trees produce steadier, lower-variance imputations but increase <code>prep()</code> time roughly linearly. For large datasets, start low and raise <code>trees</code> only if imputed values look unstable across runs. Set <code>seed_val</code> so results are reproducible while you compare settings.</p>
+
+<p><strong>Why do I get a "package ipred is required" error?</strong> <code>step_impute_bag()</code> builds its trees with <code>ipred::bagging()</code>, so the <code>ipred</code> package must be installed. Run <code>install.packages(&quot;ipred&quot;)</code> once, then re-run <code>prep()</code>. Unlike mean or median imputation, the bagged step has this extra dependency because it fits a real model.</p>
+
+<p><strong>Is step_impute_bag() better than mean imputation?</strong> It is usually more accurate because it conditions on other variables instead of using one fixed number, which preserves relationships in the data. The trade-off is speed and an extra dependency. For exploratory work or very large data, <code>step_impute_mean()</code> is faster; for modeling pipelines where imputation quality matters, bagged trees are the stronger default.</p>
+
+{% endraw %}
