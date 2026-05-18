@@ -1,0 +1,356 @@
+---
+title: "parsnip extract_fit_engine() in R: Get the Engine Model"
+description: "Learn how parsnip extract_fit_engine() in R pulls the raw engine model object, like an lm or ranger fit, from a fitted parsnip model or workflow object."
+keywords: "parsnip extract_fit_engine, extract_fit_engine function R, parsnip extract_fit_engine example, tidymodels extract engine model, extract underlying model parsnip, extract_fit_engine vs extract_fit_parsnip, R extract engine fit"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "extract_fit_engine()|parsnip extract_fit_engine|parsnip::extract_fit_engine()|extract the engine fit|extract_fit_engine function"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>parsnip extract_fit_engine() in R: Get the Engine Model</h1>
+
+<p class="lead">The parsnip extract_fit_engine() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> returns the raw, engine-specific model object stored inside a fitted <code>model_fit</code> or <code>workflow</code>, such as the underlying <code>lm</code> or <code>ranger</code> fit.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>extract_fit_engine(fit)<span class="qa-cmt">              # raw engine model object</span>
+extract_fit_engine(wf_fit)<span class="qa-cmt">           # works on a fitted workflow too</span>
+summary(extract_fit_engine(fit))<span class="qa-cmt">     # run engine-specific summary()</span>
+extract_fit_engine(fit)$coefficients<span class="qa-cmt"> # reach into engine internals</span>
+class(extract_fit_engine(fit))<span class="qa-cmt">       # confirm the engine class</span>
+plot(extract_fit_engine(lm_fit))<span class="qa-cmt">     # engine diagnostic plots</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is extract_fit_engine() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">the raw engine object (lm, ranger)</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">extract_fit_engine(fit)</text><text x="125" y="126" class="branch-label">the parsnip model_fit wrapper</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">extract_fit_parsnip(fit)</text><text x="125" y="182" class="branch-label">a per-term coefficient table</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">tidy(fit)</text><text x="125" y="238" class="branch-label">a one-row model summary</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">glance(fit)</text><text x="125" y="294" class="branch-label">predictions as a tidy tibble</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">predict(fit, new_data = df)</text><text x="125" y="350" class="branch-label">the recipe used by a workflow</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">extract_recipe(wf_fit)</text></svg></div>
+
+<h2>What extract_fit_engine() does</h2>
+
+<p><strong>extract_fit_engine() unwraps a parsnip fit and hands you the model object the engine actually built.</strong> When you call <code>fit()</code> on a parsnip specification, parsnip stores the native result inside a <code>model_fit</code> wrapper. A model fit with the <code>lm</code> engine holds a real <code>lm</code> object; one fit with <code>ranger</code> holds a <code>ranger</code> object. <code>extract_fit_engine()</code> reaches in and returns that object.</p>
+
+<p>You need this whenever a function only understands the native object. parsnip gives you an engine-agnostic interface, but tools like <code>summary()</code>, <code>confint()</code>, <code>anova()</code>, <code>car::vif()</code>, or the <code>plot()</code> diagnostics for <code>lm</code> dispatch on the original class. They have no idea what a <code>model_fit</code> is.</p>
+
+<p>The function is an S3 generic re-exported from the <code>generics</code> package. parsnip supplies the method for <code>model_fit</code> objects, <code>workflows</code> supplies one for fitted <code>workflow</code> objects, and <code>tune</code> adds one for <code>last_fit()</code> results. The same call therefore works at every layer of a tidymodels pipeline.</p>
+
+<p>For a parsnip <code>model_fit</code>, the method is a thin accessor: it returns the element <code>x$fit</code>. Reaching for <code>fit_object$fit</code> by hand would do the same thing, but <code>extract_fit_engine()</code> is the supported API and stays correct if parsnip changes its internals.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>extract_fit_engine() is the escape hatch from the tidy interface.</strong> Stay in parsnip for fitting and prediction, then drop to the engine object only for the engine-specific diagnostics that tidymodels does not re-export.</div></div>
+
+<h2>extract_fit_engine() syntax and arguments</h2>
+
+<p><strong>The signature is minimal because the function only locates an object, it does not compute anything.</strong> It is an S3 generic, so the method that runs depends on the class of <code>x</code>.</p>
+
+<div class="webr-container" data-block-title="extract_fit_engine generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">extract_fit_engine generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">extract_fit_engine(x, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td>A fitted object: a parsnip <code>model_fit</code>, a fitted <code>workflow</code>, or a <code>last_fit()</code> result.</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Currently unused for the parsnip and workflow methods. Reserved for future methods.</td>
+</tr>
+</tbody>
+</table>
+
+<p>The return value is whatever the engine produced. Its class is the engine's class, not a tidymodels class, so always confirm it with <code>class()</code> before you assume which functions apply.</p>
+
+<p>Passing an unfitted specification raises an error. <code>extract_fit_engine()</code> needs a trained object, because there is no engine fit until <code>fit()</code> has run. Extract from the result of <code>fit()</code>, never from the <code>linear_reg()</code> spec itself.</p>
+
+<h2>Extract the engine fit: four examples</h2>
+
+<p><strong>Each example uses a built-in dataset so you can run it as-is.</strong> Start by training a <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression model</a> through the <code>parsnip</code> interface.</p>
+
+<div class="webr-container" data-block-title="Fit a linear model with parsnip">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a linear model with parsnip</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(parsnip)
+
+lm_fit &lt;- linear_reg() |&gt;
+  set_engine(&quot;lm&quot;) |&gt;
+  fit(mpg ~ wt + hp, data = mtcars)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 1 extracts an <code>lm</code> object.</strong> The returned object carries the <code>lm</code> class, so every base R tool for linear models works on it.</p>
+
+<div class="webr-container" data-block-title="Confirm the engine class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm the engine class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">eng &lt;- extract_fit_engine(lm_fit)
+class(eng)
+#&gt; [1] &quot;lm&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 2 runs <code>lm</code>-specific tools.</strong> <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">Confidence intervals</a> are not part of the parsnip interface, but <code>confint()</code> works once you have the raw <code>lm</code>.</p>
+
+<div class="webr-container" data-block-title="Run confint on the engine fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run confint on the engine fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">confint(extract_fit_engine(lm_fit))
+#&gt;                   2.5 %      97.5 %
+#&gt; (Intercept) 33.95738245 40.49715778
+#&gt; wt          -5.17191604 -2.58374544
+#&gt; hp          -0.06337733 -0.00016857</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each predictor has an interval that excludes zero, so both <code>wt</code> and <code>hp</code> are significant at the 5% level. This is the kind of output you reach the engine object to obtain.</p>
+
+<p><strong>Example 3 extracts a <code>ranger</code> random forest.</strong> A different engine returns a different class, with its own fields.</p>
+
+<div class="webr-container" data-block-title="Extract a ranger engine object">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract a ranger engine object</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rf_fit &lt;- rand_forest(trees = 200, mode = &quot;regression&quot;) |&gt;
+  set_engine(&quot;ranger&quot;) |&gt;
+  fit(mpg ~ ., data = mtcars)
+
+rf_eng &lt;- extract_fit_engine(rf_fit)
+c(class = class(rf_eng), trees = rf_eng$num.trees, mtry = rf_eng$mtry)
+#&gt;  class  trees   mtry 
+#&gt; &quot;ranger&quot; &quot;200&quot;    &quot;3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>ranger</code> object exposes internals such as <code>num.trees</code> and <code>mtry</code> that have no equivalent in the parsnip wrapper. Extracting the engine fit is the only way to inspect them.</p>
+
+<p><strong>Example 4 extracts from a workflow.</strong> <code>extract_fit_engine()</code> works directly on a fitted <code>workflow</code>, so you do not have to pull the parsnip fit first.</p>
+
+<div class="webr-container" data-block-title="Extract the engine fit from a workflow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract the engine fit from a workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(workflows)
+
+wf_fit &lt;- workflow() |&gt;
+  add_model(linear_reg() |&gt; set_engine(&quot;lm&quot;)) |&gt;
+  add_formula(mpg ~ wt + hp) |&gt;
+  fit(data = mtcars)
+
+class(extract_fit_engine(wf_fit))
+#&gt; [1] &quot;lm&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The workflow method digs through the workflow to the parsnip fit and then to the engine object in one step. The same call covers a bare <code>model_fit</code> and a full <code>workflow</code>.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Chain the extraction into the diagnostic call.</strong> Write <code>summary(extract_fit_engine(lm_fit))</code> or <code>plot(extract_fit_engine(lm_fit))</code> directly. There is no need to store the engine object in a variable unless you reuse it several times.</div></div>
+
+<h2>extract_fit_engine() vs extract_fit_parsnip()</h2>
+
+<p><strong>Pick extract_fit_engine() for the native object and extract_fit_parsnip() for the parsnip wrapper.</strong> Both pull something out of a fitted workflow, but they stop at different layers.</p>
+
+<div class="webr-container" data-block-title="Compare the two extractors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the two extractors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">class(extract_fit_engine(wf_fit))
+#&gt; [1] &quot;lm&quot;
+
+class(extract_fit_parsnip(wf_fit))
+#&gt; [1] &quot;_lm&quot;        &quot;model_fit&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Aspect</th>
+<th><code>extract_fit_engine()</code></th>
+<th><code>extract_fit_parsnip()</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Returns</td>
+<td>The native engine object</td>
+<td>The parsnip <code>model_fit</code> wrapper</td>
+</tr>
+<tr>
+<td>Class</td>
+<td>Engine class (<code>lm</code>, <code>ranger</code>)</td>
+<td><code>model_fit</code></td>
+</tr>
+<tr>
+<td>Use for</td>
+<td><code>summary()</code>, <code>confint()</code>, engine internals</td>
+<td><code>tidy()</code>, <code>glance()</code>, <code>predict()</code></td>
+</tr>
+<tr>
+<td>Layer</td>
+<td>Deepest, engine level</td>
+<td>One level up, parsnip level</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is about which functions you plan to call next. If the next step is a base R or engine-specific function, extract the engine object. If the next step is a <code>broom</code> verb or a parsnip <code>predict()</code>, extract the parsnip fit, because those methods dispatch on <code>model_fit</code>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Both functions accept a workflow.</strong> On a fitted <code>workflow</code>, <code>extract_fit_engine()</code> and <code>extract_fit_parsnip()</code> both reach the model. Use <code>extract_recipe()</code> or <code>extract_spec_parsnip()</code> when you need the workflow's preprocessing or the untrained specification instead.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Two mistakes cause most extract_fit_engine() trouble.</strong> Each has a clear fix.</p>
+
+<p>The first is predicting with the extracted object after a recipe was applied. If your workflow used a <code>recipe</code>, the engine fit was trained on preprocessed columns. Calling <code>predict()</code> on the raw engine object with the original data feeds it the wrong columns and returns wrong numbers. Always predict through the parsnip fit or the workflow, which replay the preprocessing for you.</p>
+
+<p>The second is assuming every engine returns the same class. <code>extract_fit_engine()</code> on an <code>lm</code> engine gives an <code>lm</code>, but on a <code>glmnet</code> engine it gives an <code>elnet</code> or <code>lognet</code>, and on <code>xgboost</code> it gives an <code>xgb.Booster</code>. A script that hard-codes <code>summary()</code> will break when the engine changes. Confirm with <code>class()</code> first.</p>
+
+<div class="webr-container" data-block-title="Engine class depends on the engine">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Engine class depends on the engine</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">class(extract_fit_engine(rf_fit))
+#&gt; [1] &quot;ranger&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never use the engine object for production prediction.</strong> The engine fit has lost the parsnip preprocessing and factor handling. Predicting through it silently skips dummy encoding and normalization. Keep <code>predict()</code> on the <code>model_fit</code> or <code>workflow</code> and treat the engine object as inspect-only.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a <code>linear_reg()</code> model of <code>mpg</code> on <code>disp</code> and <code>drat</code> with the <code>lm</code> engine, extract the engine object, and store its class in <code>ex_class</code>.</p>
+<div class="webr-container" data-block-title="Your turn extract the engine fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn extract the engine fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit, then extract the engine object
+ex_fit &lt;- # your code here
+ex_class &lt;- # your code here
+
+ex_class
+#&gt; Expected: &quot;lm&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- linear_reg() |&gt;
+  set_engine(&quot;lm&quot;) |&gt;
+  fit(mpg ~ disp + drat, data = mtcars)
+
+ex_class &lt;- class(extract_fit_engine(ex_fit))
+ex_class
+#&gt; [1] &quot;lm&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>extract_fit_engine()</code> returns the native object the engine built, so its class is <code>lm</code>, not <code>model_fit</code>. That <code>lm</code> object accepts every base R linear-model tool.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>extract_fit_engine() belongs to a family of tidymodels extractors.</strong> These functions cover the rest of what you might pull from a fit or a workflow.</p>
+
+<ul>
+
+<li><code>extract_fit_parsnip()</code> returns the parsnip <code>model_fit</code> wrapper instead of the engine object.</li>
+
+<li><code>extract_spec_parsnip()</code> returns the untrained model specification from a workflow.</li>
+
+<li><code>extract_recipe()</code> returns the prepped recipe used by a workflow.</li>
+
+<li><code>tidy()</code> returns a tibble with one row per model coefficient.</li>
+
+<li><code>glance()</code> returns a one-row tibble of whole-model statistics.</li>
+
+</ul>
+
+<p>See the official <a href="https://parsnip.tidymodels.org/reference/extract-parsnip.html">parsnip reference</a> for the full list of extractor methods.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does extract_fit_engine() return for a parsnip model?</strong></p>
+
+<p><code>extract_fit_engine()</code> returns the native model object the engine produced, not a tidymodels wrapper. A model fit with the <code>lm</code> engine returns an <code>lm</code> object, a <code>ranger</code> engine returns a <code>ranger</code> object, and an <code>xgboost</code> engine returns an <code>xgb.Booster</code>. The class is whatever the engine package defines, so you can pass the result to any function that understands that class, such as <code>summary()</code>, <code>confint()</code>, or <code>plot()</code>.</p>
+
+<p><strong>What is the difference between extract_fit_engine() and extract_fit_parsnip()?</strong></p>
+
+<p><code>extract_fit_engine()</code> returns the deepest object, the raw engine fit with its native class. <code>extract_fit_parsnip()</code> stops one level higher and returns the parsnip <code>model_fit</code> wrapper. Use <code>extract_fit_engine()</code> when the next call is a base R or engine-specific function, and <code>extract_fit_parsnip()</code> when the next call is a <code>broom</code> verb like <code>tidy()</code> or <code>glance()</code>, since those dispatch on <code>model_fit</code>.</p>
+
+<p><strong>Can I call extract_fit_engine() on a workflow?</strong></p>
+
+<p>Yes. The <code>workflows</code> package supplies a method for fitted <code>workflow</code> objects, so <code>extract_fit_engine(wf_fit)</code> works directly. It digs through the workflow to the parsnip fit and then to the engine object in a single call. The workflow must be fitted first; calling it on an unfitted workflow raises an error because no engine fit exists yet.</p>
+
+<p><strong>Why should I avoid predicting with the extracted engine object?</strong></p>
+
+<p>The engine object was trained on the columns parsnip or a recipe produced, which may include dummy variables, normalized values, or transformed terms. Predicting on the raw engine object with your original data skips that preprocessing and returns incorrect results. Always call <code>predict()</code> on the <code>model_fit</code> or <code>workflow</code>, which replays the preprocessing, and treat the engine object as inspect-only.</p>
