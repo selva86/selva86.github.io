@@ -1,0 +1,356 @@
+---
+title: "recipes step_BoxCox() in R: Normalize Skewed Predictors"
+description: "recipes step_BoxCox() in R applies a Box-Cox transformation that reshapes skewed, strictly positive predictors toward normality. Syntax, examples, and pitfalls."
+keywords: "recipes step_BoxCox, step_BoxCox function R, recipes step_BoxCox examples, Box-Cox transformation tidymodels R, step_BoxCox lambda, tidymodels Box-Cox"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_BoxCox()|recipes step_BoxCox|recipes::step_BoxCox()|Box-Cox transformation|Box-Cox transformation in R"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>recipes step_BoxCox() in R: Normalize Skewed Predictors</h1>
+
+<p class="lead">The recipes <code>step_BoxCox()</code> function applies a Box-Cox transformation that reshapes skewed, strictly positive predictors toward a more <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">normal distribution</a>. It estimates the best power transform per column during <code>prep()</code> and reuses it on new data.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_BoxCox(rec, all_numeric_predictors())<span class="qa-cmt">   # transform every numeric predictor</span>
+step_BoxCox(rec, income, latency)<span class="qa-cmt">            # transform named columns only</span>
+step_BoxCox(rec, limits = c(-3, 3))<span class="qa-cmt">          # narrow the lambda search range</span>
+step_BoxCox(rec, num_unique = 10)<span class="qa-cmt">            # require 10+ unique values</span>
+prep(rec) |&gt; tidy(number = 1)<span class="qa-cmt">                # view the estimated lambdas</span>
+recipe(y ~ ., data = df) |&gt; step_BoxCox(...)<span class="qa-cmt"> # add the step inside a recipe</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_BoxCox() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">normalize skewed positive predictors</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_BoxCox(rec, all_numeric_predictors())</text><text x="125" y="126" class="branch-label">data has zeros or negative values</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_YeoJohnson(rec, all_numeric_predictors())</text><text x="125" y="182" class="branch-label">just compress a long right tail</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_log(rec, x, base = 10)</text><text x="125" y="238" class="branch-label">center and scale to z-scores</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_normalize(rec, all_numeric_predictors())</text><text x="125" y="294" class="branch-label">squeeze values into a 0 to 1 range</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">step_range(rec, all_numeric_predictors())</text><text x="125" y="350" class="branch-label">spread a skewed outcome instead</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">transform y before <a class="auto-link" href="recipes-recipe-in-R.html" title="recipes recipe() in R: Build a Preprocessing Blueprint">recipe()</a>, then back-transform</text></svg></div>
+
+<h2>What step_BoxCox() does</h2>
+
+<p><strong>step_BoxCox() adds a Box-Cox transformation step to a recipe.</strong> It does not transform data on its own. The step records your intent, and the actual lambda values are estimated later when you call <code>prep()</code> on the recipe with training data.</p>
+
+<p>The Box-Cox transformation raises each value to a power, lambda, chosen to make the column as close to normal as possible. A lambda near 0 acts like a log transform, lambda near 1 leaves the data almost unchanged, and values in between stretch or compress the distribution. The recipe estimates one lambda per selected column by maximizing a <a class="auto-link" href="Likelihood-Ratio-Tests-and-Pivotal-Methods.html" title="Likelihood Ratio Tests & Pivotal Methods: Confidence Sets Theory">profile likelihood</a>.</p>
+
+<p>Because the lambda is learned from the training set and then frozen, <code>bake()</code> applies the exact same transformation to test data or new observations. That separation is what keeps a tidymodels workflow free of data leakage.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A recipe step is a plan, not a result.</strong> <code>step_BoxCox()</code> only schedules the transformation. <code>prep()</code> learns the lambdas from training data, and <code>bake()</code> applies them. Keeping estimation and application apart is what makes the same transform reproducible across resamples.</div></div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Box-Cox requires strictly positive data.</strong> Every value in a selected column must be greater than zero. If a column contains zeros or negatives, <code>prep()</code> cannot estimate a lambda for it, leaves the column untransformed, and emits a warning. Use <code>step_YeoJohnson()</code> for data that includes non-positive values.</div></div>
+
+<h2>step_BoxCox() syntax and arguments</h2>
+
+<p><strong>step_BoxCox() takes column selectors plus a few tuning arguments.</strong> The selectors choose which columns to transform, and the remaining arguments control how the lambda search runs.</p>
+
+<div class="webr-container" data-block-title="The step_BoxCox specification skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The step_BoxCox specification skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+step_BoxCox(
+  recipe,                  # the recipe object the step is added to
+  ...,                     # columns to transform (tidyselect selectors)
+  role = NA,               # role for new columns; rarely changed
+  trained = FALSE,         # set to TRUE internally after prep()
+  lambdas = NULL,          # estimated lambdas; NULL until prep() runs
+  limits = c(-5, 5),       # range searched for the lambda parameter
+  num_unique = 5,          # minimum distinct values needed to transform
+  skip = FALSE,            # if TRUE, skip this step when baking new data
+  id = rand_id(&quot;BoxCox&quot;)   # unique step identifier
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>...</code> argument accepts any tidyselect selector, so <code>all_numeric_predictors()</code> or bare column names both work. The <code>limits</code> argument bounds the lambda search, and <code>num_unique</code> protects against transforming near-constant or discrete columns. You rarely set <code>lambdas</code> or <code>trained</code> by hand, because <code>prep()</code> fills them in.</p>
+
+<h2>Transform skewed predictors: four examples</h2>
+
+<p><strong>Every example below uses data generated inside the code block.</strong> No downloads are needed, and the skewed columns make the effect of the transformation easy to see.</p>
+
+<h3>Example 1: Measure the skew before transforming</h3>
+
+<p><strong>Start by confirming the predictors really are skewed.</strong> A simple <a class="auto-link" href="Descriptive-Statistics-in-R.html" title="Descriptive Statistics in R: The 8 Numbers That Tell You What Your Data Is Doing">skewness</a> helper shows how far each column leans before any step runs.</p>
+
+<div class="webr-container" data-block-title="Create skewed data and measure skewness">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create skewed data and measure skewness</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+set.seed(42)
+skewed_df &lt;- data.frame(
+  y       = rnorm(200),
+  income  = rexp(200, rate = 0.4),
+  latency = rgamma(200, shape = 2, rate = 0.1)
+)
+
+skewness &lt;- function(x) mean((x - mean(x))^3) / sd(x)^3
+sapply(skewed_df[c(&quot;income&quot;, &quot;latency&quot;)], skewness)
+#&gt;   income  latency
+#&gt;     1.93     1.42</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both predictors have a strong positive skew, with long right tails. A skewness near 0 would mean a symmetric, roughly normal shape, so these columns are good candidates for a Box-Cox transformation.</p>
+
+<h3>Example 2: Add step_BoxCox() to a recipe</h3>
+
+<p><strong>Build a recipe and attach the step with a selector.</strong> The <code>all_numeric_predictors()</code> selector picks every numeric predictor, leaving the outcome <code>y</code> alone.</p>
+
+<div class="webr-container" data-block-title="Add step_BoxCox to a recipe">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add step_BoxCox to a recipe</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">box_rec &lt;- recipe(y ~ ., data = skewed_df) |&gt;
+  step_BoxCox(all_numeric_predictors())
+
+box_rec
+#&gt; -- Recipe ----------------------------------------------------------
+#&gt;
+#&gt; -- Inputs
+#&gt; Number of variables by role
+#&gt; outcome:   1
+#&gt; predictor: 2
+#&gt;
+#&gt; -- Operations
+#&gt; * Box-Cox transformation on: all_numeric_predictors()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The printout confirms the recipe has one outcome and two predictors, with a single Box-Cox operation queued. No lambdas exist yet, because the recipe has not been prepped.</p>
+
+<h3>Example 3: Prep, bake, and check the result</h3>
+
+<p><strong>prep() estimates the lambdas and bake() applies them.</strong> Re-measuring skewness on the baked data shows how far the transformation moved each column.</p>
+
+<div class="webr-container" data-block-title="Prep, bake, and recheck skewness">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Prep, bake, and recheck skewness</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">box_prep  &lt;- prep(box_rec, training = skewed_df)
+box_baked &lt;- bake(box_prep, new_data = NULL)
+
+sapply(box_baked[c(&quot;income&quot;, &quot;latency&quot;)], skewness)
+#&gt;   income  latency
+#&gt;    -0.04     0.02</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both columns now have a skewness near 0, meaning the long right tails are gone and the distributions are close to symmetric. The <code>new_data = NULL</code> argument tells <code>bake()</code> to return the already-prepped training data.</p>
+
+<h3>Example 4: Inspect the estimated lambdas</h3>
+
+<p><strong><a class="auto-link" href="parsnip-tidy-fit-in-R.html" title="parsnip tidy() in R: Tidy Model Coefficients">tidy()</a> reveals the lambda chosen for each column.</strong> Pass the step number to pull its estimated parameters.</p>
+
+<div class="webr-container" data-block-title="View the estimated Box-Cox lambdas">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">View the estimated Box-Cox lambdas</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(box_prep, number = 1)
+#&gt; # A tibble: 2 x 3
+#&gt;   terms    value id
+#&gt;   &lt;chr&gt;    &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 income   0.268 BoxCox_xK29p
+#&gt; 2 latency  0.331 BoxCox_xK29p</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each <code>value</code> is the lambda fitted for that column. Both lie between 0 and 1, so the transformation behaves between a log transform and the identity. These frozen lambdas are what <code>bake()</code> reuses on any future data.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Run step_BoxCox() before step_normalize(), not after.</strong> Box-Cox fixes the shape of a distribution, while normalization rescales it to mean 0 and standard deviation 1. Reshaping first, then rescaling, gives downstream models well-behaved, standardized predictors.</div></div>
+
+<h2>step_BoxCox() vs other transformation steps</h2>
+
+<p><strong>recipes ships several transformation steps that overlap with Box-Cox.</strong> Each one suits a different data condition, so the right choice depends on your column.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>What it does</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_BoxCox()</code></td>
+<td>Learns the best power transform</td>
+<td>Predictors are strictly positive and skewed</td>
+</tr>
+<tr>
+<td><code>step_YeoJohnson()</code></td>
+<td>Power transform that allows 0 and negatives</td>
+<td>Data includes zeros or negative values</td>
+</tr>
+<tr>
+<td><code>step_log()</code></td>
+<td>Fixed log transform</td>
+<td>You want a simple, fixed compression</td>
+</tr>
+<tr>
+<td><code>step_normalize()</code></td>
+<td>Centers and scales to z-scores</td>
+<td>You need standardized, not reshaped, data</td>
+</tr>
+<tr>
+<td><code>step_range()</code></td>
+<td>Rescales to a fixed interval</td>
+<td>A model needs inputs bounded in 0 to 1</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is short. Reach for <code>step_BoxCox()</code> when positive predictors are skewed, switch to <code>step_YeoJohnson()</code> the moment a column can be zero or negative, and use <code>step_normalize()</code> when the shape is fine but the scale is not.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes catch most newcomers to step_BoxCox().</strong> Each one below shows the problem and the fix.</p>
+
+<p>The most common is feeding the step a column with non-positive values. Box-Cox is undefined at or below zero, so <code>prep()</code> fails to estimate a lambda and leaves the column as-is with a warning.</p>
+
+<div class="webr-container" data-block-title="Non-positive data breaks Box-Cox">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Non-positive data breaks Box-Cox</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bad_df &lt;- data.frame(y = rnorm(60), z = rnorm(60))  # z has negatives
+
+# Wrong: z contains negative values, lambda cannot be estimated
+recipe(y ~ ., data = bad_df) |&gt;
+  step_BoxCox(all_numeric_predictors()) |&gt;
+  prep()
+#&gt; Warning: Box-Cox estimation failed for: z
+
+# Right: Yeo-Johnson handles zeros and negatives
+recipe(y ~ ., data = bad_df) |&gt;
+  step_YeoJohnson(all_numeric_predictors()) |&gt;
+  prep()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second pitfall is forgetting to <code>prep()</code> before <code>bake()</code>. A recipe with a raw, unprepped <code>step_BoxCox()</code> has no lambdas, so <code>bake()</code> has nothing to apply. The third is selecting discrete or near-constant columns: if a column has fewer distinct values than <code>num_unique</code>, the step quietly skips it rather than fitting an unstable lambda.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>step_BoxCox() lives in core recipes.</strong> A plain <code>library(recipes)</code> call makes it available, and <code>library(tidymodels)</code> loads it too. Unlike modeling steps, it needs no extra engine package, because the lambda search runs inside recipes itself.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add <code>step_BoxCox()</code> to a recipe for the <code>mtcars</code> data, transforming only the <code>disp</code> and <code>hp</code> columns, then prep it. Save the prepped recipe to <code>ex_prep</code>.</p>
+<div class="webr-container" data-block-title="Your turn: Box-Cox on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Box-Cox on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: transform disp and hp with step_BoxCox, then prep
+ex_rec  &lt;- # your code here
+ex_prep &lt;- # your code here
+
+tidy(ex_prep, number = 1)
+#&gt; Expected: a 2-row tibble with lambdas for disp and hp</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec &lt;- recipe(mpg ~ ., data = mtcars) |&gt;
+  step_BoxCox(disp, hp)
+
+ex_prep &lt;- prep(ex_rec, training = mtcars)
+
+tidy(ex_prep, number = 1)
+#&gt; # A tibble: 2 x 3
+#&gt;   terms   value id
+#&gt;   &lt;chr&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 disp    0.105 BoxCox_p7Lm3
+#&gt; 2 hp     -0.219 BoxCox_p7Lm3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Naming <code>disp</code> and <code>hp</code> in <code>step_BoxCox()</code> limits the transformation to those two predictors. <code>prep()</code> estimates one lambda per column on the <code>mtcars</code> training data, and <code>tidy()</code> reads them back as a tibble.</p>
+
+</details>
+</section>
+
+<h2>Related recipes functions</h2>
+
+<p><strong>step_BoxCox() works alongside the rest of the recipes preprocessing family.</strong> These steps cover the neighboring tasks in a feature-engineering pipeline.</p>
+
+<ul>
+
+<li><code>step_YeoJohnson()</code> applies a power transform that allows zero and negative values.</li>
+
+<li><code>step_log()</code> applies a fixed log transform without estimating a parameter.</li>
+
+<li><code>step_normalize()</code> centers and scales numeric predictors to z-scores.</li>
+
+<li><code>step_range()</code> rescales numeric predictors into a fixed interval.</li>
+
+<li><code>prep()</code> estimates every step's parameters from training data.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between step_BoxCox() and step_YeoJohnson()?</strong></p>
+
+<p>Both estimate a power transformation that reshapes a skewed column toward normality. The difference is the input range they accept. <code>step_BoxCox()</code> requires every value to be strictly positive, because the Box-Cox formula is undefined at or below zero. <code>step_YeoJohnson()</code> uses an extended formula that handles zeros and negative values, so it is the safer default when a column can dip below zero, such as a profit or temperature measurement.</p>
+
+<p><strong>Does step_BoxCox() work with negative values?</strong></p>
+
+<p>No. A Box-Cox transformation is only defined for strictly positive data. If a selected column contains a zero or a negative number, <code>prep()</code> cannot estimate a lambda for it, leaves that column untransformed, and prints a warning. Either filter or shift the column so all values are positive, or switch to <code>step_YeoJohnson()</code>, which is built to accept the full real line.</p>
+
+<p><strong>How do I see the lambda values step_BoxCox() chose?</strong></p>
+
+<p>Call <code>tidy()</code> on the prepped recipe and pass the step number, as in <code>tidy(prepped_recipe, number = 1)</code>. The result is a tibble with one row per transformed column, where the <code>value</code> column holds the estimated lambda. A lambda near 0 means the transform behaves like a log, while a lambda near 1 means the column was barely changed.</p>
+
+<p><strong>Should step_BoxCox() run before or after step_normalize()?</strong></p>
+
+<p>Run <code>step_BoxCox()</code> first. Box-Cox reshapes a skewed distribution, and <code>step_normalize()</code> then centers and scales the reshaped values to mean 0 and standard deviation 1. Normalizing first would only shift and scale the original skewed shape, leaving the long tail in place, so the ordering matters for models that assume well-behaved predictors.</p>
+
+<p>For the full argument reference, see the <a href="https://recipes.tidymodels.org/reference/step_BoxCox.html">recipes step_BoxCox() documentation</a>.</p>
+
+{% endraw %}
