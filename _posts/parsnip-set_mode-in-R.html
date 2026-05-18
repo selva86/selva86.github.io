@@ -1,0 +1,359 @@
+---
+title: "parsnip set_mode() in R: Set Regression or Classification"
+description: "Learn how parsnip's set_mode() in R declares a model as regression or classification. Includes syntax, runnable examples, fit pipelines, and common error fixes."
+keywords: "parsnip set_mode, set_mode function R, parsnip set_mode examples, tidymodels set_mode, R set model mode, set regression classification mode"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "set_mode()|parsnip set_mode|parsnip::set_mode()|set_mode|set_mode function|set the model mode"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>parsnip set_mode() in R: Set Regression or Classification</h1>
+
+<p class="lead">The parsnip set_mode() function declares whether an R model predicts a number or a category. You pass a model specification and the string <code>"regression"</code>, <code>"classification"</code>, or <code>"censored regression"</code>, and parsnip wires up the correct engine and prediction behavior.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>linear_reg() |&gt; set_mode(&quot;regression&quot;)<span class="qa-cmt">            # numeric outcome</span>
+logistic_reg() |&gt; set_mode(&quot;classification&quot;)<span class="qa-cmt">      # factor outcome</span>
+rand_forest() |&gt; set_mode(&quot;classification&quot;)<span class="qa-cmt">       # forest classifier</span>
+decision_tree() |&gt; set_mode(&quot;regression&quot;)<span class="qa-cmt">         # tree regressor</span>
+svm_rbf() |&gt; set_mode(&quot;classification&quot;)<span class="qa-cmt">           # SVM classifier</span>
+boost_tree() |&gt; set_mode(&quot;regression&quot;)<span class="qa-cmt">            # boosted regressor</span>
+proportional_hazards() |&gt; set_mode(&quot;censored regression&quot;)<span class="qa-cmt">  # survival</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is set_mode() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">declare regression or classification</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">set_mode(spec, &quot;regression&quot;)</text><text x="125" y="126" class="branch-label">pick the computational backend</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">set_engine(spec, &quot;ranger&quot;)</text><text x="125" y="182" class="branch-label">set hyperparameters like trees or mtry</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">set_args(spec, trees = 500)</text><text x="125" y="238" class="branch-label">train the model on a dataset</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">fit(spec, y ~ ., data = train)</text><text x="125" y="294" class="branch-label">list engines a model allows</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">show_engines(&quot;rand_forest&quot;)</text><text x="125" y="350" class="branch-label">see the translated engine call</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">translate(spec)</text></svg></div>
+
+<h2>What set_mode() does</h2>
+
+<p><strong>set_mode() declares the prediction task.</strong> A parsnip model specification stays task-agnostic until you tell it what kind of outcome it predicts. set_mode() supplies that with one of three strings: <code>&quot;regression&quot;</code> for a numeric outcome, <code>&quot;classification&quot;</code> for a factor outcome, and <code>&quot;censored regression&quot;</code> for survival times.</p>
+
+<p>parsnip needs the mode because one model function can solve different problems. <code>rand_forest()</code> builds a regression forest or a classification forest depending on the mode. Without it, parsnip cannot choose the engine's prediction routine or validate your outcome column.</p>
+
+<div class="webr-container" data-block-title="Set a regression model specification">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Set a regression model specification</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(parsnip)
+
+reg_spec &lt;- linear_reg() |&gt;
+  set_mode(&quot;regression&quot;)
+
+reg_spec
+#&gt; Linear Regression Model Specification (regression)
+#&gt;
+#&gt; Computational engine: lm</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The printed <code>(regression)</code> confirms the mode is attached. The specification is still just a recipe for a model, no data has touched it yet.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The mode is metadata, not computation.</strong> set_mode() does not fit anything or change your data. It records an intent that parsnip reads later, when fit() and predict() decide which engine routines to call.</div></div>
+
+<h2>set_mode() syntax and arguments</h2>
+
+<p><strong>set_mode() takes a specification and a mode string.</strong> The function signature is short:</p>
+
+<pre><code>set_mode(object, mode, ...)</code></pre>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>object</code></td>
+<td>A parsnip model specification, such as <code>rand_forest()</code> or <code>logistic_reg()</code>.</td>
+</tr>
+<tr>
+<td><code>mode</code></td>
+<td>One of <code>&quot;regression&quot;</code>, <code>&quot;classification&quot;</code>, or <code>&quot;censored regression&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Reserved for future use; leave it empty.</td>
+</tr>
+</tbody>
+</table>
+
+<p>set_mode() returns an updated specification, so it chains cleanly with the <a class="auto-link" href="R-Pipe-Operator.html" title="The Pipe Operator in R: %>% vs |> — Master the Most Important Concept">native pipe</a>. Models that support only one task carry a default mode, but stating it explicitly keeps a script readable.</p>
+
+<div class="webr-container" data-block-title="Set a classification model specification">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Set a classification model specification</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">clf_spec &lt;- logistic_reg() |&gt;
+  set_mode(&quot;classification&quot;)
+
+clf_spec
+#&gt; Logistic Regression Model Specification (classification)
+#&gt;
+#&gt; Computational engine: glm</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>logistic_reg()</code> is classification-only, so this call is documentation rather than a requirement. For a dual-mode model the call is mandatory.</p>
+
+<h2>Setting the mode: four examples</h2>
+
+<p><strong>Most models need an explicit mode.</strong> These examples cover the common cases you meet when building a tidymodels pipeline.</p>
+
+<h3>One model, two modes</h3>
+
+<p><strong>One model function covers both tasks.</strong> <code>rand_forest()</code> becomes a regressor or a classifier purely through set_mode(), with every other argument unchanged.</p>
+
+<div class="webr-container" data-block-title="One model used two ways">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One model used two ways</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rf_reg &lt;- rand_forest(trees = 200) |&gt;
+  set_mode(&quot;regression&quot;)
+
+rf_clf &lt;- rand_forest(trees = 200) |&gt;
+  set_mode(&quot;classification&quot;)
+
+rf_reg
+#&gt; Random Forest Model Specification (regression)
+#&gt;
+#&gt; Main Arguments:
+#&gt;   trees = 200
+#&gt;
+#&gt; Computational engine: ranger</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Mode before or after the engine</h3>
+
+<p><strong>Order does not matter.</strong> parsnip stores the mode and the engine in independent slots, so both pipelines below produce an identical specification.</p>
+
+<div class="webr-container" data-block-title="Order of set_mode and set_engine">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Order of set_mode and set_engine</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">spec_a &lt;- decision_tree() |&gt;
+  set_mode(&quot;regression&quot;) |&gt;
+  set_engine(&quot;rpart&quot;)
+
+spec_b &lt;- decision_tree() |&gt;
+  set_engine(&quot;rpart&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+identical(spec_a, spec_b)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>A complete fit</h3>
+
+<p><strong>Once the mode is set, fit() can train the model.</strong> Here a linear model predicts <code>mpg</code> from the <code>mtcars</code> dataset.</p>
+
+<div class="webr-container" data-block-title="Fit a model after setting the mode">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a model after setting the mode</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lm_fit &lt;- linear_reg() |&gt;
+  set_mode(&quot;regression&quot;) |&gt;
+  set_engine(&quot;lm&quot;) |&gt;
+  fit(mpg ~ wt + hp, data = mtcars)
+
+class(lm_fit)
+#&gt; [1] &quot;_lm&quot;        &quot;model_fit&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Censored regression for survival models</h3>
+
+<p><strong>Survival models use a third mode.</strong> <code>proportional_hazards()</code> and <code>survival_reg()</code> take the <code>&quot;censored regression&quot;</code> mode. The string differs, but the set_mode() call is identical in shape to the examples above.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Check supported modes before you guess.</strong> Run <code>show_engines(&quot;rand_forest&quot;)</code> to list every engine and mode pair a model offers. The mode column tells you exactly which strings set_mode() will accept.</div></div>
+
+<h2>When set_mode() is required vs optional</h2>
+
+<p><strong>Single-task models default the mode; flexible models do not.</strong> Regression-only and classification-only models ship a built-in default, so set_mode() is optional for them. Flexible models leave the mode as <code>&quot;unknown&quot;</code> until you set it, and calling fit() on an unknown-mode specification raises an error before any computation starts.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Model function</th>
+<th>Modes supported</th>
+<th>set_mode() needed?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>linear_reg()</code></td>
+<td>regression</td>
+<td>Optional (default)</td>
+</tr>
+<tr>
+<td><code>logistic_reg()</code></td>
+<td>classification</td>
+<td>Optional (default)</td>
+</tr>
+<tr>
+<td><code>rand_forest()</code></td>
+<td>regression, classification, <a class="auto-link" href="Tobit-Regression-in-R.html" title="Tobit Regression in R: AER Package for Censored Outcomes">censored regression</a></td>
+<td>Required</td>
+</tr>
+<tr>
+<td><code>decision_tree()</code></td>
+<td>regression, classification, censored regression</td>
+<td>Required</td>
+</tr>
+<tr>
+<td><code>boost_tree()</code></td>
+<td>regression, classification</td>
+<td>Required</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python scikit-learn?</strong> There is no mode to set; you pick a class like <code>RandomForestRegressor</code> or <code>RandomForestClassifier</code>. parsnip instead uses one model function and switches behavior through set_mode().</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most set_mode() errors.</strong> Each one fails loudly, which makes it quick to diagnose once you know the pattern.</p>
+
+<ol>
+
+<li><strong>Misspelling the mode string.</strong> parsnip accepts only three exact strings, so a typo such as <code>&quot;classifcation&quot;</code> triggers an immediate error.</li>
+
+<li><strong>Choosing a mode the model cannot do.</strong> <code>linear_reg()</code> has no classification mode, so requesting one fails.</li>
+
+<li><strong>Skipping set_mode() on a flexible model.</strong> Fitting a <code>rand_forest()</code> spec with an unknown mode stops before training begins.</li>
+
+</ol>
+
+<div class="webr-container" data-block-title="Errors set_mode can raise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Errors set_mode can raise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Typo in the mode string
+rand_forest() |&gt; set_mode(&quot;classifcation&quot;)
+#&gt; Error: &quot;classifcation&quot; is not a known mode for model `rand_forest()`.
+
+# Mode the model does not support
+linear_reg() |&gt; set_mode(&quot;classification&quot;)
+#&gt; Error: &quot;classification&quot; is not a known mode for model `linear_reg()`.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>An unknown mode fails late, at fit() time.</strong> A flexible specification with no mode set looks fine when printed and only errors when you call fit(). Set the mode while you build the spec so the problem surfaces immediately.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a classification decision tree specification for the <code>iris</code> dataset, set its mode, and confirm the mode prints correctly. Save the spec to <code>ex_spec</code>.</p>
+<div class="webr-container" data-block-title="Your turn: set a classification mode">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: set a classification mode</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: set the mode to classification
+ex_spec &lt;- decision_tree() |&gt;
+  set_engine(&quot;rpart&quot;)  # add set_mode here
+
+ex_spec
+#&gt; Expected: prints &quot;(classification)&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_spec &lt;- decision_tree() |&gt;
+  set_engine(&quot;rpart&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+ex_spec
+#&gt; Decision Tree Model Specification (classification)
+#&gt;
+#&gt; Computational engine: rpart</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <a class="auto-link" href="parsnip-decision_tree-in-R.html" title="parsnip decision_tree() in R: Build Tree-Based Models">decision_tree()</a> supports both modes, so set_mode("classification") is required. The printed <code>(classification)</code> confirms parsnip will build a classifier when you fit it.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>set_mode() is one step in building a model specification.</strong> These functions complete the workflow:</p>
+
+<ul>
+
+<li><code>set_engine()</code> selects the computational backend, such as <code>ranger</code> or <code>glm</code>.</li>
+
+<li><code>set_args()</code> sets or updates model hyperparameters after the spec exists.</li>
+
+<li><code>fit()</code> trains the specification on a data frame.</li>
+
+<li><code>translate()</code> shows the exact engine call parsnip will run.</li>
+
+<li><code>show_engines()</code> lists the engine and mode pairs a model supports.</li>
+
+</ul>
+
+<p>See the official <a href="https://parsnip.tidymodels.org/reference/set_args.html">parsnip documentation</a> for the full reference.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the default mode in parsnip?</strong> There is no single default. Single-task models carry their own: <code>linear_reg()</code> defaults to regression and <code>logistic_reg()</code> defaults to classification. Flexible models such as <code>rand_forest()</code> and <code>boost_tree()</code> start with an <code>&quot;unknown&quot;</code> mode and have no default at all, so set_mode() is mandatory for them before fitting. Printing any specification shows its current mode in parentheses, so you can always check what is set.</p>
+
+<p><strong>Do I need set_mode() for linear_reg() and logistic_reg()?</strong> Not strictly. Both are single-task models with a built-in default mode, so they fit without an explicit set_mode() call. Many practitioners still add it for clarity, because a reader scanning the pipeline sees the prediction task immediately. It also protects the script if you later swap in a flexible model that does require the mode.</p>
+
+<p><strong>Can I change the mode after setting it?</strong> Yes. set_mode() overwrites whatever mode the specification currently holds, so calling it twice keeps the last value. Because a specification is just an object, reassigning it with a new set_mode() call costs nothing until you fit. Nothing is computed, so there is no penalty for changing your mind while building the pipeline.</p>
+
+<p><strong>Does the order of set_mode() and set_engine() matter?</strong> No. parsnip stores the mode and the engine as independent slots on the specification, then merges them when you fit. You can call set_mode() before or after set_engine() and get an identical object, as <code>identical()</code> confirms. Pick whichever order reads more naturally in your pipeline.</p>
+
+{% endraw %}
