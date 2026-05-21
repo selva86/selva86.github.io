@@ -1,0 +1,450 @@
+---
+title: "tibble as_tibble() in R: Convert Objects to Tibbles"
+description: "Convert data frames, lists, matrices, and named vectors to tibbles in R using as_tibble(). Learn rownames handling, name repair options, and pitfalls."
+keywords: "tibble as_tibble, as_tibble function R, tibble as_tibble examples, R as_tibble data frame, convert to tibble R, as_tibble vs tibble, as_tibble rownames"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "as_tibble()|tibble as_tibble|tibble::as_tibble()|convert to tibble|coerce to tibble"
+auto_link_case_sensitive: true
+fr_parent: "R-Data-Frames.html"
+---
+<!-- md2html:generated -->
+
+<h1>tibble as_tibble() in R: Convert Objects to Tibbles</h1>
+
+<p class="lead">The <code>as_tibble()</code> function in the tibble package converts an existing data frame, list, matrix, or named vector into a tibble, with optional <code>rownames</code> handling and stricter name repair than base coercion.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>as_tibble(mtcars)<span class="qa-cmt">                            # data.frame to tibble</span>
+as_tibble(mtcars, rownames = &quot;car&quot;)<span class="qa-cmt">          # keep row names as column</span>
+as_tibble(list(x = 1:3, y = c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;)))<span class="qa-cmt"> # named list to tibble</span>
+as_tibble(matrix(1:6, 2, 3))<span class="qa-cmt">                 # matrix to tibble</span>
+as_tibble(c(a = 1, b = 2, c = 3))<span class="qa-cmt">            # named vector (use enframe)</span>
+as_tibble(df, .name_repair = &quot;unique&quot;)<span class="qa-cmt">       # auto-fix duplicate names</span>
+as_tibble(df, .name_repair = &quot;minimal&quot;)<span class="qa-cmt">      # keep names as-is</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is as_tibble() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">coerce an existing data.frame</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">as_tibble(df)</text><text x="125" y="126" class="branch-label">build a fresh tibble from vectors</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">tibble(x = 1:3, y = letters[1:3])</text><text x="125" y="182" class="branch-label">build <a class="auto-link" href="dplyr-rowwise-in-R.html" title="dplyr rowwise() in R: Compute One Row at a Time">row-by-row</a> in code</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">tribble(~x, ~y, 1, &quot;a&quot;, 2, &quot;b&quot;)</text><text x="125" y="238" class="branch-label">promote a named vector to two columns</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">enframe(c(a = 1, b = 2))</text><text x="125" y="294" class="branch-label">inspect tibble structure without coercing</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">glimpse(df)</text><text x="125" y="350" class="branch-label">go back to a plain data.frame</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">as.data.frame(tbl)</text><text x="125" y="406" class="branch-label">preserve row names through the coercion</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">as_tibble(df, rownames = &quot;id&quot;)</text></svg></div>
+
+<h2>What as_tibble() does in one sentence</h2>
+
+<p><strong><code>as_tibble()</code> converts an existing object into a tibble.</strong> You pass a data frame, <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a>, matrix, or another tibble, and the function returns a <code>tbl_df</code> with the same data, optional row-name handling, and stricter checks on column names than <code>as.data.frame()</code>. It is the standard coercion function in the tidyverse and the entry point for promoting base-R objects into modern pipelines.</p>
+
+<p>The use case is straightforward. You read a CSV with <code>read.csv()</code>, run a base function that returns a <code>data.frame</code>, or have a <code>list</code> of equal-length vectors. One call to <code>as_tibble()</code> and you can pipe straight into <code>dplyr</code> and <code>ggplot2</code> with predictable printing, no row-name surprises, and no accidental string-to-factor conversion.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>as_tibble()</code> is an S3 generic with methods for the common R container types.</strong> Each method honors the same control arguments: <code>.rows</code>, <code>.name_repair</code>, <code>rownames</code>, and <code>validate</code>.</p>
+
+<div class="webr-container" data-block-title="Load tibble and see the basic call">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load tibble and see the basic call</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+
+as_tibble(mtcars) |&gt; head(3)
+#&gt; # A tibble: 3 x 11
+#&gt;     mpg   cyl  disp    hp  drat    wt  qsec    vs    am  gear  carb
+#&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1  21       6   160   110  3.9   2.62  16.5     0     1     4     4
+#&gt; 2  21       6   160   110  3.9   2.88  17.0     0     1     4     4
+#&gt; 3  22.8     4   108    93  3.85  2.32  18.6     1     1     4     1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signature for the <code>data.frame</code> method is:</p>
+
+<pre><code>as_tibble(x, ..., .rows = NULL, .name_repair = &quot;check_unique&quot;,
+          rownames = NULL, validate = NULL)</code></pre>
+
+<ul>
+
+<li><code>x</code> is the object to convert (data frame, list, matrix, table, or similar).</li>
+
+<li><code>.name_repair</code> controls duplicate or empty names: <code>&quot;check_unique&quot;</code> (default, errors on duplicates), <code>&quot;unique&quot;</code> (auto-suffix), <code>&quot;minimal&quot;</code> (keep as-is), <code>&quot;universal&quot;</code> (also fix syntax).</li>
+
+<li><code>rownames</code> controls row-name behavior: <code>NULL</code> drops them silently (default for tibbles), <code>NA</code> drops them with no warning, or a string keeps them as a new column with that name.</li>
+
+<li><code>validate</code> is deprecated in favor of <code>.name_repair</code>.</li>
+
+</ul>
+
+<p>The return value always has class <code>c(&quot;tbl_df&quot;, &quot;tbl&quot;, &quot;data.frame&quot;)</code>.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pass <code>rownames</code> whenever the input has meaningful row labels.</strong> Built-in datasets like <code>mtcars</code> and <code>USArrests</code> carry car or state names as row names. Default coercion silently drops them. <code>as_tibble(mtcars, rownames = &quot;car&quot;)</code> preserves them as a proper character column, ready for joining or plotting.</div></div>
+
+<h2>Six common patterns</h2>
+
+<h3>1. Convert a data.frame</h3>
+
+<div class="webr-container" data-block-title="Promote a base data.frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Promote a base data.frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(id = 1:3, name = c(&quot;Ana&quot;, &quot;Bo&quot;, &quot;Cy&quot;), score = c(91, 85, 78))
+as_tibble(df)
+#&gt; # A tibble: 3 x 3
+#&gt;      id name  score
+#&gt;   &lt;int&gt; &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1     1 Ana      91
+#&gt; 2     2 Bo       85
+#&gt; 3     3 Cy       78</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Note that the <code>name</code> column comes out as <code>&lt;chr&gt;</code>, not factor, even though <code>data.frame()</code> may have stored it as a factor on older R versions. The coercion is a clean read of the underlying vectors.</p>
+
+<h3>2. Preserve row names as a column</h3>
+
+<div class="webr-container" data-block-title="Keep car names from mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keep car names from mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">as_tibble(mtcars, rownames = &quot;car&quot;) |&gt; head(3)
+#&gt; # A tibble: 3 x 12
+#&gt;   car             mpg   cyl  disp    hp  drat    wt  qsec    vs    am  gear  carb
+#&gt;   &lt;chr&gt;         &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Mazda RX4      21       6   160   110  3.9   2.62  16.5     0     1     4     4
+#&gt; 2 Mazda RX4 Wag  21       6   160   110  3.9   2.88  17.0     0     1     4     4
+#&gt; 3 Datsun 710     22.8     4   108    93  3.85  2.32  18.6     1     1     4     1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Without <code>rownames = &quot;car&quot;</code> the labels would vanish on the way in. With it, every downstream <code>dplyr</code> or <code>ggplot2</code> step can use <code>car</code> as a regular column.</p>
+
+<h3>3. Convert a named list</h3>
+
+<div class="webr-container" data-block-title="A list of equal-length vectors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A list of equal-length vectors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lst &lt;- list(year = 2020:2023, sales = c(120, 145, 180, 210))
+as_tibble(lst)
+#&gt; # A tibble: 4 x 2
+#&gt;    year sales
+#&gt;   &lt;int&gt; &lt;dbl&gt;
+#&gt; 1  2020   120
+#&gt; 2  2021   145
+#&gt; 3  2022   180
+#&gt; 4  2023   210</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All vectors must have the same length (or length 1 for recycling). Unnamed list elements trigger an error unless you set <code>.name_repair = &quot;unique&quot;</code> or <code>&quot;minimal&quot;</code>.</p>
+
+<h3>4. Convert a matrix</h3>
+
+<div class="webr-container" data-block-title="Matrix to tibble preserves column names">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Matrix to tibble preserves column names</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">m &lt;- matrix(1:6, nrow = 2, dimnames = list(NULL, c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;)))
+as_tibble(m)
+#&gt; # A tibble: 2 x 3
+#&gt;       a     b     c
+#&gt;   &lt;int&gt; &lt;int&gt; &lt;int&gt;
+#&gt; 1     1     3     5
+#&gt; 2     2     4     6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>If the matrix has no <code>dimnames</code>, <code>as_tibble()</code> auto-generates <code>V1</code>, <code>V2</code>, ... or errors with the default <code>&quot;check_unique&quot;</code> repair. Set <code>.name_repair = &quot;unique&quot;</code> for matrices that arrive nameless.</p>
+
+<h3>5. Handle duplicate column names with <code>.name_repair</code></h3>
+
+<div class="webr-container" data-block-title="Auto-suffix duplicates">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Auto-suffix duplicates</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df_dup &lt;- data.frame(x = 1:3, x = 4:6, check.names = FALSE)
+as_tibble(df_dup, .name_repair = &quot;unique&quot;)
+#&gt; New names:
+#&gt; * `x` -&gt; `x...1`
+#&gt; * `x` -&gt; `x...2`
+#&gt; # A tibble: 3 x 2
+#&gt;   x...1 x...2
+#&gt;   &lt;int&gt; &lt;int&gt;
+#&gt; 1     1     4
+#&gt; 2     2     5
+#&gt; 3     3     6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The four repair levels trade strictness for convenience. <code>&quot;check_unique&quot;</code> is safest for code, <code>&quot;unique&quot;</code> is most ergonomic for messy imports, <code>&quot;minimal&quot;</code> is rare but useful when you must round-trip duplicate names.</p>
+
+<h3>6. Convert a named vector (use enframe)</h3>
+
+<div class="webr-container" data-block-title="Use enframe for named vectors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use enframe for named vectors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">counts &lt;- c(apple = 3, banana = 5, cherry = 2)
+enframe(counts, name = &quot;fruit&quot;, value = &quot;count&quot;)
+#&gt; # A tibble: 3 x 2
+#&gt;   fruit  count
+#&gt;   &lt;chr&gt;  &lt;dbl&gt;
+#&gt; 1 apple      3
+#&gt; 2 banana     5
+#&gt; 3 cherry     2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>as_tibble()</code> on a bare vector returns a single-column tibble. For the more useful two-column "name, value" shape, reach for <code>enframe()</code> instead. Its inverse, <code>deframe()</code>, turns a two-column tibble back into a named vector.</p>
+
+<h2>as_tibble() vs as.data.frame() vs tibble()</h2>
+
+<p><strong>The three coercion paths solve different problems.</strong> <code>as_tibble()</code> validates names, drops row names by default, and never auto-converts strings to factors. <code>as.data.frame()</code> is the base-R workhorse with permissive name handling. <code>tibble()</code> builds fresh from vectors rather than coercing an object.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Behavior</th>
+<th><code>as_tibble()</code></th>
+<th><code>as.data.frame()</code></th>
+<th><code>tibble()</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Input</td>
+<td>Existing object</td>
+<td>Existing object</td>
+<td>Bare vectors</td>
+</tr>
+<tr>
+<td>Row names</td>
+<td>Dropped or kept via <code>rownames =</code></td>
+<td>Always preserved</td>
+<td>None</td>
+</tr>
+<tr>
+<td>Strings to factors</td>
+<td>Never</td>
+<td>Was default before R 4.0</td>
+<td>Never</td>
+</tr>
+<tr>
+<td>Duplicate column names</td>
+<td>Errors (default)</td>
+<td>Mangled or suffixed</td>
+<td>Errors</td>
+</tr>
+<tr>
+<td>List input</td>
+<td>Equal-length vectors only</td>
+<td>More lenient</td>
+<td>Not directly</td>
+</tr>
+<tr>
+<td>Sequential column refs</td>
+<td>N/A (no expressions)</td>
+<td>N/A</td>
+<td>Allowed</td>
+</tr>
+</tbody>
+</table>
+
+<p>Decision rule:</p>
+
+<ul>
+
+<li>Use <code>as_tibble()</code> when you already have a <code>data.frame</code>, <code>list</code>, or <code>matrix</code> and want a tibble.</li>
+
+<li>Use <code>tibble()</code> when you are building columns inline from raw vectors.</li>
+
+<li>Use <code>as.data.frame()</code> only when a downstream function explicitly demands the base class.</li>
+
+</ul>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>as_tibble()</code> is a one-way door into the tidyverse.</strong> Once an object is a tibble, every dplyr verb, every <a class="auto-link" href="ggplot2-Tutorial-With-R.html" title="ggplot2 Short Tutorial">ggplot2</a> mapping, and every <a class="auto-link" href="tidyr-Pivot-Exercises-in-R.html" title="tidyr Pivot Exercises in R: 25 Practice Problems">tidyr pivot</a> works without surprise. The function is small but it is the threshold that separates messy base-R objects from a clean, predictable pipeline.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: silently losing row names.</strong> Default coercion drops them. If they encode information (state names, gene IDs, time stamps), pass <code>rownames = &quot;your_column&quot;</code>.</p>
+
+<div class="webr-container" data-block-title="Silent drop vs explicit preservation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Silent drop vs explicit preservation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Loses 'state' identity:
+as_tibble(USArrests) |&gt; head(2)
+#&gt; # A tibble: 2 x 4
+#&gt;   Murder Assault UrbanPop  Rape
+#&gt;    &lt;dbl&gt;   &lt;int&gt;    &lt;int&gt; &lt;dbl&gt;
+#&gt; 1   13.2     236       58  21.2
+#&gt; 2   10       263       48  44.5
+
+# Preserves it:
+as_tibble(USArrests, rownames = &quot;state&quot;) |&gt; head(2)
+#&gt; # A tibble: 2 x 5
+#&gt;   state   Murder Assault UrbanPop  Rape
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;   &lt;int&gt;    &lt;int&gt; &lt;dbl&gt;
+#&gt; 1 Alabama   13.2     236       58  21.2
+#&gt; 2 Alaska    10       263       48  44.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Pitfall 2: lists with unequal lengths.</strong> <code>as_tibble()</code> recycles length-1 only. Anything else raises a "Tibble columns must have compatible sizes" error.</p>
+
+<div class="webr-container" data-block-title="Mismatched list lengths">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mismatched list lengths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># This errors:
+# as_tibble(list(x = 1:3, y = 1:4))
+# Error: Tibble columns must have compatible sizes.
+
+# Fix: pad or trim before coercion
+as_tibble(list(x = 1:3, y = c(1:3, NA)))
+#&gt; # A tibble: 3 x 2
+#&gt;       x     y
+#&gt;   &lt;int&gt; &lt;int&gt;
+#&gt; 1     1     1
+#&gt; 2     2     2
+#&gt; 3     3     3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second call shows the standard fix: pad the short side with <code>NA</code> (or trim the long side) so all elements share a length.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Default <code>.name_repair = &quot;check_unique&quot;</code> errors on duplicates.</strong> This is a hard stop, not a warning. If your input source legitimately has duplicate names (a wide format with collision-prone variable codes, for example), set <code>.name_repair = &quot;unique&quot;</code> explicitly. Silent acceptance is intentionally unavailable to prevent ambiguous column references downstream.</div></div>
+
+<p><strong>Pitfall 3: assuming <code>as_tibble()</code> works on every object.</strong> It only handles types with an <a class="auto-link" href="S3-Classes-in-R.html" title="S3 Classes in R: Create, Inherit & Write Methods — Complete Tutorial">S3 method</a>: <code>data.frame</code>, <code>list</code>, <code>matrix</code>, <code>table</code>, and a few others. Custom classes need <code>as.data.frame()</code> first, then <code>as_tibble()</code>.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Convert the built-in <code>airquality</code> dataset to a tibble while preserving the original row numbers as a column called <code>obs_id</code>.</p>
+<div class="webr-container" data-block-title="Your turn: convert airquality with row IDs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: convert airquality with row IDs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: airquality to tibble, keep row numbers
+ex_air &lt;- # your code here
+
+head(ex_air, 3)
+#&gt; Expected: 3 rows, 7 columns (obs_id + 6 originals)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_air &lt;- as_tibble(airquality, rownames = &quot;obs_id&quot;)
+head(ex_air, 3)
+#&gt; # A tibble: 3 x 7
+#&gt;   obs_id Ozone Solar.R  Wind  Temp Month   Day
+#&gt;   &lt;chr&gt;  &lt;int&gt;   &lt;int&gt; &lt;dbl&gt; &lt;int&gt; &lt;int&gt; &lt;int&gt;
+#&gt; 1 1         41     190   7.4    67     5     1
+#&gt; 2 2         36     118   8       72     5     2
+#&gt; 3 3         12     149  12.6    74     5     3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>airquality</code> uses default integer row names. Passing <code>rownames = &quot;obs_id&quot;</code> materializes them as a character column at the front of the tibble, so downstream joins and labels can use them directly.</p>
+
+</details>
+</section>
+
+<h2>Related tibble functions</h2>
+
+<p>After mastering <code>as_tibble()</code>, look at:</p>
+
+<ul>
+
+<li><code>tibble()</code>: build a tibble column-by-column from raw vectors.</li>
+
+<li><code>tribble()</code>: build a tibble row-by-row, useful for fixed lookup tables.</li>
+
+<li><code>enframe()</code>: convert a named vector into a two-column tibble.</li>
+
+<li><code>deframe()</code>: the inverse, turn a two-column tibble back into a named vector.</li>
+
+<li><code>rownames_to_column()</code> and <code>column_to_rownames()</code>: round-trip row names through a column.</li>
+
+<li><code>is_tibble()</code>: check whether an object is already a tibble.</li>
+
+</ul>
+
+<p>For the full coercion reference, the <a href="https://tibble.tidyverse.org/reference/as_tibble.html">official as_tibble() documentation</a> lists every method, argument, and edge case.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between as_tibble() and tibble() in R?</strong></p>
+
+<p><code>as_tibble()</code> converts an existing object (a data frame, list, matrix, or another tibble) into a tibble. <code>tibble()</code> builds a fresh tibble from raw vectors passed as named arguments. Use <code>as_tibble()</code> when you already have data in another container and want to enter the tidyverse. Use <code>tibble()</code> when you are constructing a small frame inline, especially when later columns depend on earlier ones. Both return identical tibble objects; only the input differs.</p>
+
+<p><strong>How do I keep row names when converting to a tibble?</strong></p>
+
+<p>Pass the <code>rownames</code> argument: <code>as_tibble(mtcars, rownames = &quot;car&quot;)</code>. The argument value becomes the new column name. If you omit it, row names are silently dropped because tibbles do not carry row names by design. For built-in datasets like <code>mtcars</code> and <code>USArrests</code> where row names encode identity, always set <code>rownames</code>. To go the other way later, use <code>column_to_rownames()</code>.</p>
+
+<p><strong>Why does as_tibble() error on duplicate column names?</strong></p>
+
+<p>The default <code>.name_repair = &quot;check_unique&quot;</code> rejects duplicates as a safety measure. Duplicate names make column references ambiguous in <code>dplyr</code> and <code>tidyr</code>. To accept duplicates, pass <code>.name_repair = &quot;unique&quot;</code> (auto-suffixes them as <code>x...1</code>, <code>x...2</code>) or <code>&quot;minimal&quot;</code> (keeps them as-is, only safe if you never reference by name). The error message tells you exactly which names collided.</p>
+
+<p><strong>Is as_tibble() faster than as.data.frame()?</strong></p>
+
+<p>For typical sizes (thousands to millions of rows) the difference is negligible because both functions are essentially pointer rewrites of the underlying columns, not data copies. <code>as_tibble()</code> does extra name validation, so on pathological inputs (tens of thousands of columns) it can be slower. For everyday work the choice should be about behavior (row-name handling, name repair, type preservation), not speed.</p>
+
+<p><strong>Can I convert a tibble back to a data.frame?</strong></p>
+
+<p>Yes, use <code>as.data.frame(tbl)</code>. It drops the tibble class and re-creates row names as <code>1, 2, 3, ...</code>. You rarely need this because tibbles already inherit from <code>data.frame</code>, so any function expecting a data frame accepts a tibble directly. The one case to convert back is when you pass to a function that explicitly checks <code>class(x) == &quot;data.frame&quot;</code> or relies on partial column-name matching.</p>
