@@ -1,0 +1,379 @@
+---
+title: "data.table .N in R: Count Rows by Group, Fast"
+description: "The data.table .N symbol holds the row count of the current group in R. Use dt[, .N, by=...] for grouped counts, last row picks, and group-size filters."
+keywords: "data.table .N, .N data.table, .N keyword R, data.table count rows, dt .N by group, R data.table N, data.table grouped count"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: ".N|data.table .N|.N keyword|dt[, .N]|.N symbol"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>data.table .N in R: Count Rows by Group, Fast</h1>
+
+<p class="lead">The <code>.N</code> symbol in <code>data.table</code> is an integer that holds the number of rows in the current group inside <code>j</code>, so <code>dt[, .N, by = grp]</code> returns one count per group without any helper function.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>dt[, .N]<span class="qa-cmt">                                    # total rows in the table</span>
+dt[, .N, by = cyl]<span class="qa-cmt">                          # row count per group</span>
+dt[mpg &gt; 20, .N, by = cyl]<span class="qa-cmt">                  # count after filtering on i</span>
+dt[, .SD[.N], by = cyl]<span class="qa-cmt">                     # last row per group</span>
+dt[, .(last_mpg = mpg[.N]), by = cyl]<span class="qa-cmt">       # last value of a column per group</span>
+dt[, if (.N &gt;= 5) .SD, by = cyl]<span class="qa-cmt">            # keep only groups with 5+ rows</span>
+dt[, .(idx = seq_len(.N)), by = cyl]<span class="qa-cmt">        # 1..n row index inside each group</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is .N the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label"><a class="auto-link" href="dplyr-tally-in-R.html" title="dplyr tally() in R: Count Rows Quickly After group_by">count rows</a> per group</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">dt[, .N, by = grp]</text><text x="125" y="126" class="branch-label">count rows in the whole table</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">dt[, .N]</text><text x="125" y="182" class="branch-label">count distinct values</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">dt[, uniqueN(x)]</text><text x="125" y="238" class="branch-label">pick the last row in each group</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">dt[, .SD[.N], by = grp]</text><text x="125" y="294" class="branch-label">add a 1..n row index per group</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">dt[, rid := rowid(grp)]</text><text x="125" y="350" class="branch-label">keep only groups above a size</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">dt[, if (.N &gt;= n) .SD, by = grp]</text><text x="125" y="406" class="branch-label">run total or cumulative count</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">dt[, csum := cumsum(x), by = grp]</text></svg></div>
+
+<h2>What .N does in one sentence</h2>
+
+<p><strong><code>.N</code> is the integer row count of the current group inside <code>j</code>.</strong> Without <code>by</code>, the current group is the whole table, so <code>dt[, .N]</code> returns a single integer equal to <code>nrow(dt)</code>. With <code>by = grp</code>, data.table evaluates <code>j</code> once per group and <code>.N</code> is the size of that group for each call.</p>
+
+<p>The name reads as "Number". It is a scalar, not a table, which is what separates it from its sibling <code>.SD</code>. Because the value is computed during the bracket call rather than pulled from a column, <code>.N</code> reflects whatever <code>i</code> filtered out.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>.N</code> is only meaningful inside <code>DT[i, j, by]</code>.</strong> Outside the bracket call it does not exist. The position you put it in determines what it returns.</p>
+
+<div class="webr-container" data-block-title="Three places .N appears">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three places .N appears</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT[, .N]                  # j is .N         -&gt; single integer
+DT[, .N, by = grp]        # j is .N         -&gt; one integer per group
+DT[, .SD[.N], by = grp]   # .N indexes .SD  -&gt; last row per group</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A few rules follow from <code>.N</code> being a scalar:</p>
+
+<ul>
+
+<li><code>j = .N</code> returns a one-column data.table with column name <code>N</code> and one row per group.</li>
+
+<li><code>mpg[.N]</code> returns the last element of <code>mpg</code> in the current group.</li>
+
+<li><code>seq_len(.N)</code> builds a 1 to n integer index for the current group.</li>
+
+<li><code>.N</code> is updated by <code>i</code>: filtering rows out before <code>j</code> lowers the value.</li>
+
+</ul>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Build a single <code>dt</code> and reuse it for every example.</strong> Every block below works on the same table created from <code>mtcars</code>.</p>
+
+<div class="webr-container" data-block-title="Create a data.table from mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create a data.table from mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+dt &lt;- as.data.table(mtcars, keep.rownames = &quot;model&quot;)
+dt[1:3, .(model, mpg, cyl, hp)]
+#&gt;            model   mpg   cyl    hp
+#&gt;           &lt;char&gt; &lt;num&gt; &lt;num&gt; &lt;num&gt;
+#&gt; 1:     Mazda RX4  21.0     6   110
+#&gt; 2: Mazda RX4 Wag  21.0     6   110
+#&gt; 3:    Datsun 710  22.8     4    93</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Count rows per group.</strong> This is the canonical use of <code>.N</code>.</p>
+
+<div class="webr-container" data-block-title="Row count per cylinder group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Row count per cylinder group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt[, .N, by = cyl]
+#&gt;      cyl     N
+#&gt;    &lt;num&gt; &lt;int&gt;
+#&gt; 1:     6     7
+#&gt; 2:     4    11
+#&gt; 3:     8    14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The column is named <code>N</code> because that is the symbol returned. Rename inline with <code>.()</code>: <code>dt[, .(cars = .N), by = cyl]</code>.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>dt[, .N, by = grp]</code> is the data.table replacement for <code>table(dt$grp)</code> and <code>dplyr::count(dt, grp)</code>.</strong> It returns a real data.table, scales to keyed tables, and composes with <code>i</code> filters in one bracket call.</div></div>
+
+<p><strong>Count rows after a filter.</strong> <code>.N</code> reflects whatever survives <code>i</code>, so the count is "matching rows per group" with no extra step.</p>
+
+<div class="webr-container" data-block-title="Count fuel-efficient cars per cylinder group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count fuel-efficient cars per cylinder group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt[mpg &gt; 20, .N, by = cyl]
+#&gt;      cyl     N
+#&gt;    &lt;num&gt; &lt;int&gt;
+#&gt; 1:     6     3
+#&gt; 2:     4    11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>cyl == 8</code> group disappears because no eight-cylinder car in <code>mtcars</code> clears <code>mpg &gt; 20</code>. There is no zero-row placeholder; missing groups simply do not appear.</p>
+
+<p><strong>Pick the highest or lowest value per group with <code>[.N]</code>.</strong> Inside <code>j</code>, every column of the current group is a vector of length <code>.N</code>, so subscripting at position <code>.N</code> returns the last entry, and pairing with <code>order()</code> in <code>i</code> controls what "last" means.</p>
+
+<div class="webr-container" data-block-title="Top mpg model per cylinder group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Top mpg model per cylinder group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt[order(mpg), .(top_model = model[.N], top_mpg = mpg[.N]), by = cyl]
+#&gt;      cyl        top_model top_mpg
+#&gt;    &lt;num&gt;           &lt;char&gt;   &lt;num&gt;
+#&gt; 1:     8 Pontiac Firebird    19.2
+#&gt; 2:     6   Hornet 4 Drive    21.4
+#&gt; 3:     4   Toyota Corolla    33.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Sorting ascending by <code>mpg</code> makes the last element in each group the maximum. The same trick with <code>mpg[1L]</code> gives the minimum, and the same idea applies to any column you sort on.</p>
+
+<p><strong><a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> groups by size.</strong> Wrap <code>.SD</code> in an <code>if (.N &gt;= n)</code> to drop small groups, mirroring <code>dplyr::filter(n() &gt;= n)</code>.</p>
+
+<div class="webr-container" data-block-title="Keep only groups with 10 or more rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keep only groups with 10 or more rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt[, if (.N &gt;= 10) .SD, by = cyl][, .N, by = cyl]
+#&gt;      cyl     N
+#&gt;    &lt;num&gt; &lt;int&gt;
+#&gt; 1:     4    11
+#&gt; 2:     8    14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>if (.N &gt;= 10) .SD</code> returns the whole group when the size test passes and an empty data.table otherwise. The chained <code>[, .N, by = cyl]</code> confirms the result.</p>
+
+<p><strong>Add a 1..n row index inside each group.</strong> <code>seq_len(.N)</code> builds the index without a helper function.</p>
+
+<div class="webr-container" data-block-title="Position of each car within its cyl group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Position of each car within its cyl group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt[order(cyl, -mpg), .(model, mpg, rid = seq_len(.N)), by = cyl][1:6]
+#&gt;      cyl          model   mpg   rid
+#&gt;    &lt;num&gt;         &lt;char&gt; &lt;num&gt; &lt;int&gt;
+#&gt; 1:     4 Toyota Corolla  33.9     1
+#&gt; 2:     4   Fiat 128       32.4     2
+#&gt; 3:     4 Honda Civic    30.4     3
+#&gt; 4:     4 Lotus Europa   30.4     4
+#&gt; 5:     4 Fiat X1-9      27.3     5
+#&gt; 6:     4 Porsche 914-2  26.0     6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For a row index across the unsorted table, <code>rowid(cyl)</code> from data.table is shorter and avoids the <code>seq_len</code> call.</p>
+
+<h2>.N vs nrow() vs uniqueN() vs seq_len(.N)</h2>
+
+<p><strong>Each helper answers a different counting question.</strong> Pick by what you need back.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Helper</th>
+<th>Returns</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.N</code></td>
+<td>Integer row count of current group</td>
+<td>Per-group counts inside <code>j</code>; positional index inside the group</td>
+</tr>
+<tr>
+<td><code>nrow(dt)</code></td>
+<td>Integer row count of the whole table</td>
+<td>Outside <code>j</code>, no grouping involved</td>
+</tr>
+<tr>
+<td><code>uniqueN(x)</code></td>
+<td>Number of distinct values in <code>x</code></td>
+<td>Counting distinct levels, not rows</td>
+</tr>
+<tr>
+<td><code>seq_len(.N)</code></td>
+<td>Integer vector 1 to <code>.N</code></td>
+<td>Adding a row index column per group</td>
+</tr>
+<tr>
+<td><code>rowid(grp)</code></td>
+<td>Integer vector of group-wise row ids</td>
+<td>Building the row index without writing <code>seq_len</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The substitution rule is short: <code>.N</code> for "how many", <code>uniqueN</code> for "how many different", <code>seq_len(.N)</code> for "label each one".</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Using <code>.N</code> outside <code>j</code> raises an error.</strong> <code>.N</code> is a special symbol that only exists during a <code>DT[i, j, by]</code> call.</p>
+
+<div class="webr-container" data-block-title="Calling .N outside the bracket fails">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Calling .N outside the bracket fails</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">.N
+#&gt; Error: object '.N' not found</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>dt[, .N, by = grp]</code> returns groups, not zero-filled bins.</strong> If a level of <code>grp</code> has zero matching rows after the <code>i</code> filter, that level is silently omitted. For complete grouping including empty bins, build the keys yourself with <code>CJ()</code> and merge.</div></div>
+
+<p><strong><code>.N</code> inside <code>i</code> means something different.</strong> Inside <code>i</code>, <code>.N</code> is the table's total row count, used for tail-style indexing like <code>dt[(.N - 2):.N]</code> to grab the last three rows. Confusing the <code>i</code> use and the <code>j</code> use of <code>.N</code> leads to wrong counts.</p>
+
+<div class="webr-container" data-block-title="Last three rows of the whole table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Last three rows of the whole table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt[(.N - 2):.N, .(model, mpg, cyl)]
+#&gt;              model   mpg   cyl
+#&gt;             &lt;char&gt; &lt;num&gt; &lt;num&gt;
+#&gt; 1: Ferrari Dino    19.7     6
+#&gt; 2: Maserati Bora   15.0     8
+#&gt; 3:     Volvo 142E  21.4     4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from dplyr?</strong> The equivalent of <code>dt[, .N, by = grp]</code> is <code>dplyr::count(df, grp)</code> or <code>df %&gt;% group_by(grp) %&gt;% summarise(n = n())</code>. <code>n()</code> plays the same role as <code>.N</code>; both are integer row counts of the current group.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Using <code>dt</code>, count cars per cylinder group and report the last model listed in each group in natural row order. Save the result to <code>ex_n</code>.</p>
+<div class="webr-container" data-block-title="Your turn: count and last model per cyl">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: count and last model per cyl</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: per-cylinder count and the last-listed model
+ex_n &lt;- # your code here
+
+ex_n
+#&gt; Expected: 3 rows with cyl, n, and last_model</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_n &lt;- dt[, .(n = .N, last_model = model[.N]), by = cyl]
+ex_n
+#&gt;      cyl     n    last_model
+#&gt;    &lt;num&gt; &lt;int&gt;        &lt;char&gt;
+#&gt; 1:     6     7  Ferrari Dino
+#&gt; 2:     4    11    Volvo 142E
+#&gt; 3:     8    14 Maserati Bora</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>.N</code> counts rows in each <code>cyl</code> group, and <code>model[.N]</code> reads the last entry of the <code>model</code> vector inside that group. Because there is no <code>order()</code> in <code>i</code>, "last" is the last car in natural mtcars row order for each cylinder count.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p><strong><code>.N</code> belongs to the <code>DT[i, j, by]</code> symbol family.</strong> Explore these next:</p>
+
+<ul>
+
+<li><code>.SD</code>: the data behind the count; pair with <code>.N</code> for last-row picks like <code>.SD[.N]</code>.</li>
+
+<li><code>.GRP</code>: integer group id of the current group, complements <code>.N</code> for indexing.</li>
+
+<li><code>uniqueN()</code>: distinct-value count, the right tool when rows are not the unit.</li>
+
+<li><code>rowid()</code> and <code>rleid()</code>: vectorized row-id helpers that often replace <code>seq_len(.N)</code>.</li>
+
+<li><code>cumsum()</code> and <code>cummax()</code>: running aggregates that read <code>.N</code> rows in order.</li>
+
+</ul>
+
+<p>See the official <a href="https://rdatatable.gitlab.io/data.table/articles/datatable-intro.html">data.table introduction vignette</a> for <code>.N</code> in context with the rest of the special symbols.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does .N mean in data.table?</strong></p>
+
+<p><code>.N</code> is a special symbol that holds the integer number of rows in the current group inside a <code>DT[i, j, by]</code> call. Without <code>by</code>, the current group is the entire (post-<code>i</code>) table, so <code>dt[, .N]</code> is the total row count. With <code>by</code>, data.table evaluates <code>j</code> once per group and <code>.N</code> is each group's size. The value is computed at call time, so <code>i</code> filters reduce <code>.N</code> before <code>j</code> ever sees it.</p>
+
+<p><strong>How is .N different from nrow()?</strong></p>
+
+<p><code>nrow(dt)</code> is a regular function that returns the row count of any data.table, and it ignores grouping. <code>.N</code> is only meaningful inside the bracket call, where it tracks the current group's row count and reflects whatever <code>i</code> keeps. Use <code>nrow()</code> outside <code>j</code>, and <code>.N</code> whenever you need a per-group count or a positional index inside <code>j</code>.</p>
+
+<p><strong>Can I use .N inside i?</strong></p>
+
+<p>Yes. Inside <code>i</code>, <code>.N</code> is the total row count of the table, which makes tail-style indexing concise: <code>dt[(.N - 2):.N]</code> returns the last three rows, and <code>dt[.N]</code> returns the last row. This is the same symbol with a position-dependent meaning: in <code>j</code> it is per-group; in <code>i</code> it is whole-table.</p>
+
+<p><strong>Does .N count distinct values?</strong></p>
+
+<p>No. <code>.N</code> counts rows. For distinct values, use <code>uniqueN(x)</code> which returns the number of unique entries in a vector or column. The two are often paired in the same call, like <code>dt[, .(rows = .N, drivers = uniqueN(driver)), by = team]</code> to report both per group.</p>
+
+<p><strong>Why does .N appear as a column called N in my result?</strong></p>
+
+<p>When <code>j</code> is just <code>.N</code>, data.table names the resulting column after the symbol, so the column is <code>N</code>. Rename inline by wrapping in <code>.()</code>: <code>dt[, .(rows = .N), by = grp]</code> produces a column called <code>rows</code>. The same naming rule applies to any symbol used bare in <code>j</code>.</p>
