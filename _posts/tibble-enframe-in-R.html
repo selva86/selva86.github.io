@@ -1,0 +1,416 @@
+---
+title: "tibble enframe() in R: Named Vector to Two-Column Tibble"
+description: "Lift a named vector into a two-column tibble in R with tibble::enframe(). Examples for purrr map output, list columns, deframe round-trips, and pitfalls."
+keywords: "tibble enframe, enframe function R, tibble enframe examples, R named vector to tibble, named vector to data frame R, enframe purrr map output, deframe vs enframe"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "enframe()|tibble enframe|tibble::enframe()|named vector to tibble|enframe vs deframe"
+auto_link_case_sensitive: true
+fr_parent: "R-Data-Frames.html"
+---
+<!-- md2html:generated -->
+
+<h1>tibble enframe() in R: Named Vector to Two-Column Tibble</h1>
+
+<p class="lead">The <code>tibble enframe()</code> function lifts a vector into a two-column tibble with columns <code>name</code> and <code>value</code>. A named vector uses its names as the first column; an unnamed vector gets sequential integers. The result is rectangular data ready for dplyr, <a class="auto-link" href="ggplot2-Tutorial-With-R.html" title="ggplot2 Short Tutorial">ggplot2</a>, and tidyr pipelines.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>enframe(c(a = 1, b = 2, c = 3))<span class="qa-cmt">               # named vector, name column from names</span>
+enframe(c(10, 20, 30))<span class="qa-cmt">                        # unnamed vector, name column is 1:n</span>
+enframe(c(a = 1, b = 2), name = &quot;key&quot;, value = &quot;n&quot;)<span class="qa-cmt">  # rename both columns</span>
+enframe(letters[1:5])<span class="qa-cmt">                         # character vector, integer names</span>
+enframe(list(a = 1:2, b = 3:5))<span class="qa-cmt">               # list input, list column of values</span>
+enframe(table(mtcars$cyl))<span class="qa-cmt">                    # table to tidy two-column tibble</span>
+enframe(purrr::map(1:3, ~ .x^2))<span class="qa-cmt">              # map output to tibble for unnest</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is enframe() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">named vector to two-column tibble</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">enframe(v)</text><text x="125" y="126" class="branch-label">two-column tibble back to a named vector</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">tibble::deframe(df)</text><text x="125" y="182" class="branch-label">single vector to a one-column tibble</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">tibble::as_tibble_col(v, &quot;name&quot;)</text><text x="125" y="238" class="branch-label">named vector to a one-row tibble</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">tibble::as_tibble_row(v)</text><text x="125" y="294" class="branch-label">list of equal-length elements to a tibble</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">tibble::as_tibble(lst)</text><text x="125" y="350" class="branch-label">table() output as a tidy frame with counts</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">as.data.frame(tab)</text></svg></div>
+
+<h2>What enframe() does in one sentence</h2>
+
+<p><strong><code>enframe()</code> is the inverse of <code>deframe()</code>.</strong> You pass a vector and the function returns a two-column tibble. The first column holds the vector's <code>names()</code> (or integer indices if the vector is unnamed) and the second column holds the values. The default column names are <code>name</code> and <code>value</code>, both overridable.</p>
+
+<p>The use case is entering the rectangular world. After base R code produces a named vector (a <code>table()</code>, a <code>quantile()</code>, a <code>summary()</code>, or a <code>purrr::map()</code> result), <code>enframe()</code> converts it into a tibble you can feed to dplyr, ggplot2, or tidyr without writing <code>data.frame(name = names(v), value = unname(v))</code> by hand.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>enframe()</code> takes one vector and two optional column-name arguments.</strong> The function works on <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">atomic vectors</a> and on lists; for lists you get a list-column you can later expand with <code>tidyr::unnest()</code>.</p>
+
+<div class="webr-container" data-block-title="Load tibble and enframe a named vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load tibble and enframe a named vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+
+scores &lt;- c(alice = 92, bob = 78, carol = 85)
+enframe(scores)
+#&gt; # A tibble: 3 x 2
+#&gt;   name  value
+#&gt;   &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 alice    92
+#&gt; 2 bob      78
+#&gt; 3 carol    85</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signature is:</p>
+
+<pre><code>enframe(x, name = &quot;name&quot;, value = &quot;value&quot;)</code></pre>
+
+<ul>
+
+<li><code>x</code> is a vector. Atomic vectors produce a regular value column; lists produce a <code>&lt;list&gt;</code> column.</li>
+
+<li><code>name</code> is the first column's label. Pass <code>NULL</code> to suppress the name column entirely; the output is then a one-column tibble.</li>
+
+<li><code>value</code> is the second column's label.</li>
+
+</ul>
+
+<p>The output type follows the input: a numeric vector produces a <code>&lt;dbl&gt;</code> value column, a character vector produces <code>&lt;chr&gt;</code>, a logical vector produces <code>&lt;lgl&gt;</code>. The name column is always <code>&lt;chr&gt;</code> when names exist and <code>&lt;int&gt;</code> when the input is unnamed.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Rename the columns at the call site for self-documenting code.</strong> Default <code>name</code> and <code>value</code> are generic; passing <code>name = &quot;city&quot;</code> and <code>value = &quot;pop&quot;</code> makes the downstream pipeline read like English. The rename is cheaper than chaining a separate <code>rename()</code> call and the column names show up in plot axis labels for free.</div></div>
+
+<h2>Four common patterns</h2>
+
+<h3>1. Named vector to a tibble for plotting</h3>
+
+<div class="webr-container" data-block-title="Pipe a named numeric into ggplot2">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pipe a named numeric into ggplot2</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+library(ggplot2)
+
+medals &lt;- c(USA = 39, China = 38, Japan = 27, GB = 22, Australia = 17)
+medals |&gt;
+  enframe(name = &quot;country&quot;, value = &quot;gold&quot;) |&gt;
+  ggplot(aes(reorder(country, gold), gold)) +
+  geom_col() +
+  coord_flip()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>ggplot2</code> requires a data frame, not a named vector. <code>enframe()</code> is the one-liner bridge: the named vector becomes a two-column tibble, ready for <code>aes()</code> mappings. The explicit <code>name</code> and <code>value</code> arguments mean the columns already have the labels the plot needs.</p>
+
+<h3>2. table() or quantile() output as a tidy frame</h3>
+
+<div class="webr-container" data-block-title="Frequency counts as a tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Frequency counts as a tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+
+cyl_tab &lt;- table(mtcars$cyl)
+enframe(cyl_tab, name = &quot;cyl&quot;, value = &quot;n&quot;)
+#&gt; # A tibble: 3 x 2
+#&gt;   cyl       n
+#&gt;   &lt;chr&gt; &lt;int&gt;
+#&gt; 1 4        11
+#&gt; 2 6         7
+#&gt; 3 8        14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>table()</code> returns a named integer vector with class <code>table</code>; <code>enframe()</code> strips the class and produces a tidy two-column tibble. The same pattern works for <code>quantile()</code>, <code>summary()</code> on a numeric, and any other base R function whose output is a named atomic vector.</p>
+
+<h3>3. purrr::map() output as a list-column tibble</h3>
+
+<div class="webr-container" data-block-title="Wrap a map result in a tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrap a map result in a tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+library(purrr)
+library(tidyr)
+
+squared &lt;- map(1:4, ~ .x^2)
+enframe(squared, name = &quot;input&quot;, value = &quot;result&quot;) |&gt;
+  unnest(result)
+#&gt; # A tibble: 4 x 2
+#&gt;   input result
+#&gt;   &lt;int&gt;  &lt;dbl&gt;
+#&gt; 1     1      1
+#&gt; 2     2      4
+#&gt; 3     3      9
+#&gt; 4     4     16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>purrr::map()</code> returns a list. <code>enframe()</code> lifts the list into a tibble with a <code>&lt;list&gt;</code> value column; <code>tidyr::unnest()</code> then flattens it to a regular tibble. This is the canonical pattern for moving from functional-style iteration into a tidy result.</p>
+
+<h3>4. Drop the name column for an integer index</h3>
+
+<div class="webr-container" data-block-title="Unnamed vector with default integer names">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Unnamed vector with default integer names</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+
+values &lt;- c(10, 25, 7, 14)
+enframe(values)
+#&gt; # A tibble: 4 x 2
+#&gt;   name  value
+#&gt;   &lt;int&gt; &lt;dbl&gt;
+#&gt; 1     1    10
+#&gt; 2     2    25
+#&gt; 3     3     7
+#&gt; 4     4    14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For unnamed input, <code>enframe()</code> synthesizes the first column as <code>1:length(x)</code>. The column type is <code>&lt;int&gt;</code> rather than <code>&lt;chr&gt;</code>, which is occasionally useful: you can sort, filter, or join numerically on the index. Pass <code>name = NULL</code> if you do not want the index column at all; the output then has just the <code>value</code> column.</p>
+
+<h2>enframe() vs as_tibble_col() vs as_tibble_row()</h2>
+
+<p><strong>Three tibble functions take a vector and emit a tibble, but each produces a different shape.</strong> Pick by what column layout you want.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Behavior</th>
+<th><code>enframe()</code></th>
+<th><code>as_tibble_col()</code></th>
+<th><code>as_tibble_row()</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Input</td>
+<td>Named or unnamed vector</td>
+<td>Single vector</td>
+<td>Single vector (named recommended)</td>
+</tr>
+<tr>
+<td>Output shape</td>
+<td>Two columns (<code>name</code>, <code>value</code>)</td>
+<td>One column</td>
+<td>One row, one column per vector element</td>
+</tr>
+<tr>
+<td>Names handled?</td>
+<td>First column = names</td>
+<td>Names dropped</td>
+<td>Names become column names</td>
+</tr>
+<tr>
+<td>Length</td>
+<td>N rows for N elements</td>
+<td>N rows</td>
+<td>1 row</td>
+</tr>
+<tr>
+<td>Typical use</td>
+<td>Lookup-style data, map results</td>
+<td>Wrap a column in a frame</td>
+<td>Single record for <code>bind_rows()</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Decision rule:</p>
+
+<ul>
+
+<li>Reach for <code>enframe()</code> when you want a key-value layout for plotting or joining.</li>
+
+<li>Reach for <code>as_tibble_col()</code> when you want a one-column frame and do not care about names.</li>
+
+<li>Reach for <code>as_tibble_row()</code> when you want each named element as its own column, typically to stack rows with <code>bind_rows()</code>.</li>
+
+</ul>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Think of <code>enframe()</code> as the entry gate to the tidyverse.</strong> Many base R workflows produce named vectors as final results: <code>table()</code>, <code>quantile()</code>, <code>summary()</code>, named <code>sapply()</code> output. Without <code>enframe()</code> you would write <code>data.frame(name = names(v), value = unname(v), stringsAsFactors = FALSE)</code> by hand, then convert to a tibble. <code>enframe()</code> does it in one call, with the right column types, ready for the next pipeline step.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: unnamed input gets integer indices, not your data.</strong> Beginners sometimes expect <code>enframe()</code> to pull names from a sibling vector or from the values themselves.</p>
+
+<div class="webr-container" data-block-title="Unnamed input behavior">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Unnamed input behavior</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+
+# Unnamed vector: name column is 1:n
+enframe(c(&quot;apple&quot;, &quot;bread&quot;, &quot;cheese&quot;))
+#&gt; # A tibble: 3 x 2
+#&gt;   name  value 
+#&gt;   &lt;int&gt; &lt;chr&gt; 
+#&gt; 1     1 apple 
+#&gt; 2     2 bread 
+#&gt; 3     3 cheese
+
+# To use the values themselves as names, set names first:
+items &lt;- c(&quot;apple&quot;, &quot;bread&quot;, &quot;cheese&quot;)
+enframe(setNames(items, items))
+#&gt; # A tibble: 3 x 2
+#&gt;   name   value 
+#&gt;   &lt;chr&gt;  &lt;chr&gt; 
+#&gt; 1 apple  apple 
+#&gt; 2 bread  bread 
+#&gt; 3 cheese cheese</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Always attach names with <code>setNames()</code> (or <code>names&lt;-</code>) before calling <code>enframe()</code> if you want a specific first column. The function never inspects values to guess at names.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Duplicate names survive into the tibble.</strong> R allows duplicate names on a vector, and <code>enframe()</code> copies them straight into the name column. The output is a perfectly valid tibble, but downstream <code>pivot_wider()</code>, <code>left_join()</code> on <code>name</code>, or any operation that assumes unique keys will misbehave. Dedupe the names before enframing if uniqueness matters: <code>v &lt;- v[!duplicated(names(v))]</code>.</div></div>
+
+<p><strong>Pitfall 2: a single scalar produces a one-row tibble, not a column.</strong> Newcomers sometimes pass a scalar expecting a one-cell frame and get a one-row two-column tibble instead.</p>
+
+<div class="webr-container" data-block-title="Scalar input is still a vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Scalar input is still a vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+
+enframe(42)
+#&gt; # A tibble: 1 x 2
+#&gt;   name  value
+#&gt;   &lt;int&gt; &lt;dbl&gt;
+#&gt; 1     1    42
+
+enframe(c(answer = 42))
+#&gt; # A tibble: 1 x 2
+#&gt;   name   value
+#&gt;   &lt;chr&gt;  &lt;dbl&gt;
+#&gt; 1 answer    42</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>R has no scalar type; <code>42</code> is a length-1 numeric vector. <code>enframe()</code> treats it like any other length-1 vector and produces a one-row tibble with the synthesized integer name column. To suppress the name column on a scalar, pass <code>name = NULL</code>.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the mean miles-per-gallon for each <code>cyl</code> group in <code>mtcars</code> using <code>tapply()</code>, then convert the resulting named numeric vector into a tibble with columns <code>cyl</code> and <code>mean_mpg</code>. Save the tibble to <code>ex_mpg</code>.</p>
+<div class="webr-container" data-block-title="Your turn: named vector to tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: named vector to tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+
+# Try it: tapply result to tibble
+mpg_by_cyl &lt;- tapply(mtcars$mpg, mtcars$cyl, mean)
+ex_mpg &lt;- # your code here
+
+ex_mpg
+#&gt; Expected: a 3-row tibble with columns cyl and mean_mpg</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+
+mpg_by_cyl &lt;- tapply(mtcars$mpg, mtcars$cyl, mean)
+ex_mpg &lt;- enframe(mpg_by_cyl, name = &quot;cyl&quot;, value = &quot;mean_mpg&quot;)
+ex_mpg
+#&gt; # A tibble: 3 x 2
+#&gt;   cyl   mean_mpg
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;
+#&gt; 1 4         26.7
+#&gt; 2 6         19.7
+#&gt; 3 8         15.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>tapply()</code> returns a named numeric vector keyed by <code>cyl</code>. Passing <code>name = &quot;cyl&quot;, value = &quot;mean_mpg&quot;</code> to <code>enframe()</code> lifts that vector into a two-column tibble with the labels the analysis actually uses, ready for further dplyr or ggplot2 work.</p>
+
+</details>
+</section>
+
+<h2>Related tibble functions</h2>
+
+<p>After mastering <code>enframe()</code>, look at:</p>
+
+<ul>
+
+<li><code>tibble::deframe()</code>: the inverse, collapses a one- or two-column tibble back into a named vector.</li>
+
+<li><code>tibble::as_tibble_col()</code>: lift a single vector into a one-column tibble without the name column.</li>
+
+<li><code>tibble::as_tibble_row()</code>: lift a named vector into a one-row tibble with one column per element.</li>
+
+<li><code>tibble::tibble()</code>: build a tibble from scratch by passing columns directly.</li>
+
+<li><code>tidyr::unnest()</code>: flatten a list-column produced by <code>enframe(list_value)</code> into regular rows.</li>
+
+<li><code>dplyr::count()</code>: get a two-column tibble of group counts directly, skipping <code>table()</code> and <code>enframe()</code>.</li>
+
+</ul>
+
+<p>For the full API, the <a href="https://tibble.tidyverse.org/reference/enframe.html">official enframe() documentation</a> covers the contract alongside <code>deframe()</code>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between enframe() and <a class="auto-link" href="tibble-as_tibble-in-R.html" title="tibble as_tibble() in R: Convert Objects to Tibbles">as_tibble()</a> in R?</strong></p>
+
+<p><code>enframe()</code> is specialized for vectors: it always produces a two-column tibble with <code>name</code> and <code>value</code>, regardless of whether the input is named. <code>as_tibble()</code> is the general-purpose coercer; given a list, it produces a tibble where each list element becomes a column, and given a data frame it just refines the class. Reach for <code>enframe()</code> when you have a single named vector and want key-value rows. Reach for <code>as_tibble()</code> when you have a list of equal-length columns or an existing frame to clean up.</p>
+
+<p><strong>Can enframe() handle a data frame as input?</strong></p>
+
+<p>No. <code>enframe()</code> errors if you pass a data frame, because a data frame is not a vector. The fix is to extract a column first with <code>df$col</code> or <code>pull()</code>, then call <code>enframe()</code>. If you instead want to round-trip a two-column tibble to a named vector and back, use <code>tibble::deframe()</code> to collapse and <code>enframe()</code> to restore.</p>
+
+<p><strong>Why does enframe() return a list-column when I pass a list?</strong></p>
+
+<p><code>enframe()</code> preserves the input type. A list of vectors becomes a list-column rather than being flattened, so you can later use <code>tidyr::unnest()</code> to control the unfolding. This is the canonical pattern for working with <code>purrr::map()</code> output: keep the per-element shape until you explicitly unnest. If you want to flatten immediately, use <code>tibble(name = names(lst), value = unlist(lst))</code> or pipe <code>enframe(lst) |&gt; unnest(value)</code>.</p>
+
+<p><strong>Does enframe() coerce the name column to character?</strong></p>
+
+<p>Yes, when the input vector is named. R vector names are always character strings, so <code>enframe()</code> carries that type through into the name column as <code>&lt;chr&gt;</code>. When the input is unnamed, the name column is <code>&lt;int&gt;</code> (the synthesized indices <code>1:length(x)</code>). Pass <code>name = NULL</code> if you want only the value column with no name column at all.</p>
+
+</content>
+
+</invoke>
