@@ -1,0 +1,377 @@
+---
+title: "data.table Update by Reference in R: := and set()"
+description: "Update by reference in data.table modifies columns in place using := and set(), with no copy. Learn the semantics, syntax, examples, and common pitfalls."
+keywords: "data.table update by reference, data.table := operator, data.table set function, modify in place R, data.table reference semantics, R data.table no copy, set vs := data.table"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "update by reference|data.table :=|data.table set()|modify in place|reference semantics data.table"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>data.table Update by Reference in R: := and set()</h1>
+
+<p class="lead"><a class="auto-link" href="data-table-Exercises.html" title="data.table Exercises: 12 High-Performance Data Manipulation Problems — Solved Step-by-Step">Update by reference</a> in <code>data.table</code> modifies a column in place using the <code>:=</code> operator or the <code>set()</code> function. The original object changes directly, no copy is made, and the result is far faster and more memory-light than R's default copy-on-modify behavior.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>DT[, new_col := x * 2]<span class="qa-cmt">                        # add or overwrite one column</span>
+DT[, c(&quot;a&quot;, &quot;b&quot;) := list(x + 1, y + 1)]<span class="qa-cmt">       # several columns at once</span>
+DT[, `:=`(a = x + 1, b = y + 1)]<span class="qa-cmt">              # functional form, same effect</span>
+DT[cyl == 4, mpg := mpg * 1.1]<span class="qa-cmt">                # update rows matching a filter</span>
+DT[, new_col := NULL]<span class="qa-cmt">                         # delete a column by reference</span>
+set(DT, i = 1:3, j = &quot;x&quot;, value = NA)<span class="qa-cmt">         # set() updates specific cells</span>
+for (j in names(DT)) set(DT, j = j, value = 0)<span class="qa-cmt"> # set() shines inside loops</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Should you update by reference?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">add or overwrite a column without copying</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">DT[, x := value]</text><text x="125" y="126" class="branch-label">update many cells in a tight loop</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">set(DT, i, j, value)</text><text x="125" y="182" class="branch-label"><a class="auto-link" href="dplyr-mutate-rename.html" title="dplyr mutate() and rename(): Create & Modify Columns (8 Examples)">rename columns</a> in place</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">setnames(DT, &quot;old&quot;, &quot;new&quot;)</text><text x="125" y="238" class="branch-label"><a class="auto-link" href="dplyr-relocate-in-R.html" title="dplyr relocate() in R: Reorder Columns Easily">reorder columns</a> in place</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">setcolorder(DT, c(&quot;b&quot;, &quot;a&quot;))</text><text x="125" y="294" class="branch-label">sort the whole table in place</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">setorder(DT, col)</text><text x="125" y="350" class="branch-label">you actually want a fresh copy</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">copy(DT) before assigning</text></svg></div>
+
+<h2>What update by reference means in one sentence</h2>
+
+<p><strong>Update by reference changes an existing object in memory instead of returning a modified copy.</strong> When you write <code>DT[, x := 1]</code>, the column <code>x</code> is added or overwritten inside the same <code>data.table</code> that lives at <code>DT</code>. Nothing is copied, and no assignment with <code>&lt;-</code> is needed. Any other variable bound to the same object sees the change too.</p>
+
+<p>This is the opposite of how base R and tidyverse data frames behave. <code>df$x &lt;- 1</code> makes a fresh copy of <code>df</code>, modifies the copy, and rebinds the name <code>df</code> to it. The distinction looks subtle on small data but becomes the dominant cost on large tables.</p>
+
+<h2>How update by reference differs from copy-on-modify</h2>
+
+<p><strong>R's default rule is copy-on-modify.</strong> Whenever you change a value inside a data frame, R quietly duplicates the underlying storage so the original is not affected. That guarantees safety but pays for it with memory and time, especially on wide or tall tables.</p>
+
+<p><code>data.table</code> opts out of this rule for a specific set of operations. <code>:=</code>, <code>set()</code>, and the <code>set*</code> family (<code>setnames()</code>, <code>setcolorder()</code>, <code>setorder()</code>, <code>setkey()</code>, <code>setattr()</code>) all modify the existing object directly. The trade-off is awareness: aliases of the same table now point to one shared object, so changes propagate.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Treat a data.table the way you treat a Python list or a JavaScript object.</strong> It is a mutable container, not a value. Reassigning with <code>&lt;-</code> is unnecessary, and aliases share state. Once that mental model clicks, the rest of the data.table API stops feeling surprising.</div></div>
+
+<h2>The two main entry points: := and set()</h2>
+
+<p><strong><code>:=</code> is the everyday tool; <code>set()</code> is the loop tool.</strong> Both modify by reference; they differ in syntax and where each shines.</p>
+
+<div class="webr-container" data-block-title="Set up a data.table to experiment with">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Set up a data.table to experiment with</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+DT &lt;- as.data.table(mtcars)
+DT &lt;- DT[, .(mpg, cyl, hp, wt)]
+DT
+#&gt;      mpg   cyl    hp    wt
+#&gt;    &lt;num&gt; &lt;num&gt; &lt;num&gt; &lt;num&gt;
+#&gt; 1:  21.0     6   110 2.620
+#&gt; 2:  21.0     6   110 2.875
+#&gt; 3:  22.8     4    93 2.320
+#&gt; 4:  21.4     6   110 3.215
+#&gt; 5:  18.7     8   175 3.440
+#&gt; 6:  18.1     6   105 3.460</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>:=</code> lives inside the <code>j</code> slot of <code>DT[i, j, by]</code>. It can add, overwrite, or delete columns, and it can be combined with an <code>i</code> filter to update only matching rows. <code>set()</code> is a standalone function that takes <code>i</code>, <code>j</code>, and <code>value</code> arguments. It avoids the small overhead of the <code>[.data.table</code> dispatcher, which matters when you call it thousands of times in a loop.</p>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Add a single column by reference.</strong> No <code>&lt;-</code> is needed; the table itself changes.</p>
+
+<div class="webr-container" data-block-title="Add one column with :=">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add one column with :=</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT[, kpl := mpg * 0.4251]
+DT[1:3]
+#&gt;      mpg   cyl    hp    wt    kpl
+#&gt;    &lt;num&gt; &lt;num&gt; &lt;num&gt; &lt;num&gt;  &lt;num&gt;
+#&gt; 1:  21.0     6   110 2.620 8.9271
+#&gt; 2:  21.0     6   110 2.875 8.9271
+#&gt; 3:  22.8     4    93 2.320 9.6923</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Add several columns in one call.</strong> The multi-column form takes <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">character vectors</a> and a <code>list()</code> of values.</p>
+
+<div class="webr-container" data-block-title="Add multiple columns at once">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add multiple columns at once</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT[, c(&quot;wt_kg&quot;, &quot;hp_per_ton&quot;) := list(wt * 453.6, hp / wt)]
+DT[1:3]
+#&gt;      mpg   cyl    hp    wt    kpl   wt_kg hp_per_ton
+#&gt;    &lt;num&gt; &lt;num&gt; &lt;num&gt; &lt;num&gt;  &lt;num&gt;   &lt;num&gt;      &lt;num&gt;
+#&gt; 1:  21.0     6   110 2.620 8.9271 1188.43      41.98
+#&gt; 2:  21.0     6   110 2.875 8.9271 1304.10      38.26
+#&gt; 3:  22.8     4    93 2.320 9.6923 1052.35      40.09</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Update only the rows that match a filter.</strong> Combine <code>i</code> and <code>:=</code> so the assignment touches just the targeted rows.</p>
+
+<div class="webr-container" data-block-title="Update a subset of rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Update a subset of rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT[, mpg_adj := mpg]
+DT[cyl == 4, mpg_adj := mpg * 1.10]
+DT[, .(cyl, mpg, mpg_adj)][order(cyl)][1:5]
+#&gt;      cyl   mpg mpg_adj
+#&gt;    &lt;num&gt; &lt;num&gt;   &lt;num&gt;
+#&gt; 1:     4  22.8  25.080
+#&gt; 2:     4  24.4  26.840
+#&gt; 3:     4  22.8  25.080
+#&gt; 4:     4  32.4  35.640
+#&gt; 5:     4  30.4  33.440</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Delete a column by setting it to NULL.</strong> This is the canonical drop pattern; the column vanishes from the table in place.</p>
+
+<div class="webr-container" data-block-title="Delete a column by reference">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Delete a column by reference</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT[, mpg_adj := NULL]
+names(DT)
+#&gt; [1] &quot;mpg&quot;        &quot;cyl&quot;        &quot;hp&quot;         &quot;wt&quot;
+#&gt; [5] &quot;kpl&quot;        &quot;wt_kg&quot;      &quot;hp_per_ton&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Use set() when you are looping.</strong> The <code>set()</code> function avoids the per-call overhead of <code>[.data.table</code>, which adds up when you touch many cells.</p>
+
+<div class="webr-container" data-block-title="set() inside a loop is fast">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">set() inside a loop is fast</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">num_cols &lt;- c(&quot;mpg&quot;, &quot;hp&quot;, &quot;wt&quot;)
+for (col in num_cols) {
+  set(DT, j = col, value = round(DT[[col]], 1))
+}
+DT[1:3, ..num_cols]
+#&gt;      mpg    hp    wt
+#&gt;    &lt;num&gt; &lt;num&gt; &lt;num&gt;
+#&gt; 1:  21.0   110   2.6
+#&gt; 2:  21.0   110   2.9
+#&gt; 3:  22.8    93   2.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Compare with copy-on-modify alternatives</h2>
+
+<p><strong>Choose the right tool by how much data you touch and whether you need the original untouched.</strong> The table below summarises the trade-offs.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Operation</th>
+<th>Copies data?</th>
+<th>Returns object?</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>DT[, x := value]</code></td>
+<td>No</td>
+<td>No (invisible)</td>
+<td>Most column updates</td>
+</tr>
+<tr>
+<td><code>set(DT, i, j, value)</code></td>
+<td>No</td>
+<td>No (invisible)</td>
+<td>Many small updates in a loop</td>
+</tr>
+<tr>
+<td><code>setnames(DT, ...)</code></td>
+<td>No</td>
+<td>No (invisible)</td>
+<td>Rename columns in place</td>
+</tr>
+<tr>
+<td><code>DT$x &lt;- value</code> (base R)</td>
+<td>Yes (whole DT)</td>
+<td>No</td>
+<td>Avoid on data.tables</td>
+</tr>
+<tr>
+<td><code>dplyr::mutate(df, ...)</code></td>
+<td>Yes</td>
+<td>New tibble</td>
+<td>When you must keep the original</td>
+</tr>
+<tr>
+<td><code>copy(DT)</code> then modify</td>
+<td>Yes (once)</td>
+<td>New data.table</td>
+<td>When aliases must not see the change</td>
+</tr>
+</tbody>
+</table>
+
+<p>Decision rule: default to <code>:=</code> for clarity, switch to <code>set()</code> when profiling shows the <code>[.data.table</code> overhead matters, and reach for <code>copy()</code> only when an alias must stay frozen.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Wrap <code>set()</code> in a loop, not <code>:=</code>.</strong> Each <code>DT[, := ]</code> call goes through <code>[.data.table</code>, which adds tens of microseconds of overhead per call. With <code>set()</code>, that overhead disappears, and updating thousands of cells one by one becomes practical.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: assigning the result back to a new name.</strong> <code>:=</code> returns invisibly, so writing <code>DT2 &lt;- DT[, x := 1]</code> rebinds <code>DT2</code> to the same object as <code>DT</code>. Both names now point to one mutable table, and the next update touches both.</p>
+
+<div class="webr-container" data-block-title="Aliasing trap with :=">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Aliasing trap with :=</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT2 &lt;- DT[, demo_col := 99]
+identical(DT, DT2)
+#&gt; [1] TRUE
+DT[, demo_col := 0]
+DT2[1, demo_col]
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fix is to use <code>copy()</code> whenever you need an independent snapshot.</p>
+
+<div class="webr-container" data-block-title="Use copy() for independence">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use copy() for independence</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT3 &lt;- copy(DT)
+DT3[, demo_col := 42]
+DT[1, demo_col]
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Pitfall 2: silent output at the console.</strong> <code>DT[, x := 1]</code> prints nothing because the return value is invisible. New users sometimes think the call failed. It did not; <code>DT</code> was updated. Print <code>DT</code> explicitly to confirm, or chain <code>[]</code> at the end: <code>DT[, x := 1][]</code>.</p>
+
+<p><strong>Pitfall 3: using := on a regular data.frame.</strong> <code>:=</code> is a data.table feature. Calling it on a plain data.frame raises a confusing error. Convert with <code>setDT(df)</code> first.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Convert <code>iris</code> to a data.table, then add a column <code>petal_area</code> equal to <code>Petal.Length * Petal.Width</code> by reference. Confirm the column appears in the original object without reassignment.</p>
+<div class="webr-container" data-block-title="Your turn: add a column by reference">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add a column by reference</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: add petal_area to iris in place
+ex_iris &lt;- as.data.table(iris)
+
+# your code here
+
+head(ex_iris, 3)
+#&gt; Expected: petal_area column visible</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_iris &lt;- as.data.table(iris)
+ex_iris[, petal_area := Petal.Length * Petal.Width]
+head(ex_iris, 3)
+#&gt;    Sepal.Length Sepal.Width Petal.Length Petal.Width Species petal_area
+#&gt; 1:          5.1         3.5          1.4         0.2  setosa       0.28
+#&gt; 2:          4.9         3.0          1.4         0.2  setosa       0.28
+#&gt; 3:          4.7         3.2          1.4         0.2  setosa       0.28</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>:=</code> call adds <code>petal_area</code> to <code>ex_iris</code> directly. No assignment with <code>&lt;-</code> is needed because <code>data.table</code> modifies the object in place.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p>A short list of reference-modifying helpers worth knowing:</p>
+
+<ul>
+
+<li><code>setnames()</code>: rename columns in place</li>
+
+<li><code>setcolorder()</code>: reorder columns in place</li>
+
+<li><code>setorder()</code>: <a class="auto-link" href="dplyr-arrange-in-R.html" title="dplyr arrange() in R: Sort Rows by Column">sort rows</a> in place</li>
+
+<li><code>setkey()</code>: set a key in place for fast joins and lookups</li>
+
+<li><code>setattr()</code>: change attributes (class, names) in place</li>
+
+<li><code>copy()</code>: opt out of <a class="auto-link" href="R6-Classes-in-R.html" title="R6 Classes in R: Reference Semantics & Mutable State Tutorial">reference semantics</a> when you need a true duplicate</li>
+
+</ul>
+
+<p>For the broader contrast with tidyverse copy-on-modify, see the parent guide on <a href="data-table-vs-dplyr.html">data.table vs dplyr</a>. The official reference is the <a href="https://cran.r-project.org/web/packages/data.table/vignettes/datatable-reference-semantics.html">data.table semantics vignette</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Why does data.table <a class="auto-link" href="R-Names-and-Values.html" title="R Names and Values: How R Actually Stores Data (Copy-on-Modify Explained)">modify in place</a> when most R does not?</strong></p>
+
+<p>Modifying in place avoids the cost of duplicating large objects. On a million-row table, copy-on-modify can mean copying tens or hundreds of megabytes for each column change. data.table sacrifices the safety net of automatic copies to gain that speed and memory headroom, and exposes <code>copy()</code> for cases where the safety net is what you actually want.</p>
+
+<p><strong>Does := work on a data.frame?</strong></p>
+
+<p>No. The <code>:=</code> operator is defined only inside <code>[.data.table</code>. Calling it on a regular data.frame returns an error about an unexpected operator. Convert the data.frame first with <code>setDT(df)</code> or <code>as.data.table(df)</code>, then <code>:=</code> becomes available.</p>
+
+<p><strong>When should I prefer set() over :=?</strong></p>
+
+<p>Use <code>set()</code> inside loops or when you are touching many individual cells. <code>:=</code> is more readable for single-column or multi-column updates outside a loop, while <code>set()</code> avoids the small dispatch overhead of <code>[.data.table</code> and is faster for high-frequency updates.</p>
+
+<p><strong>Does := return the updated table?</strong></p>
+
+<p><code>:=</code> returns the table invisibly, so a console call shows nothing. If you want to print the result in one line, append <code>[]</code>: <code>DT[, x := 1][]</code>. Inside a pipeline, the invisible return still works; only the auto-print behavior is suppressed.</p>
+
+<p><strong>How do I undo an update by reference?</strong></p>
+
+<p>There is no automatic undo. The original column values are gone once <code>:=</code> runs. If you might need the previous state, call <code>copy(DT)</code> before the update and keep the copy. For column deletion specifically, you can reassign the column with <code>:=</code> if you still have its values in another object.</p>
