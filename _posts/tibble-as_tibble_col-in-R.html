@@ -1,0 +1,464 @@
+---
+title: "tibble as_tibble_col() in R: Vector to One-Column Tibble"
+description: "Convert a vector into a one-column tibble in R with as_tibble_col(). Examples for naming the column, list-columns, pipelines, plus pitfalls and alternatives."
+keywords: "tibble as_tibble_col, as_tibble_col function R, tibble as_tibble_col examples, R vector to tibble column, as_tibble_col vs enframe, one column tibble R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "as_tibble_col()|tibble as_tibble_col|tibble::as_tibble_col()|vector to tibble column|one column tibble"
+auto_link_case_sensitive: true
+fr_parent: "R-Data-Frames.html"
+---
+<!-- md2html:generated -->
+
+<h1>tibble as_tibble_col() in R: Vector to One-Column Tibble</h1>
+
+<p class="lead">The <code>as_tibble_col()</code> function in the tibble package converts a vector into a one-column tibble. You pass any atomic vector or list and optionally a column name, and it returns a <code>tbl_df</code> with one column and as many rows as the input length.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>as_tibble_col(1:5)<span class="qa-cmt">                                  # default column name &quot;value&quot;</span>
+as_tibble_col(1:5, column_name = &quot;x&quot;)<span class="qa-cmt">               # custom name</span>
+as_tibble_col(letters[1:3], column_name = &quot;letter&quot;)<span class="qa-cmt"> # character vector</span>
+as_tibble_col(list(1:2, 3:4), column_name = &quot;vals&quot;)<span class="qa-cmt"> # list-column</span>
+as_tibble_col(c(1.1, 2.2), column_name = &quot;price&quot;)<span class="qa-cmt">   # numeric column</span>
+as_tibble_col(c(TRUE, FALSE, NA), column_name = &quot;ok&quot;)<span class="qa-cmt"> # logical with NA</span>
+1:10 |&gt; as_tibble_col(&quot;n&quot;)<span class="qa-cmt">                          # pipe-friendly</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is as_tibble_col() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">one vector to a 1-column tibble</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">as_tibble_col(x, &quot;name&quot;)</text><text x="125" y="126" class="branch-label">one named vector to a 1-row tibble</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">as_tibble_row(c(a = 1, b = 2))</text><text x="125" y="182" class="branch-label">named vector to a 2-column name-value tibble</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">tibble::enframe(x)</text><text x="125" y="238" class="branch-label">multiple parallel vectors to a tibble</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">tibble(x = 1:3, y = 4:6)</text><text x="125" y="294" class="branch-label">coerce an existing data.frame or list</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">as_tibble(df)</text><text x="125" y="350" class="branch-label">add a vector as a new column to an existing tibble</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">dplyr::mutate(df, new = x)</text></svg></div>
+
+<h2>What as_tibble_col() does in one sentence</h2>
+
+<p><strong><code>as_tibble_col()</code> lifts a single vector into a one-column tibble.</strong> You pass the vector and an optional column name, and the function returns a <code>tbl_df</code> with one column and <code>length(x)</code> rows. Unlike <code>as_tibble_row()</code> (its row-shaped twin), the output is always a column.</p>
+
+<p>The use case is shape conversion: a model output, a sampling result, or a single column extracted from elsewhere needs to enter a tidyverse pipeline as a tibble. <code>as_tibble_col()</code> is the most direct constructor for that one column, with control over the column name and no extra metadata columns.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>as_tibble_col()</code> has two arguments and a fixed contract.</strong> The input must be a vector (atomic or list), and the output is always a one-column tibble.</p>
+
+<div class="webr-container" data-block-title="Load tibble and convert a vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load tibble and convert a vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+
+as_tibble_col(c(21.0, 22.8, 24.4, 19.7), column_name = &quot;mpg&quot;)
+#&gt; # A tibble: 4 x 1
+#&gt;     mpg
+#&gt;   &lt;dbl&gt;
+#&gt; 1  21
+#&gt; 2  22.8
+#&gt; 3  24.4
+#&gt; 4  19.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signature is:</p>
+
+<pre><code>as_tibble_col(x, column_name = &quot;value&quot;)</code></pre>
+
+<ul>
+
+<li><code>x</code> is any atomic vector or list. Length is preserved as the row count.</li>
+
+<li><code>column_name</code> is the name of the single output column. Defaults to <code>&quot;value&quot;</code>.</li>
+
+</ul>
+
+<p>The result always has exactly one column and <code>class(c(&quot;tbl_df&quot;, &quot;tbl&quot;, &quot;data.frame&quot;))</code>. Vector type carries through: a <code>&lt;dbl&gt;</code> vector produces a <code>&lt;dbl&gt;</code> column, a <code>&lt;chr&gt;</code> vector a <code>&lt;chr&gt;</code> column.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always set <code>column_name</code> explicitly.</strong> The default <code>&quot;value&quot;</code> is fine for one-off work but collides quickly when joining or binding multiple one-column tibbles. Naming the column at construction time, <code>as_tibble_col(x, &quot;price&quot;)</code>, prevents a downstream <code>rename()</code> and makes the tibble self-documenting when printed.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Default conversion with a custom name</h3>
+
+<div class="webr-container" data-block-title="Numeric vector to a named column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Numeric vector to a named column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ages &lt;- c(34, 41, 29, 52, 38)
+as_tibble_col(ages, column_name = &quot;age&quot;)
+#&gt; # A tibble: 5 x 1
+#&gt;     age
+#&gt;   &lt;dbl&gt;
+#&gt; 1    34
+#&gt; 2    41
+#&gt; 3    29
+#&gt; 4    52
+#&gt; 5    38</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The vector length becomes the row count, the type carries through, and the chosen <code>column_name</code> labels the single column. This is the canonical pattern when a function returns a bare vector but a downstream tidyverse step expects a tibble.</p>
+
+<h3>2. Character vector with explicit name</h3>
+
+<div class="webr-container" data-block-title="Character column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Character column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">codes &lt;- c(&quot;AA&quot;, &quot;BB&quot;, &quot;CC&quot;, &quot;DD&quot;)
+as_tibble_col(codes, column_name = &quot;code&quot;)
+#&gt; # A tibble: 4 x 1
+#&gt;   code
+#&gt;   &lt;chr&gt;
+#&gt; 1 AA
+#&gt; 2 BB
+#&gt; 3 CC
+#&gt; 4 DD</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">Character vectors</a> produce <code>&lt;chr&gt;</code> columns. The same call shape works for factors, dates, and logicals. No coercion happens, so timezone and factor levels survive the conversion.</p>
+
+<h3>3. List input creates a list-column</h3>
+
+<div class="webr-container" data-block-title="List of vectors becomes a list-column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">List of vectors becomes a list-column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">batches &lt;- list(c(0.1, 0.4), c(0.7, 0.9, 1.0), c(0.2))
+as_tibble_col(batches, column_name = &quot;samples&quot;)
+#&gt; # A tibble: 3 x 1
+#&gt;   samples
+#&gt;   &lt;list&gt;
+#&gt; 1 &lt;dbl [2]&gt;
+#&gt; 2 &lt;dbl [3]&gt;
+#&gt; 3 &lt;dbl [1]&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When the input is a list, the output column is a list-column. Each element becomes one cell, so the row count equals the list length, not the total element count. Pair with <code>tidyr::unnest()</code> to expand the list-column into long form.</p>
+
+<h3>4. Pipe-friendly inside a pipeline</h3>
+
+<div class="webr-container" data-block-title="Use inside a pipeline">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use inside a pipeline</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+
+result &lt;- rnorm(6, mean = 10, sd = 2) |&gt;
+  as_tibble_col(&quot;score&quot;) |&gt;
+  transform(rounded = round(score, 1))
+
+head(result, 3)
+#&gt;      score rounded
+#&gt; 1 11.95711    12.0
+#&gt; 2 10.75479    10.8
+#&gt; 3 10.18962    10.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>as_tibble_col()</code> accepts the piped input as its first argument and the column name as a positional second argument. This makes it a clean entry point into a pipeline that started with a bare numeric or character vector.</p>
+
+<h3>5. Pair with bind_cols to assemble a frame</h3>
+
+<div class="webr-container" data-block-title="Build a small tibble from independent vectors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a small tibble from independent vectors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+
+id_col   &lt;- as_tibble_col(101:105, &quot;id&quot;)
+score_col &lt;- as_tibble_col(c(78, 91, 64, 88, 73), &quot;score&quot;)
+final &lt;- cbind(id_col, score_col)
+final
+#&gt;    id score
+#&gt; 1 101    78
+#&gt; 2 102    91
+#&gt; 3 103    64
+#&gt; 4 104    88
+#&gt; 5 105    73</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When several independent functions each return a vector, lift each to a tibble and bind them column-wise. In practice <code>tibble(id = 101:105, score = c(78, 91, 64, 88, 73))</code> is shorter, but the <code>as_tibble_col()</code> approach scales when the vectors come from different sources and must be combined dynamically.</p>
+
+<h2>as_tibble_col() vs enframe() vs tibble()</h2>
+
+<p><strong>The three constructors all produce small tibbles but differ in column count and required input.</strong> <code>as_tibble_col()</code> always emits one column. <code>enframe()</code> emits two columns (name, value). <code>tibble()</code> builds from any number of named arguments.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Behavior</th>
+<th><code>as_tibble_col()</code></th>
+<th><code>enframe()</code></th>
+<th><code>tibble()</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Input</td>
+<td>Any vector or list</td>
+<td>Vector (names optional)</td>
+<td>Bare named arguments</td>
+</tr>
+<tr>
+<td>Columns in output</td>
+<td>Always 1</td>
+<td>Always 2 (name, value)</td>
+<td>One per argument</td>
+</tr>
+<tr>
+<td>Names of input used?</td>
+<td>Discarded</td>
+<td>Promoted to <code>name</code> column</td>
+<td>From argument names</td>
+</tr>
+<tr>
+<td>Row count</td>
+<td><code>length(x)</code></td>
+<td><code>length(x)</code></td>
+<td>Length of longest input</td>
+</tr>
+<tr>
+<td>Typical use</td>
+<td>Shape lift, one column</td>
+<td>Name-value lookup, frequency tables</td>
+<td>Inline multi-column build</td>
+</tr>
+</tbody>
+</table>
+
+<p>Decision rule:</p>
+
+<ul>
+
+<li>Reach for <code>as_tibble_col()</code> when you have one vector and want one column.</li>
+
+<li>Reach for <code>enframe()</code> when a named vector should become a two-column key-value tibble.</li>
+
+<li>Reach for <code>tibble()</code> when several parallel vectors should sit side by side.</li>
+
+</ul>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>as_tibble_col()</code> and <code>as_tibble_row()</code> are mirror images.</strong> Given the same input <code>c(a = 1, b = 2, c = 3)</code>, the row variant produces 1 row by 3 columns, and the col variant produces 3 rows by 1 column. Internalize that duality and you stop confusing them: pick <code>row()</code> when each element is a column, pick <code>col()</code> when each element is a row of one column.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: input names are silently dropped.</strong> If you pass a named vector, the names disappear; <code>as_tibble_col()</code> keeps only the values.</p>
+
+<div class="webr-container" data-block-title="Names disappear, use enframe to keep them">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Names disappear, use enframe to keep them</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">named_vec &lt;- c(a = 1, b = 2, c = 3)
+as_tibble_col(named_vec, &quot;value&quot;)
+#&gt; # A tibble: 3 x 1
+#&gt;   value
+#&gt;   &lt;dbl&gt;
+#&gt; 1     1
+#&gt; 2     2
+#&gt; 3     3
+
+# To preserve names, use enframe instead:
+enframe(named_vec)
+#&gt; # A tibble: 3 x 2
+#&gt;   name  value
+#&gt;   &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 a         1
+#&gt; 2 b         2
+#&gt; 3 c         3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>If the names carry meaning, <code>enframe()</code> is the right function. <code>as_tibble_col()</code> is for vectors where the position is all that matters.</p>
+
+<p><strong>Pitfall 2: passing a data.frame errors.</strong> The function is strict; it expects a vector or list, not an already-rectangular object.</p>
+
+<div class="webr-container" data-block-title="Frames need as_tibble, not as_tibble_col">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Frames need as_tibble, not as_tibble_col</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># This errors:
+# as_tibble_col(mtcars, &quot;x&quot;)
+# Error: `x` must be a vector.
+
+# Fix: pull the column first, or use as_tibble for the whole frame
+as_tibble_col(mtcars$mpg, &quot;mpg&quot;) |&gt; head(3)
+#&gt; # A tibble: 3 x 1
+#&gt;     mpg
+#&gt;   &lt;dbl&gt;
+#&gt; 1  21
+#&gt; 2  21
+#&gt; 3  22.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Use <code>df$column</code> or <code>dplyr::pull(df, column)</code> to extract a single column first, then lift it with <code>as_tibble_col()</code>. For multi-column conversion, use <code>as_tibble()</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Choose <code>column_name</code> carefully when joining downstream.</strong> If two tibbles built with the default <code>&quot;value&quot;</code> get joined, the join key collides and either fails or auto-suffixes to <code>value.x</code> and <code>value.y</code>. Always pass an explicit <code>column_name</code> matching the role of the data ("price", "score", "code") so the column is ready for joins and pivots.</div></div>
+
+<p><strong>Pitfall 3: list with length-mismatched elements works, atomic vector with mixed types coerces.</strong> A list-column tolerates ragged elements, but if you pass an atomic vector built with <code>c()</code>, R coerces silently.</p>
+
+<div class="webr-container" data-block-title="Coercion surprise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Coercion surprise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># c() coerces numeric to character:
+mixed &lt;- c(1, 2, &quot;three&quot;)
+as_tibble_col(mixed, &quot;x&quot;)
+#&gt; # A tibble: 3 x 1
+#&gt;   x
+#&gt;   &lt;chr&gt;
+#&gt; 1 1
+#&gt; 2 2
+#&gt; 3 three
+
+# Use list() to preserve types as a list-column:
+as_tibble_col(list(1, 2, &quot;three&quot;), &quot;x&quot;)
+#&gt; # A tibble: 3 x 1
+#&gt;   x
+#&gt;   &lt;list&gt;
+#&gt; 1 &lt;dbl [1]&gt;
+#&gt; 2 &lt;dbl [1]&gt;
+#&gt; 3 &lt;chr [1]&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The coercion to <code>&lt;chr&gt;</code> is <code>c()</code>'s doing, not <code>as_tibble_col()</code>'s. The function itself does not coerce; it inherits whatever type the input already has.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Take the <code>mpg</code> column from <code>mtcars</code>, lift it into a one-column tibble named <code>mileage</code>, then add a second column <code>band</code> that labels each value as <code>&quot;low&quot;</code>, <code>&quot;mid&quot;</code>, or <code>&quot;high&quot;</code> based on whether it is under 15, 15 to 25, or above 25. Save the result to <code>ex_bands</code>.</p>
+<div class="webr-container" data-block-title="Your turn: lift mpg and add a band column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: lift mpg and add a band column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+
+# Try it: convert mpg to a tibble column and classify
+ex_bands &lt;- # your code here
+
+head(ex_bands, 3)
+#&gt; Expected: 3 rows, 2 columns (mileage, band)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_bands &lt;- as_tibble_col(mtcars$mpg, &quot;mileage&quot;)
+ex_bands$band &lt;- ifelse(ex_bands$mileage &lt; 15, &quot;low&quot;,
+                 ifelse(ex_bands$mileage &lt;= 25, &quot;mid&quot;, &quot;high&quot;))
+head(ex_bands, 3)
+#&gt; # A tibble: 3 x 2
+#&gt;   mileage band
+#&gt;     &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1    21   mid
+#&gt; 2    21   mid
+#&gt; 3    22.8 mid</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>as_tibble_col()</code> does the shape lift from the bare numeric vector returned by <code>mtcars$mpg</code> into a tibble. After that, standard column-add syntax appends the classification, demonstrating how <code>as_tibble_col()</code> plugs cleanly into downstream tidyverse-or-base assembly.</p>
+
+</details>
+</section>
+
+<h2>Related tibble functions</h2>
+
+<p>After mastering <code>as_tibble_col()</code>, look at:</p>
+
+<ul>
+
+<li><code>as_tibble_row()</code>: the row-shaped twin, turns a named vector into a one-row tibble where each element becomes a column.</li>
+
+<li><code>enframe()</code>: turn a named vector into a two-column tibble with <code>name</code> and <code>value</code> columns, preserving the names.</li>
+
+<li><code>tibble()</code>: build a tibble inline from raw named vectors of any length.</li>
+
+<li><code>as_tibble()</code>: coerce an existing data.frame, list, or matrix into a tibble.</li>
+
+<li><code>tibble::deframe()</code>: the inverse of <code>enframe()</code>, collapses a two-column tibble back to a named vector.</li>
+
+<li><code>dplyr::pull()</code>: extract a single column from a tibble as a bare vector, often the input to <code>as_tibble_col()</code>.</li>
+
+</ul>
+
+<p>For the full API, the <a href="https://tibble.tidyverse.org/reference/as_tibble.html#row-and-column-constructors">official as_tibble_col() documentation</a> lists every method and option.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between as_tibble_col() and enframe() in R?</strong></p>
+
+<p><code>as_tibble_col()</code> produces a one-column tibble and discards any names on the input vector. <code>enframe()</code> produces a two-column tibble with <code>name</code> and <code>value</code> columns, promoting the input vector's names into the first column. Reach for <code>as_tibble_col()</code> when only the values matter and you want a clean single column. Reach for <code>enframe()</code> when the names carry meaning, such as a named result from <code>table()</code> or a lookup vector where each entry is a key-value pair.</p>
+
+<p><strong>Why does as_tibble_col() drop the names of my input vector?</strong></p>
+
+<p>The function is designed for shape lifting, not for preserving metadata. Its single column holds values, not labels; if names were kept, they would have nowhere to live. If you need them, use <code>enframe()</code> instead, which writes the names into a dedicated <code>name</code> column. You can also bind them back manually with <code>tibble(name = names(x), value = x)</code>, but <code>enframe()</code> is the idiomatic way.</p>
+
+<p><strong>Can I use as_tibble_col() inside a pipeline?</strong></p>
+
+<p>Yes. The function takes the vector as its first argument, so it composes naturally with <code>|&gt;</code> and <code>%&gt;%</code>: <code>rnorm(10) |&gt; as_tibble_col(&quot;z&quot;)</code>. Pair it with <code>dplyr::mutate()</code> or <code>tidyr::pivot_*</code> afterwards to enrich the column or reshape further. This is the most common production pattern: pull a vector from somewhere, lift it, then continue the pipeline.</p>
+
+<p><strong>How is as_tibble_col() different from tibble()?</strong></p>
+
+<p><code>tibble()</code> builds from named arguments, one per column: <code>tibble(x = 1:3, y = 4:6)</code>. <code>as_tibble_col()</code> lifts one existing vector into one column: <code>as_tibble_col(1:3, &quot;x&quot;)</code>. Use <code>as_tibble_col()</code> for a single dynamic vector. Use <code>tibble()</code> when several parallel vectors and their names are known statically.</p>
+
+<p><strong>Can as_tibble_col() create a list-column?</strong></p>
+
+<p>Yes. Pass a list rather than an atomic vector, and the function produces a list-column where each list element becomes one cell. <code>as_tibble_col(list(1:2, 3:4), &quot;groups&quot;)</code> creates a 2-row tibble with one list-column holding the vectors. Useful when each row carries a nested object such as a sub-sample or smaller tibble.</p>
