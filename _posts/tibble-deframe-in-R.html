@@ -1,0 +1,399 @@
+---
+title: "tibble deframe() in R: Two-Column Tibble to Named Vector"
+description: "Collapse a two-column tibble into a named vector in R using tibble::deframe(). Examples for lookup tables, enframe round-trips, pitfalls, and alternatives."
+keywords: "tibble deframe, deframe function R, tibble deframe examples, R deframe named vector, enframe vs deframe, two column tibble to vector, deframe lookup table"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "deframe()|tibble deframe|tibble::deframe()|two column tibble to vector|named vector from tibble"
+auto_link_case_sensitive: true
+fr_parent: "R-Data-Frames.html"
+---
+<!-- md2html:generated -->
+
+<h1>tibble deframe() in R: Two-Column Tibble to Named Vector</h1>
+
+<p class="lead">The <code>tibble deframe()</code> function collapses a one- or two-column data frame into a vector. A one-column input becomes an unnamed vector; a two-column input becomes a named vector where the first column supplies the names and the second column supplies the values.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>deframe(tibble(x = 1:5))<span class="qa-cmt">                          # one column, unnamed vector</span>
+deframe(tibble(name = letters[1:3], value = 1:3))<span class="qa-cmt"> # two columns, named vector</span>
+deframe(enframe(c(a = 1, b = 2)))<span class="qa-cmt">                 # round-trip with enframe()</span>
+df |&gt; select(key, val) |&gt; deframe()<span class="qa-cmt">               # pipe-friendly lookup</span>
+deframe(count(mtcars, cyl))<span class="qa-cmt">                       # frequency table as named vector</span>
+deframe(prices)[&quot;apple&quot;]<span class="qa-cmt">                          # one-step name lookup</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is deframe() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">two-column tibble to a named vector</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">deframe(df)</text><text x="125" y="126" class="branch-label">single column to a bare vector</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">dplyr::pull(df, col)</text><text x="125" y="182" class="branch-label">named vector to a two-column tibble</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">tibble::enframe(x)</text><text x="125" y="238" class="branch-label">vector to a one-column tibble</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">tibble::as_tibble_col(x, &quot;name&quot;)</text><text x="125" y="294" class="branch-label">attach names to an existing vector</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">stats::setNames(v, names_vec)</text><text x="125" y="350" class="branch-label">convert a whole frame to a list of vectors</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">as.list(df)</text></svg></div>
+
+<h2>What deframe() does in one sentence</h2>
+
+<p><strong><code>deframe()</code> is the inverse of <code>enframe()</code>.</strong> You pass a tibble (or any data frame) with one or two columns, and the function returns the data as a single vector. With one column the output is an unnamed atomic vector. With two columns the first column becomes the <code>names()</code> and the second column becomes the values.</p>
+
+<p>The use case is leaving the rectangular world. After a dplyr pipeline produces a small key-value summary, <code>deframe()</code> collapses it into a named vector you can index by name or feed to a base R function. It is the bridge from tidyverse output back to vector-based code.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>deframe()</code> takes one argument and applies a fixed contract.</strong> The input must be a data frame with 1 or 2 columns; anything else errors.</p>
+
+<div class="webr-container" data-block-title="Load tibble and collapse a two-column frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load tibble and collapse a two-column frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+
+prices &lt;- tibble(item = c(&quot;apple&quot;, &quot;bread&quot;, &quot;cheese&quot;),
+                 price = c(0.40, 2.10, 5.75))
+deframe(prices)
+#&gt;  apple  bread cheese 
+#&gt;   0.40   2.10   5.75</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signature is:</p>
+
+<pre><code>deframe(x)</code></pre>
+
+<ul>
+
+<li><code>x</code> is a data frame (tibble or <code>data.frame</code>) with exactly 1 or 2 columns.</li>
+
+<li>With 1 column: returns that column as a bare vector, names dropped.</li>
+
+<li>With 2 columns: returns the second column as a vector named by the first column.</li>
+
+</ul>
+
+<p>The output type follows the source column: a numeric column produces a <code>&lt;dbl&gt;</code> vector, a character column produces <code>&lt;chr&gt;</code>. Row order is preserved.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pair <code>deframe()</code> with <code>select()</code> to pick the two columns you want.</strong> A frame with more than two columns errors, so chain <code>df |&gt; select(key, value) |&gt; deframe()</code> whenever you start with a wider tibble. Naming the columns explicitly also documents which one becomes the names and which one the values, since position alone determines the role.</div></div>
+
+<h2>Four common patterns</h2>
+
+<h3>1. Lookup table from a two-column tibble</h3>
+
+<div class="webr-container" data-block-title="Build a named price lookup">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a named price lookup</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+
+prices &lt;- tibble(item = c(&quot;apple&quot;, &quot;bread&quot;, &quot;cheese&quot;, &quot;eggs&quot;),
+                 price = c(0.40, 2.10, 5.75, 3.20))
+lookup &lt;- deframe(prices)
+lookup[&quot;cheese&quot;]
+#&gt; cheese 
+#&gt;   5.75
+lookup[c(&quot;apple&quot;, &quot;eggs&quot;)]
+#&gt;  apple  eggs 
+#&gt;   0.40  3.20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The named vector behaves like a small dictionary. Indexing by name returns the matching value in one step, far faster to write than filtering the original tibble. This is the most common reason to reach for <code>deframe()</code>: convert a small reference table into a vector you can subset by key.</p>
+
+<h3>2. Round-trip with enframe()</h3>
+
+<div class="webr-container" data-block-title="enframe then deframe is the identity">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">enframe then deframe is the identity</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">named_vec &lt;- c(a = 10, b = 20, c = 30)
+enframed &lt;- enframe(named_vec)
+enframed
+#&gt; # A tibble: 3 x 2
+#&gt;   name  value
+#&gt;   &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 a        10
+#&gt; 2 b        20
+#&gt; 3 c        30
+
+deframe(enframed)
+#&gt;  a  b  c 
+#&gt; 10 20 30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>enframe()</code> lifts a named vector into a two-column tibble; <code>deframe()</code> collapses it back. The pair is useful when you need to apply tidyverse operations (filter, mutate, join) to what is fundamentally a named vector, then return to vector form for downstream code.</p>
+
+<h3>3. Frequency table as a named vector</h3>
+
+<div class="webr-container" data-block-title="Counts as a lookup-friendly vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Counts as a lookup-friendly vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+cyl_counts &lt;- mtcars |&gt;
+  count(cyl) |&gt;
+  deframe()
+cyl_counts
+#&gt;  4  6  8 
+#&gt; 11  7 14
+
+cyl_counts[&quot;6&quot;]
+#&gt;  6 
+#&gt;  7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>dplyr::count()</code> returns a two-column tibble of group and frequency; <code>deframe()</code> is the natural finisher when you want to index those counts by group later. The names are character even when the original grouping column was numeric, which matches base R's <code>table()</code> output convention.</p>
+
+<h3>4. Single-column collapse to bare vector</h3>
+
+<div class="webr-container" data-block-title="One column becomes unnamed vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One column becomes unnamed vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+
+ids &lt;- tibble(id = 101:105)
+deframe(ids)
+#&gt; [1] 101 102 103 104 105</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With a single column, <code>deframe()</code> returns the values with no names attached, equivalent to <code>df[[1]]</code>. The advantage over <code>pull()</code> is consistency: the same function works for one-column and two-column inputs, so generic pipelines do not need to branch on column count.</p>
+
+<h2>deframe() vs pull() vs setNames()</h2>
+
+<p><strong>Three functions take a frame or vector and emit a vector, but they differ in shape and intent.</strong> Pick by what you start with and what you want as names.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Behavior</th>
+<th><code>deframe()</code></th>
+<th><code>pull()</code></th>
+<th><code>setNames()</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Input</td>
+<td>Data frame (1 or 2 cols)</td>
+<td>Data frame (any width)</td>
+<td>Vector + names vector</td>
+</tr>
+<tr>
+<td>Output</td>
+<td>Named or unnamed vector</td>
+<td>Bare vector (always unnamed)</td>
+<td>Named vector</td>
+</tr>
+<tr>
+<td>Names source</td>
+<td>First column</td>
+<td>None</td>
+<td>Second argument</td>
+</tr>
+<tr>
+<td>Multi-column input?</td>
+<td>Errors</td>
+<td>Picks one column</td>
+<td>N/A</td>
+</tr>
+<tr>
+<td>Typical use</td>
+<td>Lookup-table conversion</td>
+<td>Extract one column</td>
+<td>Attach names to existing vector</td>
+</tr>
+</tbody>
+</table>
+
+<p>Decision rule:</p>
+
+<ul>
+
+<li>Reach for <code>deframe()</code> when a two-column tibble should become a <a class="auto-link" href="R-Names-and-Values.html" title="R Names and Values: How R Actually Stores Data (Copy-on-Modify Explained)">name to value</a> map.</li>
+
+<li>Reach for <code>dplyr::pull()</code> when you only need the values of one column from a wider frame.</li>
+
+<li>Reach for <code>setNames()</code> when you already have a vector and a parallel names vector but no tibble.</li>
+
+</ul>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Think of <code>deframe()</code> as the exit gate from the tidyverse.</strong> Most tidyverse functions take a tibble and return a tibble, keeping you inside the rectangular world. <code>deframe()</code> is the deliberate step out: it hands you a named vector for use with base R, with <code>[</code>, <code>match()</code>, <code>names()</code>, or any function that expects a vector. That asymmetry with <code>enframe()</code> (the entry gate) makes the pair a clean boundary between tidyverse pipelines and vector-based code.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: more than two columns errors.</strong> <code>deframe()</code> does not pick a default column pair; it refuses to guess.</p>
+
+<div class="webr-container" data-block-title="Three columns triggers an error">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three columns triggers an error</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+
+wide &lt;- tibble(id = 1:3, name = c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), value = c(10, 20, 30))
+# This errors:
+# deframe(wide)
+# Error in `deframe()`: ! `x` must be a one- or two-column data frame.
+
+# Fix: pick two columns first
+library(dplyr)
+deframe(select(wide, name, value))
+#&gt;  a  b  c 
+#&gt; 10 20 30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Always reduce to one or two columns with <code>select()</code> before calling <code>deframe()</code>. Position matters in the two-column case: the first column is the names, the second is the values.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Duplicate keys in the first column produce a vector with duplicate names, not a merged one.</strong> R allows duplicate names on a vector but indexing by a duplicate key returns only the first match. If two rows in the names column share a value, the second occurrence becomes unreachable by name. Use <code>dplyr::distinct()</code> or <code>dplyr::summarise()</code> to dedupe before deframing if you need a true lookup.</div></div>
+
+<p><strong>Pitfall 2: column order matters, names always come first.</strong> Swapping the column order in your <code>select()</code> swaps the names and values silently.</p>
+
+<div class="webr-container" data-block-title="Column order determines which becomes names">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Column order determines which becomes names</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble); library(dplyr)
+
+stock &lt;- tibble(qty = c(5, 12, 3), item = c(&quot;nail&quot;, &quot;screw&quot;, &quot;bolt&quot;))
+
+# qty becomes names (likely not what you want):
+deframe(select(stock, qty, item))
+#&gt;      5      12       3 
+#&gt; &quot;nail&quot; &quot;screw&quot;  &quot;bolt&quot;
+
+# Reorder so the label becomes names:
+deframe(select(stock, item, qty))
+#&gt;  nail screw  bolt 
+#&gt;     5    12     3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The function never inspects column types to guess; it always treats column 1 as names and column 2 as values. Always reorder with <code>select(name_col, value_col)</code> to be explicit.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a tibble of three U.S. cities and their populations (in millions), then collapse it to a named vector and look up the population of "Chicago". Save the lookup vector to <code>ex_pop</code> and the looked-up value to <code>ex_chicago</code>.</p>
+<div class="webr-container" data-block-title="Your turn: build a city-to-population lookup">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build a city-to-population lookup</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+
+# Try it: build a tibble, deframe, then index
+ex_pop &lt;- # your code here
+ex_chicago &lt;- # your code here
+
+ex_chicago
+#&gt; Expected: a named numeric, e.g. Chicago 2.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+
+cities &lt;- tibble(city = c(&quot;New York&quot;, &quot;Los Angeles&quot;, &quot;Chicago&quot;),
+                 pop  = c(8.3, 3.9, 2.7))
+ex_pop &lt;- deframe(cities)
+ex_pop
+#&gt;    New York Los Angeles     Chicago 
+#&gt;         8.3         3.9         2.7
+
+ex_chicago &lt;- ex_pop[&quot;Chicago&quot;]
+ex_chicago
+#&gt; Chicago 
+#&gt;     2.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>deframe()</code> turns the two-column tibble into a named numeric vector keyed by <code>city</code>. Once it is a named vector, <code>ex_pop[&quot;Chicago&quot;]</code> is the standard base R name-based subset, returning the matching element with its name attribute intact.</p>
+
+</details>
+</section>
+
+<h2>Related tibble functions</h2>
+
+<p>After mastering <code>deframe()</code>, look at:</p>
+
+<ul>
+
+<li><code>tibble::enframe()</code>: the inverse, turns a named vector into a two-column <code>name</code>/<code>value</code> tibble.</li>
+
+<li><code>tibble::as_tibble_col()</code>: lift a single vector into a one-column tibble.</li>
+
+<li><code>tibble::as_tibble_row()</code>: lift a named vector into a one-row tibble.</li>
+
+<li><code>dplyr::pull()</code>: extract a single column from a tibble as a bare vector.</li>
+
+<li><code>stats::setNames()</code>: attach a names vector to an existing vector without going through a tibble.</li>
+
+<li><code>base::unlist()</code>: collapse a list (including a list-column) into a single vector.</li>
+
+</ul>
+
+<p>For the full API, the <a href="https://tibble.tidyverse.org/reference/enframe.html">official deframe() documentation</a> lists the contract alongside <code>enframe()</code>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between deframe() and <a class="auto-link" href="dplyr-pull-in-R.html" title="dplyr pull() in R: Extract a Column as a Vector">pull()</a> in R?</strong></p>
+
+<p><code>deframe()</code> works on a one- or two-column data frame and returns a vector, with the first column becoming the names when two columns are present. <code>pull()</code> extracts any single column from a frame of any width and always returns a bare unnamed vector. Reach for <code>deframe()</code> when you want a name-to-value lookup map. Reach for <code>pull()</code> when you only need the values from one specific column in a wider tibble and do not care about names.</p>
+
+<p><strong>Why does deframe() error on a three-column tibble?</strong></p>
+
+<p>The function refuses to guess which two columns to use; it has no rule to pick a names column and a values column from three or more candidates. Errors are preferable to silent <a class="auto-link" href="dplyr-select-in-R.html" title="dplyr select() in R: Choose, Rename and Reorder Columns">column selection</a> because the wrong choice would produce a misleading lookup vector. The fix is to call <code>dplyr::select(df, names_col, values_col)</code> first, then <code>deframe()</code>, so the column choice is explicit and visible at the call site.</p>
+
+<p><strong>Does deframe() preserve the type of the values column?</strong></p>
+
+<p>Yes. The values column's type carries through unchanged: a <code>&lt;dbl&gt;</code> column produces a numeric vector, <code>&lt;chr&gt;</code> a character vector, <code>&lt;lgl&gt;</code> a logical, and so on. Only the names column is coerced; it is always converted to character because R vector names must be character. Factor levels become character strings, integers become character digits, dates become character ISO strings.</p>
+
+<p><strong>Can deframe() handle duplicate keys?</strong></p>
+
+<p>Yes, but with a caveat: R allows duplicate names on a vector, so <code>deframe()</code> will return a vector with repeated names if your first column has duplicates. Indexing by name then returns only the first match, making later duplicates unreachable. If you need a true lookup, dedupe with <code>dplyr::distinct()</code> or aggregate with <code>dplyr::summarise()</code> before deframing.</p>
