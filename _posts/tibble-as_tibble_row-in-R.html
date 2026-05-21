@@ -1,0 +1,419 @@
+---
+title: "tibble as_tibble_row() in R: One Row at a Time"
+description: "Convert a named vector or list into a single-row tibble in R with as_tibble_row(). Examples for loops, list-columns, and rowwise records, plus pitfalls."
+keywords: "tibble as_tibble_row, as_tibble_row function R, tibble as_tibble_row examples, R named vector to row, as_tibble_row vs as_tibble, one row tibble R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "as_tibble_row()|tibble as_tibble_row|tibble::as_tibble_row()|named vector to tibble|one row tibble"
+auto_link_case_sensitive: true
+fr_parent: "R-Data-Frames.html"
+---
+<!-- md2html:generated -->
+
+<h1>tibble as_tibble_row() in R: One Row at a Time</h1>
+
+<p class="lead">The <code>as_tibble_row()</code> function in the tibble package converts a named vector or a length-1 list into a one-row tibble, with each element becoming a column. It is the standard tool for building tibbles record-by-record from named scalars.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>as_tibble_row(c(x = 1, y = 2, z = 3))<span class="qa-cmt">         # named vector to 1 row</span>
+as_tibble_row(list(a = 1, b = &quot;hi&quot;))<span class="qa-cmt">          # mixed-type named list</span>
+as_tibble_row(c(1, 2, 3))<span class="qa-cmt">                     # errors: needs names</span>
+as_tibble_row(c(a = 1, a = 2), .name_repair = &quot;unique&quot;)<span class="qa-cmt">  # dedupe names</span>
+purrr::map_dfr(seq, ~ as_tibble_row(.x))<span class="qa-cmt">      # row-by-row build</span>
+as_tibble_row(list(id = 1, vals = list(1:3)))<span class="qa-cmt"> # list-column in one row</span>
+as_tibble_row(setNames(1:3, c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;)))<span class="qa-cmt">  # vector via setNames</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is as_tibble_row() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">one named vector to a 1-row tibble</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">as_tibble_row(c(a = 1, b = 2))</text><text x="125" y="126" class="branch-label">one named vector to a 1-column tibble</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">as_tibble_col(c(a = 1, b = 2))</text><text x="125" y="182" class="branch-label">many named vectors to a multi-row tibble</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">purrr::<a class="auto-link" href="purrr-map-Data-Wrangling.html" title="purrr map() for Data Wrangling: Read Files, Transform Lists & Fit Models">map_dfr</a>(list, as_tibble_row)</text><text x="125" y="238" class="branch-label">columns from raw vectors of equal length</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">tibble(x = 1:3, y = 4:6)</text><text x="125" y="294" class="branch-label">coerce an existing data.frame or list</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">as_tibble(df)</text><text x="125" y="350" class="branch-label">pivot a wide row into long form afterwards</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">tidyr::<a class="auto-link" href="pivot_longer-pivot_wider-Reshape-Data-in-R.html" title="pivot_longer() and pivot_wider(): Reshape Data in R Without Losing Your Mind">pivot_longer()</a></text></svg></div>
+
+<h2>What as_tibble_row() does in one sentence</h2>
+
+<p><strong><code>as_tibble_row()</code> turns a single named record into a one-row tibble.</strong> You pass a named vector or a length-1 list, and the function returns a <code>tbl_df</code> with one row and as many columns as there are names. Unlike <code>tibble()</code> or <code>as_tibble()</code>, this function is opinionated about producing exactly one row.</p>
+
+<p>The use case is record-shaped data: a function returning named <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summary statistics</a>, a dictionary from a JSON API, an iteration inside a <code>for</code> loop that computes a fresh record. <code>as_tibble_row()</code> lifts the wide-by-name shape into the tidyverse without manual reshaping.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>as_tibble_row()</code> is a thin wrapper over <code>as_tibble()</code> with <code>.rows = 1</code>.</strong> It has a fixed contract: input must be named, output is always one row.</p>
+
+<div class="webr-container" data-block-title="Load tibble and convert a record">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load tibble and convert a record</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+
+as_tibble_row(c(mpg = 21.0, cyl = 6, hp = 110, wt = 2.62))
+#&gt; # A tibble: 1 x 4
+#&gt;     mpg   cyl    hp    wt
+#&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1    21     6   110  2.62</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signature is:</p>
+
+<pre><code>as_tibble_row(x, .name_repair = c(&quot;check_unique&quot;, &quot;unique&quot;, &quot;universal&quot;, &quot;minimal&quot;))</code></pre>
+
+<ul>
+
+<li><code>x</code> is a named vector or a list (each element length 1, or a list itself for list-columns).</li>
+
+<li><code>.name_repair</code> controls duplicate or syntactically invalid names: <code>&quot;check_unique&quot;</code> (default, errors on duplicates), <code>&quot;unique&quot;</code> (auto-suffix), <code>&quot;minimal&quot;</code> (keep as-is), <code>&quot;universal&quot;</code> (also fix syntax).</li>
+
+</ul>
+
+<p>The result always has exactly one row and <code>class(c(&quot;tbl_df&quot;, &quot;tbl&quot;, &quot;data.frame&quot;))</code>.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>as_tibble_row()</code> over manual <code>tibble()</code> calls when names come from data.</strong> Writing <code>tibble(mpg = 21, cyl = 6, hp = 110)</code> requires you to know the names at write time. <code>as_tibble_row(record)</code> works with whatever names the upstream code produced, which is exactly what you want inside <code>lapply()</code>, <code>purrr::map()</code>, or any pipeline that processes records dynamically.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Convert a named numeric vector</h3>
+
+<div class="webr-container" data-block-title="Summary stats as a 1-row tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Summary stats as a 1-row tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">stats &lt;- c(mean = mean(mtcars$mpg), sd = sd(mtcars$mpg), n = nrow(mtcars))
+as_tibble_row(stats)
+#&gt; # A tibble: 1 x 3
+#&gt;    mean    sd     n
+#&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1  20.1  6.03    32</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every element of the vector becomes one column. The numeric type carries through, so column types match the source vector exactly.</p>
+
+<h3>2. Convert a mixed-type named list</h3>
+
+<div class="webr-container" data-block-title="Heterogeneous record">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Heterogeneous record</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">record &lt;- list(id = 42, name = &quot;Ana&quot;, active = TRUE, score = 91.5)
+as_tibble_row(record)
+#&gt; # A tibble: 1 x 4
+#&gt;      id name  active score
+#&gt;   &lt;dbl&gt; &lt;chr&gt; &lt;lgl&gt;  &lt;dbl&gt;
+#&gt; 1    42 Ana   TRUE    91.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Lists are the natural input when columns mix types. Each element keeps its own type, so the resulting tibble has <code>&lt;dbl&gt;</code>, <code>&lt;chr&gt;</code>, and <code>&lt;lgl&gt;</code> columns without coercion.</p>
+
+<h3>3. Build row-by-row in a loop</h3>
+
+<div class="webr-container" data-block-title="Loop that grows a tibble one record at a time">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Loop that grows a tibble one record at a time</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rows &lt;- lapply(1:3, function(i) {
+  as_tibble_row(c(iter = i, square = i^2, cube = i^3))
+})
+do.call(rbind, rows)
+#&gt; # A tibble: 3 x 3
+#&gt;    iter square  cube
+#&gt;   &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1     1      1     1
+#&gt; 2     2      4     8
+#&gt; 3     3      9    27</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the classic record-<a class="auto-link" href="Tail-Call-Optimization-in-R.html" title="Tail Call Optimization in R: Recursive Functions Without Stack Overflow">accumulator pattern</a>. Each iteration produces one row; <code>rbind()</code> stitches them into the final frame. The <code>dplyr::bind_rows()</code> and <code>purrr::map_dfr()</code> shortcuts (next pattern) do the same thing more concisely.</p>
+
+<h3>4. Combine with purrr::map_dfr</h3>
+
+<div class="webr-container" data-block-title="map_dfr returns the stacked tibble directly">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">map_dfr returns the stacked tibble directly</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+result &lt;- map_dfr(1:3, ~ as_tibble_row(c(iter = .x, square = .x^2)))
+result
+#&gt; # A tibble: 3 x 2
+#&gt;    iter square
+#&gt;   &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1     1      1
+#&gt; 2     2      4
+#&gt; 3     3      9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>map_dfr()</code> calls the function for each input, expects a tibble row out, and binds the results. Paired with <code>as_tibble_row()</code>, it replaces dozens of lines of <code>for</code>-loop bookkeeping with one expression.</p>
+
+<h3>5. Create a list-column inside the row</h3>
+
+<div class="webr-container" data-block-title="One row carrying a vector in a single cell">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One row carrying a vector in a single cell</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">as_tibble_row(list(id = 1, label = &quot;batch_A&quot;, samples = list(c(0.1, 0.5, 0.9))))
+#&gt; # A tibble: 1 x 3
+#&gt;      id label   samples
+#&gt;   &lt;dbl&gt; &lt;chr&gt;   &lt;list&gt;
+#&gt; 1     1 batch_A &lt;dbl [3]&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When a list element is itself a list of length 1, that cell becomes a list-column. This is how you store nested objects (vectors, models, even tibbles) inside a single row, ready for <code>tidyr::unnest()</code> or <code>purrr::map()</code> later.</p>
+
+<h2>as_tibble_row() vs as_tibble() vs tibble()</h2>
+
+<p><strong>The three constructors differ in what they accept and how many rows they emit.</strong> <code>as_tibble_row()</code> always produces one row from a named record. <code>as_tibble()</code> coerces an existing rectangular object preserving its shape. <code>tibble()</code> builds from raw vectors with the row count determined by the longest input.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Behavior</th>
+<th><code>as_tibble_row()</code></th>
+<th><code>as_tibble()</code></th>
+<th><code>tibble()</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Input</td>
+<td>Named vector or list</td>
+<td>data.frame, list, matrix</td>
+<td>Bare named vectors</td>
+</tr>
+<tr>
+<td>Rows in output</td>
+<td>Always 1</td>
+<td>Same as input</td>
+<td>Length of longest input</td>
+</tr>
+<tr>
+<td>Names required</td>
+<td>Yes (errors without)</td>
+<td>Yes (or repaired)</td>
+<td>From argument names</td>
+</tr>
+<tr>
+<td>Mixed types</td>
+<td>Yes (via list input)</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Recycling</td>
+<td>None</td>
+<td>None</td>
+<td>Length 1 to longest</td>
+</tr>
+<tr>
+<td>Typical use</td>
+<td>One record at a time</td>
+<td>Coerce existing object</td>
+<td>Inline construction</td>
+</tr>
+</tbody>
+</table>
+
+<p>Decision rule:</p>
+
+<ul>
+
+<li>Reach for <code>as_tibble_row()</code> when each unit of work produces a named scalar record.</li>
+
+<li>Reach for <code>tibble()</code> when you have parallel vectors and know their names statically.</li>
+
+<li>Reach for <code>as_tibble()</code> when you already have a data.frame, list, or matrix to promote.</li>
+
+</ul>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>as_tibble_row()</code> is the natural pair to <code>purrr::map_dfr()</code>.</strong> Together they form the canonical "for-each-input, build-a-record, bind-them-all" pattern. Once you internalize that pairing, most loops that accumulate results collapse into a single <code>map_dfr()</code> call, with <code>as_tibble_row()</code> doing the per-iteration shape lift.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: unnamed input errors immediately.</strong> The function requires names; bare <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">numeric vectors</a> trigger a hard error, not a fallback.</p>
+
+<div class="webr-container" data-block-title="Names are mandatory">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Names are mandatory</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># This errors:
+# as_tibble_row(c(1, 2, 3))
+# Error: All columns in a tibble must be named.
+
+# Fix: add names before calling
+as_tibble_row(setNames(c(1, 2, 3), c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;)))
+#&gt; # A tibble: 1 x 3
+#&gt;       a     b     c
+#&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1     1     2     3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>setNames()</code> is the quickest fix. For programmatic naming, build the names vector first and apply it before the conversion.</p>
+
+<p><strong>Pitfall 2: vector elements longer than 1 break the 1-row contract.</strong> Every element of a vector input must be a scalar, and every list element must be length 1 (or a wrapped list for list-columns).</p>
+
+<div class="webr-container" data-block-title="Length-1 only">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Length-1 only</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># This errors:
+# as_tibble_row(list(a = 1, b = c(2, 3)))
+# Error: Tibble columns must have compatible sizes.
+
+# Fix 1: wrap the multi-value element in list() for a list-column
+as_tibble_row(list(a = 1, b = list(c(2, 3))))
+#&gt; # A tibble: 1 x 2
+#&gt;       a         b
+#&gt;   &lt;dbl&gt;    &lt;list&gt;
+#&gt; 1     1 &lt;dbl [2]&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The error message can confuse newcomers because it talks about "compatible sizes" while the function is explicitly designed for one row. The fix is always: either reduce the long element to a scalar, or wrap it in <code>list()</code> to make it a list-column.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>as_tibble_row()</code> is NOT the same as <code>as_tibble()</code> on a list.</strong> Calling <code>as_tibble(list(a = 1, b = 2))</code> returns a 1-row, 2-column tibble in the common case, but if any element has length greater than 1 it creates multiple rows. <code>as_tibble_row()</code> will error in that case. Use the row variant when you need a guarantee that the output is exactly one row, no matter what the input looks like.</div></div>
+
+<p><strong>Pitfall 3: forgetting to bind the rows.</strong> A single <code>as_tibble_row()</code> call inside a loop is useless without an aggregator. Always pair it with <code>do.call(rbind, ...)</code>, <code>dplyr::bind_rows()</code>, or <code>purrr::map_dfr()</code>.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> For each cylinder count in <code>mtcars</code> (4, 6, 8), compute the mean mpg and number of cars, then assemble the three records into a single tibble called <code>ex_summary</code>.</p>
+<div class="webr-container" data-block-title="Your turn: per-cyl summary using as_tibble_row">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: per-cyl summary using as_tibble_row</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+library(purrr)
+
+# Try it: build a 3-row tibble from per-cyl records
+ex_summary &lt;- # your code here
+
+ex_summary
+#&gt; Expected: 3 rows, 3 columns (cyl, mean_mpg, n)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_summary &lt;- map_dfr(c(4, 6, 8), function(cyl_value) {
+  subset_rows &lt;- mtcars[mtcars$cyl == cyl_value, ]
+  as_tibble_row(c(
+    cyl = cyl_value,
+    mean_mpg = mean(subset_rows$mpg),
+    n = nrow(subset_rows)
+  ))
+})
+ex_summary
+#&gt; # A tibble: 3 x 3
+#&gt;     cyl mean_mpg     n
+#&gt;   &lt;dbl&gt;    &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1     4     26.7    11
+#&gt; 2     6     19.7     7
+#&gt; 3     8     15.1    14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>map_dfr()</code> walks the three cylinder values, calls the function once per value, and binds the resulting one-row tibbles into a 3-row frame. <code>as_tibble_row()</code> does the per-iteration shape lift from named numeric vector to one row.</p>
+
+</details>
+</section>
+
+<h2>Related tibble functions</h2>
+
+<p>After mastering <code>as_tibble_row()</code>, look at:</p>
+
+<ul>
+
+<li><code>as_tibble_col()</code>: the column-shaped twin, turns a named vector into a one-column tibble with <code>name</code> and <code>value</code> columns.</li>
+
+<li><code>tibble()</code>: build a tibble inline from raw named vectors of any length.</li>
+
+<li><code>as_tibble()</code>: coerce an existing data.frame, list, or matrix into a tibble.</li>
+
+<li><code>tribble()</code>: <a class="auto-link" href="dplyr-rowwise-in-R.html" title="dplyr rowwise() in R: Compute One Row at a Time">row-by-row</a> construction with a literal syntax, good for fixed lookup tables.</li>
+
+<li><code>enframe()</code>: another named-vector entry point, but always emits two columns (name, value).</li>
+
+<li><code>add_row()</code>: append a single record to an existing tibble.</li>
+
+</ul>
+
+<p>For the full API, the <a href="https://tibble.tidyverse.org/reference/as_tibble.html#row-and-column-constructors">official as_tibble_row() documentation</a> lists every method and option.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between as_tibble_row() and as_tibble() in R?</strong></p>
+
+<p><code>as_tibble_row()</code> always returns exactly one row, taking a named vector or length-1 list as input. <code>as_tibble()</code> is the general coercer for already-rectangular objects (data frames, matrices, lists of equal-length vectors) and returns as many rows as the input shape implies. Reach for <code>as_tibble_row()</code> inside loops or <code>map_dfr()</code> calls where each unit of work produces one record. Reach for <code>as_tibble()</code> when you have a complete data frame or list to promote into the tidyverse.</p>
+
+<p><strong>Why does as_tibble_row() error on unnamed input?</strong></p>
+
+<p>Tibbles require named columns, and <code>as_tibble_row()</code> maps each input element to a column. With no names, the function fails fast rather than inventing labels like <code>V1</code>, <code>V2</code>. Fix by attaching names with <code>setNames(x, c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;))</code> or <code>purrr::set_names()</code> before passing the vector. If the data has no meaningful names, <code>tibble()</code> with positional construction is more honest about what you are doing.</p>
+
+<p><strong>How do I create a list-column with as_tibble_row()?</strong></p>
+
+<p>Wrap the multi-element value in <code>list()</code> so it becomes a single list element of length 1. <code>as_tibble_row(list(id = 1, vals = list(c(1, 2, 3))))</code> puts the three-element numeric vector inside one cell. Without the outer <code>list()</code>, the function errors with a length-mismatch message. List-columns are the standard way to nest vectors, models, or other tibbles inside one row.</p>
+
+<p><strong>How is as_tibble_row() different from tibble()?</strong></p>
+
+<p><code>tibble()</code> builds from raw named arguments: <code>tibble(a = 1:3, b = 4:6)</code>. You write names and values literally. <code>as_tibble_row()</code> takes one already-constructed named object and lifts it into a one-row tibble. Use <code>tibble()</code> when names are known at write time. Use <code>as_tibble_row()</code> when names come from upstream data, often inside a loop or <code>map()</code> producing one record per iteration.</p>
+
+<p><strong>Can I use as_tibble_row() with a data.frame row?</strong></p>
+
+<p>Indirectly. Extract a single row as a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> with <code>as.list(df[i, ])</code>, then pass it in: <code>as_tibble_row(as.list(mtcars[1, ]))</code>. Useful for plucking one record from a larger frame and re-emitting it as a standalone tibble, for example to bind into a different schema or to attach as a manifest.</p>
