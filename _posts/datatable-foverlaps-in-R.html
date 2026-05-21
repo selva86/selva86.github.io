@@ -1,0 +1,400 @@
+---
+title: "data.table foverlaps() in R: Fast Overlap Joins on Intervals"
+description: "Learn data.table foverlaps() in R to join interval data fast. Covers setkey setup, overlap types, maxgap, mult, and grouped overlap joins with examples."
+keywords: "data.table foverlaps, foverlaps function R, data.table foverlaps examples, R interval join, R overlap join, foverlaps data.table, foverlaps R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "foverlaps()|data.table foverlaps|data.table::foverlaps()|foverlaps|overlap join"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>data.table foverlaps() in R: Fast Overlap Joins on Intervals</h1>
+
+<p class="lead">The data.table <code>foverlaps()</code> function performs fast overlap joins between two interval-keyed tables in R. It matches each row of <code>x</code> to every row of <code>y</code> whose interval overlaps, with control over the overlap type, minimum overlap, and allowed gap.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>foverlaps(x, y)<span class="qa-cmt">                         # default &quot;any&quot; overlap</span>
+foverlaps(x, y, type = &quot;within&quot;)<span class="qa-cmt">        # x interval fully inside y</span>
+foverlaps(x, y, type = &quot;start&quot;)<span class="qa-cmt">         # intervals share a start</span>
+foverlaps(x, y, type = &quot;equal&quot;)<span class="qa-cmt">         # intervals match exactly</span>
+foverlaps(x, y, mult = &quot;first&quot;)<span class="qa-cmt">         # one match per x row</span>
+foverlaps(x, y, nomatch = NULL)<span class="qa-cmt">         # inner join, drop unmatched</span>
+foverlaps(x, y, maxgap = 5)<span class="qa-cmt">             # treat 5-unit gap as overlap</span>
+foverlaps(x, y, which = TRUE)<span class="qa-cmt">           # return row indices only</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is foverlaps() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">join two interval tables by overlap</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">foverlaps(x, y)</text><text x="125" y="126" class="branch-label">equi-join on key columns, no intervals</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">y[x, on = &quot;id&quot;]</text><text x="125" y="182" class="branch-label">nearest match on sorted key</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">y[x, on = &quot;date&quot;, roll = TRUE]</text><text x="125" y="238" class="branch-label">find self-overlaps inside one table</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">foverlaps(dt, dt)</text><text x="125" y="294" class="branch-label">rolling window aggregate over rows</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">frollsum(x, 7)</text><text x="125" y="350" class="branch-label">stack many data.tables row-wise</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">rbindlist(list_of_dts)</text></svg></div>
+
+<h2>What foverlaps() does</h2>
+
+<p><strong>foverlaps() joins two data.tables by interval overlap instead of by equality.</strong> Each row in <code>x</code> is matched to every row in <code>y</code> whose <code>[start, end]</code> interval intersects with the <code>x</code> row's interval, and the matched columns are returned side by side. It is the data.table answer to <a class="auto-link" href="R-for-Genomics-Exercises.html" title="R for Genomics Exercises: 15 Practice Problems">GenomicRanges</a>-style overlap joins.</p>
+
+<p>The function is written in C and runs without a quadratic scan, so it scales to millions of rows. Both tables stay in memory; no SQL window is needed.</p>
+
+<p>Before any overlap join, <code>y</code> must be keyed on at least two columns that define the interval, set with <code>setkey(y, start, end)</code> or with <code>setkeyv()</code>.</p>
+
+<h2>foverlaps() syntax and arguments</h2>
+
+<p><strong>The signature looks long, but only the first two arguments are mandatory.</strong> The defaults cover the most common case: an "any" overlap, all matches returned, and the keys inferred from <code>y</code>.</p>
+
+<div class="webr-container" data-block-title="foverlaps function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">foverlaps function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">foverlaps(x, y, by.x = key(x), by.y = key(y),
+          maxgap = 0L, minoverlap = 1L,
+          type = c(&quot;any&quot;, &quot;within&quot;, &quot;start&quot;, &quot;end&quot;, &quot;equal&quot;),
+          mult = c(&quot;all&quot;, &quot;first&quot;, &quot;last&quot;),
+          nomatch = NA, which = FALSE, verbose = FALSE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each argument shapes how the overlap is detected and which matches are returned:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code>, <code>y</code></td>
+<td>Two data.tables. <code>y</code> must be keyed; <code>x</code> must have matching interval columns.</td>
+</tr>
+<tr>
+<td><code>by.x</code>, <code>by.y</code></td>
+<td>Column names defining the interval, last two are the start and end.</td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td>Overlap rule: <code>&quot;any&quot;</code>, <code>&quot;within&quot;</code>, <code>&quot;start&quot;</code>, <code>&quot;end&quot;</code>, or <code>&quot;equal&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>mult</code></td>
+<td>When multiple <code>y</code> rows match, return <code>&quot;all&quot;</code>, <code>&quot;first&quot;</code>, or <code>&quot;last&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>nomatch</code></td>
+<td><code>NA</code> keeps unmatched <code>x</code> rows (left join), <code>NULL</code> drops them (<a class="auto-link" href="dplyr-inner_join-in-R.html" title="dplyr inner_join() in R: Keep Only Matched Rows">inner join</a>).</td>
+</tr>
+<tr>
+<td><code>maxgap</code></td>
+<td>A non-overlap up to this distance still counts as a match.</td>
+</tr>
+<tr>
+<td><code>minoverlap</code></td>
+<td>Minimum overlap length required to count as a match.</td>
+</tr>
+<tr>
+<td><code>which</code></td>
+<td>If <code>TRUE</code>, return only row indices instead of the merged columns.</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from another package?</strong> <code>foverlaps()</code> is the data.table equivalent of GenomicRanges' <code>findOverlaps()</code> and of dplyr's experimental <code>join_by(overlaps())</code> helper. Unlike SQL, no <code>BETWEEN</code> self-join is needed.</div></div>
+
+<h2>foverlaps() examples</h2>
+
+<p><strong>These examples use small inline tables so each overlap is easy to verify by eye.</strong> Each example targets a different real use case for interval joins.</p>
+
+<p>A basic call matches sessions to events. Here every event whose timestamp falls inside a session window is paired with that session.</p>
+
+<div class="webr-container" data-block-title="Match events to session intervals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Match events to session intervals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+sessions &lt;- data.table(
+  user  = c(&quot;a&quot;, &quot;a&quot;, &quot;b&quot;),
+  start = c(1, 10, 1),
+  end   = c(5, 15, 8)
+)
+events &lt;- data.table(
+  user = c(&quot;a&quot;, &quot;a&quot;, &quot;b&quot;),
+  t1   = c(3, 12, 6),
+  t2   = c(3, 12, 6)
+)
+setkey(sessions, user, start, end)
+foverlaps(events, sessions, by.x = c(&quot;user&quot;, &quot;t1&quot;, &quot;t2&quot;))
+#&gt;      user start   end    t1    t2
+#&gt;    &lt;char&gt; &lt;num&gt; &lt;num&gt; &lt;num&gt; &lt;num&gt;
+#&gt; 1:      a     1     5     3     3
+#&gt; 2:      a    10    15    12    12
+#&gt; 3:      b     1     8     6     6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Use <code>type = &quot;within&quot;</code> to keep only matches where the <code>x</code> interval lies fully inside a <code>y</code> interval. This is strict containment, not partial overlap.</p>
+
+<div class="webr-container" data-block-title="Keep only fully-contained intervals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keep only fully-contained intervals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">windows &lt;- data.table(g = &quot;x&quot;, s = 0,  e = 10)
+items   &lt;- data.table(g = &quot;x&quot;, a = c(2, 8), b = c(4, 12))
+setkey(windows, g, s, e)
+foverlaps(items, windows, by.x = c(&quot;g&quot;, &quot;a&quot;, &quot;b&quot;), type = &quot;within&quot;)
+#&gt;         g     s     e     a     b
+#&gt;    &lt;char&gt; &lt;num&gt; &lt;num&gt; &lt;num&gt; &lt;num&gt;
+#&gt; 1:      x     0    10     2     4
+#&gt; 2:      x    NA    NA     8    12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For pricing or rate lookups, you often want exactly one matching window per row. Pass <code>mult = &quot;first&quot;</code> so each <code>x</code> row returns its first match instead of every overlap.</p>
+
+<div class="webr-container" data-block-title="Return only the first matching interval">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Return only the first matching interval</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rates &lt;- data.table(
+  region = &quot;EU&quot;,
+  from   = as.Date(c(&quot;2024-01-01&quot;, &quot;2024-07-01&quot;)),
+  to     = as.Date(c(&quot;2024-06-30&quot;, &quot;2024-12-31&quot;)),
+  rate   = c(0.10, 0.12)
+)
+orders &lt;- data.table(
+  region = &quot;EU&quot;,
+  d1     = as.Date(c(&quot;2024-03-15&quot;, &quot;2024-08-20&quot;)),
+  d2     = as.Date(c(&quot;2024-03-15&quot;, &quot;2024-08-20&quot;))
+)
+setkey(rates, region, from, to)
+foverlaps(orders, rates, by.x = c(&quot;region&quot;, &quot;d1&quot;, &quot;d2&quot;), mult = &quot;first&quot;)[
+  , .(region, d1, rate)]
+#&gt;    region         d1  rate
+#&gt;    &lt;char&gt;     &lt;Date&gt; &lt;num&gt;
+#&gt; 1:     EU 2024-03-15  0.10
+#&gt; 2:     EU 2024-08-20  0.12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Self-joining a table on itself finds rows whose intervals overlap any other row. This is the standard recipe for detecting double-booked rooms or duplicate ranges.</p>
+
+<div class="webr-container" data-block-title="Find overlapping rows in one table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find overlapping rows in one table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bookings &lt;- data.table(
+  room  = c(&quot;A&quot;, &quot;A&quot;, &quot;A&quot;),
+  start = c(9, 11, 14),
+  end   = c(12, 13, 16)
+)
+setkey(bookings, room, start, end)
+hits &lt;- foverlaps(bookings, bookings, which = TRUE)
+hits[xid != yid]
+#&gt;      xid   yid
+#&gt;    &lt;int&gt; &lt;int&gt;
+#&gt; 1:     1     2
+#&gt; 2:     2     1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>An overlap join is just a merge whose match rule is an <a class="auto-link" href="R-Comparison-Operators-in-R.html" title="R Comparison Operators: ==, !=, <, >, <=, >= Guide">inequality</a>.</strong> <code>foverlaps()</code> lets you express "this point falls inside that range" without writing a Cartesian self-join. Once you frame your data as intervals, joins that looked expensive become a single sorted scan.</div></div>
+
+<h2>foverlaps() vs other join tools</h2>
+
+<p><strong>foverlaps() is the right pick only when the match rule involves an interval.</strong> For equality, nearest-neighbour, or row-wise window logic, a different tool is faster or simpler.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Use it when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>foverlaps(x, y)</code></td>
+<td>You need to join on overlap of <code>[start, end]</code> ranges.</td>
+</tr>
+<tr>
+<td><code>y[x, on = .(id)]</code></td>
+<td>You are joining on equal keys, not intervals.</td>
+</tr>
+<tr>
+<td><code>y[x, on = &quot;date&quot;, roll = TRUE]</code></td>
+<td>You want the nearest preceding key, not an overlap.</td>
+</tr>
+<tr>
+<td><code>dplyr::join_by(overlaps())</code></td>
+<td>You are already in dplyr and the data is small.</td>
+</tr>
+<tr>
+<td><code>GenomicRanges::findOverlaps()</code></td>
+<td>You work with biological ranges and need Bioconductor methods.</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>maxgap</code> to relax the overlap rule. With <code>maxgap = 5</code>, intervals that are within five units of touching still count as overlapping, which is useful for "near match" logic in genomics or sensor data.</p>
+
+<div class="webr-container" data-block-title="Allow a small gap with maxgap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Allow a small gap with maxgap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">near &lt;- data.table(g = &quot;x&quot;, s = 0,  e = 5)
+hits &lt;- data.table(g = &quot;x&quot;, a = 7, b = 8)
+setkey(near, g, s, e)
+foverlaps(hits, near, by.x = c(&quot;g&quot;, &quot;a&quot;, &quot;b&quot;), maxgap = 5)
+#&gt;         g     s     e     a     b
+#&gt;    &lt;char&gt; &lt;num&gt; &lt;num&gt; &lt;num&gt; &lt;num&gt;
+#&gt; 1:      x     0     5     7     8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most foverlaps() errors trace back to keys, column order, or NA endpoints.</strong> These three mistakes cover almost every confused bug report.</p>
+
+<p>Calling <code>foverlaps()</code> before keying <code>y</code> raises an error because the function cannot guess which columns hold the interval. Always run <code>setkey(y, group, start, end)</code> first; the last two key columns must be the start and end.</p>
+
+<div class="webr-container" data-block-title="Key y before joining">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Key y before joining</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">y &lt;- data.table(g = &quot;a&quot;, s = 1, e = 5)
+x &lt;- data.table(g = &quot;a&quot;, a = 2, b = 3)
+setkey(y, g, s, e)
+foverlaps(x, y, by.x = c(&quot;g&quot;, &quot;a&quot;, &quot;b&quot;))[, .(g, s, e, a, b)]
+#&gt;         g     s     e     a     b
+#&gt;    &lt;char&gt; &lt;num&gt; &lt;num&gt; &lt;num&gt; &lt;num&gt;
+#&gt; 1:      a     1     5     2     3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Mixing up <code>start</code> and <code>end</code> in <code>x</code> lets the function read inverted intervals and silently miss matches. The convention <code>[low, high]</code> must hold for every row in both tables.</p>
+
+<p>Joining on a single point in <code>x</code> still requires two columns, so write <code>t2 = t1</code> for point events. A missing endpoint becomes <code>NA</code> and is treated as non-overlapping, which usually returns no matches.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Empty results often mean the key types do not match.</strong> If <code>y</code> is keyed on integers but <code>x</code> passes numerics or dates, the join silently returns zero matches. Confirm <code>class(y$start)</code> equals <code>class(x$t1)</code> before debugging logic.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a 2-row <code>windows</code> table with <code>start = c(0, 10)</code> and <code>end = c(5, 15)</code>, key it, then use <code>foverlaps()</code> to match a single event at <code>t = 3</code>. Save the result to <code>ex_match</code>.</p>
+<div class="webr-container" data-block-title="Your turn: match an event to a window">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: match an event to a window</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: match t = 3 to one of two windows
+ex_windows &lt;- data.table(g = &quot;x&quot;, start = c(0, 10), end = c(5, 15))
+ex_event   &lt;- data.table(g = &quot;x&quot;, t1 = 3, t2 = 3)
+ex_match   &lt;- # your code here
+
+ex_match
+#&gt; Expected: one row with start = 0, end = 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+ex_windows &lt;- data.table(g = &quot;x&quot;, start = c(0, 10), end = c(5, 15))
+ex_event   &lt;- data.table(g = &quot;x&quot;, t1 = 3, t2 = 3)
+setkey(ex_windows, g, start, end)
+ex_match &lt;- foverlaps(ex_event, ex_windows, by.x = c(&quot;g&quot;, &quot;t1&quot;, &quot;t2&quot;))
+ex_match
+#&gt;         g start   end    t1    t2
+#&gt;    &lt;char&gt; &lt;num&gt; &lt;num&gt; &lt;num&gt; &lt;num&gt;
+#&gt; 1:      x     0     5     3     3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> After keying <code>ex_windows</code> on <code>g, start, end</code>, <code>foverlaps()</code> knows which columns define the interval. The event <code>t = 3</code> falls inside the first window only, so the second window is filtered out.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p>These functions pair naturally with <code>foverlaps()</code> for keyed and joined work:</p>
+
+<ul>
+
+<li><code>setkey()</code> sorts and indexes the right-hand table before any overlap join.</li>
+
+<li><code>merge()</code> performs a standard equi-join when no interval logic is needed.</li>
+
+<li><code>shift()</code> lags or leads a column, often used to build a <code>[start, end]</code> pair.</li>
+
+<li><code>rbindlist()</code> stacks the rows returned from many overlap joins quickly.</li>
+
+</ul>
+
+<p>See the official <a href="https://rdatatable.gitlab.io/data.table/reference/foverlaps.html">data.table foverlaps reference</a> for the full argument list.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between foverlaps and merge in data.table?</strong></p>
+
+<p><code>merge()</code> (or the <code>y[x, on = ...]</code> syntax) matches rows by equal key values. <code>foverlaps()</code> matches rows whose intervals overlap, so the join condition is <code>x.start &lt;= y.end AND x.end &gt;= y.start</code> rather than <code>x.id == y.id</code>. Use <code>merge()</code> when you have shared identifiers and <code>foverlaps()</code> when you need interval logic such as "event falls inside session" or "two date ranges intersect".</p>
+
+<p><strong>Why does foverlaps require <a class="auto-link" href="data-table-Exercises.html" title="data.table Exercises: 12 High-Performance Data Manipulation Problems — Solved Step-by-Step">setkey</a> on y?</strong></p>
+
+<p>The function uses the key on <code>y</code> to identify the interval columns and to drive a binary-search-based scan that avoids comparing every pair of rows. Without a key it cannot know which columns are the start and end of the range, so it stops with an explicit error. Always call <code>setkey(y, group_cols, start, end)</code> first; the last two key columns must be the interval bounds.</p>
+
+<p><strong>Can foverlaps join on more than just intervals?</strong></p>
+
+<p>Yes. Any columns listed before <code>start</code> and <code>end</code> in the key are treated as equi-join columns. For example, <code>setkey(y, region, from, to)</code> joins rows only when <code>region</code> matches exactly and the date range overlaps. This is how you join interval data within groups, such as price windows per region or sessions per user.</p>
+
+<p><strong>How is foverlaps different from a <a class="auto-link" href="dplyr-join_by-in-R.html" title="dplyr join_by() in R: Modern Key Specification for Joins">rolling join</a>?</strong></p>
+
+<p>A rolling join (<code>y[x, on = &quot;date&quot;, roll = TRUE]</code>) finds the single nearest preceding key value for each row. An overlap join returns every <code>y</code> row whose interval intersects the <code>x</code> interval. Use rolling joins for snapshot-style lookups, such as the most recent price before a transaction, and <code>foverlaps()</code> when one or both sides has a range with a defined start and end.</p>
+
+{% endraw %}
