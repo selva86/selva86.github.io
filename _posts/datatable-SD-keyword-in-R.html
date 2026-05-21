@@ -1,0 +1,340 @@
+---
+title: "data.table .SD in R: Subset of Data for Per-Group Operations"
+description: "data.table .SD in R is the Subset of Data inside j, letting lapply, head and tail run once per group. See .SDcols, update-in-place, examples, pitfalls."
+keywords: "data.table .SD, .SD data.table, .SDcols data.table, .SD keyword data.table, R data.table SD, data.table SD examples, lapply .SD"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: ".SD|data.table .SD|.SDcols|.SD keyword|Subset of Data"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>data.table .SD in R: Subset of Data for Per-Group Operations</h1>
+
+<p class="lead">The <code>.SD</code> symbol in <code>data.table</code> stands for Subset of Data and represents a data.table of the current group's rows inside <code>j</code>, so any function that takes a data frame can be applied once per group.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>dt[, lapply(.SD, mean), by = cyl]<span class="qa-cmt">                       # mean of every column per group</span>
+dt[, lapply(.SD, mean), by = cyl, .SDcols = c(&quot;mpg&quot;,&quot;hp&quot;)]<span class="qa-cmt">   # restrict to columns</span>
+dt[, .SD[1L], by = cyl]<span class="qa-cmt">                                 # first row per group</span>
+dt[, .SD[.N], by = cyl]<span class="qa-cmt">                                 # last row per group</span>
+dt[, .SD[which.max(mpg)], by = cyl]<span class="qa-cmt">                     # row with max mpg per group</span>
+dt[, head(.SD, 2), by = cyl]<span class="qa-cmt">                            # top 2 rows per group</span>
+dt[, (cols) := lapply(.SD, scale), .SDcols = cols]<span class="qa-cmt">      # update many columns in place</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is .SD the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">apply one function to many columns per group</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">dt[, lapply(.SD, mean), by = grp]</text><text x="125" y="126" class="branch-label">restrict which columns .SD sees</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">dt[, lapply(.SD, mean), .SDcols = patterns(&quot;^x&quot;)]</text><text x="125" y="182" class="branch-label">aggregate one column only</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">dt[, mean(x), by = grp]</text><text x="125" y="238" class="branch-label">pick rows by position per group</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">dt[, .SD[1L], by = grp]</text><text x="125" y="294" class="branch-label">add or <a class="auto-link" href="dplyr-mutate-rename.html" title="dplyr mutate() and rename(): Create & Modify Columns (8 Examples)">modify columns</a> in place</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">dt[, x := x * 2]</text><text x="125" y="350" class="branch-label"><a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarize</a> many columns with different functions</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">dt[, .(m = mean(x), s = sd(y)), by = grp]</text><text x="125" y="406" class="branch-label">pivot <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">long to wide</a></text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">dcast(dt, id ~ name, value.var = &quot;x&quot;)</text></svg></div>
+
+<h2>What .SD does in one sentence</h2>
+
+<p><strong><code>.SD</code> is a data.table that holds the current group's rows.</strong> Inside <code>j</code>, <code>.SD</code> refers to all columns of the table except the ones listed in <code>by</code>, unless you narrow it with <code>.SDcols</code>. data.table builds a fresh <code>.SD</code> for every group and exposes it as a local variable, so <code>lapply(.SD, fn)</code> runs <code>fn</code> once per column per group.</p>
+
+<p>Without <code>by</code>, <code>.SD</code> is the whole table. The name reads as "Subset of Data" and matches that intuition: it is whichever slice <code>j</code> is currently working on.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>.SD</code> and <code>.SDcols</code> are paired symbols that only have meaning inside <code>DT[i, j, by]</code>.</strong> You use <code>.SD</code> as a value (often inside <code>lapply</code> or <code>head</code>) and <code>.SDcols</code> as an argument to the bracket call that controls which columns <code>.SD</code> contains.</p>
+
+<div class="webr-container" data-block-title="data.table query with .SD and .SDcols">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">data.table query with .SD and .SDcols</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT[i, j, by, .SDcols = ...]   # .SDcols restricts the columns visible inside .SD</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>.SDcols</code> accepts:</p>
+
+<ul>
+
+<li>A character vector of column names, like <code>c(&quot;mpg&quot;, &quot;hp&quot;)</code>.</li>
+
+<li>A numeric or negative index, like <code>2:4</code> or <code>-1</code>.</li>
+
+<li>A <code>patterns()</code> helper that matches by regex, like <code>patterns(&quot;^d&quot;)</code>.</li>
+
+<li>A function predicate, like <code>is.numeric</code> (one column kept if the predicate returns <code>TRUE</code>).</li>
+
+</ul>
+
+<p>The grouping columns named in <code>by</code> are always excluded from <code>.SD</code> so you do not double-summarize them.</p>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Build a single <code>dt</code> and reuse it for every example.</strong> Every block below works on the same table created from <code>mtcars</code>.</p>
+
+<div class="webr-container" data-block-title="Create a data.table from mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create a data.table from mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+dt &lt;- as.data.table(mtcars, keep.rownames = &quot;model&quot;)
+dt[1:3, .(model, mpg, cyl, hp, wt)]
+#&gt;            model   mpg   cyl    hp    wt
+#&gt;           &lt;char&gt; &lt;num&gt; &lt;num&gt; &lt;num&gt; &lt;num&gt;
+#&gt; 1:     Mazda RX4  21.0     6   110 2.620
+#&gt; 2: Mazda RX4 Wag  21.0     6   110 2.875
+#&gt; 3:    Datsun 710  22.8     4    93 2.320</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Summarize every numeric column per group with <code>lapply(.SD, mean)</code>.</strong> Without <code>.SDcols</code>, <code>.SD</code> contains every column except <code>cyl</code>.</p>
+
+<div class="webr-container" data-block-title="Mean of all columns per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean of all columns per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">num_cols &lt;- c(&quot;mpg&quot;, &quot;hp&quot;, &quot;wt&quot;, &quot;qsec&quot;)
+dt[, lapply(.SD, mean), by = cyl, .SDcols = num_cols]
+#&gt;      cyl       mpg        hp       wt     qsec
+#&gt;    &lt;num&gt;     &lt;num&gt;     &lt;num&gt;    &lt;num&gt;    &lt;num&gt;
+#&gt; 1:     6 19.742857 122.28571 3.117143 17.97714
+#&gt; 2:     4 26.663636  82.63636 2.285727 19.13727
+#&gt; 3:     8 15.100000 209.21429 3.999214 16.77214</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Pick the first or last row per group with <code>.SD[1L]</code> or <code>.SD[.N]</code>.</strong> <code>.SD</code> is a data.table, so you can subscript it like any other table.</p>
+
+<div class="webr-container" data-block-title="First and last row per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">First and last row per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt[, .SD[1L], by = cyl, .SDcols = c(&quot;model&quot;, &quot;mpg&quot;, &quot;hp&quot;)]
+#&gt;      cyl         model   mpg    hp
+#&gt;    &lt;num&gt;        &lt;char&gt; &lt;num&gt; &lt;num&gt;
+#&gt; 1:     6     Mazda RX4  21.0   110
+#&gt; 2:     4    Datsun 710  22.8    93
+#&gt; 3:     8 Hornet Sportabout 18.7   175</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Pick the row with the highest value per group using <code>.SD[which.max(...)]</code>.</strong> This pattern returns whole rows, not just the maximum value.</p>
+
+<div class="webr-container" data-block-title="Row with max mpg per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Row with max mpg per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt[, .SD[which.max(mpg)], by = cyl, .SDcols = c(&quot;model&quot;, &quot;mpg&quot;, &quot;hp&quot;)]
+#&gt;      cyl          model   mpg    hp
+#&gt;    &lt;num&gt;         &lt;char&gt; &lt;num&gt; &lt;num&gt;
+#&gt; 1:     6  Hornet 4 Drive  21.4   110
+#&gt; 2:     4    Toyota Corolla 33.9    65
+#&gt; 3:     8 Pontiac Firebird 19.2   175</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>.SD</code> turns "per group" into "per data frame".</strong> Any function that already takes a data frame, like <code>head()</code>, <code>tail()</code>, <code>lm()</code>, or a custom function returning a data.table, slots straight in as <code>fn(.SD)</code> and runs once per group. The group key columns are stitched back on automatically.</div></div>
+
+<p><strong>Update many columns in place with <code>:=</code> and <code>lapply(.SD, fn)</code>.</strong> Wrap the target column names in parentheses on the left so data.table treats them as a vector of names.</p>
+
+<div class="webr-container" data-block-title="Scale several columns in place">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Scale several columns in place</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cols &lt;- c(&quot;mpg&quot;, &quot;hp&quot;, &quot;wt&quot;)
+dt2 &lt;- copy(dt)
+dt2[, (cols) := lapply(.SD, scale), .SDcols = cols]
+dt2[1:2, ..cols]
+#&gt;          mpg        hp         wt
+#&gt;        &lt;num&gt;     &lt;num&gt;      &lt;num&gt;
+#&gt; 1: 0.1508 -0.5350528 -0.6103996
+#&gt; 2: 0.1508 -0.5350528 -0.3497853</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>.SD vs .SDcols vs explicit columns</h2>
+
+<p><strong>Pick <code>.SD</code> when the function applies uniformly to many columns.</strong> Pick a named <code>j</code> when each output column needs its own expression.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Pattern</th>
+<th>Best when</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lapply(.SD, fn)</code> with <code>.SDcols</code></td>
+<td>Same function on many columns</td>
+<td><code>dt[, lapply(.SD, mean), .SDcols = num_cols]</code></td>
+</tr>
+<tr>
+<td>Named <code>j</code> in <code>.()</code></td>
+<td>Different function per column</td>
+<td><code>dt[, .(m = mean(mpg), s = sd(hp)), by = cyl]</code></td>
+</tr>
+<tr>
+<td><code>.SD[1L]</code> or <code>.SD[.N]</code></td>
+<td>Pick rows by position per group</td>
+<td><code>dt[, .SD[1L], by = cyl]</code></td>
+</tr>
+<tr>
+<td><code>(cols) := lapply(.SD, fn)</code></td>
+<td>Update many columns in place</td>
+<td><code>dt[, (cols) := lapply(.SD, scale), .SDcols = cols]</code></td>
+</tr>
+<tr>
+<td><code>lapply(.SD, fn, ...)</code> extra args</td>
+<td>Pass arguments to <code>fn</code> per call</td>
+<td><code>dt[, lapply(.SD, mean, na.rm = TRUE), .SDcols = cols]</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is short. Reach for <code>.SD</code> whenever a column-loop would otherwise repeat the same expression with different column names.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Omitting <code>.SDcols</code> makes <code>.SD</code> include every non-grouping column.</strong> <code>lapply(.SD, mean)</code> then warns or returns <code>NA</code> on character columns and dates. Pass <code>.SDcols</code> whenever the table has mixed types.</p>
+
+<div class="webr-container" data-block-title="Mixed types break a naive lapply">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mixed types break a naive lapply</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt3 &lt;- copy(dt)
+suppressWarnings(dt3[, lapply(.SD, mean), by = cyl][1, 1:3])
+#&gt;      cyl model    mpg
+#&gt;    &lt;num&gt; &lt;num&gt;  &lt;num&gt;
+#&gt; 1:     6    NA 19.74286</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>.SD</code> is read-only inside <code>j</code>.</strong> Assigning to <code>.SD$col</code> does nothing useful; the change is discarded when <code>j</code> returns. To modify columns in place, use the bracketed <code>(cols) := lapply(.SD, fn)</code> form with <code>.SDcols</code>, which writes back through <code>:=</code>.</div></div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>.SDcols = patterns(&quot;regex&quot;)</code> to <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">select columns</a> by name pattern.</strong> This avoids hard-coding column lists when the table has many similarly named columns. <code>patterns(&quot;^q|^m&quot;)</code> matches every column whose name starts with <code>q</code> or <code>m</code>.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Using the <code>airquality</code> dataset as a data.table, compute the mean of <code>Ozone</code>, <code>Solar.R</code>, <code>Wind</code>, and <code>Temp</code> per <code>Month</code>, ignoring <code>NA</code>. Save the result to <code>ex_sd</code>.</p>
+<div class="webr-container" data-block-title="Your turn: mean of four columns per Month">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: mean of four columns per Month</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: per-Month means of four columns
+aq &lt;- as.data.table(airquality)
+target_cols &lt;- c(&quot;Ozone&quot;, &quot;Solar.R&quot;, &quot;Wind&quot;, &quot;Temp&quot;)
+ex_sd &lt;- # your code here
+
+ex_sd
+#&gt; Expected: 5 rows with Month and four mean columns</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aq &lt;- as.data.table(airquality)
+target_cols &lt;- c(&quot;Ozone&quot;, &quot;Solar.R&quot;, &quot;Wind&quot;, &quot;Temp&quot;)
+ex_sd &lt;- aq[, lapply(.SD, mean, na.rm = TRUE), by = Month, .SDcols = target_cols]
+ex_sd
+#&gt;    Month    Ozone   Solar.R     Wind     Temp
+#&gt;    &lt;int&gt;    &lt;num&gt;     &lt;num&gt;    &lt;num&gt;    &lt;num&gt;
+#&gt; 1:     5 23.61538 181.2963 11.62258 65.54839
+#&gt; 2:     6 29.44444 190.1667 10.26667 79.10000
+#&gt; 3:     7 59.11538 216.4839  8.94194 83.90323
+#&gt; 4:     8 59.96154 171.8571  8.79355 83.96774
+#&gt; 5:     9 31.44828 167.4333 10.18000 76.90000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Passing <code>na.rm = TRUE</code> as an extra argument to <code>lapply(.SD, mean, ...)</code> forwards it to every per-column call. <code>.SDcols</code> restricts <code>.SD</code> to the four numeric columns, so the result is one row per <code>Month</code> with four mean columns.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p><strong><code>.SD</code> is one part of the <code>DT[i, j, by]</code> toolkit.</strong> Explore these next:</p>
+
+<ul>
+
+<li><code>.SDcols</code>: the column filter that controls what <code>.SD</code> contains.</li>
+
+<li><code>by</code> and <code>keyby</code>: the row-splitters that drive per-group <code>.SD</code> creation.</li>
+
+<li><code>:=</code>: in-place update operator, often paired with <code>lapply(.SD, fn)</code>.</li>
+
+<li><code>setDT()</code>: convert a data frame to a data.table without copying.</li>
+
+<li><code>frollmean()</code>: rolling means that <a class="auto-link" href="R-Function-Operators.html" title="R Function Operators: Compose, Negate & Partial Application">compose</a> with <code>.SD</code> for window summaries.</li>
+
+</ul>
+
+<p>See the official <a href="https://rdatatable.gitlab.io/data.table/articles/datatable-sd-usage.html">data.table .SD vignette</a> for the canonical reference.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does .SD stand for in data.table?</strong></p>
+
+<p><code>.SD</code> stands for Subset of Data. Inside <code>j</code>, it is a data.table containing the rows of the current group and all columns except the ones in <code>by</code>, unless restricted by <code>.SDcols</code>. The name reflects what it holds: whichever slice the current <code>j</code> call is working on. data.table builds a fresh <code>.SD</code> for every group and discards it once <code>j</code> returns.</p>
+
+<p><strong>When should I use .SD instead of a named j expression?</strong></p>
+
+<p>Use <code>.SD</code> when the same operation applies to many columns and would otherwise be repeated with different column names. <code>lapply(.SD, mean)</code> replaces a list of named means. Use a named <code>j</code> wrapped in <code>.()</code> when each output column needs a different expression, like <code>mean(x)</code> for one column and <code>sd(y)</code> for another. The two patterns coexist freely in the same query.</p>
+
+<p><strong>What is the difference between .SD and .SDcols?</strong></p>
+
+<p><code>.SD</code> is the data; <code>.SDcols</code> is the filter that picks which columns end up in <code>.SD</code>. Without <code>.SDcols</code>, <code>.SD</code> contains every non-grouping column. With <code>.SDcols = c(&quot;mpg&quot;, &quot;hp&quot;)</code>, <code>.SD</code> is restricted to those two columns. <code>.SDcols</code> accepts <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">character vectors</a>, indices, <code>patterns()</code> regex, and function predicates like <code>is.numeric</code>.</p>
+
+<p><strong>Can I modify columns through .SD?</strong></p>
+
+<p>No, not directly. <code>.SD</code> is read-only inside <code>j</code>, so <code>.SD$col &lt;- value</code> is discarded when <code>j</code> returns. To update many columns in place, use <code>dt[, (cols) := lapply(.SD, fn), .SDcols = cols]</code>. The <code>(cols)</code> form on the left tells data.table to write back through <code>:=</code>, and <code>.SDcols</code> ensures <code>lapply</code> walks only the target columns.</p>
+
+<p><strong>Why does lapply(.SD, mean) return NA on character columns?</strong></p>
+
+<p>Because <code>.SD</code> contains every non-grouping column by default, including character and date columns where <code>mean()</code> is undefined. Pass <code>.SDcols</code> with only the numeric columns, or use <code>.SDcols = is.numeric</code> to let data.table pick numeric columns automatically. The same applies to other column-summary functions like <code>sum()</code> and <code>sd()</code>.</p>
