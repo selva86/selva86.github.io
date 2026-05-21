@@ -1,0 +1,353 @@
+---
+title: "data.table tables() in R: List All data.tables in Memory"
+description: "data.table tables() lists every data.table in an environment with row, column, MB size and key info. Learn the syntax, sorting tricks, and script use here."
+keywords: "data.table tables, tables function R, data.table tables examples, R list data tables, data.table memory inventory, data.table tables order"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "tables()|data.table tables|data.table::tables()|list data.tables|data.table inventory"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>data.table tables() in R: List All data.tables in Memory</h1>
+
+<p class="lead">data.table <code>tables()</code> prints a one-row-per-table summary of every data.table in an environment, showing name, rows, columns, size in MB and key columns. It is the fastest way to take inventory of an R session before a join, a copy, or a memory cleanup.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>tables()<span class="qa-cmt">                                # list every data.table in the calling env</span>
+tables(silent = TRUE)<span class="qa-cmt">                   # return the summary, suppress printing</span>
+tables(order.col = &quot;MB&quot;)<span class="qa-cmt">                # sort by memory footprint</span>
+tables(env = .GlobalEnv)<span class="qa-cmt">                # always scan the global environment</span>
+tables(index = TRUE)<span class="qa-cmt">                    # include secondary INDICES column</span>
+tables(width = 120)<span class="qa-cmt">                     # widen output for long column lists</span>
+tables(mb = NULL)<span class="qa-cmt">                       # drop the MB column from output</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is tables() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">list every data.table with size</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">tables()</text><text x="125" y="126" class="branch-label">list every object (any class)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">ls()</text><text x="125" y="182" class="branch-label">check size of one object</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">object.size(x)</text><text x="125" y="238" class="branch-label">check if one table is keyed</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">haskey(DT)</text><text x="125" y="294" class="branch-label">get the key column names</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">key(DT)</text><text x="125" y="350" class="branch-label">see column types of one table</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">str(DT)</text><text x="125" y="406" class="branch-label">list secondary indexes only</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">indices(DT)</text></svg></div>
+
+<h2>What tables() does in one sentence</h2>
+
+<p><strong>tables() is a memory inventory for data.tables.</strong> It scans the chosen environment, finds every object whose class includes data.table, and returns a one row per table summary with NAME, NROW, NCOL, MB, COLS and KEY. The summary is itself a data.table, returned invisibly, while a formatted version is printed to the console for quick reading.</p>
+
+<p>The function is purely diagnostic. It never copies your tables, never sorts them and never changes any attribute. That makes it safe to call inside scripts, R Markdown chunks and package code whenever you want a quick "what is loaded right now" report.</p>
+
+<h2>Syntax</h2>
+
+<p><strong>The signature has six arguments, all optional.</strong> A bare <code>tables()</code> call covers most uses.</p>
+
+<div class="webr-container" data-block-title="tables signature and basic call">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">tables signature and basic call</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+DT1 &lt;- as.data.table(mtcars)
+DT2 &lt;- as.data.table(iris)
+setkey(DT2, Species)
+
+tables()
+#&gt;      NAME NROW NCOL    MB                                          COLS     KEY
+#&gt;    &lt;char&gt; &lt;int&gt; &lt;int&gt; &lt;num&gt;                                        &lt;char&gt;   &lt;char&gt;
+#&gt; 1:    DT1   32   11  0.01 mpg,cyl,disp,hp,drat,wt,qsec,vs,am,gear,carb
+#&gt; 2:    DT2  150    5  0.01 Sepal.Length,Sepal.Width,Petal.Length,Peta... Species
+#&gt; Total: 0MB</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments worth knowing:</p>
+
+<ul>
+
+<li><code>mb</code> controls the size column. The default is fine; pass <code>NULL</code> to drop the MB column entirely.</li>
+
+<li><code>order.col</code> sorts the output. Valid values are <code>&quot;NAME&quot;</code> (default), <code>&quot;NROW&quot;</code>, <code>&quot;NCOL&quot;</code>, <code>&quot;MB&quot;</code> and <code>&quot;KEY&quot;</code>.</li>
+
+<li><code>env</code> is the environment to scan. Defaults to <code>parent.frame()</code>, the caller's environment.</li>
+
+<li><code>silent = TRUE</code> returns the summary without printing.</li>
+
+<li><code>index = TRUE</code> adds an <code>INDICES</code> column listing secondary indexes from <code>setindex()</code>.</li>
+
+<li><code>width</code> widens the printed COLS column so long column lists are not truncated.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>tables() ignores plain data.frames.</strong> Only objects that inherit from <code>data.table</code> appear in the output. A <code>data.frame</code> from <code>read.csv()</code> or a tibble from <code>readr</code> will not show up until you wrap it with <code>as.data.table()</code> or <code>setDT()</code>.</div></div>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Most real calls fall into four patterns.</strong> Each example below uses built in datasets so you can run it directly in the live editor on this page or in your own R session. The patterns scale from quick interactive checks to programmatic audits inside helper functions and reporting scripts.</p>
+
+<p>A quick session inventory after loading several tables. This is the most common interactive use, often run at the top of an R Markdown chunk or after a long script to confirm what is loaded:</p>
+
+<div class="webr-container" data-block-title="Inventory after loading several tables">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inventory after loading several tables</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT_mt   &lt;- as.data.table(mtcars)
+DT_iris &lt;- as.data.table(iris)
+DT_air  &lt;- as.data.table(airquality)
+setkey(DT_air, Month)
+
+tables()
+#&gt;        NAME NROW NCOL    MB                                          COLS    KEY
+#&gt;      &lt;char&gt; &lt;int&gt; &lt;int&gt; &lt;num&gt;                                        &lt;char&gt; &lt;char&gt;
+#&gt; 1:   DT_air  153    6  0.01 Ozone,Solar.R,Wind,Temp,Month,Day              Month
+#&gt; 2:  DT_iris  150    5  0.01 Sepal.Length,Sepal.Width,Petal.Length,Peta...
+#&gt; 3:    DT_mt   32   11  0.01 mpg,cyl,disp,hp,drat,wt,qsec,vs,am,gear,carb</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Sorting by memory to find the largest table first. This is the quickest way to spot a data.table that grew unexpectedly inside a loop or during a <code>merge()</code>:</p>
+
+<div class="webr-container" data-block-title="Sort by size to find memory hogs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sort by size to find memory hogs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">big &lt;- as.data.table(matrix(rnorm(1e5), ncol = 10))
+small &lt;- as.data.table(mtcars)
+
+tables(order.col = &quot;MB&quot;)
+#&gt;      NAME  NROW NCOL    MB                                        COLS    KEY
+#&gt;    &lt;char&gt; &lt;int&gt; &lt;int&gt; &lt;num&gt;                                      &lt;char&gt; &lt;char&gt;
+#&gt; 1:    big 10000   10  0.76 V1,V2,V3,V4,V5,V6,V7,V8,V9,V10
+#&gt; 2:  small    32   11  0.01 mpg,cyl,disp,hp,drat,wt,qsec,vs,am,gear,carb</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Capturing the result as a data.table for programmatic checks. The <code>silent = TRUE</code> flag is the key here: it suppresses the printed banner and returns the summary as a value you can subset, filter, or feed into a test:</p>
+
+<div class="webr-container" data-block-title="Use silent = TRUE to capture the summary">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use silent = TRUE to capture the summary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">inv &lt;- tables(silent = TRUE)
+inv[NROW &gt; 1000, NAME]
+#&gt; [1] &quot;big&quot;
+
+inv[, sum(MB)]
+#&gt; [1] 0.77</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Scanning a specific environment instead of the caller. This pattern matters when <code>tables()</code> is wrapped inside a helper function, because the default <code>parent.frame()</code> no longer points at your interactive session:</p>
+
+<div class="webr-container" data-block-title="Scan the global environment explicitly">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Scan the global environment explicitly</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">report_tables &lt;- function() {
+  tables(env = .GlobalEnv, silent = TRUE)
+}
+
+report_tables()[, .(NAME, NROW, NCOL)]
+#&gt;        NAME  NROW NCOL
+#&gt;      &lt;char&gt; &lt;int&gt; &lt;int&gt;
+#&gt; 1:      big 10000   10
+#&gt; 2:   DT_air   153    6
+#&gt; 3:  DT_iris   150    5
+#&gt; 4:    DT_mt    32   11
+#&gt; 5:    small    32   11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>env = .GlobalEnv</code> line matters: inside a function, the default <code>parent.frame()</code> is the function's caller, not the global session, so a bare <code>tables()</code> may return an empty summary.</p>
+
+<h2>tables() vs ls(), object.size() and str()</h2>
+
+<p><strong>Four functions answer different "what do I have" questions.</strong> Pick by what you need back.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>Use it to</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tables()</code></td>
+<td>data.table of all data.tables with size and key</td>
+<td>Inventory data.tables in one shot</td>
+</tr>
+<tr>
+<td><code>ls()</code></td>
+<td>Character vector of object names</td>
+<td>List every object, any class</td>
+</tr>
+<tr>
+<td><code>object.size(x)</code></td>
+<td>Size of one object in bytes</td>
+<td>Measure a single object</td>
+</tr>
+<tr>
+<td><code>str(DT)</code></td>
+<td>Compact structure printout</td>
+<td>Inspect one table in depth</td>
+</tr>
+</tbody>
+</table>
+
+<p>Decision rule: use <code>tables()</code> when you specifically want the data.table subset of memory and want it sorted, sized and keyed in one printout. Use <code>ls()</code> when you also need data.frames, models and lists; pair it with <code>sapply(ls(), function(n) object.size(get(n)))</code> for a generic size report. For one specific table you already know the name of, <code>str(DT)</code> and <code>object.size(DT)</code> are more direct than filtering a <code>tables()</code> result.</p>
+
+<p>The keyed output is what makes <code>tables()</code> worth typing over <code>ls()</code>. Spotting a missing key on a table you expected to join keyed is a one-glance fix instead of a per-table <code>key(DT)</code> check, and the MB column saves a separate <code>object.size()</code> call per object.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Add tables() to the bottom of long scripts.</strong> A final <code>tables(order.col = &quot;MB&quot;)</code> line acts as a free memory audit: you instantly see which tables grew unexpectedly and which keys are missing before a join.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most tables surprises.</strong> Each follows the same root cause: forgetting that the function looks at one specific environment for one specific class, and nothing else.</p>
+
+<p>Calling tables inside a function and getting an empty result. The default <code>env = parent.frame()</code> resolves to the function's caller, not your global session. Wrap the call with <code>env = .GlobalEnv</code> when you mean the interactive session:</p>
+
+<div class="webr-container" data-block-title="Right environment for inside-function calls">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Right environment for inside-function calls</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">audit &lt;- function() {
+  cat(&quot;Caller env:\n&quot;); print(tables(silent = TRUE)[, .N])
+  cat(&quot;Global env:\n&quot;); print(tables(env = .GlobalEnv, silent = TRUE)[, .N])
+}
+
+DT &lt;- as.data.table(mtcars)
+audit()
+#&gt; Caller env:
+#&gt; [1] 0
+#&gt; Global env:
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Forgetting that the return value is invisible. Typing <code>tables()</code> at the prompt prints the formatted summary, but <code>tables()$NAME</code> returns <code>NULL</code> in older versions because the invisible return wraps a print-then-discard step. Assign first, then subset: <code>inv &lt;- tables(silent = TRUE); inv$NAME</code>. Using <code>silent = TRUE</code> is the explicit, version-safe form.</p>
+
+<p>Expecting plain <code>data.frame</code> objects to appear. A <code>data.frame</code> from <code>data.frame()</code> or <code>read.csv()</code> is invisible to <code>tables()</code> until you convert it. Use <code>setDT(df)</code> for in-place conversion or <code>as.data.table(df)</code> for a copy. Conversion is cheap; the inventory benefit is worth the one extra line at load time.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Treat the MB column as a lower bound for list-column tables.</strong> The size accounting covers the table's own pointers and atomic columns, but not external objects referenced through list columns of nested data, models, or environments. For ordinary tables of atomic columns it matches <code>object.size(DT)</code> exactly.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Convert <code>mtcars</code> and <code>iris</code> to data.tables, set a key on <code>iris</code>'s <code>Species</code> column, then capture the <code>tables()</code> summary into <code>ex_inv</code> sorted by row count.</p>
+<div class="webr-container" data-block-title="Your turn: capture a sorted inventory">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: capture a sorted inventory</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT_cars &lt;- as.data.table(mtcars)
+DT_flw  &lt;- as.data.table(iris)
+# Try it: capture summary into ex_inv, sorted by NROW
+ex_inv &lt;- # your code here
+
+ex_inv
+#&gt; Expected: 2 rows with NAME and NROW columns; DT_flw before DT_cars</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT_cars &lt;- as.data.table(mtcars)
+DT_flw  &lt;- as.data.table(iris)
+setkey(DT_flw, Species)
+
+ex_inv &lt;- tables(order.col = &quot;NROW&quot;, silent = TRUE)
+ex_inv[, .(NAME, NROW, KEY)]
+#&gt;        NAME  NROW     KEY
+#&gt;      &lt;char&gt; &lt;int&gt;  &lt;char&gt;
+#&gt; 1:  DT_flw   150 Species
+#&gt; 2: DT_cars    32</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>silent = TRUE</code> returns the summary instead of just printing it, and <code>order.col = &quot;NROW&quot;</code> sorts ascending by row count. Selecting <code>NAME</code>, <code>NROW</code> and <code>KEY</code> produces a focused inventory you can use in checks.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p><strong>These functions pair naturally with tables() when auditing a session.</strong></p>
+
+<ul>
+
+<li><code>setDT()</code> converts a data.frame to a data.table in place, making it visible to <code>tables()</code>.</li>
+
+<li><code>as.data.table()</code> returns a converted copy when in-place conversion is unsafe.</li>
+
+<li><code>key()</code> reads the key column names from a single data.table.</li>
+
+<li><code>haskey()</code> returns <code>TRUE</code> or <code>FALSE</code> for one table.</li>
+
+<li><code>indices()</code> lists secondary indexes; pass <code>index = TRUE</code> to <code>tables()</code> to fold them in.</li>
+
+<li><code>setkey()</code> and <code>setkeyv()</code> attach a key that will then appear in the KEY column.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does tables() do in data.table?</strong></p>
+
+<p><code>tables()</code> scans an environment, finds every object that inherits from <code>data.table</code>, and returns a one-row-per-table summary with NAME, NROW, NCOL, MB, COLS and KEY. The summary is itself a data.table, returned invisibly, while a formatted version is printed to the console. It is a pure diagnostic: no copying, no sorting and no attribute changes happen to your tables.</p>
+
+<p><strong>Why does tables() return an empty result?</strong></p>
+
+<p>Two reasons cover almost every empty result. First, no objects in the scanned environment inherit from the data.table class. Plain data frames and tibbles do not count. Convert them with setDT for an in place change or as.data.table for a copy, then call tables again. Second, you called the function from inside another function, so the default env parent frame resolved to the calling function rather than your interactive session. Passing env equal to the <a class="auto-link" href="R-Environments.html" title="R Environments Explained: Global, Local, Package, Execution & Empty">global environment</a> makes tables always scan the session level objects regardless of where the call sits in the call stack.</p>
+
+<p><strong>How do I sort tables() output by size or row count?</strong></p>
+
+<p>Use the order col argument. Valid values are NAME which is the default, NROW for row count, NCOL for column count, MB for memory footprint and KEY for tables that have a key set. For example, sorting by MB puts the largest table at the top, which is useful when you suspect a memory leak inside a loop. The sort is ascending; for descending order capture the summary with the silent flag and reorder using normal <a class="auto-link" href="data-table-vs-dplyr.html" title="data.table vs dplyr in R: Head-to-Head Performance Benchmark">data.table syntax</a> such as the negative MB pattern. You can chain any other data.table operation on the result the same way.</p>
+
+<p><strong>Does tables() list data.frames or tibbles?</strong></p>
+
+<p>No. <code>tables()</code> only reports objects whose class includes <code>data.table</code>. A plain <code>data.frame</code> from <code>read.csv()</code> or a tibble from <code>readr::read_csv()</code> will not appear in the summary. Convert them with <code>setDT(df)</code> for an in-place conversion or <code>as.data.table(df)</code> for a safe copy. For a generic listing across all classes, use <code>ls()</code> paired with <code>sapply(ls(), function(n) class(get(n))[1])</code>.</p>
+
+<p>For the full reference and source, see the <a href="https://rdatatable.gitlab.io/data.table/reference/tables.html">data.table tables documentation</a>.</p>
+
+{% endraw %}
