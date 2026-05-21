@@ -1,0 +1,510 @@
+---
+title: "tibble column_to_rownames() in R: Move Column Into Rownames"
+description: "Move a data frame column into row names with tibble column_to_rownames() in R. Learn syntax, mtcars round-trip, dist() matrix prep, and three common pitfalls."
+keywords: "tibble column_to_rownames, column_to_rownames function R, tibble column_to_rownames examples, R column to rownames, set rownames from column R, convert column to row names R, column_to_rownames tidyverse"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "column_to_rownames()|tibble column_to_rownames|tibble::column_to_rownames()|set rownames from column|column to row names"
+auto_link_case_sensitive: true
+fr_parent: "R-Data-Frames.html"
+---
+<!-- md2html:generated -->
+
+<h1>tibble column_to_rownames() in R: Move Column Into Rownames</h1>
+
+<p class="lead">The <code>column_to_rownames()</code> function in the tibble package moves the values of a chosen column into a data frame's row names, drops that column, and returns a base <code>data.frame</code> ready for matrix routines that need labeled rows.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>column_to_rownames(df, &quot;id&quot;)<span class="qa-cmt">                       # canonical: explicit var</span>
+column_to_rownames(df)<span class="qa-cmt">                              # default var = &quot;rowname&quot;</span>
+df |&gt; column_to_rownames(&quot;model&quot;)<span class="qa-cmt">                   # pipe-friendly</span>
+mtcars_t |&gt; column_to_rownames(&quot;model&quot;)<span class="qa-cmt">             # restore mtcars rownames</span>
+df |&gt; mutate(id = paste0(&quot;s&quot;, row_number())) |&gt;<span class="qa-cmt">     # create then promote</span>
+  column_to_rownames(&quot;id&quot;)
+rownames_to_column(df, &quot;id&quot;) |&gt;<span class="qa-cmt">                     # round-trip</span>
+  column_to_rownames(&quot;id&quot;)
+as.matrix(column_to_rownames(df, &quot;id&quot;))<span class="qa-cmt">             # feed to matrix routines</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is column_to_rownames() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">move a column into rownames</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">column_to_rownames(df, &quot;id&quot;)</text><text x="125" y="126" class="branch-label">move existing rownames OUT to a column</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">rownames_to_column(df, &quot;id&quot;)</text><text x="125" y="182" class="branch-label">drop rownames entirely without saving</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">remove_rownames(df)</text><text x="125" y="238" class="branch-label">check whether a frame has rownames</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">has_rownames(df)</text><text x="125" y="294" class="branch-label">assign rownames from an arbitrary character vector</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">rownames(df) = vec</text><text x="125" y="350" class="branch-label">add a sequential id without touching rownames</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">rowid_to_column(df, &quot;id&quot;)</text><text x="125" y="406" class="branch-label">keep rownames during tibble conversion</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">as_tibble(df, rownames = &quot;var&quot;)</text></svg></div>
+
+<h2>What column_to_rownames() does in one sentence</h2>
+
+<p><strong><code>column_to_rownames()</code> returns a base data frame whose row names are the values of one of its columns, with that column removed.</strong> You pass a data frame and the name of the column to promote, and the function shifts those values into the row <a class="auto-link" href="R-Attributes.html" title="R Attributes: The Hidden Metadata That Makes R Objects Behave Differently">names attribute</a> while stripping the column from the result. The return type is always a base data frame, never a tibble, because tibbles by design carry no row names.</p>
+
+<p>The function lives in the tibble package and exists to bridge tidyverse pipelines back into base R territory. Routines like <code>stats::dist()</code>, <code>stats::cor()</code>, <code>as.matrix()</code>, and most heatmap and PCA helpers expect row names as the sample or observation label, then propagate those labels into their output. <code>column_to_rownames()</code> is the canonical promotion step at the end of a dplyr chain that prepares a frame for these label-carrying routines.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>column_to_rownames()</code> takes the data frame first, then a <code>var</code> string naming the column to promote.</strong> The column must contain unique non-<a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">NA values</a>; duplicates or <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> trigger an error.</p>
+
+<div class="webr-container" data-block-title="Load tibble and dplyr">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load tibble and dplyr</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+library(dplyr)
+
+# A small data frame with a label column
+df &lt;- data.frame(
+  model = c(&quot;Mazda RX4&quot;, &quot;Datsun 710&quot;, &quot;Camaro Z28&quot;),
+  mpg   = c(21.0, 22.8, 13.3),
+  hp    = c(110, 93, 245)
+)
+df
+#&gt;        model  mpg  hp
+#&gt; 1  Mazda RX4 21.0 110
+#&gt; 2 Datsun 710 22.8  93
+#&gt; 3 Camaro Z28 13.3 245</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signature is:</p>
+
+<pre><code>column_to_rownames(.data, var = &quot;rowname&quot;)</code></pre>
+
+<p>Arguments:</p>
+
+<ul>
+
+<li><code>.data</code>: a <code>data.frame</code> or tibble. The return type is always base <code>data.frame</code>.</li>
+
+<li><code>var</code>: a string naming the column to promote. Defaults to <code>&quot;rowname&quot;</code> for round-trips with <code>rownames_to_column()</code>.</li>
+
+</ul>
+
+<p>The result has one fewer column than the input, with row names set to the promoted values.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always pass <code>var</code> explicitly.</strong> The default <code>&quot;rowname&quot;</code> only exists to make round-trips with <code>rownames_to_column()</code> work without arguments. In a fresh pipeline, passing <code>var = &quot;model&quot;</code> or <code>var = &quot;sample_id&quot;</code> documents intent.</div></div>
+
+<h2>Six common patterns</h2>
+
+<h3>1. Promote a label column with an explicit var</h3>
+
+<div class="webr-container" data-block-title="Promote model column into rownames">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Promote model column into rownames</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df_rn &lt;- column_to_rownames(df, var = &quot;model&quot;)
+df_rn
+#&gt;             mpg  hp
+#&gt; Mazda RX4  21.0 110
+#&gt; Datsun 710 22.8  93
+#&gt; Camaro Z28 13.3 245</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>model</code> column is gone from the body; its values are the new row labels. The remaining columns retain their original order. A call to <code>rownames(df_rn)</code> now returns the model strings instead of integer indices.</p>
+
+<h3>2. Default var = "rowname" round-trips with the inverse function</h3>
+
+<div class="webr-container" data-block-title="Default works after rownames_to_column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Default works after rownames_to_column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  rownames_to_column() |&gt;
+  column_to_rownames() |&gt;
+  head(3)
+#&gt;                mpg cyl disp  hp drat   wt qsec vs am gear carb
+#&gt; Mazda RX4     21.0   6  160 110 3.90 2.62 16.5  0  1    4    4
+#&gt; Mazda RX4 Wag 21.0   6  160 110 3.90 2.88 17.0  0  1    4    4
+#&gt; Datsun 710    22.8   4  108  93 3.85 2.32 18.6  1  1    4    1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With no arguments, <code>rownames_to_column()</code> creates a column called <code>&quot;rowname&quot;</code>, and <code>column_to_rownames()</code> consumes the same name on the way back. The output is identical to the original <code>mtcars</code>. In production code, prefer the explicit <code>var = &quot;model&quot;</code> so a future reader does not need to remember the default convention.</p>
+
+<h3>3. Pipe-friendly placement at the end of a dplyr chain</h3>
+
+<div class="webr-container" data-block-title="Filter then promote inside a pipe">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Filter then promote inside a pipe</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  rownames_to_column(&quot;model&quot;) |&gt;
+  filter(cyl == 4) |&gt;
+  column_to_rownames(&quot;model&quot;) |&gt;
+  head(3)
+#&gt;              mpg cyl  disp hp drat    wt qsec vs am gear carb
+#&gt; Datsun 710  22.8   4 108.0 93 3.85 2.320 18.6  1  1    4    1
+#&gt; Merc 240D   24.4   4 146.7 62 3.69 3.190 20.0  1  0    4    2
+#&gt; Merc 230    22.8   4 140.8 95 3.92 3.150 22.9  1  0    4    2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Push the promotion to the end of the chain. Dplyr verbs cannot reference rownames, so the recipe is: lift rownames into a column, do all dplyr work, then promote back to rownames when you're ready to hand the frame to a base R routine.</p>
+
+<h3>4. Build a labeled matrix for dist() or heatmap()</h3>
+
+<div class="webr-container" data-block-title="Prepare a labeled matrix from a tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Prepare a labeled matrix from a tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">samples &lt;- tibble(
+  sample = paste0(&quot;s&quot;, 1:4),
+  gene_a = c(2.1, 3.4, 1.2, 4.5),
+  gene_b = c(0.8, 1.1, 2.3, 1.0),
+  gene_c = c(5.0, 4.8, 3.9, 5.2)
+)
+samples_mat &lt;- samples |&gt;
+  column_to_rownames(&quot;sample&quot;) |&gt;
+  as.matrix()
+samples_mat
+#&gt;    gene_a gene_b gene_c
+#&gt; s1    2.1    0.8    5.0
+#&gt; s2    3.4    1.1    4.8
+#&gt; s3    1.2    2.3    3.9
+#&gt; s4    4.5    1.0    5.2
+
+dist(samples_mat)
+#&gt;          s1       s2       s3
+#&gt; s2 1.345...
+#&gt; s3 2.572...
+#&gt; s4 2.408...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>dist()</code>, <code>heatmap()</code>, <code>prcomp()</code>, and friends label their output rows by rownames. Promoting <code>sample</code> into rownames before <code>as.matrix()</code> keeps <code>s1</code>, <code>s2</code>, <code>s3</code>, <code>s4</code> flowing through the distance matrix, cluster dendrogram, or <a class="auto-link" href="PCA-in-R.html" title="PCA in R: Reduce Dimensions, Visualise Structure, and Understand What prcomp() Returns">biplot</a>. Without this step, the same routines fall back to integer indices and you lose the link back to the original samples.</p>
+
+<h3>5. Promote a freshly created id column</h3>
+
+<div class="webr-container" data-block-title="Create an id then promote it">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create an id then promote it</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df_id &lt;- mtcars |&gt;
+  rownames_to_column(&quot;model&quot;) |&gt;
+  filter(cyl == 6) |&gt;
+  mutate(id = paste0(&quot;car_&quot;, row_number())) |&gt;
+  select(id, mpg, hp, wt) |&gt;
+  column_to_rownames(&quot;id&quot;)
+df_id
+#&gt;        mpg  hp    wt
+#&gt; car_1 21.0 110 2.620
+#&gt; car_2 21.0 110 2.875
+#&gt; car_3 21.4 110 3.215
+#&gt; car_4 18.1 105 3.460
+#&gt; car_5 19.2 123 3.440
+#&gt; car_6 17.8 123 3.440
+#&gt; car_7 19.7 175 2.770</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>You can promote any column you create mid-pipeline. The <code>paste0(&quot;car_&quot;, row_number())</code> step guarantees uniqueness, which <code>column_to_rownames()</code> will enforce on the next line. This pattern attaches synthetic identifiers (composite keys, batch numbers, condition labels) just before exporting to a labelled matrix.</p>
+
+<h3>6. Tibble inputs work, output is always data.frame</h3>
+
+<div class="webr-container" data-block-title="Tibble in, data.frame out">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tibble in, data.frame out</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tb &lt;- tibble(id = c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), x = 1:3, y = 4:6)
+result &lt;- column_to_rownames(tb, &quot;id&quot;)
+result
+#&gt;   x y
+#&gt; a 1 4
+#&gt; b 2 5
+#&gt; c 3 6
+
+class(result)
+#&gt; [1] &quot;data.frame&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Tibble inputs are accepted. The return type is always base <code>data.frame</code> because tibbles cannot carry row names. To convert back, wrap the result with <code>as_tibble(result, rownames = &quot;id&quot;)</code>.</p>
+
+<h2>column_to_rownames() vs alternatives</h2>
+
+<p><strong>Pick <code>column_to_rownames()</code> when you need rownames on the output and the labels live in a column.</strong> Several adjacent tools cover related row-axis tasks.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Behavior</th>
+<th><code>column_to_rownames()</code></th>
+<th><code>rownames(df) &lt;- df$col</code></th>
+<th><code>tibble::deframe()</code></th>
+<th><code>as_tibble(rownames=)</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Source</td>
+<td>tibble</td>
+<td>base R</td>
+<td>tibble</td>
+<td>tibble</td>
+</tr>
+<tr>
+<td>Best for</td>
+<td>End of dplyr chain</td>
+<td>Quick base R one-liner</td>
+<td>Two-column to named vector</td>
+<td>Lift rownames during conversion</td>
+</tr>
+<tr>
+<td>Drops promoted column</td>
+<td>Yes</td>
+<td>No (manual)</td>
+<td>N/A (returns vector)</td>
+<td>N/A (reverse direction)</td>
+</tr>
+<tr>
+<td>Errors on duplicates</td>
+<td>Yes</td>
+<td>Silent (recycles)</td>
+<td>No</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Returns</td>
+<td>data.frame</td>
+<td>data.frame</td>
+<td>named vector</td>
+<td>tibble</td>
+</tr>
+<tr>
+<td>Direction</td>
+<td>column to rownames</td>
+<td>column to rownames</td>
+<td><a class="auto-link" href="dplyr-pull-in-R.html" title="dplyr pull() in R: Extract a Column as a Vector">column to vector</a></td>
+<td>rownames to column</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li>Use <code>column_to_rownames()</code> for explicit, error-checked promotion at the end of a tidy pipeline.</li>
+
+<li>Use base R <code>rownames(df) = df$col; df$col = NULL</code> for one-off scripts; expect silent duplicate recycling.</li>
+
+<li>Use <code>tibble::deframe()</code> when you want a named vector, not a labeled data frame.</li>
+
+<li>Use <code>as_tibble(df, rownames = &quot;var&quot;)</code> for the reverse direction: lifting rownames out as a column during tibble conversion.</li>
+
+</ul>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The tidyverse treats rownames as a return-trip artifact, not a storage format.</strong> Pipelines should hold row identifiers as ordinary columns where dplyr verbs can see them. <code>column_to_rownames()</code> exists for the final hop, when a base R routine like <code>dist()</code> or <code>prcomp()</code> expects rownames as its label channel.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: duplicate values in the promoted column.</strong> Row names must be unique. The function passes values straight to <code>row.names&lt;-</code>, which rejects duplicates with a base R error.</p>
+
+<div class="webr-container" data-block-title="Duplicates trigger an error">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Duplicates trigger an error</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df_dup &lt;- data.frame(id = c(&quot;a&quot;, &quot;a&quot;, &quot;b&quot;), x = 1:3)
+# This errors:
+# column_to_rownames(df_dup, &quot;id&quot;)
+# Error: `df` must have unique row names.
+
+# Fix: deduplicate or compose a unique key first
+df_dup |&gt;
+  group_by(id) |&gt;
+  mutate(id = paste0(id, &quot;_&quot;, row_number())) |&gt;
+  ungroup() |&gt;
+  column_to_rownames(&quot;id&quot;)
+#&gt;     x
+#&gt; a_1 1
+#&gt; a_2 2
+#&gt; b_1 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Pitfall 2: forgetting the result is a data.frame, not a tibble.</strong> Even with a tibble input, the output prints with base R formatting and downstream tibble-specific code may break.</p>
+
+<div class="webr-container" data-block-title="Output type changes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Output type changes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tb_in &lt;- tibble(id = c(&quot;a&quot;, &quot;b&quot;), x = 1:2)
+class(column_to_rownames(tb_in, &quot;id&quot;))
+#&gt; [1] &quot;data.frame&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>If the next step expects a tibble, wrap the result with <code>as_tibble(rownames = &quot;id&quot;)</code> to round-trip the rownames into a column.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The default <code>var = &quot;rowname&quot;</code> silently fails on unprepared frames.</strong> Calling <code>column_to_rownames(df)</code> without an explicit <code>var</code> only works if a column called <code>&quot;rowname&quot;</code> exists. On any other frame, you'll see <code>Can&#x27;t extract columns that don&#x27;t exist</code>. Pass <code>var</code> explicitly in production code.</div></div>
+
+<p><strong>Pitfall 3: missing values in the promoted column.</strong> Row names cannot be <code>NA</code>. Any missing value errors out the call.</p>
+
+<div class="webr-container" data-block-title="NA values block promotion">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">NA values block promotion</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df_na &lt;- data.frame(id = c(&quot;a&quot;, NA, &quot;c&quot;), x = 1:3)
+# This errors:
+# column_to_rownames(df_na, &quot;id&quot;)
+# Error: missing values in 'row.names' are not allowed
+
+# Fix: filter or impute before promoting
+df_na |&gt;
+  filter(!is.na(id)) |&gt;
+  column_to_rownames(&quot;id&quot;)
+#&gt;   x
+#&gt; a 1
+#&gt; c 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Take <code>USArrests</code>, lift its state row names into a column called <code>state</code>, filter to states whose <code>Murder</code> rate is above 10, then promote <code>state</code> back into rownames so the result is a labeled data frame ready for <code>dist()</code>. Save the labeled frame to <code>ex_arrests_mat</code>.</p>
+<div class="webr-container" data-block-title="Your turn: round-trip USArrests through dplyr">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: round-trip USArrests through dplyr</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+library(dplyr)
+# Try it: build ex_arrests_mat
+ex_arrests_mat &lt;- # your code here
+
+ex_arrests_mat
+#&gt; Expected: 5 rows, rownames Alabama/Florida/Georgia/Mississippi/South Carolina</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_arrests_mat &lt;- USArrests |&gt;
+  rownames_to_column(&quot;state&quot;) |&gt;
+  filter(Murder &gt; 10) |&gt;
+  column_to_rownames(&quot;state&quot;)
+
+ex_arrests_mat
+#&gt;                Murder Assault UrbanPop Rape
+#&gt; Alabama          13.2     236       58 21.2
+#&gt; Florida          15.4     335       80 31.9
+#&gt; Georgia          17.4     211       60 25.8
+#&gt; Mississippi      16.1     259       44 17.1
+#&gt; South Carolina   14.4     279       48 22.5
+
+dist(as.matrix(ex_arrests_mat))
+#&gt;                  Alabama  Florida  Georgia Mississippi
+#&gt; Florida        103.83...
+#&gt; Georgia         27.83...
+#&gt; Mississippi     34.39...
+#&gt; South Carolina  46.06...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>rownames_to_column(&quot;state&quot;)</code> lifts the labels into a column so <code>filter()</code> can see them. After filtering, <code>column_to_rownames(&quot;state&quot;)</code> promotes them back so the matrix passed to <code>dist()</code> carries its row labels through into the distance output.</p>
+
+</details>
+</section>
+
+<h2>Related tibble functions</h2>
+
+<p>Alongside <code>column_to_rownames()</code>, look at:</p>
+
+<ul>
+
+<li><code>rownames_to_column()</code>: the inverse operation, moves row names out into a new column.</li>
+
+<li><code>has_rownames()</code>: returns <code>TRUE</code> if a data frame carries non-trivial row names.</li>
+
+<li><code>remove_rownames()</code>: drops row names entirely without saving them.</li>
+
+<li><code>rowid_to_column()</code>: adds a fresh integer id column without touching existing row names.</li>
+
+<li><code>as_tibble(rownames = &quot;var&quot;)</code>: combines rowname lifting with tibble conversion in one call.</li>
+
+<li><code>tibble::deframe()</code>: converts a two-column data frame into a named vector instead.</li>
+
+</ul>
+
+<p>For the full reference, see the <a href="https://tibble.tidyverse.org/reference/rownames.html">official tibble documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I move a column to row names in R?</strong></p>
+
+<p>Call <code>column_to_rownames()</code> from the tibble package, passing the data frame and the column to promote: <code>column_to_rownames(df, &quot;id&quot;)</code>. The values in the named column become the row names, and the column itself is removed. The return type is base <code>data.frame</code> even if the input was a tibble. Values in the promoted column must be unique and non-NA.</p>
+
+<p><strong>What is the difference between column_to_rownames() and <code>rownames(df) &lt;- df$col</code>?</strong></p>
+
+<p><code>column_to_rownames()</code> is safer: it errors on duplicates and missing values, and it drops the promoted column for you. The base <a class="auto-link" href="R-Assignment-Operators-in-R.html" title="R Assignment Operators: <- vs = vs <<- (Complete Guide)">R assignment</a> recycles duplicates silently into <code>1, 2, 3</code> row numbers in some R versions, leaves the original column in place, and returns whatever class the input was. For tidy pipelines, prefer the tibble call for the explicit error path.</p>
+
+<p><strong>Why does column_to_rownames() return a data.frame instead of a tibble?</strong></p>
+
+<p>Tibbles intentionally do not support row names; they make every per-row identifier a first-class column. <code>column_to_rownames()</code> exists precisely to bridge into base R routines that need rownames (<code>dist()</code>, <code>prcomp()</code>, <code>heatmap()</code>, <code>as.matrix()</code>), so it returns a base <code>data.frame</code> even when handed a tibble.</p>
+
+<p><strong>Can I undo column_to_rownames()?</strong></p>
+
+<p>Yes. <code>rownames_to_column(df, &quot;id&quot;)</code> is the exact inverse: it lifts the row names back into a column. Round-tripping is lossless as long as no rows are reordered between the two calls. Note that <code>rownames_to_column()</code> returns a tibble.</p>
+
+<p><strong>Does column_to_rownames() modify the original data frame?</strong></p>
+
+<p>No. <code>column_to_rownames()</code> returns a new data frame; the original is unchanged. Assign the result back to persist the change, for example <code>df = column_to_rownames(df, &quot;id&quot;)</code>. Tidyverse functions are pure, so changes only persist through explicit assignment.</p>
