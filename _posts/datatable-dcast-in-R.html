@@ -1,0 +1,392 @@
+---
+title: "data.table dcast() in R: Reshape Long Data to Wide Format"
+description: "Reshape long data.tables to wide format with dcast() in R. Learn formula syntax, value.var, fun.aggregate, fill, multi-measure casts, and common pitfalls."
+keywords: "data.table dcast, dcast function R, data.table dcast examples, R dcast long to wide, dcast.data.table, data.table reshape, dcast fun.aggregate"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "dcast()|data.table dcast|data.table::dcast()|dcast.data.table|reshape long to wide"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>data.table dcast() in R: Reshape Long Data to Wide Format</h1>
+
+<p class="lead">The <code>dcast()</code> function from data.table reshapes a long <code>data.table</code> into wide format by spreading one column's values across new columns named after the levels of another column, with optional aggregation when duplicate id-by-variable combinations exist.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>dcast(dt, id ~ variable)<span class="qa-cmt">                                   # default reshape</span>
+dcast(dt, id ~ variable, value.var = &quot;value&quot;)<span class="qa-cmt">              # specify value column</span>
+dcast(dt, id ~ variable, fun.aggregate = sum)<span class="qa-cmt">              # aggregate duplicates</span>
+dcast(dt, id ~ variable, fill = 0)<span class="qa-cmt">                         # fill missing combos</span>
+dcast(dt, id ~ variable, value.var = c(&quot;v1&quot;, &quot;v2&quot;))<span class="qa-cmt">        # multiple value cols</span>
+dcast(dt, id + grp ~ variable)<span class="qa-cmt">                             # multiple LHS ids</span>
+dcast(dt, id ~ year + qtr, value.var = &quot;x&quot;)<span class="qa-cmt">                # cross multiple RHS</span>
+dcast(dt, id ~ ., value.var = &quot;x&quot;, fun.aggregate = mean)<span class="qa-cmt">   # collapse to one col</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is dcast() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label"><a class="auto-link" href="tidyr-pivot_longer-in-R.html" title="tidyr pivot_longer() in R: Wide to Long Format">reshape long</a> to wide</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">dcast(dt, id ~ variable)</text><text x="125" y="126" class="branch-label">reshape wide back to long</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">melt(dt, id.vars = &quot;id&quot;)</text><text x="125" y="182" class="branch-label">compute group summaries without pivoting</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">dt[, mean(x), by = grp]</text><text x="125" y="238" class="branch-label">join two tables by a key</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">merge(dt, lookup, by = &quot;id&quot;)</text><text x="125" y="294" class="branch-label">count occurrences in a cross-tab</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">table(dt$col1, dt$col2)</text><text x="125" y="350" class="branch-label">transpose <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">rows and columns</a></text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">data.table(t(dt))</text><text x="125" y="406" class="branch-label">split one column into many</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">tstrsplit(dt$col, &quot;,&quot;)</text></svg></div>
+
+<h2>What dcast() does in one sentence</h2>
+
+<p><strong><code>dcast()</code> spreads a long table into a wide one using a formula.</strong> You hand it a long <code>data.table</code> and a formula of the form <code>id_cols ~ category_col</code>, and it returns a wide <code>data.table</code> where each unique value of the category column becomes its own column, populated by the values from <code>value.var</code>.</p>
+
+<p>The reason <code>data.table dcast</code> exists alongside base <code>reshape()</code> is speed and ergonomics. The implementation is written in C and pre-allocates the output, and it accepts an aggregation function inline so a pivot and a <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> step run in a single call.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>dcast()</code> takes a long data table, a formula, and optional value, aggregator, and fill arguments.</strong> Only the data and formula are required; everything else has sensible defaults.</p>
+
+<div class="webr-container" data-block-title="Load data.table and prepare long data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load data.table and prepare long data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+DT &lt;- data.table(
+  family = c(&quot;F1&quot;, &quot;F1&quot;, &quot;F2&quot;, &quot;F2&quot;, &quot;F3&quot;, &quot;F3&quot;),
+  child  = c(&quot;c1&quot;, &quot;c2&quot;, &quot;c1&quot;, &quot;c2&quot;, &quot;c1&quot;, &quot;c2&quot;),
+  dob    = c(&quot;1998-04-12&quot;, &quot;2001-03-15&quot;,
+             &quot;1996-06-09&quot;, NA,
+             &quot;2002-08-22&quot;, &quot;2005-11-30&quot;)
+)
+DT
+#&gt;    family  child        dob
+#&gt;    &lt;char&gt; &lt;char&gt;     &lt;char&gt;
+#&gt; 1:     F1     c1 1998-04-12
+#&gt; 2:     F1     c2 2001-03-15
+#&gt; 3:     F2     c1 1996-06-09
+#&gt; 4:     F2     c2       &lt;NA&gt;
+#&gt; 5:     F3     c1 2002-08-22
+#&gt; 6:     F3     c2 2005-11-30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signature is <code>dcast(data, formula, fun.aggregate = NULL, ..., margins = NULL, subset = NULL, fill = NULL, drop = TRUE, value.var = guess(data), verbose = getOption(&quot;datatable.verbose&quot;))</code>. Its arguments are:</p>
+
+<ul>
+
+<li><code>data</code>: the long <code>data.table</code> to reshape.</li>
+
+<li><code>formula</code>: an expression like <code>id_cols ~ category_cols</code>. Left side becomes row keys; right side names the column spread into new columns. Use <code>+</code> to <a class="auto-link" href="tidyr-unite-in-R.html" title="tidyr unite() in R: Combine Columns Into One">combine columns</a> on either side.</li>
+
+<li><code>value.var</code>: the column whose values fill the new wide cells. Pass a character vector to spread several at once.</li>
+
+<li><code>fun.aggregate</code>: a function that collapses duplicate id-by-category rows into one value. Defaults to <code>length</code> with a warning if omitted when duplicates exist.</li>
+
+<li><code>fill</code>: value written into missing id-by-category cells. Defaults to <code>NA</code>.</li>
+
+<li><code>drop</code>: when <code>TRUE</code>, unused factor levels in the formula are dropped; set <code>FALSE</code> to keep empty columns.</li>
+
+</ul>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always state <code>value.var</code> explicitly when more than one non-id column exists.</strong> <code>dcast()</code> will guess, and the guess is usually right, but spelling it out makes the call self-documenting and removes the friendly "Aggregate function missing, defaulting to 'length'" warning that hides real aggregation bugs.</div></div>
+
+<h2>Reshaping long data: four common patterns</h2>
+
+<h3>1. Basic pivot with one id and one category</h3>
+
+<p><strong>Specifying <code>id ~ category</code> is the minimal pivot.</strong> The unique values in the category column become the new column names; the value column fills the cells.</p>
+
+<div class="webr-container" data-block-title="Pivot one id by one category">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pivot one id by one category</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dcast(DT, family ~ child, value.var = &quot;dob&quot;)
+#&gt;    family         c1         c2
+#&gt;    &lt;char&gt;     &lt;char&gt;     &lt;char&gt;
+#&gt; 1:     F1 1998-04-12 2001-03-15
+#&gt; 2:     F2 1996-06-09       &lt;NA&gt;
+#&gt; 3:     F3 2002-08-22 2005-11-30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Six long rows collapse into three wide rows. Every unique <code>child</code> value becomes a column; missing combinations show up as <code>NA</code>.</p>
+
+<h3>2. Aggregate duplicates with fun.aggregate</h3>
+
+<p><strong>When an id-by-category combination appears more than once, <code>dcast()</code> needs an aggregator.</strong> Pass any single-value-returning function to <code>fun.aggregate</code>: <code>sum</code>, <code>mean</code>, <code>median</code>, <code>length</code>, or a user-defined function.</p>
+
+<div class="webr-container" data-block-title="Aggregate duplicate combinations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Aggregate duplicate combinations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales &lt;- data.table(
+  store   = c(&quot;S1&quot;, &quot;S1&quot;, &quot;S1&quot;, &quot;S2&quot;, &quot;S2&quot;, &quot;S2&quot;),
+  month   = c(&quot;jan&quot;, &quot;jan&quot;, &quot;feb&quot;, &quot;jan&quot;, &quot;feb&quot;, &quot;feb&quot;),
+  revenue = c(120,    30,   150,   200,   80,   100)
+)
+
+dcast(sales, store ~ month,
+      value.var     = &quot;revenue&quot;,
+      fun.aggregate = sum)
+#&gt;     store   feb   jan
+#&gt;    &lt;char&gt; &lt;num&gt; &lt;num&gt;
+#&gt; 1:     S1   150   150
+#&gt; 2:     S2   180   200</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Store <code>S1</code> has two January rows that sum to 150; store <code>S2</code> has two February rows that sum to 180. Without <code>fun.aggregate</code>, <code>dcast()</code> warns and uses <code>length</code>, which returns counts rather than totals.</p>
+
+<h3>3. Spread multiple value columns in one pass</h3>
+
+<p><strong><code>value.var</code> accepts a character vector to spread several measures at once.</strong> The result has one set of wide columns per measure, with names prefixed by the measure name.</p>
+
+<div class="webr-container" data-block-title="Spread two measures in one call">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Spread two measures in one call</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">records &lt;- data.table(
+  family = c(&quot;F1&quot;, &quot;F1&quot;, &quot;F2&quot;, &quot;F2&quot;, &quot;F3&quot;, &quot;F3&quot;),
+  child  = c(&quot;c1&quot;, &quot;c2&quot;, &quot;c1&quot;, &quot;c2&quot;, &quot;c1&quot;, &quot;c2&quot;),
+  name   = c(&quot;Aiden&quot;, &quot;Bea&quot;, &quot;Liam&quot;, &quot;Noah&quot;, &quot;Mia&quot;, &quot;Eli&quot;),
+  gender = c(&quot;M&quot;,     &quot;F&quot;,   &quot;M&quot;,    &quot;M&quot;,    &quot;F&quot;,   &quot;M&quot;)
+)
+
+dcast(records, family ~ child,
+      value.var = c(&quot;name&quot;, &quot;gender&quot;))
+#&gt;    family name_c1 name_c2 gender_c1 gender_c2
+#&gt;    &lt;char&gt;  &lt;char&gt;  &lt;char&gt;    &lt;char&gt;    &lt;char&gt;
+#&gt; 1:     F1   Aiden     Bea         M         F
+#&gt; 2:     F2    Liam    Noah         M         M
+#&gt; 3:     F3     Mia     Eli         F         M</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both <code>name</code> and <code>gender</code> spread by <code>child</code>, producing four wide columns. This is the inverse of a <code>melt()</code> call with <code>patterns()</code>, in one pre-allocated pass.</p>
+
+<h3>4. Fill missing combinations with fill = value</h3>
+
+<p><strong>By default, absent id-by-category combinations become <code>NA</code>.</strong> Pass <code>fill</code> to substitute a different value, which is handy for counts and incidence tables where zero is the correct answer.</p>
+
+<div class="webr-container" data-block-title="Replace NA cells with zero">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Replace NA cells with zero</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">inventory &lt;- data.table(
+  warehouse = c(&quot;A&quot;, &quot;A&quot;, &quot;B&quot;),
+  product   = c(&quot;widget&quot;, &quot;gadget&quot;, &quot;widget&quot;),
+  units     = c(5,         10,       8)
+)
+
+dcast(inventory, warehouse ~ product,
+      value.var = &quot;units&quot;,
+      fill      = 0)
+#&gt;    warehouse gadget widget
+#&gt;       &lt;char&gt;  &lt;num&gt;  &lt;num&gt;
+#&gt; 1:         A     10      5
+#&gt; 2:         B      0      8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Warehouse <code>B</code> has no <code>gadget</code> row, so without <code>fill = 0</code> that cell would be <code>NA</code>. For counts, presence-absence matrices, or contingency tables, <code>fill = 0</code> is usually the right answer.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A <code>dcast()</code> formula with <code>fun.aggregate</code> is a pivot table in one line.</strong> It collapses duplicates, spreads categories into columns, and fills gaps in a single C pass, where a tidyverse equivalent needs <code>group_by()</code> plus <code>summarise()</code> plus <code>pivot_wider()</code>.</div></div>
+
+<h2>dcast() vs base reshape() and tidyr pivot_wider()</h2>
+
+<p><strong>All three reshape <a class="auto-link" href="tidyr-spread-in-R.html" title="tidyr spread() in R: Long to Wide (Superseded by pivot_wider)">long to wide</a> but differ in speed, syntax, and feature coverage.</strong> <code>dcast()</code> is fastest and the only one with built-in aggregation; <code>pivot_wider()</code> reads cleanest; base <code>reshape()</code> needs no extra package.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Feature</th>
+<th>data.table <code>dcast()</code></th>
+<th>base <code>reshape()</code></th>
+<th>tidyr <code>pivot_wider()</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Speed on large data</td>
+<td>Fastest (written in C)</td>
+<td>Slow</td>
+<td>Moderate</td>
+</tr>
+<tr>
+<td>Inline aggregation</td>
+<td><code>fun.aggregate = sum</code></td>
+<td>Not supported</td>
+<td><code>values_fn = sum</code></td>
+</tr>
+<tr>
+<td>Multiple value columns</td>
+<td><code>value.var = c(&quot;a&quot;, &quot;b&quot;)</code></td>
+<td>Awkward</td>
+<td><code>values_from = c(a, b)</code></td>
+</tr>
+<tr>
+<td>Fill missing combinations</td>
+<td><code>fill = 0</code></td>
+<td>Not supported</td>
+<td><code>values_fill = 0</code></td>
+</tr>
+<tr>
+<td>Return type</td>
+<td><code>data.table</code></td>
+<td><code>data.frame</code></td>
+<td><code>tibble</code></td>
+</tr>
+<tr>
+<td>Available without extras</td>
+<td>needs <code>data.table</code></td>
+<td>base R</td>
+<td>needs <code>tidyr</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Pick <code>dcast()</code> when the input is already a <code>data.table</code>, when aggregation belongs in the same step, or when the data is large. Reach for <code>pivot_wider()</code> in a tidyverse pipeline, and use base <code>reshape()</code> only when extra packages are unavailable.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The equivalent of <code>dcast(dt, id ~ var, value.var = &quot;x&quot;)</code> is <code>df.pivot(index = &quot;id&quot;, columns = &quot;var&quot;, values = &quot;x&quot;)</code>. To aggregate duplicates, use <code>df.pivot_table(..., aggfunc = &quot;sum&quot;)</code>.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting <code>fun.aggregate</code> when duplicates exist.</strong> If the same id-by-category combination appears more than once and no aggregator is given, <code>dcast()</code> defaults to <code>length</code> and prints a warning. The result is a count, not the value you expected.</p>
+
+<div class="webr-container" data-block-title="Missing fun.aggregate produces counts">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Missing fun.aggregate produces counts</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dups &lt;- data.table(id = c(1, 1, 2), k = c(&quot;a&quot;, &quot;a&quot;, &quot;b&quot;), x = c(10, 20, 30))
+dcast(dups, id ~ k, value.var = &quot;x&quot;)
+#&gt; Aggregate function missing, defaulting to 'length'
+#&gt;       id     a     b
+#&gt;    &lt;num&gt; &lt;int&gt; &lt;int&gt;
+#&gt; 1:     1     2     0
+#&gt; 2:     2     0     1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>a</code> cell for id 1 shows <code>2</code> because two rows match, not <code>10</code> or <code>20</code>. Pass <code>fun.aggregate = sum</code> (or <code>mean</code>, <code>first</code>) for the expected behaviour.</p>
+
+<p><strong>Pitfall 2: <code>value.var</code> is guessed and the guess can be wrong.</strong> When several non-id columns exist, <code>dcast()</code> picks the first non-formula column and warns. If you intended a different column, the wide table is silently filled with the wrong values.</p>
+
+<p><strong>Pitfall 3: factor levels in formula columns are dropped by default.</strong> <code>drop = TRUE</code> removes columns for unused factor levels. For a full grid (e.g. a monthly report covering months with no data), pass <code>drop = FALSE</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never ignore the "Aggregate function missing" warning in production code.</strong> It always points at a real ambiguity in the input. Either the data has unexpected duplicates that need investigation, or the call needs an explicit <code>fun.aggregate</code>. Treat the warning as an error during data validation.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Pivot the long table <code>scores_long</code> below into wide format. Use <code>student</code> as the row id, spread by <code>subject</code>, and fill empty cells with zero. Save the result to <code>ex_wide</code>.</p>
+<div class="webr-container" data-block-title="Your turn: pivot scores wide">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: pivot scores wide</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: pivot scores_long wide by subject
+scores_long &lt;- data.table(
+  student = c(&quot;Ana&quot;, &quot;Ana&quot;, &quot;Ben&quot;, &quot;Ben&quot;, &quot;Cal&quot;),
+  subject = c(&quot;math&quot;, &quot;sci&quot;, &quot;math&quot;, &quot;eng&quot;, &quot;sci&quot;),
+  score   = c(82,     91,    74,     88,    65)
+)
+
+ex_wide &lt;- # your code here
+
+ex_wide
+#&gt; Expected: 3 rows with columns student, eng, math, sci</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_wide &lt;- dcast(scores_long, student ~ subject,
+                 value.var = &quot;score&quot;,
+                 fill      = 0)
+ex_wide
+#&gt;    student   eng  math   sci
+#&gt;     &lt;char&gt; &lt;num&gt; &lt;num&gt; &lt;num&gt;
+#&gt; 1:     Ana     0    82    91
+#&gt; 2:     Ben    88    74     0
+#&gt; 3:     Cal     0     0    65</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>student ~ subject</code> lays out one row per student and one column per subject; <code>value.var = &quot;score&quot;</code> tells <code>dcast()</code> which column to spread; <code>fill = 0</code> writes zero into the cells where a student did not take a subject, so the result is a clean three-by-four wide table.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p>These functions pair naturally with <code>dcast()</code> when reshaping, aggregating, or combining tables:</p>
+
+<ul>
+
+<li><code>melt()</code>: the inverse of <code>dcast()</code>; collapses many columns into one variable and one value column.</li>
+
+<li><code>merge()</code>: joins two tables on a shared key, often used to attach lookups before or after a cast.</li>
+
+<li><code>rbindlist()</code>: stacks a list of tables by row, useful when several long tables need to be cast together.</li>
+
+<li><code>setnames()</code>: renames columns in place, handy for cleaning the auto-generated names after a multi-measure cast.</li>
+
+<li><code>setkey()</code>: sets a sort key on a <code>data.table</code>, which speeds up the merge that often follows a cast.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between dcast and melt in data.table?</strong></p>
+
+<p><code>dcast()</code> reshapes long to wide by spreading one column's values across new columns; <code>melt()</code> does the reverse, stacking many measure columns into a <code>variable</code> and <code>value</code> pair. They are inverses: <code>dcast(melt(dt, id.vars = &quot;id&quot;), id ~ variable)</code> returns the original wide table. Use <code>dcast()</code> to get one row per observation with one column per measure.</p>
+
+<p><strong>How do you aggregate while reshaping with data.table dcast?</strong></p>
+
+<p>Pass a function to <code>fun.aggregate</code>. For example, <code>dcast(sales, store ~ month, value.var = &quot;revenue&quot;, fun.aggregate = sum)</code> sums duplicate store-by-month rows during the pivot. Any single-value-returning function works: <code>mean</code>, <code>median</code>, <code>min</code>, <code>max</code>, or a user-defined wrapper like <code>function(x) sum(x, na.rm = TRUE)</code>. This collapses group-by and pivot into one call.</p>
+
+<p><strong>How do you spread multiple value columns at once with dcast?</strong></p>
+
+<p>Pass a character vector to <code>value.var</code>. For example, <code>dcast(records, family ~ child, value.var = c(&quot;name&quot;, &quot;gender&quot;))</code> returns one set of wide columns per measure, with the measure name prefixed to the category value (e.g. <code>name_c1</code>, <code>gender_c1</code>). It runs in a single pre-allocated pass.</p>
+
+<p><strong>Is data.table dcast faster than <a class="auto-link" href="tidyr-pivot_wider-in-R.html" title="tidyr pivot_wider() in R: Long to Wide Format">tidyr pivot_wider</a>?</strong></p>
+
+<p>Yes, on large data. <code>dcast()</code> is written in C and pre-allocates the result, so on millions of rows it typically runs several times faster than <code>pivot_wider()</code>. On small tables the difference is negligible. Use <code>dcast()</code> when speed matters or the input is already a <code>data.table</code>; reach for <code>pivot_wider()</code> in a tidyverse pipeline.</p>
+
+<p>For the official argument reference, see the <a href="https://rdatatable.gitlab.io/data.table/articles/datatable-reshape.html">data.table melt and dcast vignette</a>.</p>
