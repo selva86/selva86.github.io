@@ -1,0 +1,402 @@
+---
+title: "data.table := vs = in R: When to Use Walrus vs Equals"
+description: "Compare data.table := vs = in R: when to use the walrus operator for by-reference column updates versus = for argument naming, equality, and pitfalls."
+keywords: "data.table := vs =, data.table walrus operator, := in data.table R, := operator R, data.table column assignment, R data.table assignment, walrus vs equals data.table"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: ":=|data.table :=|walrus operator|data.table walrus|:= operator|data.table assignment"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>data.table := vs = in R: When to Use Walrus vs Equals</h1>
+
+<p class="lead">In data.table the := operator (the walrus) updates columns in place by reference, while = is reserved for naming <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function arguments</a> and testing equality. Mixing them is the most common source of "invalid .internal.selfref" warnings and silent copies.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="20" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>DT[, x := y * 2]<span class="qa-cmt">                    # add or overwrite one column</span>
+DT[, c(&quot;a&quot;, &quot;b&quot;) := list(x, y)]<span class="qa-cmt">     # update many columns at once</span>
+DT[, `:=`(a = x, b = y)]<span class="qa-cmt">            # functional form, same as above</span>
+DT[i, x := NA]<span class="qa-cmt">                      # conditional update on matched rows</span>
+DT[, x := NULL]<span class="qa-cmt">                     # delete column x by reference</span>
+DT[, mean_x := mean(x), by = grp]<span class="qa-cmt">   # walrus respects by clause</span>
+data.table(x = 1:3, y = 4:6)<span class="qa-cmt">        # = names arguments, not assignment</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is := the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">update or add a column in place</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">DT[, x := value]</text><text x="125" y="126" class="branch-label">aggregate to a new table (no in place)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">DT[, .(s = sum(x)), by = g]</text><text x="125" y="182" class="branch-label">read a column out</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">DT[, x] or DT$x</text><text x="125" y="238" class="branch-label">bulk reorder by reference</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">setorder(DT, x)</text><text x="125" y="294" class="branch-label">bulk rename by reference</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">setnames(DT, old, new)</text><text x="125" y="350" class="branch-label">conditional update by row match</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">DT[i, x := value]</text></svg></div>
+
+<h2>What := does in data.table</h2>
+
+<p><strong>The walrus operator updates a data.table by reference.</strong> Writing <code>DT[, newcol := expr]</code> adds or overwrites <code>newcol</code> in <code>DT</code> without copying the table. The expression on the right is evaluated, the result is stored as a new column, and the function returns the modified table invisibly so a long pipeline of updates does not flood the console.</p>
+
+<p>This is what makes data.table fast on millions of rows. A base <a class="auto-link" href="R-Assignment-Operators-in-R.html" title="R Assignment Operators: <- vs = vs <<- (Complete Guide)">R assignment</a> like <code>DT$x &lt;- y</code> copies the entire frame before changing one column, which doubles memory use and slows things down whenever the table is wide. The walrus skips that copy entirely and writes directly into the existing column structure. The trade-off is that <code>:=</code> mutates its input, so the original object changes whether you assign the result or not, and any other name pointing at the same table sees the change too.</p>
+
+<p>The walrus also has a "set" family of cousins, including <code>setnames()</code>, <code>setcolorder()</code>, and <code>setkey()</code>, that share its by <a class="auto-link" href="R6-Classes-in-R.html" title="R6 Classes in R: Reference Semantics & Mutable State Tutorial">reference semantics</a> for metadata changes. Everything in that family avoids the copy that base R assignment would force.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>:= is a verb, = is a label.</strong> The walrus tells data.table to do something to the table. The equals sign just names an argument or tests equality. They look similar but live in different grammars, which is why mixing them produces such confusing errors.</div></div>
+
+<h2>What = does inside data.table</h2>
+
+<p><strong>Inside <code>DT[i, j, by]</code>, = names arguments to functions, not column assignments.</strong> When you write <code>data.table(x = 1:3)</code>, the <code>=</code> binds the value <code>1:3</code> to the parameter <code>x</code>, exactly as it would in any function call. The same role applies inside the <code>.()</code> shortcut: <code>DT[, .(mean_x = mean(x))]</code> names the output column <code>mean_x</code> in the new summary table that the call returns.</p>
+
+<p>None of these create or update columns in <code>DT</code> itself. The expression <code>DT[, .(...)]</code> always returns a fresh data.table; the original is never touched. That distinction is the whole point of the walrus: when you want to mutate <code>DT</code>, the only operator that does it is <code>:=</code>. Every other use of <code>=</code> in the <code>j</code> slot is either argument naming or a silent mistake.</p>
+
+<p>The other use of <code>=</code> is the equality test <code>==</code>, which compares values. A single <code>=</code> in a logical context is a syntax error in R, so the language never confuses assignment with comparison. The confusion is purely in the reader's head when scanning a <code>DT[, j]</code> expression that mixes the two roles in one call.</p>
+
+<div class="webr-container" data-block-title="Equals names a column in a new table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Equals names a column in a new table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+DT &lt;- as.data.table(mtcars[1:5, c(&quot;mpg&quot;, &quot;cyl&quot;)], keep.rownames = &quot;model&quot;)
+
+# = inside .() names the output columns of a NEW summary table
+DT[, .(mean_mpg = mean(mpg), n = .N), by = cyl]
+#&gt;    cyl mean_mpg n
+#&gt; 1:   6   21.150 3
+#&gt; 2:   4   22.800 1
+#&gt; 3:   8   18.700 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result is a fresh summary <code>data.table</code>. The original <code>DT</code> is untouched, and no <code>:=</code> was used.</p>
+
+<h2>:= examples</h2>
+
+<p><strong>These examples cover the four shapes of := you will write most often.</strong> Each one mutates <code>DT</code> in place, so re-running a block after an earlier change replays history rather than starting from a clean slate. Restart the page or reload the dataset when you want a fresh state to experiment with.</p>
+
+<p>The four shapes are: a single column update, a multi column update with a character vector, the functional form with backticked syntax, and a conditional update gated by the <code>i</code> slot. The last two examples cover by group updates and column deletion, which round out almost every real workflow.</p>
+
+<p>The simplest form adds one column. The expression on the right can reference any column already in the table by name.</p>
+
+<div class="webr-container" data-block-title="Add a single column by reference">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add a single column by reference</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT &lt;- as.data.table(mtcars, keep.rownames = &quot;model&quot;)
+
+DT[, kpl := mpg * 0.425]
+DT[1:4, .(model, mpg, kpl)]
+#&gt;                model  mpg     kpl
+#&gt; 1:         Mazda RX4 21.0 8.92500
+#&gt; 2:     Mazda RX4 Wag 21.0 8.92500
+#&gt; 3:        Datsun 710 22.8 9.69000
+#&gt; 4:    Hornet 4 Drive 21.4 9.09500</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>To update many columns at once, pass a character vector on the left and a list on the right. The lengths must match.</p>
+
+<div class="webr-container" data-block-title="Update many columns at once">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Update many columns at once</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT[, c(&quot;hp_kw&quot;, &quot;wt_kg&quot;) := list(hp * 0.7457, wt * 453.592)]
+DT[1:3, .(model, hp, hp_kw, wt, wt_kg)]
+#&gt;            model  hp   hp_kw    wt    wt_kg
+#&gt; 1:     Mazda RX4 110 82.0270 2.620 1188.411
+#&gt; 2: Mazda RX4 Wag 110 82.0270 2.875 1303.577
+#&gt; 3:    Datsun 710  93 69.3501 2.320 1052.333</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The functional form `<code> </code>:=<code>(a = ..., b = ...) </code>` does the same job and reads more naturally when you have several updates. Here the equals sign labels the column being assigned, but the walrus is still doing the work.</p>
+
+<div class="webr-container" data-block-title="Functional form for many columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Functional form for many columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT[, `:=`(
+  hp_per_cyl = hp / cyl,
+  mpg_per_wt = mpg / wt
+)]
+DT[1:3, .(model, hp_per_cyl, mpg_per_wt)]
+#&gt;            model hp_per_cyl mpg_per_wt
+#&gt; 1:     Mazda RX4   18.33333   8.015267
+#&gt; 2: Mazda RX4 Wag   18.33333   7.304348
+#&gt; 3:    Datsun 710   23.25000   9.827586</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Combine <code>i</code> with <code>:=</code> to update only the rows that match a condition. This is the in place equivalent of an SQL <code>UPDATE ... WHERE</code>.</p>
+
+<div class="webr-container" data-block-title="Conditional update on matched rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Conditional update on matched rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT[cyl == 4, mpg_band := &quot;efficient&quot;]
+DT[is.na(mpg_band), mpg_band := &quot;other&quot;]
+DT[, .N, by = mpg_band]
+#&gt;    mpg_band  N
+#&gt; 1:    other 21
+#&gt; 2: efficient 11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Adding <code>by</code> evaluates the right hand expression inside each group, then writes the result back to every row of that group.</p>
+
+<div class="webr-container" data-block-title="Walrus respects by clause">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Walrus respects by clause</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT[, group_mean_mpg := mean(mpg), by = cyl]
+DT[1:4, .(model, cyl, mpg, group_mean_mpg)]
+#&gt;                model cyl  mpg group_mean_mpg
+#&gt; 1:         Mazda RX4   6 21.0       19.74286
+#&gt; 2:     Mazda RX4 Wag   6 21.0       19.74286
+#&gt; 3:        Datsun 710   4 22.8       26.66364
+#&gt; 4:    Hornet 4 Drive   6 21.4       19.74286</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>To delete a column, assign <code>NULL</code> with the walrus. No copy, no warning.</p>
+
+<div class="webr-container" data-block-title="Delete a column by reference">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Delete a column by reference</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT[, c(&quot;hp_kw&quot;, &quot;wt_kg&quot;) := NULL]
+&quot;hp_kw&quot; %in% names(DT)
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The walrus is the data.table equivalent of <code>df.loc[:, &quot;x&quot;] = y</code> or <code>df[&quot;x&quot;] = y</code>. Both mutate the frame in place. The aggregate form <code>DT[, .(s = sum(x)), by = g]</code> is closer to <code>df.groupby(&quot;g&quot;)[&quot;x&quot;].sum().reset_index()</code>, which returns a new frame.</div></div>
+
+<h2>:= vs = vs <- in data.table</h2>
+
+<p><strong>Each operator has one job. Mixing them produces silent copies or invalid table errors.</strong> This table is the lookup you will reach for most often.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Operator</th>
+<th>Role</th>
+<th>Copies DT?</th>
+<th>Example</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>:=</code></td>
+<td>Update column by reference</td>
+<td>No</td>
+<td><code>DT[, x := y * 2]</code></td>
+</tr>
+<tr>
+<td><code>=</code></td>
+<td>Name a function argument</td>
+<td>n/a</td>
+<td><code>data.table(x = 1:3)</code></td>
+</tr>
+<tr>
+<td><code>==</code></td>
+<td>Test equality</td>
+<td>n/a</td>
+<td><code>DT[cyl == 4]</code></td>
+</tr>
+<tr>
+<td><code>&lt;-</code> outside <code>[ ]</code></td>
+<td>Bind a name</td>
+<td>Yes (whole frame)</td>
+<td><code>DT2 &lt;- DT</code> (shallow)</td>
+</tr>
+<tr>
+<td><code>DT$x &lt;- y</code></td>
+<td>Replace a column</td>
+<td>Yes</td>
+<td><code>DT$x &lt;- DT$y * 2</code></td>
+</tr>
+<tr>
+<td><code>set(DT, i, j, v)</code></td>
+<td>Loop-friendly walrus</td>
+<td>No</td>
+<td><code>set(DT, NULL, &quot;x&quot;, y)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is simple. Use <code>:=</code> for any in place column write. Use <code>=</code> only to name arguments and <code>.()</code> outputs. Use <code>&lt;-</code> to bind whole objects to names, never to assign data.table columns. For tight loops where <code>:=</code> adds overhead per call, drop to <code>set()</code> (see <a href="datatable-set-in-R.html">data.table set in R</a>).</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Most := bugs come from forgetting the by reference semantics.</strong> Three patterns cover almost every case.</p>
+
+<p>The first trap is using <code>=</code> where <code>:=</code> is required. Inside <code>DT[, j]</code>, a bare <code>=</code> creates a named element in <code>j</code> rather than mutating <code>DT</code>. The expression evaluates without an error, but the table is unchanged.</p>
+
+<div class="webr-container" data-block-title="Equals does not mutate the table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Equals does not mutate the table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT &lt;- as.data.table(mtcars[1:3, &quot;mpg&quot;])
+
+DT[, mpg_x2 = mpg * 2]   # silently builds a named list, DT is unchanged
+&quot;mpg_x2&quot; %in% names(DT)
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fix is <code>DT[, mpg_x2 := mpg * 2]</code>. The single colon is the difference between a no op and a real update.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>:= mutates the original, even when you assign the result.</strong> Writing <code>DT2 &lt;- DT[, x := y]</code> does not give you a fresh copy; both names point to the same mutated table. Use <code>copy(DT)</code> first when you need an independent snapshot.</div></div>
+
+<p>The second trap is assigning a data.table to a new name. Without <code>copy()</code>, both names share the same underlying object, so a later <code>:=</code> mutates what looks like two tables.</p>
+
+<div class="webr-container" data-block-title="Names share the same table without copy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Names share the same table without copy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT &lt;- data.table(x = 1:3)
+DT2 &lt;- DT
+DT[, x := x * 10]
+DT2
+#&gt;     x
+#&gt; 1: 10
+#&gt; 2: 20
+#&gt; 3: 30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>DT2 &lt;- copy(DT)</code> is the fix when you want an independent snapshot.</p>
+
+<p>The third trap is passing a <code>data.table</code> into a function that subsets it, then reassigning. The internal pointers can drift, triggering <code>invalid .internal.selfref</code> the next time you run a <code>:=</code> call on the result. Always create new data.tables with <code>data.table()</code> or convert with <code>setDT()</code>, and apply <code>:=</code> directly to the returned object rather than to a saved subset that lost its self reference.</p>
+
+<p>A fourth subtle case is using <code>:=</code> inside a <code>for</code> loop over many columns. Each <code>:=</code> call carries a small overhead from parsing and dispatch, which adds up when the loop runs thousands of times. For those cases the lower level <code>set(DT, i, j, value)</code> skips the parsing step and runs noticeably faster. Reserve plain <code>:=</code> for one off updates and reach for <code>set()</code> when the loop body is the bottleneck.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the walrus operator to add two columns to a data.table of mtcars: <code>power_band</code> ("high" when hp > 150, else "low") and <code>disp_per_cyl</code> (disp divided by cyl). Save the result to <code>ex_dt</code>.</p>
+<div class="webr-container" data-block-title="Your turn: add two columns by reference">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add two columns by reference</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: walrus assignment with two columns
+ex_dt &lt;- as.data.table(mtcars)
+ex_dt[, # your code here]
+
+ex_dt[1:3, .(hp, cyl, disp, power_band, disp_per_cyl)]
+#&gt; Expected: 3 rows with power_band and disp_per_cyl filled in</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_dt &lt;- as.data.table(mtcars)
+ex_dt[, `:=`(
+  power_band   = ifelse(hp &gt; 150, &quot;high&quot;, &quot;low&quot;),
+  disp_per_cyl = disp / cyl
+)]
+ex_dt[1:3, .(hp, cyl, disp, power_band, disp_per_cyl)]
+#&gt;     hp cyl disp power_band disp_per_cyl
+#&gt; 1: 110   6  160        low     26.66667
+#&gt; 2: 110   6  160        low     26.66667
+#&gt; 3:  93   4  108        low     27.00000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The functional form `<code> </code>:=<code>(name1 = expr1, name2 = expr2) </code><code> adds both columns in one pass without copying the table. </code>ifelse()` returns the band as a character vector; the second expression is a simple ratio.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p><strong>The walrus operator pairs with several helpers for bulk by reference updates.</strong> These keep your pipeline copy-free end to end:</p>
+
+<ul>
+
+<li><code>set()</code>: lower overhead walrus for tight loops. See <a href="datatable-set-in-R.html">data.table set in R</a>.</li>
+
+<li><code>setnames()</code>: <a class="auto-link" href="dplyr-mutate-rename.html" title="dplyr mutate() and rename(): Create & Modify Columns (8 Examples)">rename columns</a> by reference. See <a href="datatable-setnames-in-R.html">data.table setnames in R</a>.</li>
+
+<li><code>setcolorder()</code>: <a class="auto-link" href="dplyr-relocate-in-R.html" title="dplyr relocate() in R: Reorder Columns Easily">reorder columns</a> by reference. See <a href="datatable-setcolorder-in-R.html">data.table setcolorder in R</a>.</li>
+
+<li><code>setkey()</code>: index a table by reference for fast joins and lookups. See <a href="datatable-setkey-in-R.html">data.table setkey in R</a>.</li>
+
+<li><code>copy()</code>: take an independent snapshot before mutating. See <a href="datatable-copy-in-R.html">data.table copy in R</a>.</li>
+
+<li><code>fcase()</code>: <a class="auto-link" href="base-ifelse-in-R.html" title="ifelse() in R: Vectorized Conditional">vectorized conditional</a> often paired with <code>:=</code>. See <a href="datatable-fcase-in-R.html">data.table fcase in R</a>.</li>
+
+</ul>
+
+<p>See the [official data.table <code>:=</code> reference](https://rdatatable.gitlab.io/data.table/reference/assign.html) for the full argument list and grammar.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between := and = in data.table?</strong></p>
+
+<p>The walrus <code>:=</code> updates a <code>data.table</code> by reference, while <code>=</code> names a function argument or column inside <code>.()</code>. Writing <code>DT[, x := y]</code> mutates <code>DT</code> so <code>x</code> is added or overwritten with no copy. Writing <code>DT[, x = y]</code> instead builds an unnamed list internally and leaves <code>DT</code> unchanged, which is the classic silent bug. Inside <code>data.table(x = 1:3)</code> and <code>DT[, .(m = mean(y))]</code>, the <code>=</code> is doing argument binding, not assignment.</p>
+
+<p><strong>Why does := change my data.table even when I do not assign the result?</strong></p>
+
+<p>Because <code>:=</code> mutates the input by reference. Unlike base R assignment such as <code>DT$x &lt;- y</code>, the walrus does not copy the table before changing it. The function call returns the modified table invisibly, but the change has already happened in place. To work on a snapshot, wrap the input in <code>copy(DT)</code> first, then run <code>:=</code> on the copy.</p>
+
+<p><strong>When should I use the functional form `<code> </code>:=<code>(a = x, b = y) </code>`?</strong></p>
+
+<p>Use the functional form when you are updating more than one column and want each assignment on its own line. It is identical in behaviour to <code>DT[, c(&quot;a&quot;, &quot;b&quot;) := list(x, y)]</code> but reads better for three or more columns. The backticks are required because <code>:=</code> is not a normal R name. Pick whichever form keeps your column assignments visually aligned with their expressions.</p>
+
+<p><strong>Can := work with by groups?</strong></p>
+
+<p>Yes. <code>DT[, group_mean := mean(x), by = grp]</code> evaluates <code>mean(x)</code> separately for each group of <code>grp</code> and writes the group's mean back to every row of that group. The result is a new column in <code>DT</code> with the same row count as the original, not a collapsed summary. To get the collapsed summary instead, omit <code>:=</code> and write <code>DT[, .(mean = mean(x)), by = grp]</code>, which returns a new aggregated table.</p>
