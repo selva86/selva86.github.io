@@ -1,0 +1,409 @@
+---
+title: "data.table keyby in R: Group, Sort, and Key the Result"
+description: "data.table keyby in R groups rows like by, then sorts and keys the result. See keyby vs by, multi-column grouping, performance gains, and common pitfalls."
+keywords: "data.table keyby, keyby data.table, data.table keyby vs by, data.table group by sorted, R keyby example, data.table keyby argument, keyby R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "data.table keyby|keyby keyword|keyby argument|keyby()|keyby vs by"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>data.table keyby in R: Group, Sort, and Key the Result</h1>
+
+<p class="lead">The <code>keyby</code> keyword in <code>data.table</code> groups rows for aggregation inside <code>DT[i, j, keyby]</code>, then sorts the output and sets a key on the grouping columns so downstream joins and subsets run with binary search.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>dt[, .N, keyby = cyl]<span class="qa-cmt">                       # count per group, sorted by cyl</span>
+dt[, mean(mpg), keyby = cyl]<span class="qa-cmt">                # one summary per group</span>
+dt[, .(avg = mean(mpg)), keyby = cyl]<span class="qa-cmt">       # name the output column</span>
+dt[, mean(mpg), keyby = .(cyl, gear)]<span class="qa-cmt">       # group on two columns</span>
+dt[, mean(mpg), keyby = &quot;cyl&quot;]<span class="qa-cmt">              # column as character</span>
+dt[mpg &gt; 18, .N, keyby = cyl]<span class="qa-cmt">               # filter then group</span>
+dt[, lapply(.SD, mean), keyby = cyl]<span class="qa-cmt">        # summarize every column</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is keyby the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">aggregate and sort the result</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">dt[, mean(x), keyby = grp]</text><text x="125" y="126" class="branch-label">aggregate without sorting</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">dt[, mean(x), by = grp]</text><text x="125" y="182" class="branch-label">sort an existing data.table</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">setorder(dt, col)</text><text x="125" y="238" class="branch-label">set a key without aggregating</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code"><a class="auto-link" href="data-table-Exercises.html" title="data.table Exercises: 12 High-Performance Data Manipulation Problems — Solved Step-by-Step">setkey</a>(dt, col)</text><text x="125" y="294" class="branch-label"><a class="auto-link" href="dplyr-tally-in-R.html" title="dplyr tally() in R: Count Rows Quickly After group_by">count rows</a> per group</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">dt[, .N, keyby = grp]</text><text x="125" y="350" class="branch-label">pick first row per group</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">dt[, .SD[1], keyby = grp]</text><text x="125" y="406" class="branch-label"><a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarize</a> many columns at once</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">dt[, lapply(.SD, mean), keyby = grp]</text></svg></div>
+
+<h2>What keyby does in one sentence</h2>
+
+<p><strong><code>keyby</code> is <code>by</code> with two extra side effects on the result.</strong> You pass one or more grouping columns; data.table splits the table, runs the <code>j</code> expression per group, and stacks the rows into a new table whose grouping columns are sorted ascending. It also calls <code>setkey()</code> on that result, so subsequent lookups can use binary search.</p>
+
+<p>The function name reads as a verb phrase: "key by these columns". Read the call site the same way and the behavior follows: group, sort, key.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>keyby</code> is the third argument in <code>DT[i, j, keyby]</code>.</strong> It accepts the same forms as <code>by</code>, plus the result inherits a key:</p>
+
+<div class="webr-container" data-block-title="data.table keyby call shape">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">data.table keyby call shape</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT[i, j, keyby]                # i = filter, j = expression, keyby = group + sort + key
+DT[i, j, keyby = .(c1, c2)]    # multiple columns</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The accepted forms are:</p>
+
+<ul>
+
+<li><code>keyby = col</code>: one unquoted column name.</li>
+
+<li><code>keyby = .(col1, col2)</code>: several unquoted column names.</li>
+
+<li><code>keyby = &quot;col&quot;</code> or <code>keyby = c(&quot;col1&quot;, &quot;col2&quot;)</code>: column names as character.</li>
+
+<li><code>keyby = expression</code>: any expression that returns a vector or list of vectors with one entry per grouped row.</li>
+
+</ul>
+
+<p>The output is always a new data.table with one row per group, sorted by the grouping columns, with <code>key(result)</code> set to those columns.</p>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Build a data.table once and reuse it across examples.</strong> Every block below shares the same <code>dt</code> object created from <code>mtcars</code>.</p>
+
+<div class="webr-container" data-block-title="Create a data.table from mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create a data.table from mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+dt &lt;- as.data.table(mtcars, keep.rownames = &quot;model&quot;)
+dt[1:3, .(model, mpg, cyl, gear)]
+#&gt;            model   mpg   cyl  gear
+#&gt;           &lt;char&gt; &lt;num&gt; &lt;num&gt; &lt;num&gt;
+#&gt; 1:     Mazda RX4  21.0     6     4
+#&gt; 2: Mazda RX4 Wag  21.0     6     4
+#&gt; 3:    Datsun 710  22.8     4     4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Count rows per group.</strong> The classic group-and-count idiom returns one row per unique cylinder count, sorted ascending:</p>
+
+<div class="webr-container" data-block-title="Count rows per cylinder group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count rows per cylinder group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt[, .N, keyby = cyl]
+#&gt;      cyl     N
+#&gt;    &lt;num&gt; &lt;int&gt;
+#&gt; 1:     4    11
+#&gt; 2:     6     7
+#&gt; 3:     8    14
+key(dt[, .N, keyby = cyl])
+#&gt; [1] &quot;cyl&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>.N</code> is the row count for each group, and <code>key()</code> confirms the result is keyed on <code>cyl</code>.</p>
+
+<p><strong>Summarize one column per group.</strong> Wrap the aggregation in <code>.()</code> to name the output column:</p>
+
+<div class="webr-container" data-block-title="Mean mpg by cylinder, named output">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean mpg by cylinder, named output</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt[, .(avg_mpg = mean(mpg), n = .N), keyby = cyl]
+#&gt;      cyl avg_mpg     n
+#&gt;    &lt;num&gt;   &lt;num&gt; &lt;int&gt;
+#&gt; 1:     4   26.66    11
+#&gt; 2:     6   19.74     7
+#&gt; 3:     8   15.10    14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result has three columns (<code>cyl</code>, <code>avg_mpg</code>, <code>n</code>) and is keyed on <code>cyl</code>, so <code>result[J(4)]</code> would return the 4-cylinder row instantly.</p>
+
+<p><strong>Group on multiple columns.</strong> Pass a list with <code>.()</code>:</p>
+
+<div class="webr-container" data-block-title="Mean mpg by cylinder and gear">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean mpg by cylinder and gear</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt[, .(avg_mpg = mean(mpg)), keyby = .(cyl, gear)]
+#&gt;      cyl  gear avg_mpg
+#&gt;    &lt;num&gt; &lt;num&gt;   &lt;num&gt;
+#&gt; 1:     4     3   21.50
+#&gt; 2:     4     4   26.93
+#&gt; 3:     4     5   28.20
+#&gt; 4:     6     3   19.75
+#&gt; 5:     6     4   19.75
+#&gt; 6:     6     5   19.70
+#&gt; 7:     8     3   15.05
+#&gt; 8:     8     5   15.40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Rows are sorted first by <code>cyl</code>, then by <code>gear</code> within each <code>cyl</code>. Both columns become the compound key.</p>
+
+<p><strong><a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> then group.</strong> Anything in <code>i</code> runs before grouping, so you can restrict the rows being aggregated:</p>
+
+<div class="webr-container" data-block-title="Mean mpg by cylinder for fuel-efficient cars only">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean mpg by cylinder for fuel-efficient cars only</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt[mpg &gt; 18, .(avg_mpg = mean(mpg), n = .N), keyby = cyl]
+#&gt;      cyl avg_mpg     n
+#&gt;    &lt;num&gt;   &lt;num&gt; &lt;int&gt;
+#&gt; 1:     4   26.66    11
+#&gt; 2:     6   20.50     5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Filter, group, sort, key, in a single expression.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>keyby</code> is one keystroke past <code>by</code>, but it changes the result's shape.</strong> The summary table becomes a sorted, keyed lookup, which is exactly what you want when the aggregation feeds the next join, plot, or report.</div></div>
+
+<h2>keyby vs by</h2>
+
+<p><strong>The two arguments compute identical aggregates; they differ only in what they leave behind.</strong> <code>by</code> preserves the order in which groups first appear in the source; <code>keyby</code> sorts groups ascending and attaches a key.</p>
+
+<div class="webr-container" data-block-title="Side by side: by vs keyby on the same query">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Side by side: by vs keyby on the same query</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt[, .(n = .N), by = cyl]      # appearance order from source
+#&gt;      cyl     n
+#&gt;    &lt;num&gt; &lt;int&gt;
+#&gt; 1:     6     7
+#&gt; 2:     4    11
+#&gt; 3:     8    14
+
+dt[, .(n = .N), keyby = cyl]   # sorted ascending
+#&gt;      cyl     n
+#&gt;    &lt;num&gt; &lt;int&gt;
+#&gt; 1:     4    11
+#&gt; 2:     6     7
+#&gt; 3:     8    14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Use <code>by</code> when you need to preserve a meaningful row order from the source (for instance time-of-arrival). Use <code>keyby</code> when the output will be joined, indexed, or printed in a table that benefits from sorted groups.</p>
+
+<p>The full contrast in one table:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Behavior</th>
+<th><code>by</code></th>
+<th><code>keyby</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Group rows for <code>j</code></td>
+<td>yes</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>Output row order</td>
+<td>first-seen in source</td>
+<td>ascending by group columns</td>
+</tr>
+<tr>
+<td>Sets key on result</td>
+<td>no</td>
+<td>yes (binary search enabled)</td>
+</tr>
+<tr>
+<td>Modifies source data.table</td>
+<td>no</td>
+<td>no</td>
+</tr>
+<tr>
+<td>Typical use case</td>
+<td>preserve source order</td>
+<td>feed joins, lookups, reports</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Why a keyed result is faster</h2>
+
+<p><strong>Binary search on a keyed data.table runs in O(log n), not O(n).</strong> After <code>keyby</code>, the result is set up for instant lookups using the <code>J()</code> helper:</p>
+
+<div class="webr-container" data-block-title="Lookup a single group from a keyed result">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lookup a single group from a keyed result</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">summary_dt &lt;- dt[, .(avg_mpg = mean(mpg)), keyby = cyl]
+summary_dt[J(6)]
+#&gt;      cyl avg_mpg
+#&gt;    &lt;num&gt;   &lt;num&gt;
+#&gt; 1:     6   19.74</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>J(6)</code> is shorthand for a one-row data.table that becomes the join target. Because <code>summary_dt</code> is keyed, data.table jumps straight to the matching row.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for <code>keyby</code> whenever the aggregation feeds another join or filter.</strong> A keyed summary makes the next call cheaper without an extra <code>setkey()</code> line.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>NA groups appear first, not last.</strong> data.table's key ordering places <a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">NA values</a> before all other values. If you forget that, an NA row at the top of your summary can look like a bug:</p>
+
+<div class="webr-container" data-block-title="NA groups land at the top of a keyed result">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">NA groups land at the top of a keyed result</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt2 &lt;- copy(dt)
+dt2[1:3, cyl := NA]
+dt2[, .N, keyby = cyl]
+#&gt;      cyl     N
+#&gt;    &lt;num&gt; &lt;int&gt;
+#&gt; 1:    NA     3
+#&gt; 2:     4    11
+#&gt; 3:     6     5
+#&gt; 4:     8    13</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>keyby</code> keys the RESULT, not the source.</strong> The original <code>dt</code> is untouched. If you want the source itself sorted and keyed, use <code>setkey(dt, cyl)</code> or <code>setorder(dt, cyl)</code> instead. Confusing the two is the most common keyby mistake.</div></div>
+
+<p><strong>Quoted column names need character form.</strong> Inside <code>keyby</code>, you can pass names unquoted (<code>keyby = cyl</code>) or as character (<code>keyby = &quot;cyl&quot;</code>), but not as a symbol stored in a variable unless you wrap with <code>get()</code> or use <code>..varname</code>. Mixing the two breaks at runtime.</p>
+
+<p><strong>Expression grouping creates an unnamed key column.</strong> <code>dt[, .N, keyby = mpg &gt; 20]</code> returns a column literally named <code>mpg &gt; 20</code>. Name it explicitly with <code>keyby = .(high_mpg = mpg &gt; 20)</code> if you plan to reference it later.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Group <code>mtcars</code> by <code>gear</code> and compute mean <code>hp</code> per group, sorted by gear. Save the result to <code>ex_hp_by_gear</code> and confirm it has a key on <code>gear</code>.</p>
+<div class="webr-container" data-block-title="Your turn: keyby gear, summarize hp">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: keyby gear, summarize hp</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: keyby gear and average hp
+ex_hp_by_gear &lt;- # your code here
+
+ex_hp_by_gear
+key(ex_hp_by_gear)
+#&gt; Expected: 3 rows, key = &quot;gear&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hp_by_gear &lt;- dt[, .(avg_hp = mean(hp)), keyby = gear]
+ex_hp_by_gear
+#&gt;     gear avg_hp
+#&gt;    &lt;num&gt;  &lt;num&gt;
+#&gt; 1:     3 176.13
+#&gt; 2:     4   89.50
+#&gt; 3:     5 195.60
+key(ex_hp_by_gear)
+#&gt; [1] &quot;gear&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>keyby = gear</code> groups by gear, sorts the three groups ascending, and sets <code>gear</code> as the key on the returned data.table. <code>mean(hp)</code> runs once per group.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p><strong>Pair <code>keyby</code> with these neighbors to shape and query grouped output:</strong></p>
+
+<ul>
+
+<li><code>by</code>: aggregate without sorting or keying the result.</li>
+
+<li><code>setkey()</code>: key an existing data.table in place, without aggregating.</li>
+
+<li><code>setorder()</code>: sort an existing data.table in place by any columns.</li>
+
+<li><code>.SD</code> and <code>.SDcols</code>: apply <code>j</code> expressions to many columns at once inside grouped queries.</li>
+
+<li><code>frollmean()</code>: rolling means that often follow a <code>keyby</code> step.</li>
+
+</ul>
+
+<p>For a side-by-side syntax tour against the tidyverse, see the <a href="data-table-vs-dplyr.html">data.table vs dplyr</a> hub.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between by and keyby in data.table?</strong></p>
+
+<p>Both arguments group rows for the <code>j</code> expression, and both return one summary row per group. <code>by</code> keeps the order in which groups first appear in the source table. <code>keyby</code> sorts the result ascending by the grouping columns and calls <code>setkey()</code> on the result so future joins and lookups can use binary search. The aggregation itself is identical; only the post-processing differs.</p>
+
+<p><strong>Does keyby modify the original data.table?</strong></p>
+
+<p>No. <code>keyby</code> keys the returned summary, not the source. Your original <code>dt</code> retains whatever key it had (or none) before the call. To key the source itself, use <code>setkey(dt, col)</code>. To sort the source rows without changing key state, use <code>setorder(dt, col)</code>.</p>
+
+<p><strong>Can I keyby on more than one column?</strong></p>
+
+<p>Yes. Pass the columns inside <code>.()</code>, for example <code>keyby = .(cyl, gear)</code>. The result is sorted first by the leftmost column, then by the next, and so on. The compound key matches the column order, so <code>key(result)</code> returns <code>c(&quot;cyl&quot;, &quot;gear&quot;)</code>.</p>
+
+<p><strong>Why does my keyby result have NA at the top?</strong></p>
+
+<p>data.table's key ordering places NA values before all other values. After <code>keyby</code>, any group whose grouping column is NA appears in the first row of the result. This is consistent with how <code>setkey()</code> treats <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> across the package.</p>
+
+<p><strong>Is keyby slower than by because of the sort step?</strong></p>
+
+<p>For a single aggregation, the sort and key cost is negligible compared with the group-by work itself. When the result feeds another join or repeated subset, <code>keyby</code> is faster overall because the downstream binary-search lookups avoid an extra <code>setkey()</code> pass.</p>
+
+<p>For the canonical reference, see the <a href="https://cran.r-project.org/web/packages/data.table/vignettes/datatable-faq.html">data.table FAQ on grouping</a>.</p>
