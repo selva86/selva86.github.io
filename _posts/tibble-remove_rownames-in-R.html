@@ -1,0 +1,444 @@
+---
+title: "tibble remove_rownames() in R: Strip Row Names Cleanly"
+description: "Strip character row names from any data frame using tibble remove_rownames() in R. Master syntax, the mtcars reset, pipeline lifts, and common pitfalls."
+keywords: "tibble remove_rownames, remove_rownames function R, tibble remove_rownames examples, R remove row names, drop rownames data frame R, remove_rownames tidyverse, clear rownames tibble"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "remove_rownames()|tibble remove_rownames|tibble::remove_rownames()|strip rownames|drop rownames"
+auto_link_case_sensitive: true
+fr_parent: "R-Data-Frames.html"
+---
+<!-- md2html:generated -->
+
+<h1>tibble remove_rownames() in R: Strip Row Names Cleanly</h1>
+
+<p class="lead">The <code>remove_rownames()</code> function in the <a class="auto-link" href="tibble-tibble-in-R.html" title="tibble tibble() in R: Build Tibbles Column by Column">tibble package</a> strips character row names from a data frame and replaces them with the default integer index, returning a frame that no longer carries label metadata.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>remove_rownames(mtcars)<span class="qa-cmt">                                # strip mtcars labels</span>
+mtcars |&gt; remove_rownames()<span class="qa-cmt">                            # pipe-friendly</span>
+df |&gt; remove_rownames() |&gt; as_tibble()<span class="qa-cmt">                 # drop then convert</span>
+mtcars |&gt; rownames_to_column(&quot;model&quot;) |&gt; remove_rownames()<span class="qa-cmt">  # save then drop</span>
+rownames(remove_rownames(df))<span class="qa-cmt">                          # now &quot;1&quot;,&quot;2&quot;,&quot;3&quot;...</span>
+rbind(remove_rownames(a), remove_rownames(b))<span class="qa-cmt">          # avoid dup-rowname errors</span>
+purrr::map(list_of_dfs, remove_rownames)<span class="qa-cmt">               # clean a list of frames</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is remove_rownames() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">drop rownames entirely and discard them</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">remove_rownames(df)</text><text x="125" y="126" class="branch-label">lift rownames into a column before dropping</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">rownames_to_column(df, &quot;id&quot;)</text><text x="125" y="182" class="branch-label">promote a column back into rownames</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">column_to_rownames(df, &quot;id&quot;)</text><text x="125" y="238" class="branch-label">check whether a frame has rownames</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">has_rownames(df)</text><text x="125" y="294" class="branch-label">convert to a tibble (also drops rownames)</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">as_tibble(df)</text><text x="125" y="350" class="branch-label">read current rownames as a character vector</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">rownames(df)</text><text x="125" y="406" class="branch-label"><a class="auto-link" href="dplyr-tally-in-R.html" title="dplyr tally() in R: Count Rows Quickly After group_by">count rows</a> ignoring rownames</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">nrow(df)</text></svg></div>
+
+<h2>What remove_rownames() does in one sentence</h2>
+
+<p><strong><code>remove_rownames()</code> returns its input frame with the row <a class="auto-link" href="R-Attributes.html" title="R Attributes: The Hidden Metadata That Makes R Objects Behave Differently">names attribute</a> reset to the default integer index <code>1, 2, 3, ...</code> and the original character labels discarded.</strong> It returns a copy, not a mutation. Character row names are lost unless you saved them first with <code>rownames_to_column()</code>.</p>
+
+<p>The function exists because base R lacks a pipe-friendly verb for the operation. The base equivalent assigns <code>NULL</code> to <code>rownames(df)</code>, which mutates and does not <a class="auto-link" href="R-Function-Operators.html" title="R Function Operators: Compose, Negate & Partial Application">compose</a>. <code>remove_rownames()</code> returns a value, so it works with <code>|&gt;</code> and <code>%&gt;%</code>.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>remove_rownames()</code> takes one argument and returns a data frame with default integer rownames.</strong> No optional arguments and no side effects on the input.</p>
+
+<div class="webr-container" data-block-title="Load tibble and strip mtcars labels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load tibble and strip mtcars labels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+library(dplyr)
+
+# mtcars carries car model labels as rownames
+head(rownames(mtcars), 3)
+#&gt; [1] &quot;Mazda RX4&quot;     &quot;Mazda RX4 Wag&quot; &quot;Datsun 710&quot;
+
+# remove_rownames replaces them with the default index
+mt_plain &lt;- remove_rownames(mtcars)
+head(rownames(mt_plain), 3)
+#&gt; [1] &quot;1&quot; &quot;2&quot; &quot;3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signature is:</p>
+
+<pre><code>remove_rownames(.data)</code></pre>
+
+<p>Argument:</p>
+
+<ul>
+
+<li><code>.data</code>: a data frame. Non-data-frame inputs raise an error rather than silently passing through.</li>
+
+</ul>
+
+<p>The return value is always a data frame with <code>nrow(df)</code> integer row names. The class of the input is preserved: a data frame stays a data frame, a tibble stays a tibble (though tibbles already lack rownames, so the call is a no-op).</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pair <code>rownames_to_column()</code> with <code>remove_rownames()</code> to save labels before dropping them.</strong> Calling <code>rownames_to_column(df, &quot;id&quot;) |&gt; remove_rownames()</code> lifts the labels into a real column first, then resets the row-name attribute, so the labels survive any downstream join or rbind.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Strip mtcars labels for a clean tibble</h3>
+
+<div class="webr-container" data-block-title="Reset mtcars rownames">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reset mtcars rownames</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mt_plain &lt;- remove_rownames(mtcars)
+
+head(mt_plain, 3)
+#&gt;    mpg cyl disp  hp drat   wt qsec vs am gear carb
+#&gt; 1 21.0   6  160 110 3.90 2.62 16.5  0  1    4    4
+#&gt; 2 21.0   6  160 110 3.90 2.88 17.0  0  1    4    4
+#&gt; 3 22.8   4  108  93 3.85 2.32 18.6  1  1    4    1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>After <code>remove_rownames()</code>, the car model labels are gone and rows are numbered <code>1</code> through <code>32</code>. This is the form a fresh tibble or a <code>read_csv()</code> result already has, so the call is mostly used to normalise an inherited data frame before further processing. The original <code>mtcars</code> is untouched; only <code>mt_plain</code> reflects the reset.</p>
+
+<h3>2. Save labels first, then strip</h3>
+
+<div class="webr-container" data-block-title="Lift then drop rownames">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Lift then drop rownames</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mt_safe &lt;- mtcars |&gt;
+  rownames_to_column(&quot;model&quot;) |&gt;
+  remove_rownames()
+
+head(mt_safe[, 1:4], 3)
+#&gt;           model  mpg cyl disp
+#&gt; 1     Mazda RX4 21.0   6  160
+#&gt; 2 Mazda RX4 Wag 21.0   6  160
+#&gt; 3    Datsun 710 22.8   4  108</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>rownames_to_column(&quot;model&quot;)</code> writes the car names into a real column. The subsequent <code>remove_rownames()</code> then resets the row-name attribute, so the labels survive as data while the rownames attribute itself is reset. This is the safe pattern when you need the labels downstream but want predictable row indexing.</p>
+
+<h3>3. Stack two frames without a duplicate-rownames error</h3>
+
+<div class="webr-container" data-block-title="rbind needs unique rownames">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">rbind needs unique rownames</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">a &lt;- mtcars[1:3, 1:3]
+b &lt;- mtcars[1:3, 1:3]
+
+# Both frames share the same character rownames
+# rbind(a, b) would warn: non-unique values when setting 'row.names'
+
+a_b &lt;- rbind(remove_rownames(a), remove_rownames(b))
+nrow(a_b)
+#&gt; [1] 6
+rownames(a_b)
+#&gt; [1] &quot;1&quot; &quot;2&quot; &quot;3&quot; &quot;4&quot; &quot;5&quot; &quot;6&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Base R's <code>rbind()</code> rejects frames whose character rownames collide. Stripping rownames on both sides resets the attribute to integer indices, which <code>rbind()</code> then renumbers to <code>1:6</code>. The data is preserved; only the names are reset.</p>
+
+<h3>4. Drop rownames inside a pipeline before exporting</h3>
+
+<div class="webr-container" data-block-title="Clean before write_csv">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Clean before write_csv</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  remove_rownames() |&gt;
+  head(2)
+#&gt;    mpg cyl disp  hp drat   wt qsec vs am gear carb
+#&gt; 1 21.0   6  160 110 3.90 2.62 16.5  0  1    4    4
+#&gt; 2 21.0   6  160 110 3.90 2.88 17.0  0  1    4    4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>readr::write_csv()</code> and most CSV writers ignore row names by default, but <code>write.csv()</code> writes them as an unnamed first column, which produces a stray <code>X</code> column when the file is read back. <code>remove_rownames()</code> upstream of the write step guarantees a clean round-trip whichever writer you use.</p>
+
+<h3>5. Apply across a list of frames</h3>
+
+<div class="webr-container" data-block-title="Strip rownames in a map">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Strip rownames in a map</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">frames &lt;- list(mtcars[1:3, 1:2], mtcars[4:6, 1:2])
+
+clean &lt;- lapply(frames, remove_rownames)
+rownames(clean[[1]])
+#&gt; [1] &quot;1&quot; &quot;2&quot; &quot;3&quot;
+rownames(clean[[2]])
+#&gt; [1] &quot;1&quot; &quot;2&quot; &quot;3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Because <code>remove_rownames()</code> is a pure function returning a data frame, it drops straight into <code>lapply()</code>, <code>purrr::map()</code>, or any other functional iterator. Each frame in the list gets its own fresh integer rownames, so a subsequent <code>do.call(rbind, clean)</code> will produce a frame with rownames <code>1:nrow(combined)</code>.</p>
+
+<h2>remove_rownames() vs alternatives</h2>
+
+<p><strong>Pick <code>remove_rownames()</code> when you want a pipe-friendly verb that returns a value.</strong> Several adjacent expressions do the same job with different ergonomics.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Behavior</th>
+<th><code>remove_rownames()</code></th>
+<th><code>rownames(df) &lt;- NULL</code></th>
+<th><code>as_tibble(df)</code></th>
+<th><code>as_tibble(df, rownames = &quot;id&quot;)</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Source</td>
+<td>tibble</td>
+<td>base R</td>
+<td>tibble</td>
+<td>tibble</td>
+</tr>
+<tr>
+<td>Side effect</td>
+<td>None, returns copy</td>
+<td>Mutates in place</td>
+<td>None</td>
+<td>None</td>
+</tr>
+<tr>
+<td>Pipe-friendly</td>
+<td>Yes</td>
+<td>No, needs assignment</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Keeps class</td>
+<td>Yes (df stays df)</td>
+<td>Yes</td>
+<td>Converts to tibble</td>
+<td>Converts to tibble</td>
+</tr>
+<tr>
+<td>Saves labels</td>
+<td>No, discarded</td>
+<td>No</td>
+<td>No, discarded</td>
+<td>Yes, into a column</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li>Use <code>remove_rownames()</code> when you want to reset rownames but keep the input as a base data frame.</li>
+
+<li>Use <code>rownames(df) &lt;- NULL</code> only in code that is not part of a pipeline and you want zero dependencies.</li>
+
+<li>Use <code>as_tibble(df)</code> when conversion to a tibble is desirable; it drops rownames as a side effect.</li>
+
+<li>Use <code>as_tibble(df, rownames = &quot;id&quot;)</code> when you want both conversion and a real labels column in one step.</li>
+
+</ul>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Resetting rownames is a metadata edit, not a data edit.</strong> No values in the frame change; only the <code>row.names</code> attribute is replaced with <code>1:nrow(df)</code>. The function preserves the class vector and every other attribute (factor levels, <code>sf</code> geometry columns), so it is safe to call on enriched frames and never affects downstream computations that use column data.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: losing labels you wanted to keep.</strong> <code>remove_rownames()</code> discards the character rownames forever. If you need them downstream, save them first.</p>
+
+<div class="webr-container" data-block-title="Wrong order loses labels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrong order loses labels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Wrong: labels are gone before they can be lifted
+bad &lt;- mtcars |&gt;
+  remove_rownames() |&gt;
+  rownames_to_column(&quot;model&quot;)
+head(bad$model, 3)
+#&gt; [1] &quot;1&quot; &quot;2&quot; &quot;3&quot;
+
+# Right: lift first, then strip
+good &lt;- mtcars |&gt;
+  rownames_to_column(&quot;model&quot;) |&gt;
+  remove_rownames()
+head(good$model, 3)
+#&gt; [1] &quot;Mazda RX4&quot;     &quot;Mazda RX4 Wag&quot; &quot;Datsun 710&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Order matters. <code>remove_rownames()</code> then <code>rownames_to_column()</code> writes the new integer index into the column, not the labels. Reverse the order to preserve information.</p>
+
+<p><strong>Pitfall 2: expecting in-place modification.</strong> <code>remove_rownames()</code> returns a copy. The original frame keeps its rownames unless you assign the result back.</p>
+
+<div class="webr-container" data-block-title="Assignment is required">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Assignment is required</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">remove_rownames(mtcars)        # discarded; mtcars unchanged
+head(rownames(mtcars), 2)
+#&gt; [1] &quot;Mazda RX4&quot;     &quot;Mazda RX4 Wag&quot;
+
+mtcars2 &lt;- remove_rownames(mtcars)
+head(rownames(mtcars2), 2)
+#&gt; [1] &quot;1&quot; &quot;2&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This matches the broader tidyverse convention: functions <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">return values</a> and never mutate their inputs. Always capture the result with <code>&lt;-</code> or compose it into a pipeline.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>remove_rownames()</code> errors on non-data-frame inputs.</strong> Passing a matrix, list, or vector raises <code>Error: Can&#x27;t access columns that don&#x27;t exist</code>. Wrap with <code>as.data.frame()</code> first, or check <code>is.data.frame()</code> before the call.</div></div>
+
+<p><strong>Pitfall 3: calling it on a tibble.</strong> Tibbles never carry rownames, so the call is a no-op but still costs a function call.</p>
+
+<div class="webr-container" data-block-title="Tibbles already lack rownames">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tibbles already lack rownames</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tb &lt;- as_tibble(mtcars)
+tb2 &lt;- remove_rownames(tb)
+identical(tb, tb2)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>If your frame is already a tibble, skip <code>remove_rownames()</code>. Use <code>has_rownames(df)</code> as a guard if the input type varies.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Strip the rownames from <code>USArrests</code>, but save them first into a column called <code>state</code>. Then filter to states with <code>Murder &gt; 10</code> and confirm the result has no rownames. Save the final filtered data frame to <code>ex_arrests</code>.</p>
+<div class="webr-container" data-block-title="Your turn: save then strip">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: save then strip</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+library(dplyr)
+# Try it: build ex_arrests
+ex_arrests &lt;- # your code here
+
+rownames(ex_arrests)
+#&gt; Expected: &quot;1&quot; &quot;2&quot; &quot;3&quot; &quot;4&quot; &quot;5&quot;
+ncol(ex_arrests)
+#&gt; Expected: 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_arrests &lt;- USArrests |&gt;
+  rownames_to_column(&quot;state&quot;) |&gt;
+  remove_rownames() |&gt;
+  filter(Murder &gt; 10)
+
+rownames(ex_arrests)
+#&gt; [1] &quot;1&quot; &quot;2&quot; &quot;3&quot; &quot;4&quot; &quot;5&quot;
+ncol(ex_arrests)
+#&gt; [1] 5
+head(ex_arrests$state, 5)
+#&gt; [1] &quot;Alabama&quot;        &quot;Florida&quot;        &quot;Georgia&quot;
+#&gt; [4] &quot;Mississippi&quot;    &quot;South Carolina&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>rownames_to_column(&quot;state&quot;)</code> saves the state names as a real column before <code>remove_rownames()</code> resets the row-name attribute to integers. The subsequent <code>filter()</code> then narrows to high-murder states; the labels survive as data in the <code>state</code> column.</p>
+
+</details>
+</section>
+
+<h2>Related tibble functions</h2>
+
+<p>Alongside <code>remove_rownames()</code>, look at:</p>
+
+<ul>
+
+<li><code>rownames_to_column()</code>: lift row names into a new column before dropping them.</li>
+
+<li><code>column_to_rownames()</code>: the inverse, promoting a column back into row names.</li>
+
+<li><code>has_rownames()</code>: predicate for whether a frame carries non-trivial labels.</li>
+
+<li><code>rowid_to_column()</code>: add a fresh integer id column without touching rownames.</li>
+
+<li><code>as_tibble(rownames = &quot;id&quot;)</code>: convert to a tibble while preserving labels in a column.</li>
+
+<li><code>tibble::tibble()</code>: the constructor that returns a frame without rownames by default.</li>
+
+</ul>
+
+<p>For the official reference, see the <a href="https://tibble.tidyverse.org/reference/rownames.html">tibble rownames documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I remove row names from a <a class="auto-link" href="R-Data-Frames.html" title="R Data Frames: Every Operation You'll Need, With 10 Real Examples">data frame in R</a>?</strong></p>
+
+<p>Call <code>tibble::remove_rownames(df)</code>. It returns a copy of the data frame with the character row names replaced by the default integer index <code>1, 2, 3, ...</code>. Capture the result with <code>&lt;-</code> because the function does not mutate in place. The base R equivalent is <code>rownames(df) &lt;- NULL</code>, which mutates the frame but is not pipe-friendly. Use <code>remove_rownames()</code> inside tidyverse pipelines and the base assignment in short scripts that do not need composition.</p>
+
+<p><strong>Does remove_rownames() delete the data or just the labels?</strong></p>
+
+<p>Only the labels. The function rewrites the <code>row.names</code> attribute to <code>seq_len(nrow(df))</code> and leaves every column value untouched. Row count, column count, column types, and stored values are all identical between the input and the output. Think of it as a metadata edit, not a data edit, so it is cheap to call and never affects downstream computations.</p>
+
+<p><strong>What is the difference between remove_rownames() and <a class="auto-link" href="tibble-as_tibble-in-R.html" title="tibble as_tibble() in R: Convert Objects to Tibbles">as_tibble()</a>?</strong></p>
+
+<p>Both drop row names, but they differ in class. <code>remove_rownames(df)</code> keeps the input as a base data frame and only resets rownames. <code>as_tibble(df)</code> converts to a tibble, which also drops rownames but additionally changes printing, subsetting, and stricter handling of column types. Choose <code>remove_rownames()</code> when you need the result to remain a data frame; choose <code>as_tibble()</code> when conversion is the goal and rownames removal is a free side effect.</p>
+
+<p><strong>Why does remove_rownames() leave my tibble unchanged?</strong></p>
+
+<p>Tibbles never carry rownames in the first place. The tibble design stores every observation identifier as a regular column, so the row-name attribute is always the default integer index. Calling <code>remove_rownames()</code> on a tibble is a no-op: the function returns an identical object. Use <code>has_rownames(df)</code> as a guard if you only want to call <code>remove_rownames()</code> when there is actually something to strip.</p>
+
+<p><strong>How do I save row names before calling remove_rownames()?</strong></p>
+
+<p>Pipe through <code>rownames_to_column(&quot;name&quot;)</code> first. The full pattern is <code>df |&gt; rownames_to_column(&quot;name&quot;) |&gt; remove_rownames()</code>, which lifts the character labels into a new column before the row-name attribute is reset. Order matters: reversing the calls writes the new integer index into the column instead of the labels.</p>
