@@ -1,0 +1,403 @@
+---
+title: "data.table melt() in R: Reshape Wide Data to Long Format"
+description: "Reshape wide data.tables into long format with melt() in R. Covers id.vars, measure.vars, variable.name, value.name, na.rm, and patterns() with examples."
+keywords: "data.table melt, melt function R, data.table melt examples, R melt wide to long, melt.data.table, data.table reshape, melt id.vars measure.vars"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "melt()|data.table melt|data.table::melt()|melt.data.table|melt data.table|reshape wide to long"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>data.table melt() in R: Reshape Wide Data to Long Format</h1>
+
+<p class="lead">The <code>melt()</code> function from data.table reshapes a wide <code>data.table</code> into long format, stacking many measure columns into one <code>variable</code> column and one <code>value</code> column for fast, memory-efficient pivoting.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>melt(dt)<span class="qa-cmt">                                                           # melt every non-id column</span>
+melt(dt, id.vars = &quot;id&quot;)<span class="qa-cmt">                                           # keep id, melt the rest</span>
+melt(dt, id.vars = &quot;id&quot;, measure.vars = c(&quot;a&quot;, &quot;b&quot;))<span class="qa-cmt">               # melt selected columns</span>
+melt(dt, id.vars = &quot;id&quot;, variable.name = &quot;var&quot;, value.name = &quot;val&quot;)<span class="qa-cmt"> # name the new columns</span>
+melt(dt, id.vars = &quot;id&quot;, na.rm = TRUE)<span class="qa-cmt">                             # drop NA rows</span>
+melt(dt, measure.vars = patterns(&quot;^x_&quot;, &quot;^y_&quot;), value.name = c(&quot;x&quot;, &quot;y&quot;))<span class="qa-cmt"> # multi-melt by regex</span>
+melt(dt, measure.vars = list(c(&quot;a1&quot;,&quot;a2&quot;), c(&quot;b1&quot;,&quot;b2&quot;)), value.name = c(&quot;a&quot;,&quot;b&quot;))<span class="qa-cmt"> # multi-melt by list</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is melt() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label"><a class="auto-link" href="tidyr-pivot_wider-in-R.html" title="tidyr pivot_wider() in R: Long to Wide Format">reshape wide</a> to long</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">melt(dt, id.vars = &quot;id&quot;)</text><text x="125" y="126" class="branch-label">reshape long back to wide</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">dcast(dt, id ~ variable, value.var = &quot;value&quot;)</text><text x="125" y="182" class="branch-label">stack many tables vertically</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">rbindlist(list_of_tables)</text><text x="125" y="238" class="branch-label">join two tables by a key</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">merge(dt, lookup, by = &quot;id&quot;)</text><text x="125" y="294" class="branch-label">split a delimited string column</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">tstrsplit(dt$col, &quot;,&quot;)</text><text x="125" y="350" class="branch-label">count distinct values</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">uniqueN(dt$col)</text></svg></div>
+
+<h2>What melt() does in one sentence</h2>
+
+<p><strong><code>melt()</code> collapses many columns into two.</strong> You hand it a wide <code>data.table</code> plus a list of identifier columns, and it returns a long <code>data.table</code> where every former column header becomes a value in a new <code>variable</code> column and every former cell becomes a value in a new <code>value</code> column. One wide row with N measure columns turns into N long rows.</p>
+
+<p>The reason <code>data.table melt</code> exists separately from base R <code>reshape()</code> is speed. The implementation is written in C and designed for in-memory data sets up to tens of gigabytes. It also handles features <code>reshape()</code> cannot, such as melting groups of columns into multiple value columns in a single pass.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>melt()</code> takes a data table plus identifier and measure column specs.</strong> Only the data argument is strictly required; sensible defaults fill in the rest.</p>
+
+<div class="webr-container" data-block-title="Load data.table and prepare wide data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load data.table and prepare wide data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+DT &lt;- data.table(
+  family     = c(&quot;F1&quot;, &quot;F2&quot;, &quot;F3&quot;),
+  age_mother = c(30, 27, 35),
+  dob_child1 = c(&quot;1998-04-12&quot;, &quot;1996-06-09&quot;, &quot;2002-08-22&quot;),
+  dob_child2 = c(&quot;2001-03-15&quot;, NA,           &quot;2005-11-30&quot;),
+  dob_child3 = c(NA,           NA,           &quot;2010-07-04&quot;)
+)
+DT
+#&gt;    family age_mother dob_child1 dob_child2 dob_child3
+#&gt;    &lt;char&gt;      &lt;num&gt;     &lt;char&gt;     &lt;char&gt;     &lt;char&gt;
+#&gt; 1:     F1         30 1998-04-12 2001-03-15       &lt;NA&gt;
+#&gt; 2:     F2         27 1996-06-09       &lt;NA&gt;       &lt;NA&gt;
+#&gt; 3:     F3         35 2002-08-22 2005-11-30 2010-07-04</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signature is <code>melt(data, id.vars, measure.vars, variable.name = &quot;variable&quot;, value.name = &quot;value&quot;, ..., na.rm = FALSE, variable.factor = TRUE, value.factor = FALSE)</code>. Its arguments are:</p>
+
+<ul>
+
+<li><code>data</code>: the wide <code>data.table</code> to reshape.</li>
+
+<li><code>id.vars</code>: columns to keep as identifiers, repeated in every long row.</li>
+
+<li><code>measure.vars</code>: columns to stack. Accepts a character vector, integer indices, a <code>list()</code> of vectors, or <code>patterns()</code> for regex matching.</li>
+
+<li><code>variable.name</code>: name of the new column that stores the original column headers. Defaults to <code>&quot;variable&quot;</code>.</li>
+
+<li><code>value.name</code>: name of the new value column, or a vector of names when melting into multiple value columns.</li>
+
+<li><code>na.rm</code>: when <code>TRUE</code>, drops rows where the value is <code>NA</code>.</li>
+
+<li><code>variable.factor</code>: when <code>TRUE</code> (the default), returns the <code>variable</code> column as a factor; set to <code>FALSE</code> for character.</li>
+
+</ul>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always set <code>variable.name</code> and <code>value.name</code> to meaningful labels.</strong> The defaults <code>&quot;variable&quot;</code> and <code>&quot;value&quot;</code> produce ambiguous downstream code. A column called <code>child</code> is far easier to filter and group on than one called <code>variable</code>.</div></div>
+
+<h2>Melting wide data: four common patterns</h2>
+
+<h3>1. Melt every non-identifier column</h3>
+
+<p><strong>Specifying only <code>id.vars</code> melts every other column automatically.</strong> This is the fastest way to convert a typical wide dataset.</p>
+
+<div class="webr-container" data-block-title="Melt every column except id.vars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Melt every column except id.vars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">melt(DT, id.vars = c(&quot;family&quot;, &quot;age_mother&quot;))
+#&gt;    family age_mother   variable      value
+#&gt;    &lt;char&gt;      &lt;num&gt;     &lt;fctr&gt;     &lt;char&gt;
+#&gt; 1:     F1         30 dob_child1 1998-04-12
+#&gt; 2:     F2         27 dob_child1 1996-06-09
+#&gt; 3:     F3         35 dob_child1 2002-08-22
+#&gt; 4:     F1         30 dob_child2 2001-03-15
+#&gt; 5:     F2         27 dob_child2       &lt;NA&gt;
+#&gt; 6:     F3         35 dob_child2 2005-11-30
+#&gt; 7:     F1         30 dob_child3       &lt;NA&gt;
+#&gt; 8:     F2         27 dob_child3       &lt;NA&gt;
+#&gt; 9:     F3         35 dob_child3 2010-07-04</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three families with three child columns become nine rows. The <code>dob_child*</code> headers move into the <code>variable</code> column, the dates move into the <code>value</code> column, and the identifiers repeat once per former measure column.</p>
+
+<h3>2. Name the measure subset and the new columns</h3>
+
+<p><strong>Passing both <code>id.vars</code> and <code>measure.vars</code> selects a subset and renames the output.</strong> Use this when only some columns should be reshaped, or when the default names are unhelpful.</p>
+
+<div class="webr-container" data-block-title="Subset measure columns and rename">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Subset measure columns and rename</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">melt(DT,
+     id.vars       = &quot;family&quot;,
+     measure.vars  = c(&quot;dob_child1&quot;, &quot;dob_child2&quot;),
+     variable.name = &quot;child&quot;,
+     value.name    = &quot;dob&quot;)
+#&gt;    family      child        dob
+#&gt;    &lt;char&gt;     &lt;fctr&gt;     &lt;char&gt;
+#&gt; 1:     F1 dob_child1 1998-04-12
+#&gt; 2:     F2 dob_child1 1996-06-09
+#&gt; 3:     F3 dob_child1 2002-08-22
+#&gt; 4:     F1 dob_child2 2001-03-15
+#&gt; 5:     F2 dob_child2       &lt;NA&gt;
+#&gt; 6:     F3 dob_child2 2005-11-30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>dob_child3</code> is excluded because it is not in <code>measure.vars</code>, and the result columns now read as <code>family</code>, <code>child</code>, <code>dob</code> rather than the cryptic defaults.</p>
+
+<h3>3. Drop NA rows with na.rm = TRUE</h3>
+
+<p><strong>Wide tables with missing measures produce long rows full of <code>NA</code>s.</strong> Setting <code>na.rm = TRUE</code> removes them during the melt itself, which is faster than melting first and filtering after.</p>
+
+<div class="webr-container" data-block-title="Drop NA rows during melt">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop NA rows during melt</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">melt(DT,
+     id.vars      = c(&quot;family&quot;, &quot;age_mother&quot;),
+     na.rm        = TRUE,
+     variable.name = &quot;child&quot;,
+     value.name    = &quot;dob&quot;)
+#&gt;    family age_mother      child        dob
+#&gt;    &lt;char&gt;      &lt;num&gt;     &lt;fctr&gt;     &lt;char&gt;
+#&gt; 1:     F1         30 dob_child1 1998-04-12
+#&gt; 2:     F2         27 dob_child1 1996-06-09
+#&gt; 3:     F3         35 dob_child1 2002-08-22
+#&gt; 4:     F1         30 dob_child2 2001-03-15
+#&gt; 5:     F3         35 dob_child2 2005-11-30
+#&gt; 6:     F3         35 dob_child3 2010-07-04</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Six rows instead of nine, with every row carrying a real date.</p>
+
+<h3>4. Melt into multiple value columns with patterns()</h3>
+
+<p><strong>Some wide tables have parallel column families.</strong> A family record may store <code>name_child1</code>, <code>name_child2</code>, <code>gender_child1</code>, <code>gender_child2</code>. The right long shape is one row per child with separate <code>name</code> and <code>gender</code> columns, not a single <code>value</code> column mixing names and genders.</p>
+
+<div class="webr-container" data-block-title="Wider table with two parallel families">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wider table with two parallel families</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT2 &lt;- data.table(
+  family        = c(&quot;F1&quot;, &quot;F2&quot;, &quot;F3&quot;),
+  name_child1   = c(&quot;Aiden&quot;, &quot;Liam&quot;, &quot;Mia&quot;),
+  name_child2   = c(&quot;Bea&quot;,   &quot;Noah&quot;, &quot;Eli&quot;),
+  gender_child1 = c(&quot;M&quot;,     &quot;M&quot;,    &quot;F&quot;),
+  gender_child2 = c(&quot;F&quot;,     &quot;M&quot;,    &quot;M&quot;)
+)
+
+melt(DT2,
+     id.vars      = &quot;family&quot;,
+     measure.vars = patterns(&quot;^name_&quot;, &quot;^gender_&quot;),
+     value.name   = c(&quot;name&quot;,  &quot;gender&quot;))
+#&gt;    family variable   name gender
+#&gt;    &lt;char&gt;   &lt;fctr&gt; &lt;char&gt; &lt;char&gt;
+#&gt; 1:     F1        1  Aiden      M
+#&gt; 2:     F2        1   Liam      M
+#&gt; 3:     F3        1    Mia      F
+#&gt; 4:     F1        2    Bea      F
+#&gt; 5:     F2        2   Noah      M
+#&gt; 6:     F3        2    Eli      M</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>patterns()</code> matches each regex against the column names, groups the matches in order, and stacks each group into its own value column. The <code>variable</code> column then numbers the position within a group (1 for <code>*_child1</code>, 2 for <code>*_child2</code>).</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>patterns()</code> turns one melt into a parallel multi-melt.</strong> Without it, you would call <code>melt()</code> twice (once for names, once for genders) and then <code>merge()</code> the results. <code>patterns()</code> does the same job in a single pass, allocating the result once instead of twice.</div></div>
+
+<h2>melt() vs base reshape() and tidyr pivot_longer()</h2>
+
+<p><strong>All three reshape <a class="auto-link" href="tidyr-gather-in-R.html" title="tidyr gather() in R: Wide to Long (Superseded by pivot_longer)">wide to long</a>, but they differ in speed, syntax, and feature coverage.</strong> <code>melt()</code> is the fastest and the only one with built-in parallel-column melting; <code>pivot_longer()</code> is the most readable; <code>reshape()</code> requires no extra packages.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Feature</th>
+<th>data.table <code>melt()</code></th>
+<th>base <code>reshape()</code></th>
+<th>tidyr <code>pivot_longer()</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Speed on large data</td>
+<td>Fastest (written in C)</td>
+<td>Slow</td>
+<td>Moderate</td>
+</tr>
+<tr>
+<td>Multiple value columns</td>
+<td><code>patterns()</code> / list</td>
+<td>Awkward</td>
+<td><code>names_to</code> + <code>names_pattern</code></td>
+</tr>
+<tr>
+<td>Return type</td>
+<td><code>data.table</code></td>
+<td><code>data.frame</code></td>
+<td><code>tibble</code></td>
+</tr>
+<tr>
+<td>Key argument names</td>
+<td><code>id.vars</code>, <code>measure.vars</code></td>
+<td><code>varying</code>, <code>v.names</code>, <code>timevar</code></td>
+<td><code>cols</code>, <code>names_to</code>, <code>values_to</code></td>
+</tr>
+<tr>
+<td>Available without extras</td>
+<td>needs <code>data.table</code></td>
+<td>base R</td>
+<td>needs <code>tidyr</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Pick <code>melt()</code> when the input is already a <code>data.table</code> or when the data is large enough that the C implementation matters. Reach for <code>pivot_longer()</code> when the rest of your pipeline is tidyverse, and use base <code>reshape()</code> only when you cannot install additional packages.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The equivalent of <code>melt(dt, id.vars = &quot;id&quot;)</code> is <code>pandas.melt(df, id_vars = &quot;id&quot;)</code>. The argument names match almost one-to-one.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: mixed-type measure columns get coerced to a common type.</strong> A long <code>value</code> column can only hold one type, so melting a numeric column alongside a character column promotes everything to character.</p>
+
+<div class="webr-container" data-block-title="Type coercion when measure columns differ">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Type coercion when measure columns differ</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT3 &lt;- data.table(id = 1:2, x = c(1.5, 2.5), y = c(&quot;a&quot;, &quot;b&quot;))
+melt(DT3, id.vars = &quot;id&quot;)
+#&gt;       id variable  value
+#&gt;    &lt;int&gt;   &lt;fctr&gt; &lt;char&gt;
+#&gt; 1:     1        x    1.5
+#&gt; 2:     2        x    2.5
+#&gt; 3:     1        y      a
+#&gt; 4:     2        y      b</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The numeric <code>1.5</code> and <code>2.5</code> come back as strings. Keep measure columns to a single type, or split the melt into two calls.</p>
+
+<p><strong>Pitfall 2: the variable column is a factor by default.</strong> <code>variable.factor = TRUE</code> is convenient for plotting but inconvenient for string operations like <code>grepl()</code> or <code>substr()</code>. Set <code>variable.factor = FALSE</code> if you plan to manipulate the column as text.</p>
+
+<p><strong>Pitfall 3: forgetting <code>na.rm</code> produces inflated row counts.</strong> A wide table with sparse measure cells melts to a long table dominated by <code>NA</code> rows. Always check <code>nrow()</code> before and after, and add <code>na.rm = TRUE</code> when the <code>NA</code>s carry no meaning.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never melt a table with columns of incompatible types and ignore the warning.</strong> <code>melt()</code> does its best, but silently promoting numbers to strings or dates to characters breaks downstream joins and aggregations. If you see a "All measure variables are not of the same type" message, fix the input rather than the output.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Melt the wide table <code>sales_wide</code> below into long format. Keep <code>store</code> as the identifier, rename the new columns to <code>month</code> and <code>revenue</code>, and drop rows where revenue is <code>NA</code>. Save the result to <code>ex_long</code>.</p>
+<div class="webr-container" data-block-title="Your turn: melt sales data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: melt sales data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: melt sales_wide into long format
+sales_wide &lt;- data.table(
+  store = c(&quot;S1&quot;, &quot;S2&quot;, &quot;S3&quot;),
+  jan   = c(120, NA,  90),
+  feb   = c(150, 200, NA),
+  mar   = c(NA,  180, 110)
+)
+
+ex_long &lt;- # your code here
+
+ex_long
+#&gt; Expected: 6 rows with columns store, month, revenue</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_long &lt;- melt(sales_wide,
+                id.vars       = &quot;store&quot;,
+                variable.name = &quot;month&quot;,
+                value.name    = &quot;revenue&quot;,
+                na.rm         = TRUE)
+ex_long
+#&gt;     store  month revenue
+#&gt;    &lt;char&gt; &lt;fctr&gt;   &lt;num&gt;
+#&gt; 1:     S1    jan     120
+#&gt; 2:     S3    jan      90
+#&gt; 3:     S1    feb     150
+#&gt; 4:     S2    feb     200
+#&gt; 5:     S2    mar     180
+#&gt; 6:     S3    mar     110</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>id.vars = &quot;store&quot;</code> keeps <code>store</code> repeated on every row, <code>variable.name</code> and <code>value.name</code> rename the stacked columns, and <code>na.rm = TRUE</code> drops the three rows whose revenue was missing. The result has six rows and three columns instead of three rows and four columns.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p>These functions pair naturally with <code>melt()</code> when reshaping or combining wide and long data:</p>
+
+<ul>
+
+<li><code>dcast()</code>: the inverse of <code>melt()</code>; pivots a long table back to wide format.</li>
+
+<li><code>rbindlist()</code>: stacks a list of tables by row, often used before melting many files.</li>
+
+<li><code>merge()</code>: joins two tables on a shared key, useful for adding lookup columns after a melt.</li>
+
+<li><code>tstrsplit()</code>: splits a delimited string column into multiple columns, sometimes a substitute for <code>melt()</code> plus <code>patterns()</code>.</li>
+
+<li><code>setnames()</code>: renames columns in place, handy for tidying the <code>variable</code> column after a melt.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between melt and dcast in data.table?</strong></p>
+
+<p><code>melt()</code> reshapes a wide table to long format by stacking many measure columns into a <code>variable</code> and <code>value</code> pair; <code>dcast()</code> does the reverse, pivoting a long table back to wide by spreading one column's values across new columns. They are inverses: <code>dcast(melt(dt, id.vars = &quot;id&quot;), id ~ variable)</code> returns the original wide table. Use <code>melt()</code> when you have one column per measure and want one row per observation; use <code>dcast()</code> when you have one row per observation and want one column per measure.</p>
+
+<p><strong>How do you melt multiple columns at once in data.table?</strong></p>
+
+<p>Pass a <code>list()</code> of column vectors or a <code>patterns()</code> call to <code>measure.vars</code>, and a vector of names to <code>value.name</code>. For example, <code>melt(dt, measure.vars = patterns(&quot;^name_&quot;, &quot;^gender_&quot;), value.name = c(&quot;name&quot;, &quot;gender&quot;))</code> collapses every column starting with <code>name_</code> into a <code>name</code> column and every column starting with <code>gender_</code> into a <code>gender</code> column, all in one pass.</p>
+
+<p><strong>Is data.table melt faster than <a class="auto-link" href="tidyr-pivot_longer-in-R.html" title="tidyr pivot_longer() in R: Wide to Long Format">tidyr pivot_longer</a>?</strong></p>
+
+<p>Yes, on large data. <code>melt()</code> is written in C and pre-allocates the result, so on tables with millions of rows it typically runs several times faster than <code>pivot_longer()</code>. On small tables the difference is negligible and <code>pivot_longer()</code> reads more clearly. The rule of thumb is to use <code>melt()</code> when speed matters or the input is already a <code>data.table</code>, and <code>pivot_longer()</code> when the rest of the pipeline is tidyverse.</p>
+
+<p><strong>Why is the variable column a factor after melt?</strong></p>
+
+<p><code>melt()</code> sets <code>variable.factor = TRUE</code> by default because plotting and grouping run faster on factors. To manipulate the column as a string, pass <code>variable.factor = FALSE</code> to get a character column instead.</p>
+
+<p>For the official argument reference, see the <a href="https://rdatatable.gitlab.io/data.table/articles/datatable-reshape.html">data.table melt and dcast vignette</a>.</p>
