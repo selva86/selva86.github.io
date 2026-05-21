@@ -1,0 +1,479 @@
+---
+title: "tibble has_rownames() in R: Detect Non-Trivial Row Names"
+description: "Detect whether a data frame carries non-trivial row names with tibble has_rownames() in R. Learn syntax, mtcars vs tibble checks, and three real-world pitfalls."
+keywords: "tibble has_rownames, has_rownames function R, tibble has_rownames examples, R check rownames, detect rownames data frame R, has rownames tidyverse, rownames check R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "has_rownames()|tibble has_rownames|tibble::has_rownames()|check if rownames exist|detect non-trivial rownames"
+auto_link_case_sensitive: true
+fr_parent: "R-Data-Frames.html"
+---
+<!-- md2html:generated -->
+
+<h1>tibble has_rownames() in R: Detect Non-Trivial Row Names</h1>
+
+<p class="lead">The <code>has_rownames()</code> function in the <a class="auto-link" href="tibble-tibble-in-R.html" title="tibble tibble() in R: Build Tibbles Column by Column">tibble package</a> returns <code>TRUE</code> when a data frame carries explicit character row names and <code>FALSE</code> otherwise, including for every tibble and for any data frame still using the default integer row index.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>has_rownames(mtcars)<span class="qa-cmt">                          # TRUE: real labels</span>
+has_rownames(iris)<span class="qa-cmt">                            # FALSE: default 1:N</span>
+has_rownames(as_tibble(mtcars))<span class="qa-cmt">               # FALSE: tibbles never</span>
+has_rownames(data.frame(x = 1:3))<span class="qa-cmt">             # FALSE: integer rownames</span>
+df |&gt; has_rownames()<span class="qa-cmt">                          # pipe-friendly check</span>
+if (has_rownames(df)) rownames_to_column(df)<span class="qa-cmt">  # guard before lift</span>
+stopifnot(has_rownames(df))<span class="qa-cmt">                   # contract check in functions</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is has_rownames() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">check whether a frame has rownames</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">has_rownames(df)</text><text x="125" y="126" class="branch-label">lift rownames into a column</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">rownames_to_column(df, &quot;id&quot;)</text><text x="125" y="182" class="branch-label">move a column into rownames</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">column_to_rownames(df, &quot;id&quot;)</text><text x="125" y="238" class="branch-label">drop rownames entirely</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">remove_rownames(df)</text><text x="125" y="294" class="branch-label">read the rownames as a vector</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">rownames(df)</text><text x="125" y="350" class="branch-label"><a class="auto-link" href="dplyr-tally-in-R.html" title="dplyr tally() in R: Count Rows Quickly After group_by">count rows</a> regardless of rownames</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">nrow(df)</text><text x="125" y="406" class="branch-label">check the class of a frame</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">inherits(df, &quot;data.frame&quot;)</text></svg></div>
+
+<h2>What has_rownames() does in one sentence</h2>
+
+<p><strong><code>has_rownames()</code> returns <code>TRUE</code> if its data frame argument has non-trivial row names and <code>FALSE</code> if those row names are missing, integer, or default.</strong> Internally it delegates to base R's <code>.row_names_info()</code>, which distinguishes character row names (real labels) from compact integer row names (the default <code>1, 2, 3, ...</code> index that R assigns to every fresh data frame). Only character row names count as "having" rownames.</p>
+
+<p>The function is a predicate, returning a single logical scalar. It exists because the question "does this frame have rownames?" is surprisingly subtle in base R: <code>is.null(rownames(df))</code> returns <code>FALSE</code> for every data frame, even brand new ones, because <code>rownames(df)</code> always materialises a vector. <code>has_rownames()</code> answers the question users actually mean, which is whether those names carry information worth preserving.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>has_rownames()</code> takes a data frame and returns a single <code>TRUE</code> or <code>FALSE</code>.</strong> No optional arguments, no side effects, no errors on unusual inputs.</p>
+
+<div class="webr-container" data-block-title="Load tibble and check three frames">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load tibble and check three frames</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+library(dplyr)
+
+# mtcars has character rownames (car models)
+has_rownames(mtcars)
+#&gt; [1] TRUE
+
+# iris uses the default integer rownames
+has_rownames(iris)
+#&gt; [1] FALSE
+
+# A tibble never carries rownames
+has_rownames(as_tibble(mtcars))
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signature is:</p>
+
+<pre><code>has_rownames(.data)</code></pre>
+
+<p>Argument:</p>
+
+<ul>
+
+<li><code>.data</code>: a data frame or tibble. Non-data-frame inputs return <code>FALSE</code> instead of erroring.</li>
+
+</ul>
+
+<p>The return value is always a length-one logical, never <code>NA</code>. There is nothing to configure.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>has_rownames()</code> as a guard before <code>rownames_to_column()</code>.</strong> Calling <code>rownames_to_column()</code> on a frame without real rownames produces a column of useless <code>&quot;1&quot;, &quot;2&quot;, &quot;3&quot;, ...</code> strings. Branching on <code>has_rownames()</code> keeps the lift idempotent.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Distinguish real labels from default integer rownames</h3>
+
+<div class="webr-container" data-block-title="Built-in datasets compared">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Built-in datasets compared</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">has_rownames(mtcars)
+#&gt; [1] TRUE
+
+has_rownames(iris)
+#&gt; [1] FALSE
+
+has_rownames(airquality)
+#&gt; [1] FALSE
+
+has_rownames(USArrests)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>mtcars</code> and <code>USArrests</code> ship with character rownames (car models, US state names), so <code>has_rownames()</code> returns <code>TRUE</code>. <code>iris</code> and <code>airquality</code> use the default <code>1:N</code> integer index, which the function correctly reports as absent. This distinction matters for any code that wants to preserve labels through a pipeline.</p>
+
+<h3>2. Every tibble returns FALSE, even one converted from mtcars</h3>
+
+<div class="webr-container" data-block-title="Tibble conversion drops rownames">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tibble conversion drops rownames</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mt_tbl &lt;- as_tibble(mtcars)
+has_rownames(mt_tbl)
+#&gt; [1] FALSE
+
+# To preserve labels, lift them first
+mt_tbl_kept &lt;- as_tibble(mtcars, rownames = &quot;model&quot;)
+has_rownames(mt_tbl_kept)
+#&gt; [1] FALSE
+
+# But the column is there
+head(mt_tbl_kept$model, 3)
+#&gt; [1] &quot;Mazda RX4&quot;     &quot;Mazda RX4 Wag&quot; &quot;Datsun 710&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Tibbles intentionally do not store row names; every observation identifier is a first-class column instead. So <code>has_rownames()</code> on any tibble always returns <code>FALSE</code>, even after <code>as_tibble(rownames = &quot;model&quot;)</code> lifts the labels safely into a column. The check is asking about row name attributes, not about whether labels exist anywhere in the frame.</p>
+
+<h3>3. Guard a pipeline before lifting rownames</h3>
+
+<div class="webr-container" data-block-title="Conditional rowname lift">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Conditional rowname lift</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">safe_lift &lt;- function(df, var = &quot;id&quot;) {
+  if (has_rownames(df)) {
+    rownames_to_column(df, var)
+  } else {
+    df
+  }
+}
+
+safe_lift(mtcars) |&gt; head(2)
+#&gt;                      id  mpg cyl disp  hp drat   wt qsec vs am gear carb
+#&gt; Mazda RX4     Mazda RX4 21.0   6  160 110 3.90 2.62 16.5  0  1    4    4
+#&gt; Mazda RX4 Wag Mazda RX4 21.0   6  160 110 3.90 2.88 17.0  0  1    4    4
+
+safe_lift(iris) |&gt; head(2)
+#&gt;   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+#&gt; 1          5.1         3.5          1.4         0.2  setosa
+#&gt; 2          4.9         3.0          1.4         0.2  setosa</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Branching on <code>has_rownames()</code> keeps the lift idempotent: frames with real labels pick up an <code>id</code> column, frames without rownames pass through unchanged. Without the guard, <code>rownames_to_column()</code> on <code>iris</code> would create a meaningless <code>&quot;1&quot;, &quot;2&quot;, &quot;3&quot;</code> column.</p>
+
+<h3>4. Detect rowname loss after a dplyr verb</h3>
+
+<div class="webr-container" data-block-title="Most dplyr verbs strip rownames">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Most dplyr verbs strip rownames</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">has_rownames(mtcars)
+#&gt; [1] TRUE
+
+mtcars_filtered &lt;- mtcars |&gt; filter(cyl == 4)
+has_rownames(mtcars_filtered)
+#&gt; [1] FALSE
+
+# Lift first, then filter
+mtcars_kept &lt;- mtcars |&gt;
+  rownames_to_column(&quot;model&quot;) |&gt;
+  filter(cyl == 4)
+has_rownames(mtcars_kept)
+#&gt; [1] FALSE
+
+# Labels survive as a column
+head(mtcars_kept$model, 3)
+#&gt; [1] &quot;Datsun 710&quot; &quot;Merc 240D&quot;  &quot;Merc 230&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>filter()</code>, <code>mutate()</code>, <code>arrange()</code>, and <code>select()</code> all coerce their input to a tibble internally, so rownames disappear after the first call. <code>has_rownames()</code> exposes exactly when this happens. The safe pattern is to lift rownames into a column first, then run the pipeline.</p>
+
+<h3>5. Contract check inside a function</h3>
+
+<div class="webr-container" data-block-title="Stop early if rownames missing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stop early if rownames missing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">to_dist_matrix &lt;- function(df) {
+  stopifnot(
+    is.data.frame(df),
+    has_rownames(df)
+  )
+  dist(as.matrix(df))
+}
+
+# Works: mtcars has rownames
+to_dist_matrix(mtcars[1:3, 1:3])
+#&gt;           Mazda RX4 Mazda RX4 Wag
+#&gt; Mazda RX4 Wag 0.281...
+#&gt; Datsun 710    13.40...
+
+# Fails fast: iris does not
+# to_dist_matrix(iris[1:3, 1:4])
+# Error: has_rownames(df) is not TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Functions that depend on rownames (matrix routines, heatmaps, biplots) should refuse unlabelled frames up front, not silently produce a distance matrix labelled <code>1, 2, 3</code>. A <code>stopifnot(has_rownames(df))</code> line at the top of such functions documents the contract and fails fast when violated.</p>
+
+<h2>has_rownames() vs alternatives</h2>
+
+<p><strong>Pick <code>has_rownames()</code> when you want a simple, tibble-aware predicate.</strong> Several adjacent expressions answer related questions but with subtle differences.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Behavior</th>
+<th><code>has_rownames()</code></th>
+<th><code>!is.null(rownames(df))</code></th>
+<th><code>.row_names_info(df) &gt; 0</code></th>
+<th><code>inherits(df, &quot;tbl_df&quot;)</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Source</td>
+<td>tibble</td>
+<td>base R</td>
+<td>base R (internal)</td>
+<td>base R</td>
+</tr>
+<tr>
+<td>Returns</td>
+<td>TRUE/FALSE</td>
+<td>Always TRUE for data frames</td>
+<td>TRUE/FALSE</td>
+<td>TRUE/FALSE</td>
+</tr>
+<tr>
+<td>Detects character rownames</td>
+<td>Yes</td>
+<td>No (always TRUE)</td>
+<td>Yes</td>
+<td>No</td>
+</tr>
+<tr>
+<td>Tibble-aware</td>
+<td>Yes (always FALSE)</td>
+<td>No</td>
+<td>Same answer</td>
+<td>Yes (returns TRUE)</td>
+</tr>
+<tr>
+<td>Safe on non-data-frames</td>
+<td>Yes (returns FALSE)</td>
+<td>Errors</td>
+<td>Errors</td>
+<td>Yes</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li>Use <code>has_rownames()</code> for everyday checks: it asks the question users mean and handles tibbles correctly.</li>
+
+<li>Use <code>inherits(df, &quot;tbl_df&quot;)</code> when you specifically want to know if the input is a tibble, not whether labels exist.</li>
+
+<li>Use <code>.row_names_info(df) &gt; 0</code> only inside tibble itself or in micro-benchmarks where you must avoid the function call cost.</li>
+
+<li>Never rely on <code>!is.null(rownames(df))</code>: it returns <code>TRUE</code> for every data frame, including blank new ones.</li>
+
+</ul>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Base R's <code>rownames(df)</code> always returns a non-null vector, even on a fresh frame with no real labels.</strong> That is why <code>has_rownames()</code> exists: to answer the question "does this frame carry labels worth preserving?" instead of the literal "is the rownames attribute null?" The two are not the same.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: assuming a tibble can have rownames.</strong> Tibbles intentionally do not store row names. <code>has_rownames()</code> returns <code>FALSE</code> for every tibble, no matter how it was built.</p>
+
+<div class="webr-container" data-block-title="Tibbles never carry rownames">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tibbles never carry rownames</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tb &lt;- tibble(x = 1:3)
+rownames(tb) &lt;- c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;)
+has_rownames(tb)
+#&gt; [1] FALSE
+
+# The &quot;rownames&quot; call appears to succeed but does nothing durable
+rownames(tb)
+#&gt; [1] &quot;1&quot; &quot;2&quot; &quot;3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>If you need observation labels in a tibble, store them in an ordinary column. Use <code>as_tibble(df, rownames = &quot;var&quot;)</code> to migrate existing rownames into a column during conversion.</p>
+
+<p><strong>Pitfall 2: confusing <code>has_rownames()</code> with <code>nrow(df) &gt; 0</code>.</strong> A frame with rows can still report <code>FALSE</code> from <code>has_rownames()</code>, because the question is about row labels, not row count.</p>
+
+<div class="webr-container" data-block-title="Rows exist but no labels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rows exist but no labels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(x = 1:1000)
+nrow(df)
+#&gt; [1] 1000
+has_rownames(df)
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Use <code>nrow()</code> for size checks. Use <code>has_rownames()</code> only for the labels question.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Most dplyr verbs silently strip rownames.</strong> <code>filter()</code>, <code>mutate()</code>, <code>arrange()</code>, <code>select()</code>, and <code>summarise()</code> all coerce their input to a tibble, so any rownames on the input disappear from the output. Lift them with <code>rownames_to_column()</code> before piping if you need them downstream.</div></div>
+
+<p><strong>Pitfall 3: trusting <code>!is.null(rownames(df))</code> as a substitute.</strong> Base R's <code>rownames(df)</code> always materialises a vector, so a null check is never <code>TRUE</code> for any data frame.</p>
+
+<div class="webr-container" data-block-title="Why the null check fails">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Why the null check fails</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(x = 1:3)
+is.null(rownames(df))
+#&gt; [1] FALSE
+rownames(df)
+#&gt; [1] &quot;1&quot; &quot;2&quot; &quot;3&quot;
+
+has_rownames(df)
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The integer rownames are auto-generated, not stored. <code>has_rownames()</code> looks past this auto-generation; the null check does not.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write a short pipeline that loads <code>USArrests</code>, confirms it carries rownames, lifts them into a column called <code>state</code>, filters to states with <code>Murder &gt; 10</code>, then verifies the result no longer carries rownames (because dplyr coerced to a tibble). Save the final filtered tibble to <code>ex_arrests</code>.</p>
+<div class="webr-container" data-block-title="Your turn: lift then verify">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: lift then verify</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tibble)
+library(dplyr)
+# Try it: build ex_arrests
+ex_arrests &lt;- # your code here
+
+has_rownames(ex_arrests)
+#&gt; Expected: FALSE
+nrow(ex_arrests)
+#&gt; Expected: 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">stopifnot(has_rownames(USArrests))
+
+ex_arrests &lt;- USArrests |&gt;
+  rownames_to_column(&quot;state&quot;) |&gt;
+  filter(Murder &gt; 10)
+
+has_rownames(ex_arrests)
+#&gt; [1] FALSE
+nrow(ex_arrests)
+#&gt; [1] 5
+head(ex_arrests$state, 5)
+#&gt; [1] &quot;Alabama&quot;        &quot;Florida&quot;        &quot;Georgia&quot;
+#&gt; [4] &quot;Mississippi&quot;    &quot;South Carolina&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>stopifnot(has_rownames(USArrests))</code> confirms the source frame carries labels before the pipeline runs. After <code>filter()</code>, the result is a tibble, so <code>has_rownames(ex_arrests)</code> correctly reports <code>FALSE</code>. The labels survive as the <code>state</code> column.</p>
+
+</details>
+</section>
+
+<h2>Related tibble functions</h2>
+
+<p>Alongside <code>has_rownames()</code>, look at:</p>
+
+<ul>
+
+<li><code>rownames_to_column()</code>: lift row names out into a new character column.</li>
+
+<li><code>column_to_rownames()</code>: promote a column's values back into row names.</li>
+
+<li><code>remove_rownames()</code>: drop row names entirely without saving them.</li>
+
+<li><code>rowid_to_column()</code>: add a fresh integer id column without touching existing row names.</li>
+
+<li><code>as_tibble(rownames = &quot;var&quot;)</code>: lift rownames into a column during tibble conversion.</li>
+
+<li><code>tibble::is_tibble()</code>: a related predicate for "is this object a tibble?".</li>
+
+</ul>
+
+<p>For the full reference, see the <a href="https://tibble.tidyverse.org/reference/rownames.html">official tibble rownames documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I check if a data frame has row names in R?</strong></p>
+
+<p>Call <code>has_rownames()</code> from the tibble package, passing the data frame: <code>has_rownames(df)</code>. It returns <code>TRUE</code> only if the frame carries explicit character row names like <code>mtcars</code> or <code>USArrests</code>. Frames using the default integer index (like <code>iris</code>) return <code>FALSE</code>, and every tibble returns <code>FALSE</code>. Avoid <code>!is.null(rownames(df))</code>: that check always returns <code>TRUE</code> for data frames because base R auto-generates an integer rownames vector even when no labels are set.</p>
+
+<p><strong>Why does has_rownames() return FALSE on my tibble?</strong></p>
+
+<p>Tibbles intentionally do not store row names. The tibble design treats every observation identifier as a first-class column instead, so <code>has_rownames()</code> always returns <code>FALSE</code> for tibble inputs. If you want to keep labels through a tibble pipeline, lift them into a column with <code>rownames_to_column()</code> or use <code>as_tibble(df, rownames = &quot;var&quot;)</code> during conversion.</p>
+
+<p><strong>What is the difference between has_rownames() and rownames()?</strong></p>
+
+<p><code>rownames(df)</code> always returns a character vector, even on a fresh frame with default integer labels (you get <code>&quot;1&quot;, &quot;2&quot;, &quot;3&quot;, ...</code>). <code>has_rownames(df)</code> returns a single <code>TRUE</code>/<code>FALSE</code> that is <code>TRUE</code> only when those labels are explicit and meaningful, not auto-generated. Use <code>has_rownames()</code> for predicate checks; use <code>rownames()</code> only when you actually need the label vector.</p>
+
+<p><strong>Does has_rownames() work on non-data-frame inputs?</strong></p>
+
+<p>Yes, safely. Passing a matrix, vector, or list to <code>has_rownames()</code> returns <code>FALSE</code> instead of erroring, because the function first checks <code>is.data.frame(.data)</code>. You can drop it into a <code>stopifnot()</code> clause without wrapping it in extra guards. Other base R rownames calls may error on non-data-frame inputs, so this safety is a real convenience.</p>
+
+<p><strong>Why do dplyr verbs make has_rownames() return FALSE?</strong></p>
+
+<p><code>filter()</code>, <code>mutate()</code>, <code>arrange()</code>, <code>select()</code>, and <code>summarise()</code> all coerce their input to a tibble internally, and tibbles never carry rownames. The fix is to lift rownames before the first dplyr call with <code>rownames_to_column(&quot;id&quot;)</code>, run the pipeline, then promote the column back if needed using <code>column_to_rownames(&quot;id&quot;)</code>. Treat rownames as a return-trip artifact, not as durable state inside a pipeline.</p>
