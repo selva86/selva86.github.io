@@ -1,0 +1,391 @@
+---
+title: "data.table Grouping in R: by, keyby, and .SD Patterns"
+description: "Grouping in data.table runs j once per group inside DT[i, j, by]. Compare by, keyby, .SD, multi-column grouping, performance tips, and common pitfalls in R."
+keywords: "data.table grouping, data.table group by, R data.table aggregate, data.table by vs keyby, grouping in data.table, R group by data.table, data.table aggregate by group"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "data.table grouping|grouping in data.table|data.table group by|data.table aggregate|R group by data.table"
+auto_link_case_sensitive: true
+fr_parent: "data-table-vs-dplyr.html"
+---
+<!-- md2html:generated -->
+
+<h1>data.table Grouping in R: by, keyby, and .SD Patterns</h1>
+
+<p class="lead">data.table grouping splits a table by one or more columns and evaluates the <code>j</code> expression once per group inside the <code>DT[i, j, by]</code> syntax, returning one result row per unique group.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>dt[, .N, by = cyl]<span class="qa-cmt">                          # count rows per group</span>
+dt[, mean(mpg), by = cyl]<span class="qa-cmt">                   # one summary per group</span>
+dt[, .(avg = mean(mpg)), by = .(cyl, gear)]<span class="qa-cmt"> # group on two columns</span>
+dt[, mean(mpg), keyby = cyl]<span class="qa-cmt">                # group AND sort the result</span>
+dt[, lapply(.SD, mean), by = cyl]<span class="qa-cmt">           # summarize every column</span>
+dt[cyl == 4, mean(mpg), by = gear]<span class="qa-cmt">          # filter first, then group</span>
+dt[, .SD[1], by = cyl]<span class="qa-cmt">                      # first row per group</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Which grouping form should I use?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">one-off summary, order does not matter</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">dt[, mean(x), by = grp]</text><text x="125" y="126" class="branch-label">result will be joined or queried again</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">dt[, mean(x), keyby = grp]</text><text x="125" y="182" class="branch-label">already keyed and reused often</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code"><a class="auto-link" href="data-table-Exercises.html" title="data.table Exercises: 12 High-Performance Data Manipulation Problems — Solved Step-by-Step">setkey</a>(dt, grp); dt[, mean(x), by = grp]</text><text x="125" y="238" class="branch-label"><a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarize</a> many columns</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">dt[, lapply(.SD, mean), by = grp, .<a class="auto-link" href="datatable-SDcols-in-R.html" title="data.table .SDcols in R: Apply Functions to Many Columns">SDcols</a> = cols]</text><text x="125" y="294" class="branch-label">pick one row per group</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">dt[, .SD[1], by = grp]</text><text x="125" y="350" class="branch-label">ad-hoc bins without a new column</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">dt[, .N, by = .(big = x &gt; 10)]</text><text x="125" y="406" class="branch-label">rolling window inside groups</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">dt[, <a class="auto-link" href="datatable-frollmean-in-R.html" title="data.table frollmean() in R: Fast Rolling Window Means">frollmean</a>(x, 3), by = grp]</text></svg></div>
+
+<h2>What grouping means in data.table</h2>
+
+<p><strong>Grouping is the third argument of <code>DT[i, j, by]</code>.</strong> You pass one or more columns (or an expression) to <code>by</code> or <code>keyby</code>, and data.table splits the table into one chunk per unique value of those columns. The <code>j</code> expression then runs separately on each chunk, and the results are stacked into a new table with the grouping columns on the left.</p>
+
+<p>Because grouping lives inside the bracket, filtering and grouping happen in a single call. The split runs on the rows that survive <code>i</code>, not the whole table. This makes a grouped aggregate one expression rather than a chain of filters, <a class="auto-link" href="dplyr-group_by-in-R.html" title="dplyr group_by() in R: Grouped Operations Made Easy">group operations</a>, and joins.</p>
+
+<h2>The grouping toolkit: by, keyby, and .SD</h2>
+
+<p><strong>Three pieces cover almost every grouping problem in data.table.</strong> <code>by</code> and <code>keyby</code> choose how rows are split; <code>.SD</code> and <code>.SDcols</code> choose which columns each per-group expression sees.</p>
+
+<div class="webr-container" data-block-title="The grouping query signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The grouping query signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">DT[i, j, by]                            # filter, expression, group
+DT[i, j, keyby = ...]                   # group AND sort/key the result
+DT[i, j, by, .SDcols = c(&quot;a&quot;, &quot;b&quot;)]     # restrict .SD to a subset</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The pieces <a class="auto-link" href="R-Function-Operators.html" title="R Function Operators: Compose, Negate & Partial Application">compose</a> like this:</p>
+
+<ul>
+
+<li><code>by = col</code> or <code>by = .(col1, col2)</code> splits the table and returns groups in first-appearance order.</li>
+
+<li><code>keyby = ...</code> is the same split but sorts the result ascending and stores the grouping columns as the new key.</li>
+
+<li><code>.SD</code> is the per-group "<a class="auto-link" href="datatable-SD-keyword-in-R.html" title="data.table .SD in R: Subset of Data for Per-Group Operations">Subset of Data</a>": every column except those used in <code>by</code> (or only those in <code>.SDcols</code> if you set it).</li>
+
+<li>Expressions like <code>by = .(big = mpg &gt; 25)</code> create bins on the fly without adding a column.</li>
+
+</ul>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The whole grouping pattern fits in one mental model: split with <code>by</code>, summarize with <code>j</code>, optionally restrict columns with <code>.SDcols</code>.</strong> Once you internalize that <code>j</code> is just "the recipe data.table runs per group," every grouping problem reduces to writing the right recipe.</div></div>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Build one data.table and reuse it across every example.</strong> All blocks share the same <code>dt</code> object created from <code>mtcars</code>.</p>
+
+<div class="webr-container" data-block-title="Create a data.table from mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create a data.table from mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+
+dt &lt;- as.data.table(mtcars, keep.rownames = &quot;model&quot;)
+dt[1:3, .(model, mpg, cyl, gear)]
+#&gt;            model   mpg   cyl  gear
+#&gt;           &lt;char&gt; &lt;num&gt; &lt;num&gt; &lt;num&gt;
+#&gt; 1:     Mazda RX4  21.0     6     4
+#&gt; 2: Mazda RX4 Wag  21.0     6     4
+#&gt; 3:    Datsun 710  22.8     4     4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Count rows in each group with <code>.N</code>.</strong> <code>.N</code> is a special symbol that always equals the row count of the current group.</p>
+
+<div class="webr-container" data-block-title="Count rows per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count rows per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt[, .N, by = cyl]
+#&gt;      cyl     N
+#&gt;    &lt;num&gt; &lt;int&gt;
+#&gt; 1:     6     7
+#&gt; 2:     4    11
+#&gt; 3:     8    14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Return one named summary per group.</strong> Wrapping <code>j</code> in <code>.()</code> gives the output column a real name instead of the default <code>V1</code>.</p>
+
+<div class="webr-container" data-block-title="Mean mpg per cyl">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean mpg per cyl</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt[, .(avg_mpg = mean(mpg)), by = cyl]
+#&gt;      cyl  avg_mpg
+#&gt;    &lt;num&gt;    &lt;num&gt;
+#&gt; 1:     6 19.74286
+#&gt; 2:     4 26.66364
+#&gt; 3:     8 15.10000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Group on multiple columns by passing <code>.()</code> to <code>by</code>.</strong> The order of columns in <code>.()</code> matches the column order in the output.</p>
+
+<div class="webr-container" data-block-title="Group by cyl and gear">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Group by cyl and gear</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt[, .(avg_mpg = mean(mpg), n = .N), by = .(cyl, gear)]
+#&gt;      cyl  gear  avg_mpg     n
+#&gt;    &lt;num&gt; &lt;num&gt;    &lt;num&gt; &lt;int&gt;
+#&gt; 1:     6     4 19.75000     4
+#&gt; 2:     4     4 26.92500     8
+#&gt; 3:     6     3 19.75000     2
+#&gt; 4:     8     3 15.05000    12
+#&gt; 5:     4     3 21.50000     1
+#&gt; 6:     4     5 28.20000     2
+#&gt; 7:     8     5 15.40000     2
+#&gt; 8:     6     5 19.70000     1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Summarize many columns at once with <code>.SD</code> and <code>lapply</code>.</strong> Pair it with <code>.SDcols</code> to keep the summary clean and avoid warnings on character or non-numeric columns.</p>
+
+<div class="webr-container" data-block-title="Apply mean to several columns per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Apply mean to several columns per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">num_cols &lt;- c(&quot;mpg&quot;, &quot;hp&quot;, &quot;wt&quot;)
+dt[, lapply(.SD, mean), by = cyl, .SDcols = num_cols]
+#&gt;      cyl       mpg        hp       wt
+#&gt;    &lt;num&gt;     &lt;num&gt;     &lt;num&gt;    &lt;num&gt;
+#&gt; 1:     6 19.742857 122.28571 3.117143
+#&gt; 2:     4 26.663636  82.63636 2.285727
+#&gt; 3:     8 15.100000 209.21429 3.999214</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Pick the first row of each group with <code>.SD[1]</code>.</strong> This is the data.table idiom for "the top row per category," and it works because <code>.SD</code> is itself a data.table you can subset.</p>
+
+<div class="webr-container" data-block-title="First row per group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">First row per group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt[order(-mpg), .SD[1, .(model, mpg)], by = cyl]
+#&gt;      cyl            model   mpg
+#&gt;    &lt;num&gt;           &lt;char&gt; &lt;num&gt;
+#&gt; 1:     4   Toyota Corolla  33.9
+#&gt; 2:     6   Hornet 4 Drive  21.4
+#&gt; 3:     8 Pontiac Firebird  19.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong><a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">Filter rows</a> in <code>i</code>, then group what survives.</strong> The grouping operates on the rows passed by <code>i</code>, so you do not need a separate filter pipe.</p>
+
+<div class="webr-container" data-block-title="Filter first, then group">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Filter first, then group</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt[mpg &gt; 18, .(avg_hp = mean(hp), n = .N), by = cyl]
+#&gt;      cyl    avg_hp     n
+#&gt;    &lt;num&gt;     &lt;num&gt; &lt;int&gt;
+#&gt; 1:     6 122.16667     6
+#&gt; 2:     4  82.63636    11
+#&gt; 3:     8 175.00000     1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Choosing by, keyby, or a pre-keyed table</h2>
+
+<p><strong>The choice is a trade-off between three things: output sort, input sort, and reuse.</strong> Plain <code>by</code> is the default for one-off summaries. <code>keyby</code> sorts and keys the result, which makes the output cheaper to query. Calling <code>setkey()</code> on the input ahead of time pays for itself when you group the same table many times.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Form</th>
+<th>Sorts output?</th>
+<th>Keys output?</th>
+<th>Pre-sorts input?</th>
+<th>Best when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>by = cyl</code></td>
+<td>No</td>
+<td>No</td>
+<td>No</td>
+<td>One-off summary; result is printed or written and discarded</td>
+</tr>
+<tr>
+<td><code>keyby = cyl</code></td>
+<td>Yes (ascending)</td>
+<td>Yes</td>
+<td>No</td>
+<td>The grouped result will be subset, joined, or queried again</td>
+</tr>
+<tr>
+<td><code>setkey(dt, cyl); dt[, j, by = cyl]</code></td>
+<td>No</td>
+<td>No</td>
+<td>Yes</td>
+<td>You will group the same table many times in the session</td>
+</tr>
+<tr>
+<td><code>by = .(big = mpg &gt; 25)</code></td>
+<td>No</td>
+<td>No</td>
+<td>No</td>
+<td>Ad-hoc bins without a new column on disk</td>
+</tr>
+</tbody>
+</table>
+
+<p>A simple rule: reach for <code>keyby</code> whenever the grouped table becomes input to something else, and reach for <code>setkey()</code> once, ahead of time, whenever the same source table will be grouped repeatedly. Use plain <code>by</code> for everything else.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Name your grouping expressions with <code>by = .(name = expr)</code>.</strong> Without a name, data.table calls the bin column <code>V1</code>, which is hard to read in downstream code. Naming inside <code>by</code> works the same way as naming inside <code>j</code>: <code>by = .(big_engine = cyl &gt; 6)</code> produces a column called <code>big_engine</code>.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Forgetting <code>.()</code> around two columns silently groups by only the first one.</strong> Writing <code>by = cyl, gear</code> parses <code>gear</code> as a separate bracket argument in some calls and is a parse error in others. Always wrap multi-column groupings in <code>.()</code> or pass a character vector.</p>
+
+<div class="webr-container" data-block-title="Right vs wrong multi-column by">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Right vs wrong multi-column by</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nrow(dt[, .N, by = .(cyl, gear)])
+#&gt; [1] 8
+nrow(dt[, .N, by = c(&quot;cyl&quot;, &quot;gear&quot;)])
+#&gt; [1] 8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>by</code> keeps each group in the order it appears, but does not sort across groups.</strong> Operations like <code>head()</code>, <code>cummax()</code>, and <code>shift()</code> depend on row order, so a <code>j</code> that uses them needs either <code>keyby</code> (sort across groups) or a prior <code>setorder()</code> (sort the whole table). Without this, the same query can return different numbers on differently ordered inputs.</div></div>
+
+<p><strong><code>.SD</code> includes every non-<code>by</code> column by default, including non-numeric ones.</strong> A call like <code>dt[, lapply(.SD, mean), by = cyl]</code> will warn or return <code>NA</code> for character columns. Always pair <code>lapply(.SD, ...)</code> with an explicit <code>.SDcols</code> vector to avoid surprises.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from dplyr?</strong> The equivalent of <code>dt[, .(avg = mean(x)), by = grp]</code> is <code>df |&gt; group_by(grp) |&gt; summarise(avg = mean(x))</code>. dplyr's <code>.by =</code> inline argument now mirrors data.table's per-call grouping, but the bracket form stays significantly faster on tables above a few million rows.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Group <code>airquality</code> by <code>Month</code> and compute both the mean <code>Ozone</code> (ignoring <code>NA</code>) and the row count per month. Sort the output so months come back in calendar order. Save the result to <code>ex_grouped</code>.</p>
+<div class="webr-container" data-block-title="Your turn: group airquality by Month">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: group airquality by Month</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: mean Ozone and row count per Month, sorted
+ex_grouped &lt;- as.data.table(airquality)
+# your code here
+
+ex_grouped
+#&gt; Expected: 5 rows, sorted by Month, with avg_ozone and n</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_grouped &lt;- as.data.table(airquality)
+ex_grouped &lt;- ex_grouped[, .(avg_ozone = mean(Ozone, na.rm = TRUE), n = .N), keyby = Month]
+ex_grouped
+#&gt;    Month avg_ozone     n
+#&gt;    &lt;int&gt;     &lt;num&gt; &lt;int&gt;
+#&gt; 1:     5  23.61538    31
+#&gt; 2:     6  29.44444    30
+#&gt; 3:     7  59.11538    31
+#&gt; 4:     8  59.96154    31
+#&gt; 5:     9  31.44828    30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Using <code>keyby = Month</code> sorts the result by month and stores the key, so later subsets like <code>ex_grouped[&quot;7&quot;]</code> use binary search. <code>na.rm = TRUE</code> keeps the months that have missing Ozone readings from collapsing to <code>NA</code>.</p>
+
+</details>
+</section>
+
+<h2>Related data.table functions</h2>
+
+<p><strong>Grouping composes with the rest of the data.table toolkit.</strong> Explore these next:</p>
+
+<ul>
+
+<li><code>by</code>: the grouping argument; deep dive on every variant and edge case.</li>
+
+<li><code>keyby</code>: identical to <code>by</code> but sorts and keys the result.</li>
+
+<li><code>.SD</code>: the per-group subset of data visible inside <code>j</code>.</li>
+
+<li><code>setkey()</code>: pre-sort and key the input table for repeated grouping.</li>
+
+<li><code>frollmean()</code>: rolling window aggregates that compose with grouping.</li>
+
+<li><code>dcast()</code>: pivot a long grouped result into wide form.</li>
+
+</ul>
+
+<p>See the official <a href="https://rdatatable.gitlab.io/data.table/articles/datatable-keys-fast-subset.html">data.table grouping vignette</a> for the canonical reference on <code>DT[i, j, by]</code> and key-based subsetting.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I group by a column in data.table?</strong></p>
+
+<p>Pass the column name to <code>by</code> inside the bracket: <code>dt[, mean(x), by = grp]</code>. data.table splits the table into one chunk per unique value of <code>grp</code>, runs <code>mean(x)</code> on each chunk, and stacks the results into a new table with <code>grp</code> on the left. The grouping column is always added to the output automatically, so you do not need to repeat it inside <code>j</code>.</p>
+
+<p><strong>What is the difference between by and keyby in data.table?</strong></p>
+
+<p>Both group the table the same way; the difference is the result. Plain <code>by</code> returns groups in the order they first appear in the input, which is the fastest path. <code>keyby</code> sorts the result ascending by the grouping columns and stores those columns as the table's key, so later subsets and joins on the result use binary search. Use <code>keyby</code> whenever the grouped output becomes input to something else.</p>
+
+<p><strong>How do I group by multiple columns in data.table?</strong></p>
+
+<p>Wrap the columns in <code>.()</code>, for example <code>dt[, .N, by = .(cyl, gear)]</code>. You can also pass them as a character vector, <code>dt[, .N, by = c(&quot;cyl&quot;, &quot;gear&quot;)]</code>, which is handy when the names live in a variable. Both forms return one row per unique combination, with the grouping columns added to the result in the order you listed them.</p>
+
+<p><strong>How do I aggregate every column by group in data.table?</strong></p>
+
+<p>Use <code>lapply(.SD, fun)</code> inside <code>j</code>. The pattern <code>dt[, lapply(.SD, mean), by = grp, .SDcols = num_cols]</code> applies <code>mean()</code> to every column listed in <code>.SDcols</code>, returning one summary row per group. Always set <code>.SDcols</code> explicitly; otherwise <code>.SD</code> includes character columns and the summary warns or returns <code>NA</code> for them.</p>
+
+<p><strong>Is data.table grouping faster than dplyr group_by?</strong></p>
+
+<p>Usually yes, especially on tables above a few million rows. data.table groups by reference and avoids the intermediate copies that <code>group_by()</code> plus <code>summarise()</code> create. The gap narrows on small tables and on simple summaries, where both libraries finish in milliseconds. For repeated grouping on the same table, calling <code>setkey()</code> once turns later groupings into near-instant binary-search lookups.</p>
