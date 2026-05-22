@@ -1,0 +1,358 @@
+---
+title: "caret specificity() in R: Compute True Negative Rate"
+description: "Use caret specificity() in R to compute true negative rate. Factor or table input, per-class examples, with sensitivity and confusionMatrix comparisons."
+keywords: "caret specificity, specificity function R, caret specificity examples, R true negative rate, caret specificity binary classification, caret spec sens, R classification metrics"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "specificity()|caret specificity|caret::specificity()|true negative rate in R|specificity in caret"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret specificity() in R: Compute True Negative Rate</h1>
+
+<p class="lead">The <code>caret specificity()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> computes the true negative rate of a classifier: the share of actual negatives the model correctly labels negative. It accepts factor vectors or a precomputed <a class="auto-link" href="R-Mosaic-Plots.html" title="R Mosaic Plots: Visualize Categorical Variable Relationships">contingency table</a>, returns a single numeric value, and treats the second factor level as the negative class unless you override it.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>specificity(pred, ref)<span class="qa-cmt">                           # default, second level is negative</span>
+specificity(pred, ref, negative = &quot;no&quot;)<span class="qa-cmt">          # set negative class</span>
+specificity(table(pred, ref))<span class="qa-cmt">                    # pass a precomputed table</span>
+specificity(pred, ref, na.rm = TRUE)<span class="qa-cmt">             # drop NA before counting</span>
+specificity(pred, ref, negative = &quot;versicolor&quot;)<span class="qa-cmt">  # per-class in a multi-class problem</span>
+1 - sensitivity(pred, ref, positive = &quot;yes&quot;)<span class="qa-cmt">     # false negative rate</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is specificity() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">compute true negative rate only</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">specificity(pred, ref, negative = &quot;no&quot;)</text><text x="125" y="126" class="branch-label">want a full classifier scorecard</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">confusionMatrix(pred, ref, positive = &quot;yes&quot;)</text><text x="125" y="182" class="branch-label">need true positive rate</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">sensitivity(pred, ref, positive = &quot;yes&quot;)</text><text x="125" y="238" class="branch-label">need precision and F1</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">posPredValue(pred, ref); F_meas(pred, ref)</text><text x="125" y="294" class="branch-label">score probabilities with <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">AUC</a></text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">pROC::roc(ref, probs); twoClassSummary inside trainControl</text><text x="125" y="350" class="branch-label">tidymodels equivalent</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">yardstick::spec(df, truth, estimate)</text></svg></div>
+
+<h2>What specificity() does in one sentence</h2>
+
+<p><strong><code>specificity()</code> is caret's single-number true-negative-rate metric.</strong> It counts negatives your classifier correctly labeled, then divides by the total negatives in the reference. The result lies between 0 and 1; 1 means every actual negative was left alone, 0 means none were. The function needs no fitted model, only two aligned vectors of class labels (or a contingency table).</p>
+
+<p>caret defines specificity as <code>TN / (TN + FP)</code>, identical to selectivity. For a full scorecard with accuracy, Kappa, sensitivity, and F1 in one call, use <code>confusionMatrix()</code> instead.</p>
+
+<h2>specificity() syntax and arguments</h2>
+
+<p><strong>The function dispatches on the type of its first argument.</strong> Pass a factor and it expects a second factor as reference; pass a table and it reads negatives off the rows excluding the first.</p>
+
+<div class="webr-container" data-block-title="Load caret and build a quick classifier">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and build a quick classifier</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(1)
+two_class      &lt;- iris
+two_class$flag &lt;- factor(ifelse(two_class$Species == &quot;setosa&quot;, &quot;yes&quot;, &quot;no&quot;),
+                         levels = c(&quot;no&quot;, &quot;yes&quot;))
+
+idx  &lt;- createDataPartition(two_class$flag, p = 0.7, list = FALSE)
+fit  &lt;- train(flag ~ Sepal.Length + Sepal.Width + Petal.Length + Petal.Width,
+              data = two_class[idx, ], method = &quot;glm&quot;, family = &quot;binomial&quot;)
+pred &lt;- predict(fit, newdata = two_class[-idx, ])
+ref  &lt;- two_class[-idx, &quot;flag&quot;]
+
+length(pred)
+#&gt; [1] 44</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two calling styles are:</p>
+
+<pre><code>specificity(data, reference, negative = levels(reference)[-1], na.rm = TRUE, ...)
+
+specificity(data, negative = rownames(data)[-1], ...)</code></pre>
+
+<ul>
+
+<li><code>data</code>: predicted class labels (factor) or a precomputed <code>table()</code> of predictions versus reference.</li>
+
+<li><code>reference</code>: ground-truth class labels (factor). Same length and levels as <code>data</code>.</li>
+
+<li><code>negative</code>: which factor level counts as the negative class. Defaults to every level except the first, which collapses non-positive labels in a multi-class problem.</li>
+
+<li><code>na.rm</code>: drop records where either prediction or reference is <code>NA</code> before counting. Default <code>TRUE</code>.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Both vectors must be factors with identical level sets.</strong> Comparing a character vector against a factor coerces silently but the level order may differ, flipping which class counts as negative. Always wrap inputs in <code>factor(..., levels = c(&quot;no&quot;, &quot;yes&quot;))</code> before the call so the negative slot is the one you intend.</div></div>
+
+<h2>specificity() examples by use case</h2>
+
+<h3>1. Specificity from two factor vectors</h3>
+
+<p>The simplest call passes the prediction vector and the reference vector. caret extracts the negative level from the reference factor.</p>
+
+<div class="webr-container" data-block-title="Specificity from prediction and reference">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Specificity from prediction and reference</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">spec_default &lt;- specificity(pred, ref, negative = &quot;no&quot;)
+spec_default
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A value of 1 means every actual <code>no</code> record was predicted <code>no</code>. On harder problems specificity usually lands between 0.7 and 0.95.</p>
+
+<h3>2. Specificity from a precomputed table</h3>
+
+<p>If you already cross-tabbed predictions and references with <code>table()</code>, hand the matrix in directly. Rows after the first are treated as the negative class unless you override.</p>
+
+<div class="webr-container" data-block-title="Specificity from a contingency table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Specificity from a contingency table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tab &lt;- table(prediction = pred, reference = ref)
+tab
+#&gt;           reference
+#&gt; prediction no yes
+#&gt;        no  29   0
+#&gt;        yes  0  15
+
+specificity(tab, negative = &quot;no&quot;)
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The table form bypasses the factor-level coercion that trips up the vector form, and it is the only option when predictions arrive as counts (e.g., aggregated logs).</p>
+
+<h3>3. Set the negative class explicitly</h3>
+
+<p>The default negative is every level except the first. For binary outcomes this is usually fine, but for multi-class problems you almost always want to set <code>negative</code> by hand so the metric matches the question you are asking.</p>
+
+<div class="webr-container" data-block-title="Compare specificity for both negative choices">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare specificity for both negative choices</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">spec_no  &lt;- specificity(pred, ref, negative = &quot;no&quot;)
+spec_yes &lt;- specificity(pred, ref, negative = &quot;yes&quot;)
+
+c(negative_no = spec_no, negative_yes = spec_yes)
+#&gt; negative_no negative_yes
+#&gt;           1            1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>In a binary problem, specificity for one class equals sensitivity for the other. On noisy data the numbers diverge and the negative choice flips the metric. Pick the class whose false positives cost the most: spam flags on legitimate mail, false fraud alerts, false-positive cancer screens.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Specificity is asymmetric and ignores the positive class entirely.</strong> A model that predicts <code>no</code> for every record scores a perfect specificity of 1.0, because it never raises a false alarm. The same model scores 0 on sensitivity. Always read specificity alongside sensitivity (or balanced accuracy) so the trivial-negative trick cannot fool you.</div></div>
+
+<h3>4. Specificity for each class in a multi-class problem</h3>
+
+<p>For three or more classes, specificity is computed one class at a time, treating that class as positive and everything else as negative. Loop over the levels to get a per-class vector of the share of non-class records the model correctly excluded.</p>
+
+<div class="webr-container" data-block-title="Per-class specificity on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-class specificity on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+idx3   &lt;- createDataPartition(iris$Species, p = 0.7, list = FALSE)
+fit3   &lt;- train(Species ~ ., data = iris[idx3, ], method = &quot;rpart&quot;)
+pred3  &lt;- predict(fit3, newdata = iris[-idx3, ])
+ref3   &lt;- iris[-idx3, &quot;Species&quot;]
+
+spec_by_class &lt;- sapply(levels(ref3), function(cl) {
+  ref_bin  &lt;- factor(ifelse(ref3  == cl, cl, &quot;other&quot;), levels = c(cl, &quot;other&quot;))
+  pred_bin &lt;- factor(ifelse(pred3 == cl, cl, &quot;other&quot;), levels = c(cl, &quot;other&quot;))
+  specificity(pred_bin, ref_bin, negative = &quot;other&quot;)
+})
+round(spec_by_class, 3)
+#&gt;     setosa versicolor  virginica
+#&gt;      1.000      0.967      1.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Setosa and virginica hit 1.0; versicolor drops to 0.967 because one non-versicolor flower was wrongly flagged as versicolor. This is the specificity column of <code>confusionMatrix()$byClass</code>; the loop form just skips the rest of the report.</p>
+
+<h3>5. Compare sensitivity, specificity, and precision side by side</h3>
+
+<p>caret pairs <code>specificity()</code> with sibling functions for the other corners of the <a class="auto-link" href="Logistic-Regression-Exercises-in-R.html" title="Logistic Regression Exercises in R: 10 Classification Practice Problems, Solved Step-by-Step">confusion matrix</a>. Calling them together gives a three-number summary without building the whole <code>confusionMatrix</code> object.</p>
+
+<div class="webr-container" data-block-title="Three-number summary of a binary classifier">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three-number summary of a binary classifier</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">metrics &lt;- c(
+  sensitivity = sensitivity(pred, ref, positive = &quot;yes&quot;),
+  specificity = specificity(pred, ref, negative = &quot;no&quot;),
+  precision   = posPredValue(pred, ref, positive = &quot;yes&quot;)
+)
+round(metrics, 3)
+#&gt; sensitivity specificity   precision
+#&gt;           1           1           1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Specificity (<code>TN / (TN + FP)</code>) answers "of the negatives, how many did we leave alone?" Sensitivity (<code>TP / (TP + FN)</code>) answers "of the positives, how many did we catch?" Precision (<code>TP / (TP + FP)</code>) answers "of the predicted positives, how many were right?" Together they describe the classifier more honestly than accuracy.</p>
+
+<h2>specificity() vs alternatives</h2>
+
+<p><strong>caret's <code>specificity()</code> is a one-metric extractor; pick a fuller tool when you want more than the true negative rate.</strong> The choice usually comes down to whether you also need sensitivity, accuracy, or F1 in the same call.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Returns</th>
+<th>Multi-class</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>caret::specificity()</code></td>
+<td>Single numeric</td>
+<td>One-class-at-a-time via <code>negative=</code></td>
+<td>A single TNR number in scripts</td>
+</tr>
+<tr>
+<td><code>caret::confusionMatrix()</code></td>
+<td>List with overall and per-class metrics</td>
+<td>Yes, all classes at once</td>
+<td>Full classifier scorecard</td>
+</tr>
+<tr>
+<td><code>yardstick::spec()</code></td>
+<td>Tibble with <code>.metric</code>, <code>.estimate</code></td>
+<td>Yes, with macro or micro estimator</td>
+<td>Tidymodels pipelines</td>
+</tr>
+<tr>
+<td><code>MLmetrics::Specificity()</code></td>
+<td>Single numeric</td>
+<td>No (binary only)</td>
+<td>Drop-in replacement, no caret dependency</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for <code>specificity()</code> when you only need TNR or are comparing it against <code>sensitivity()</code> and <code>posPredValue()</code> side by side. Use <code>confusionMatrix()</code> when you also want accuracy, Kappa, F1, and <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a> from the same call. See the official caret reference at <a href="https://topepo.github.io/caret/measuring-performance.html">topepo.github.io/caret/measuring-performance.html</a> for the full metric family.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: leaving <code>negative</code> on the default.</strong> caret picks every level except the first, collapsing labels into one negative bucket in a multi-class problem. Always pass <code>negative</code> explicitly so the metric matches the class you treat as negative.</p>
+
+<p><strong>Pitfall 2: passing <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">character vectors</a> instead of factors.</strong> caret coerces internally, but the resulting level order is alphabetical, not the order you typed; the negative class can silently flip. Wrap inputs in <code>factor(x, levels = c(&quot;no&quot;, &quot;yes&quot;))</code>.</p>
+
+<p><strong>Pitfall 3: comparing specificity across imbalanced datasets.</strong> A 99 percent negative dataset can produce specificity 1.0 from a model that always predicts negative. Read it alongside sensitivity, or use balanced accuracy.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>specificity()</code> does not score probabilities.</strong> It needs hard class labels. For probability-based curves (ROC), use <code>pROC::roc(ref, probs)</code> and read specificity off the curve at your chosen threshold, or call <code>twoClassSummary()</code> inside <code>trainControl</code> to get ROC, sensitivity, and specificity per resample.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute specificity for the <code>versicolor</code> class on the multi-class iris classifier built in example 4. Use the existing <code>pred3</code> and <code>ref3</code> objects. Save the result to <code>ex_spec_versicolor</code>.</p>
+<div class="webr-container" data-block-title="Your turn: specificity for versicolor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: specificity for versicolor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: per-class specificity
+ex_spec_versicolor &lt;- # your code here
+
+ex_spec_versicolor
+#&gt; Expected: a numeric value near 0.967</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ref_bin  &lt;- factor(ifelse(ref3  == &quot;versicolor&quot;, &quot;versicolor&quot;, &quot;other&quot;),
+                   levels = c(&quot;versicolor&quot;, &quot;other&quot;))
+pred_bin &lt;- factor(ifelse(pred3 == &quot;versicolor&quot;, &quot;versicolor&quot;, &quot;other&quot;),
+                   levels = c(&quot;versicolor&quot;, &quot;other&quot;))
+ex_spec_versicolor &lt;- specificity(pred_bin, ref_bin, negative = &quot;other&quot;)
+round(ex_spec_versicolor, 3)
+#&gt; [1] 0.967</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Binarising the labels into <code>versicolor</code> versus <code>other</code> lets caret count true negatives as records that are not versicolor and were not predicted versicolor. The single number is the specificity for versicolor in a one-vs-rest framing.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p>After <code>specificity()</code>, these caret functions round out classification evaluation:</p>
+
+<ul>
+
+<li><code>sensitivity()</code>: true positive rate, the companion metric to specificity</li>
+
+<li><code>posPredValue()</code>: <a class="auto-link" href="Bayes-Theorem-in-R.html" title="Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why">positive predictive value</a> (precision); the column-wise twin of sensitivity</li>
+
+<li><code>negPredValue()</code>: negative predictive value; precision for the negative class</li>
+
+<li><code>confusionMatrix()</code>: full classifier scorecard with both overall and per-class metrics</li>
+
+<li><code>twoClassSummary()</code>: drop-in <code>summaryFunction</code> for <code>trainControl</code> that returns ROC, sensitivity, and specificity per resample</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>Is caret specificity the same as true negative rate?</strong></p>
+
+<p>Yes. caret defines specificity as <code>TN / (TN + FP)</code>, the same formula epidemiologists call true negative rate or selectivity. The numbers are identical; only the field convention differs.</p>
+
+<p><strong>Why does caret specificity return 0 when my model looks fine?</strong></p>
+
+<p>Usually the negative class is set to the wrong level. caret defaults to every level except the first, so for <code>c(&quot;no&quot;, &quot;yes&quot;)</code> it reads specificity off the "yes" row, which is empty in your positives. Pass <code>negative = &quot;no&quot;</code> and the number should jump.</p>
+
+<p><strong>How do I compute specificity for each class in a multi-class problem?</strong></p>
+
+<p>Binarise the labels per class, then call <code>specificity(pred_bin, ref_bin, negative = &quot;other&quot;)</code>. caret's stock per-class output via <code>confusionMatrix()$byClass[, &quot;Specificity&quot;]</code> does the same thing in one call and is usually faster than the loop.</p>
+
+<p><strong>What is the difference between specificity and precision?</strong></p>
+
+<p>Specificity is <code>TN / (TN + FP)</code>: of all true negatives, how many did we leave alone. Precision is <code>TP / (TP + FP)</code>: of all positive predictions, how many were right. Both penalise false positives, but specificity normalises by the negative population while precision normalises by predictions, so they diverge sharply on imbalanced data.</p>
+
+<p><strong>Can I use specificity inside trainControl for model tuning?</strong></p>
+
+<p>Yes. Set <code>summaryFunction = twoClassSummary</code> and <code>classProbs = TRUE</code> in <code>trainControl()</code>, then pick <code>metric = &quot;Spec&quot;</code> in <code>train()</code>. caret will tune hyperparameters to maximise average specificity across resamples.</p>
