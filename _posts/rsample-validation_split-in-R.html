@@ -1,0 +1,365 @@
+---
+title: "rsample validation_split() in R: Train Validation Split"
+description: "Create a train/validation split with rsample validation_split() in R. Covers prop, strata, the initial_validation_split() upgrade, and tune integration."
+keywords: "rsample validation_split, validation_split function R, rsample validation_split examples, R validation set split, initial_validation_split, train validation test split R, tidymodels validation set"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "validation_split()|rsample validation_split|rsample::validation_split()|validation set split|initial_validation_split()"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>rsample validation_split() in R: Train Validation Split</h1>
+
+<p class="lead">The rsample validation_split() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> creates a single train/validation partition wrapped as a resampling object, so you can tune a model on the validation set without burning your held-out <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>validation_split(df)<span class="qa-cmt">                          # default 75/25 train/validation</span>
+validation_split(df, prop = 0.8)<span class="qa-cmt">              # custom 80/20</span>
+validation_split(df, strata = y)<span class="qa-cmt">              # stratified by outcome</span>
+analysis(vs$splits[[1]])<span class="qa-cmt">                      # extract training rows</span>
+assessment(vs$splits[[1]])<span class="qa-cmt">                    # extract validation rows</span>
+set.seed(123); validation_split(df)<span class="qa-cmt">           # reproducible split</span>
+initial_validation_split(df, prop = c(.6,.2))<span class="qa-cmt"> # modern 3-way split</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is validation_split() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">single train/validation rset for tuning</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">validation_split(df, prop = 0.8)</text><text x="125" y="126" class="branch-label">three-way train/val/test in one shot</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">initial_validation_split(df)</text><text x="125" y="182" class="branch-label">simple train/test split, no tuning</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">initial_split(df, prop = 0.8)</text><text x="125" y="238" class="branch-label"><a class="auto-link" href="rsample-vfold_cv-in-R.html" title="rsample vfold_cv() in R: V-Fold Cross-Validation Splits">k-fold cross-validation</a> for tuning</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">vfold_cv(df, v = 10)</text><text x="125" y="294" class="branch-label">repeated resampling estimates</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">bootstraps(df, times = 25)</text><text x="125" y="350" class="branch-label">stratify the split by class</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">validation_split(df, strata = y)</text><text x="125" y="406" class="branch-label">time-ordered validation slice</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">initial_time_split(df, prop = 0.8)</text></svg></div>
+
+<h2>What validation_split() does</h2>
+
+<p><strong>validation_split() partitions a data frame once into a training portion and a validation portion, and returns that pair as an rset.</strong> It lives in the rsample package, the resampling engine of the tidymodels ecosystem. The split itself is the same as <code>initial_split()</code>, but the return value is shaped differently. You get a one-row tibble with a <code>splits</code> list-column, the same shape that <code>vfold_cv()</code> and <code>bootstraps()</code> produce. That shape is what <code>tune::tune_grid()</code> expects in its <code>resamples</code> argument.</p>
+
+<p>The point of a held-out validation set is to tune hyperparameters without touching the final test set. You fit candidate models on the training rows, score them on the validation rows, pick the best, and only then evaluate on a fresh test split.</p>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>The signature mirrors <a class="auto-link" href="rsample-initial_split-in-R.html" title="rsample initial_split() in R: Make a Train/Test Split">initial_split()</a> so the same defaults apply.</strong></p>
+
+<div class="webr-container" data-block-title="validation split function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">validation split function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">validation_split(
+  data,           # data frame to split
+  prop = 3/4,     # fraction of rows in training
+  strata = NULL,  # column to stratify by
+  breaks = 4,     # quantile bins for numeric strata
+  pool = 0.1      # small-level pooling threshold
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments you reach for in practice:</p>
+
+<ul>
+
+<li><strong>data</strong>: the data frame or tibble to partition.</li>
+
+<li><strong>prop</strong>: the fraction of rows kept for training. The default <code>3/4</code> sends 75 percent to training, 25 percent to the validation slice.</li>
+
+<li><strong>strata</strong>: a column name. Splitting is performed within each level of this variable so the class mix is preserved on both sides.</li>
+
+<li><strong>breaks</strong>: when <code>strata</code> is numeric, the number of <a class="auto-link" href="dplyr-ntile-in-R.html" title="dplyr ntile() in R: Bin Values into N Equal-Count Groups">quantile bins</a> used to stratify the values.</li>
+
+<li><strong>pool</strong>: strata levels smaller than this fraction of the data are merged before splitting, which prevents empty cells.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>As of rsample 1.2.0, validation_split() is soft-deprecated.</strong> The function still works and you will see it in tutorials, but new tidymodels code should prefer the <code>initial_validation_split()</code> plus <code>validation_set()</code> pair covered below.</div></div>
+
+<h2>validation_split() examples</h2>
+
+<h3>Basic 80/20 train/validation split</h3>
+
+<p><strong>Call validation_split() on a data frame and print the result to see the rset shape.</strong> The return value is a one-row tibble, not a single split, because rsample treats it as a resampling object with exactly one resample.</p>
+
+<div class="webr-container" data-block-title="Create an 80/20 validation split">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create an 80/20 validation split</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rsample)
+
+set.seed(123)
+mtcars_vs &lt;- validation_split(mtcars, prop = 0.8)
+mtcars_vs
+#&gt; # A tibble: 1 x 2
+#&gt;   splits         id        
+#&gt;   &lt;list&gt;         &lt;chr&gt;     
+#&gt; 1 &lt;split [25/7]&gt; validation</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>&lt;split [25/7]&gt;</code> notation reports 25 training rows and 7 validation rows. The <code>id</code> column tags this resample as <code>validation</code>, which is how tune later labels the metric output.</p>
+
+<h3>Extract the training and validation data</h3>
+
+<p><strong>Use analysis() for training rows and assessment() for validation rows.</strong> The pair are the rsample names for what most people call the train and validation slices.</p>
+
+<div class="webr-container" data-block-title="Pull training and validation rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pull training and validation rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train_data &lt;- analysis(mtcars_vs$splits[[1]])
+val_data   &lt;- assessment(mtcars_vs$splits[[1]])
+
+nrow(train_data)
+#&gt; [1] 25
+nrow(val_data)
+#&gt; [1] 7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>training()</code> and <code>testing()</code> helpers also work on the underlying rsplit, but <code>analysis()</code> and <code>assessment()</code> read more clearly when the second slice is a validation set rather than a test set.</p>
+
+<h3>Stratified split on a classification target</h3>
+
+<p><strong>Pass a class column to strata to keep the class balance equal in both slices.</strong> This matters most for imbalanced outcomes where a random split can leave the validation set short on a minority class.</p>
+
+<div class="webr-container" data-block-title="Stratify the split by Species">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stratify the split by Species</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+iris_vs &lt;- validation_split(iris, prop = 0.75, strata = Species)
+iris_vs$splits[[1]]
+#&gt; &lt;Analysis/Assess/Total&gt;
+#&gt; &lt;111/39/150&gt;
+
+table(analysis(iris_vs$splits[[1]])$Species)
+#&gt; setosa versicolor  virginica 
+#&gt;     37         37         37</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every Species level lands 37 rows in training. Compare that to an unstratified split, where the counts will drift by a few rows each run.</p>
+
+<h3>Hand the rset to tune_grid()</h3>
+
+<p><strong>The shape of validation_split() is built for tune::tune_grid(), which expects an rset in its resamples argument.</strong> You define a tunable model spec, pass the validation rset, and tune fits each grid candidate on the training rows and scores it on the validation rows.</p>
+
+<div class="webr-container" data-block-title="Validation rset slots into tune_grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Validation rset slots into tune_grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Pseudocode for downstream use, not run here
+# library(parsnip); library(tune)
+# spec &lt;- rand_forest(mtry = tune()) |&gt;
+#   set_engine(&quot;ranger&quot;) |&gt; set_mode(&quot;regression&quot;)
+# tune_grid(spec, mpg ~ ., resamples = mtcars_vs, grid = 5)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Cross-validation rsets like <code>vfold_cv()</code> plug into the exact same slot. That interchangeability is the reason <code>validation_split()</code> returns a one-row tibble instead of a bare split.</p>
+
+<h2>Compare with alternatives</h2>
+
+<p><strong>Use validation_split() when you want a single held-out slice with tune compatibility, but prefer initial_validation_split() for new code.</strong> The table below shows when each rsample helper fits.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Output shape</th>
+<th>Use case</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>validation_split()</code></td>
+<td>rset, 1 row</td>
+<td>Single train/validation pair, tune-compatible (soft-deprecated)</td>
+</tr>
+<tr>
+<td><code>initial_validation_split()</code></td>
+<td>3-way split object</td>
+<td>Train, validation, AND test in one call, modern replacement</td>
+</tr>
+<tr>
+<td><code>initial_split()</code></td>
+<td>rsplit, 1 split</td>
+<td>Plain train/test, no tuning loop</td>
+</tr>
+<tr>
+<td><code>vfold_cv()</code></td>
+<td>rset, k rows</td>
+<td>K-fold cross-validation in tune_grid()</td>
+</tr>
+<tr>
+<td><code>bootstraps()</code></td>
+<td>rset, t rows</td>
+<td>Resampled performance estimates with replacement</td>
+</tr>
+</tbody>
+</table>
+
+<p>The modern path is <code>initial_validation_split()</code> followed by <code>validation_set()</code>:</p>
+
+<div class="webr-container" data-block-title="Modern train validation test workflow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Modern train validation test workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+three_way &lt;- initial_validation_split(mtcars, prop = c(0.6, 0.2))
+three_way
+#&gt; &lt;Training/Validation/Testing/Total&gt;
+#&gt; &lt;19/6/7/32&gt;
+
+# Extract each slice
+train_rows &lt;- training(three_way)
+val_rows   &lt;- validation(three_way)
+test_rows  &lt;- testing(three_way)
+
+# Convert to a tune-ready rset
+vs &lt;- validation_set(three_way)
+vs
+#&gt; # A tibble: 1 x 2
+#&gt;   splits         id        
+#&gt;   &lt;list&gt;         &lt;chr&gt;     
+#&gt; 1 &lt;split [19/6]&gt; validation</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The validation set is for tuning, the test set is for the final score.</strong> Touching the test set during hyperparameter selection inflates your reported accuracy. <code>initial_validation_split()</code> makes the three-way separation explicit so you never reach for the wrong slice.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes show up over and over when readers first reach for validation_split().</strong></p>
+
+<ol>
+
+<li><strong>Treating the rset as a split.</strong> <code>validation_split(df)</code> returns a tibble. Calling <code>training()</code> on it errors. You must index into <code>$splits[[1]]</code> first, or use <code>analysis()</code> and <code>assessment()</code> on the inner rsplit.</li>
+
+</ol>
+
+<ol>
+
+<li><strong>Forgetting set.seed() before the call.</strong> rsample uses R's RNG to draw the partition. Without a seed, every script run produces a different split, and your reported validation metric will jitter.</li>
+
+</ol>
+
+<ol>
+
+<li><strong>Using the validation set as the test set.</strong> Tuning on the validation slice and reporting that score as final performance leaks information. Hold out a separate test slice with <code>initial_validation_split()</code> or a second <code>initial_split()</code> step.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>validation_split(df, prop = 0.8)</code> puts 80 percent in training, NOT 80 percent in validation.</strong> <code>prop</code> always names the training fraction, even though the function name highlights the validation slice.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Split iris into a 70/30 train/validation pair stratified by Species, then count how many setosa rows land in the validation slice. Save the count to <code>ex_setosa_val</code>.</p>
+<div class="webr-container" data-block-title="Your turn: stratified validation split">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: stratified validation split</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: build a stratified 70/30 validation_split of iris
+set.seed(99)
+ex_iris_vs &lt;- # your code here
+
+ex_setosa_val &lt;- # your code here
+
+ex_setosa_val
+#&gt; Expected: 15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+ex_iris_vs &lt;- validation_split(iris, prop = 0.7, strata = Species)
+
+ex_setosa_val &lt;- sum(assessment(ex_iris_vs$splits[[1]])$Species == &quot;setosa&quot;)
+ex_setosa_val
+#&gt; [1] 15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Stratified splitting on Species keeps each class proportional, so a 70/30 split of 50 setosa rows puts 35 in training and 15 in the validation slice. <code>assessment()</code> pulls the validation rows from the inner rsplit object.</p>
+
+</details>
+</section>
+
+<h2>Related rsample functions</h2>
+
+<ul>
+
+<li>[<code>initial_split()</code>](rsample-initial_split-in-R.html) for a plain train/test pair with no tuning loop</li>
+
+<li>[<code>vfold_cv()</code>](rsample-vfold_cv-in-R.html) for k-fold cross-validation in tune_grid</li>
+
+<li>[<code>bootstraps()</code>](rsample-bootstraps-in-R.html) for resampled performance estimates</li>
+
+<li>[<code>group_initial_split()</code>](rsample-group_initial_split-in-R.html) when rows belong to groups that must not split across slices</li>
+
+</ul>
+
+<p>External reference: the official <a href="https://rsample.tidymodels.org/reference/validation_split.html">rsample::validation_split()</a> documentation.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between validation_split() and initial_split()?</strong></p>
+
+<p><code>initial_split()</code> returns a single rsplit object, the shape you pass to <code>training()</code> and <code>testing()</code> for a plain holdout. <code>validation_split()</code> makes the same partition but wraps it as a one-row rset, the shape <code>tune::tune_grid()</code> expects in its <code>resamples</code> argument. Use <code>initial_split()</code> when you only need a train/test pair. Use <code>validation_split()</code> when the held-out rows are a validation set you will score tuning candidates against.</p>
+
+<p><strong>Is validation_split() deprecated?</strong></p>
+
+<p>It is soft-deprecated as of rsample 1.2.0, which means the function still works and will not error, but new code should prefer <code>initial_validation_split()</code> paired with <code>validation_set()</code>. The new pair produces an explicit three-way train, validation, and test split, which makes the separation between tuning and final scoring impossible to confuse.</p>
+
+<p><strong>How do I set the validation set proportion?</strong></p>
+
+<p>Pass the <code>prop</code> argument. <code>prop</code> names the training fraction, not the validation fraction, so <code>prop = 0.8</code> gives 80 percent training and 20 percent validation. For a three-way <code>initial_validation_split()</code>, pass a two-element vector like <code>prop = c(0.6, 0.2)</code> for 60 percent training, 20 percent validation, and the remaining 20 percent test.</p>
+
+<p><strong>Can I use validation_split() with tune_grid()?</strong></p>
+
+<p>Yes. The one-row rset slots into <code>tune_grid(resamples = vs)</code> exactly like a <code>vfold_cv()</code> object. tune fits each candidate on the training rows, scores it on the validation rows, and reports the validation metric. For k-fold instead, swap <code>validation_split()</code> for <code>vfold_cv(v = 10)</code>; everything else stays the same.</p>
+
+<p><strong>Why do I get two rows when I call assessment() on the result?</strong></p>
+
+<p>You probably called <code>assessment()</code> on the rset tibble rather than the inner rsplit. Index in first: <code>assessment(vs$splits[[1]])</code>. The <code>$splits[[1]]</code> unwraps the list-column to get the rsplit object the resample helpers operate on.</p>
