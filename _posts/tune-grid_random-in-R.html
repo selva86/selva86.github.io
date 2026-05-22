@@ -1,0 +1,417 @@
+---
+title: "dials grid_random() in R: Random Hyperparameter Grids"
+description: "Use dials grid_random() in R to draw random hyperparameter candidates for tune_grid(). See syntax, size, reproducibility, examples, and common pitfalls."
+keywords: "dials grid_random, grid_random R, grid_random tidymodels, grid_random function R, random tuning grid R, hyperparameter random search R, tidymodels random grid"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "grid_random()|dials::grid_random()|dials grid_random|random tuning grid|random grid dials"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>dials grid_random() in R: Random Hyperparameter Grids</h1>
+
+<p class="lead">The dials grid_random() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> draws independent uniform samples from each tuning parameter's range, returning a tibble of candidate combinations you hand to tune_grid() when an exhaustive cartesian grid is too large.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>grid_random(penalty(), size = 25)<span class="qa-cmt">                              # one parameter, 25 draws</span>
+grid_random(penalty(), mixture(), size = 30)<span class="qa-cmt">                   # two parameters</span>
+grid_random(penalty(range = c(-4, 0)), size = 20)<span class="qa-cmt">              # custom log10 range</span>
+grid_random(extract_parameter_set_dials(wf), size = 50)<span class="qa-cmt">        # from a workflow</span>
+grid_random(mtry(c(1, 10)), trees(c(100, 500)), size = 25)<span class="qa-cmt">     # tree-model knobs</span>
+grid_random(neighbors(), weight_func(), size = 15)<span class="qa-cmt">             # numeric and qualitative</span>
+grid_random(pset, size = 40, original = FALSE)<span class="qa-cmt">                 # transformed-scale draws</span>
+set.seed(1); grid_random(penalty(), size = 10)<span class="qa-cmt">                 # reproducible sample</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is grid_random() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">random uniform sample of the parameter space</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">grid_random(penalty(), size = 25)</text><text x="125" y="126" class="branch-label">exhaustive grid at evenly-spaced levels</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">grid_regular(penalty(), levels = 5)</text><text x="125" y="182" class="branch-label">space-filling Latin hypercube</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">grid_latin_hypercube(penalty(), size = 25)</text><text x="125" y="238" class="branch-label">max-entropy space-filling design</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">grid_max_entropy(penalty(), size = 25)</text><text x="125" y="294" class="branch-label">new umbrella for random and space-filling</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">grid_space_filling(pset, size = 25)</text><text x="125" y="350" class="branch-label">iterative model-based search</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">tune_bayes(wf, resamples = folds)</text><text x="125" y="406" class="branch-label">a hand-picked candidate tibble</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">tibble(penalty = c(0.001, 0.01, 0.1))</text></svg></div>
+
+<h2>What grid_random() does in one sentence</h2>
+
+<p><strong>grid_random() draws size independent uniform samples from the joint parameter space and returns them as a tibble.</strong> You pass any number of dials parameter objects (or a <code>parameters()</code> set), tell it how many rows you want, and it samples each parameter independently from its (possibly transformed) range. The result has one column per parameter and exactly <code>size</code> rows, no matter how many parameters you tune.</p>
+
+<p>The function lives in the dials package and is re-exported by tidymodels. Pair it with <code>tune_grid()</code> when a regular grid's <a class="auto-link" href="dplyr-cross_join-in-R.html" title="dplyr cross_join() in R: Cartesian Product of Two Tables">cartesian product</a> would be too large. Random search reaches good regions quickly in higher dimensions, which is why it became the standard baseline before space-filling designs gained traction.</p>
+
+<h2>Set up a parameter set</h2>
+
+<p><strong>Every random grid starts from a parameter specification.</strong> Either build it on the fly from individual dials objects or extract it from a workflow with <code>tune()</code> placeholders.</p>
+
+<div class="webr-container" data-block-title="Load tidymodels and define parameters">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load tidymodels and define parameters</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+
+p1 &lt;- penalty()
+p1
+#&gt; Amount of Regularization (quantitative)
+#&gt; Transformer: log-10 [1e-100, Inf]
+#&gt; Range (transformed scale): [-10, 0]
+
+p2 &lt;- mixture()
+p2
+#&gt; Proportion of Lasso Penalty (quantitative)
+#&gt; Range: [0, 1]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each dials object knows its default range, scale (log10 for <code>penalty()</code>, identity for <code>mixture()</code>), and label. The transformer matters: grid_random() draws uniformly on the transformed scale by default, then back-transforms before returning, so <code>penalty()</code> samples are uniform in log10 and span the full range of magnitudes evenly.</p>
+
+<div class="webr-container" data-block-title="Build a workflow with tune() placeholders">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a workflow with tune() placeholders</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">glmnet_spec &lt;- linear_reg(penalty = tune(), mixture = tune()) |&gt;
+  set_engine(&quot;glmnet&quot;)
+
+wf &lt;- workflow() |&gt;
+  add_formula(mpg ~ .) |&gt;
+  add_model(glmnet_spec)
+
+extract_parameter_set_dials(wf)
+#&gt; Collection of 2 parameters for tuning
+#&gt;  identifier    type    object
+#&gt;     penalty penalty nparam[+]
+#&gt;     mixture mixture nparam[+]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Pass parameters, not strings.</strong> grid_random() expects dials parameter objects (<code>penalty()</code>) or a <code>parameters()</code> collection, never the raw argument name. The set extracted from a workflow carries identifiers and ranges in one bundle, which is the cleanest input for a real tuning script.</div></div>
+
+<h2>grid_random() syntax and arguments</h2>
+
+<p><strong>The signature is short and every argument earns its place.</strong></p>
+
+<div class="webr-container" data-block-title="grid_random generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">grid_random generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grid_random(
+  x,                      # parameters object or one+ dials parameter objects
+  ...,                    # additional parameter objects
+  size = 5,               # number of rows to draw
+  original = TRUE,        # return values on the original scale
+  filter = NULL           # quoted expression to drop rows
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code>, <code>...</code></td>
+<td>Parameter objects: <code>penalty()</code>, <code>mixture()</code>, <code>mtry()</code>, or a <code>parameters()</code> set.</td>
+</tr>
+<tr>
+<td><code>size</code></td>
+<td>How many random candidates to draw. Same scalar regardless of parameter count.</td>
+</tr>
+<tr>
+<td><code>original</code></td>
+<td>If <code>TRUE</code>, returns natural-scale values; if <code>FALSE</code>, returns transformed-scale values for plotting or diagnostics.</td>
+</tr>
+<tr>
+<td><code>filter</code></td>
+<td>Optional <code>rlang</code> expression like <code>expr(penalty &gt; 0.001)</code> to prune rows after sampling.</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Set a seed before every grid_random() call.</strong> The grid is stochastic, so two runs return different tibbles by default. <code>set.seed(1); grid_random(penalty(), size = 25)</code> makes the candidate set reproducible across sessions, which matters for reviewers who need to rerun your tuning script and get the same numbers.</div></div>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Begin with one parameter, add a second, then read from a workflow.</strong> The same call shape scales from a quick prototype to a higher-dimensional sweep where regular grids would explode.</p>
+
+<div class="webr-container" data-block-title="One-parameter random grid for a lasso sweep">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One-parameter random grid for a lasso sweep</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+lasso_grid &lt;- grid_random(penalty(range = c(-4, 0)), size = 8)
+lasso_grid
+#&gt; # A tibble: 8 x 1
+#&gt;     penalty
+#&gt;       &lt;dbl&gt;
+#&gt; 1 0.0476
+#&gt; 2 0.000683
+#&gt; 3 0.00302
+#&gt; 4 0.330
+#&gt; 5 0.00141
+#&gt; 6 0.0832
+#&gt; 7 0.000118
+#&gt; 8 0.0259</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A two-parameter random grid stays the same length even as parameters multiply. With three or four tunables, random search reaches every corner of the joint space with roughly the same total fits a regular grid would need for one parameter.</p>
+
+<div class="webr-container" data-block-title="Two-parameter random grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-parameter random grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2)
+rand_grid &lt;- grid_random(
+  penalty(range = c(-4, 0)),
+  mixture(range = c(0, 1)),
+  size = 20
+)
+nrow(rand_grid)
+#&gt; [1] 20
+
+head(rand_grid, 4)
+#&gt; # A tibble: 4 x 2
+#&gt;     penalty mixture
+#&gt;       &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 0.00159   0.184
+#&gt; 2 0.000257  0.703
+#&gt; 3 0.0392    0.573
+#&gt; 4 0.0102    0.168</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Reading from a workflow keeps identifiers in sync with the spec. If you rename a tuned argument with <code>tune(&quot;my_lambda&quot;)</code>, the grid column auto-updates because the parameter set is the source of truth.</p>
+
+<div class="webr-container" data-block-title="Build a random grid from a workflow parameter set">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a random grid from a workflow parameter set</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pset &lt;- extract_parameter_set_dials(wf) |&gt;
+  update(penalty = penalty(range = c(-4, -1)))
+
+set.seed(3)
+rand_grid &lt;- grid_random(pset, size = 25)
+rand_grid
+#&gt; # A tibble: 25 x 2
+#&gt;     penalty mixture
+#&gt;       &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 0.0166    0.213
+#&gt; 2 0.00118   0.660
+#&gt; 3 0.00451   0.501
+#&gt; 4 0.000169  0.781
+#&gt; 5 0.0316    0.0917</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Hand the grid to <code>tune_grid()</code> and downstream helpers behave exactly as they would for an integer <code>grid = 25</code>, but with full control over the seed.</p>
+
+<div class="webr-container" data-block-title="Use the random grid inside tune_grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use the random grid inside tune_grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(4)
+folds &lt;- vfold_cv(mtcars, v = 5)
+
+res &lt;- tune_grid(
+  wf,
+  resamples = folds,
+  grid      = rand_grid,
+  metrics   = metric_set(rmse)
+)
+show_best(res, metric = &quot;rmse&quot;, n = 3)
+#&gt; # A tibble: 3 x 8
+#&gt;     penalty mixture .metric .estimator  mean     n std_err .config
+#&gt;       &lt;dbl&gt;   &lt;dbl&gt; &lt;chr&gt;   &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 0.0166    0.213   rmse    standard    2.66     5   0.390 Preprocessor1_Model01
+#&gt; 2 0.00451   0.501   rmse    standard    2.68     5   0.385 Preprocessor1_Model03
+#&gt; 3 0.00118   0.660   rmse    standard    2.71     5   0.383 Preprocessor1_Model02</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>grid_random() vs grid_regular() vs space-filling designs</h2>
+
+<p><strong>Pick by how the parameter space should be covered, not by what feels modern.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Coverage style</th>
+<th>When to reach for it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>grid_random()</code></td>
+<td>Independent uniform samples</td>
+<td>Higher-dimensional spaces, quick prototyping, no need for a plot-friendly regular surface.</td>
+</tr>
+<tr>
+<td><code>grid_regular()</code></td>
+<td>Exhaustive cartesian product</td>
+<td>Two or three parameters, reviewers want every combination scored, results plot on a regular axis.</td>
+</tr>
+<tr>
+<td><code>grid_latin_hypercube()</code></td>
+<td>Space-filling, one sample per axis stratum</td>
+<td>Continuous parameters, fewer evaluations than regular, no clustered candidates.</td>
+</tr>
+<tr>
+<td><code>grid_max_entropy()</code></td>
+<td>Space-filling, maximally spread</td>
+<td>Expensive fits where each candidate must be far from the others.</td>
+</tr>
+</tbody>
+</table>
+
+<p>Random grids win at 4+ parameters on a fixed budget. Space-filling designs beat random on even coverage at the same dimension count. Regular grids stay best for 2-parameter sweeps you intend to plot as a heatmap.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most random-grid surprises.</strong></p>
+
+<ol>
+
+<li><strong>No seed before the call.</strong> Without <code>set.seed()</code>, two runs of <code>grid_random()</code> produce different candidates, which breaks reproducibility for the entire downstream tuning result. Set the seed in the same chunk as the grid call so reviewers see the link.</li>
+
+<li><strong>Default range on <code>mtry()</code> and similar data-dependent parameters.</strong> <code>mtry()</code> has no default upper bound because it depends on column count. Either supply a range explicitly (<code>mtry(c(1, 10))</code>) or finalize it against the data with <code>finalize(mtry(), train)</code> before sampling.</li>
+
+<li><strong>Too few draws for the dimension.</strong> A size of 10 across 5 parameters leaves most of the joint space empty. Rule of thumb: 20 to 30 draws for 2 to 3 parameters, 50 to 100 for 4 to 6. If the run is fast enough, scale up further.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Random sampling can cluster candidates.</strong> With size = 10 and two parameters, you may draw three points within the same small corner and miss another corner entirely. If even coverage matters, switch to <code>grid_latin_hypercube()</code> or <code>grid_space_filling()</code>. Random search shines on budget, not on guaranteed spread.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a random grid for an elastic-net workflow with <code>penalty</code> on the log10 range <code>[-3, 0]</code> and <code>mixture</code> on <code>[0, 1]</code>, drawing 12 candidates with <code>set.seed(7)</code>. The result should have 12 rows and 2 columns.</p>
+<div class="webr-container" data-block-title="Your turn: build a 12-row random grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build a 12-row random grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: build a random grid for elastic net
+library(tidymodels)
+
+set.seed(7)
+ex_grid &lt;- # your code here
+
+nrow(ex_grid)
+#&gt; Expected: 12
+
+ncol(ex_grid)
+#&gt; Expected: 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_grid &lt;- grid_random(
+  penalty(range = c(-3, 0)),
+  mixture(range = c(0, 1)),
+  size = 12
+)
+nrow(ex_grid)
+#&gt; [1] 12
+
+ncol(ex_grid)
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> grid_random() takes one <code>size</code> regardless of parameter count, so 12 rows of two columns means 12 independent draws, each pairing a log10-uniform penalty with a uniform mixture. The seed pins the sample so the tibble is identical across sessions.</p>
+
+</details>
+</section>
+
+<h2>Related dials functions</h2>
+
+<p><strong>grid_random() is one of a family; reach for the right neighbor when random sampling is wrong.</strong></p>
+
+<ul>
+
+<li><code>grid_regular()</code> for an exhaustive cartesian product when reviewers need a plot-friendly surface.</li>
+
+<li><code>grid_latin_hypercube()</code> and <code>grid_max_entropy()</code> for space-filling designs that beat random on even coverage.</li>
+
+<li><code>grid_space_filling()</code> as the new umbrella in dials 1.2+, with a <code>type</code> argument that selects random, Latin hypercube, or max entropy.</li>
+
+<li><code>parameters()</code> and <code>extract_parameter_set_dials()</code> to assemble a tuning specification from a workflow.</li>
+
+<li><code>finalize()</code> to pin data-dependent ranges such as <code>mtry()</code> against a <a class="auto-link" href="rsample-training-in-R.html" title="rsample training() in R: Get the Training Set From a Split">training set</a> before grid construction.</li>
+
+<li><code>update()</code> to override one parameter's range inside an existing parameter set without rebuilding it.</li>
+
+</ul>
+
+<p>External reference: the official dials package documentation at <a href="https://dials.tidymodels.org/reference/grid_random.html">dials.tidymodels.org/reference/grid_random.html</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I make grid_random() reproducible?</strong></p>
+
+<p>Call <code>set.seed()</code> immediately before grid_random(). The function uses base R's RNG state, so any preceding random call shifts the result. Pair the seed with the grid call in one chunk: <code>set.seed(1); rand_grid &lt;- grid_random(pset, size = 25)</code>. For a full tuning pipeline, also seed <code>vfold_cv()</code> and <code>tune_grid()</code> separately, since each draws independently for folds and (with racing methods) sub-models.</p>
+
+<p><strong>How many candidates should I draw with grid_random()?</strong></p>
+
+<p>For 2 parameters, 20 to 30 beats a 5x5 regular grid on cost and matches on quality. For 4 to 6 parameters, draw 50 to 100. Above that, switch to a space-filling design or <code>tune_bayes()</code>, because the marginal value of each extra random candidate drops fast in high dimensions. Random search degrades gracefully when the budget is smaller than ideal.</p>
+
+<p><strong>What is the difference between grid_random() and grid_space_filling(type = "random")?</strong></p>
+
+<p>They produce statistically equivalent draws. <code>grid_space_filling()</code> is the newer umbrella introduced in dials 1.2 that dispatches to <code>grid_random()</code>, <code>grid_latin_hypercube()</code>, or <code>grid_max_entropy()</code> via its <code>type</code> argument. New code can use either; the tidymodels team kept <code>grid_random()</code> callable for backward compatibility and because the direct form reads more clearly when the design is decided upfront.</p>
+
+<p><strong>Can I mix qualitative and quantitative parameters in one random grid?</strong></p>
+
+<p>Yes. <code>grid_random(neighbors(), weight_func(), size = 15)</code> samples 15 rows where the <code>neighbors</code> column is a random integer in the parameter's range and the <code>weight_func</code> column is a random factor level. Qualitative columns become factors with uniform probability across levels; numeric columns are doubles. tune_grid() handles the mix without extra work because the parameter set carries each column's type.</p>
+
+<p><strong>How do I tune a recipe step parameter with grid_random()?</strong></p>
+
+<p>Mark the recipe step with <code>tune()</code> (for example, <code>step_pca(num_comp = tune())</code>) and extract the combined parameter set with <code>extract_parameter_set_dials(wf)</code>. Pass that set to grid_random() and the resulting tibble carries one column per tuned argument. Use <code>update(num_comp = num_comp(c(2, 10)))</code> to override the default range, then sample. tune_grid() scores every candidate against every fold, recipe knobs included.</p>
