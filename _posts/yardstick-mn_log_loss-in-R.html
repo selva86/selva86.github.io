@@ -1,0 +1,470 @@
+---
+title: "yardstick mn_log_loss() in R: Cross-Entropy Loss Metric"
+description: "Score class probabilities with yardstick mn_log_loss() in R. See syntax, binary and multiclass examples, sum vs mean, sklearn parity, and common pitfalls."
+keywords: "yardstick mn_log_loss, mn_log_loss function R, yardstick log loss, R cross entropy loss, yardstick mn_log_loss examples, multinomial log loss R, log loss tidymodels"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "yardstick mn_log_loss|yardstick::mn_log_loss()|mn_log_loss yardstick|log loss in R|cross-entropy in R"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>yardstick mn_log_loss() in R: Cross-Entropy Loss Metric</h1>
+
+<p class="lead">The yardstick mn_log_loss() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> scores how well a classifier's predicted probabilities match the observed classes, returning a tidy one-row summary of the mean <a class="auto-link" href="Maximum-Likelihood-Estimation-in-R.html" title="Maximum Likelihood Estimation in R: Build Genuine Intuition, Then Fit Real Models">negative log-likelihood</a> (cross-entropy) for binary or multiclass problems.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>mn_log_loss(df, truth, .pred_class1)<span class="qa-cmt">                       # binary call</span>
+mn_log_loss(df, truth = obs, .pred_class1)<span class="qa-cmt">                 # named truth column</span>
+mn_log_loss(df, class, .pred_yes, event_level = &quot;second&quot;)<span class="qa-cmt">  # flip positive class</span>
+df |&gt; group_by(fold) |&gt; mn_log_loss(class, .pred_yes)<span class="qa-cmt">      # per resample</span>
+mn_log_loss(df, class, .pred_a, .pred_b, .pred_c)<span class="qa-cmt">          # multiclass</span>
+mn_log_loss(df, class, .pred_a:.pred_c, sum = TRUE)<span class="qa-cmt">        # sum, not mean</span>
+mn_log_loss_vec(truth_vec, prob_vec)<span class="qa-cmt">                       # vector interface</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is mn_log_loss() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">penalize overconfident wrong predictions</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">mn_log_loss(df, truth, .pred_class1)</text><text x="125" y="126" class="branch-label">measure calibration error directly</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">brier_class(df, truth, .pred_class1)</text><text x="125" y="182" class="branch-label">score ranking on balanced data</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">roc_auc(df, truth, .pred_class1)</text><text x="125" y="238" class="branch-label">score ranking on rare positives</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">pr_auc(df, truth, .pred_class1)</text><text x="125" y="294" class="branch-label">score class labels at one cutoff</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">accuracy(df, truth, estimate)</text><text x="125" y="350" class="branch-label">score cost-weighted mistakes</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">classification_cost(df, truth, .pred_class1)</text></svg></div>
+
+<h2>What mn_log_loss() measures</h2>
+
+<p><strong>mn_log_loss() answers how confident and correct a probabilistic classifier is.</strong> Pass a tibble with the truth column and one or more probability columns; the function returns a one-row tibble with <code>.metric</code>, <code>.estimator</code>, and <code>.estimate</code>. The estimate is the mean negative log-likelihood of the observed classes under the predicted probabilities.</p>
+
+<p>A perfect model scores 0. A model that always predicts the marginal class prevalence scores the entropy of the truth distribution. Lower is better, and the metric is unbounded above: a confident wrong prediction drives the loss toward infinity.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Log loss punishes overconfidence the hardest.</strong> A model that predicts 0.99 for the wrong class pays a much steeper penalty than one that predicts 0.55 for the wrong class. That makes mn_log_loss() the metric to watch when miscalibrated probabilities are dangerous, like medical triage or fraud scoring.</div></div>
+
+<h2>mn_log_loss() syntax and arguments</h2>
+
+<p><strong>The signature follows the yardstick probability-metric family.</strong> Argument shape changes between binary and multiclass.</p>
+
+<div class="webr-container" data-block-title="mn_log_loss generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">mn_log_loss generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mn_log_loss(data, truth, ..., na_rm = TRUE, sum = FALSE,
+            event_level = &quot;first&quot;, case_weights = NULL)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data</code></td>
+<td>A data frame with truth and probability columns.</td>
+</tr>
+<tr>
+<td><code>truth</code></td>
+<td>Unquoted column name of the observed class labels (a factor).</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Unquoted column names of the predicted probabilities. One column for binary; one per class for multiclass.</td>
+</tr>
+<tr>
+<td><code>na_rm</code></td>
+<td>If <code>TRUE</code>, drop rows where any column is missing before scoring.</td>
+</tr>
+<tr>
+<td><code>sum</code></td>
+<td>If <code>TRUE</code>, return the summed log loss instead of the mean.</td>
+</tr>
+<tr>
+<td><code>event_level</code></td>
+<td><code>&quot;first&quot;</code> or <code>&quot;second&quot;</code>; for binary, names the positive class.</td>
+</tr>
+<tr>
+<td><code>case_weights</code></td>
+<td>Optional unquoted column for weighting rows.</td>
+</tr>
+</tbody>
+</table>
+
+<p>For binary, pass the positive-class probability column. For multiclass, pass every class probability column with <code>tidyselect</code> syntax in the same order as <code>levels(truth)</code>. Truth must be a factor whose levels match the probability column names after the <code>.pred_</code> prefix. Yardstick clips probabilities to <code>[1e-15, 1 - 1e-15]</code> so a 0 or 1 never produces <code>-Inf</code>.</p>
+
+<h2>Score classifiers: four worked examples</h2>
+
+<p><strong>The examples build a two-class tibble you can run end to end.</strong> It mimics a churn-prediction problem with moderate signal.</p>
+
+<div class="webr-container" data-block-title="Two-class predictions tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-class predictions tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+library(dplyr)
+
+set.seed(202)
+churn &lt;- tibble(
+  truth = factor(sample(c(&quot;yes&quot;, &quot;no&quot;), 400, replace = TRUE,
+                        prob = c(0.30, 0.70)),
+                 levels = c(&quot;yes&quot;, &quot;no&quot;)),
+  .pred_yes = runif(400, 0, 1)
+) |&gt;
+  mutate(.pred_yes = ifelse(truth == &quot;yes&quot;,
+                            pmin(0.99, .pred_yes + 0.25),
+                            pmax(0.01, .pred_yes - 0.10)),
+         .pred_no = 1 - .pred_yes)
+table(churn$truth)
+#&gt;
+#&gt; yes  no
+#&gt; 121 279</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 1 calls mn_log_loss() with the positive-class probability column.</strong> <code>&quot;yes&quot;</code> is the first factor level, so yardstick treats it as positive.</p>
+
+<div class="webr-container" data-block-title="Two-class log loss">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-class log loss</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mn_log_loss(churn, truth, .pred_yes)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric     .estimator .estimate
+#&gt;   &lt;chr&gt;       &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 mn_log_loss binary         0.503</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A 0.503 mean log loss beats the entropy floor of a 30/70 split (around 0.611), so the predictions carry real information.</p>
+
+<p><strong>Example 2 flips the positive class with <code>event_level</code>.</strong> Setting <code>&quot;second&quot;</code> makes <code>&quot;no&quot;</code> positive without touching the probability column.</p>
+
+<div class="webr-container" data-block-title="Flip the positive class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Flip the positive class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mn_log_loss(churn, truth, .pred_yes, event_level = &quot;second&quot;)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric     .estimator .estimate
+#&gt;   &lt;chr&gt;       &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 mn_log_loss binary         0.503</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Unlike <code>roc_auc()</code> or <code>pr_auc()</code>, the score is identical. Log loss is symmetric: scoring <code>.pred_yes</code> against <code>&quot;yes&quot;</code> and scoring <code>1 - .pred_yes</code> against <code>&quot;no&quot;</code> give the same number. The argument exists for family consistency, not because it changes the math.</p>
+
+<p><strong>Example 3 scores per resample fold.</strong> Pair <code>group_by()</code> with <code>mn_log_loss()</code> to get one score per fold without a loop.</p>
+
+<div class="webr-container" data-block-title="Per-fold log loss">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-fold log loss</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">folded &lt;- churn |&gt;
+  mutate(fold = rep(paste0(&quot;fold&quot;, 1:5), each = 80))
+
+folded |&gt;
+  group_by(fold) |&gt;
+  mn_log_loss(truth, .pred_yes)
+#&gt; # A tibble: 5 x 4
+#&gt;   fold  .metric     .estimator .estimate
+#&gt;   &lt;chr&gt; &lt;chr&gt;       &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 fold1 mn_log_loss binary         0.495
+#&gt; 2 fold2 mn_log_loss binary         0.521
+#&gt; 3 fold3 mn_log_loss binary         0.488
+#&gt; 4 fold4 mn_log_loss binary         0.514
+#&gt; 5 fold5 mn_log_loss binary         0.499</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 4 uses the vector interface for ad-hoc checks.</strong> <code>mn_log_loss_vec()</code> accepts a truth factor and a probability vector and returns a plain numeric scalar.</p>
+
+<div class="webr-container" data-block-title="Vector interface for quick checks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vector interface for quick checks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mn_log_loss_vec(churn$truth, churn$.pred_yes)
+#&gt; [1] 0.5033</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Bundle mn_log_loss with roc_auc and brier_class.</strong> <code>metric_set(mn_log_loss, roc_auc, brier_class)</code> returns a reusable function that scores calibration, ranking, and likelihood in a single call, the minimum honest report for any probabilistic classifier.</div></div>
+
+<h2>Multiclass log loss</h2>
+
+<p><strong>mn_log_loss() generalizes to K classes without an averaging argument.</strong> Yardstick uses the categorical cross-entropy formula directly, so the multiclass estimator label is simply <code>&quot;multiclass&quot;</code>.</p>
+
+<div class="webr-container" data-block-title="Multiclass predictions tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multiclass predictions tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(101)
+n &lt;- 240
+multi &lt;- tibble(
+  truth = factor(sample(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), n, replace = TRUE,
+                        prob = c(0.50, 0.30, 0.20)),
+                 levels = c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;)),
+  .pred_a = runif(n, 0.1, 1),
+  .pred_b = runif(n, 0.1, 1),
+  .pred_c = runif(n, 0.1, 1)
+) |&gt;
+  mutate(s = .pred_a + .pred_b + .pred_c,
+         .pred_a = .pred_a / s,
+         .pred_b = .pred_b / s,
+         .pred_c = .pred_c / s) |&gt;
+  select(-s)
+
+mn_log_loss(multi, truth, .pred_a, .pred_b, .pred_c)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric     .estimator .estimate
+#&gt;   &lt;chr&gt;       &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 mn_log_loss multiclass     1.144</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The score 1.144 sits just above the uniform-prediction reference of <code>log(3) = 1.099</code>, so these random probabilities are slightly worse than always predicting <code>1/3</code> per class. Switching to <code>sum = TRUE</code> returns the unscaled sum:</p>
+
+<div class="webr-container" data-block-title="Sum versus mean">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sum versus mean</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mn_log_loss(multi, truth, .pred_a, .pred_b, .pred_c, sum = TRUE)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric     .estimator .estimate
+#&gt;   &lt;chr&gt;       &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 mn_log_loss multiclass     274.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>What it returns</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sum = FALSE</code> (default)</td>
+<td>Mean log loss across rows</td>
+<td>Comparable across datasets, fold sizes</td>
+</tr>
+<tr>
+<td><code>sum = TRUE</code></td>
+<td>Summed log loss across rows</td>
+<td>Aggregating across batches of equal weight</td>
+</tr>
+</tbody>
+</table>
+
+<p>Default to the mean for headline scores; use <code>sum = TRUE</code> only when you plan to divide by a custom denominator.</p>
+
+<h2>mn_log_loss vs roc_auc vs brier_class</h2>
+
+<p><strong>Four metrics share the probability-input contract.</strong> The table sorts out the overlap.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>What it scores</th>
+<th>When to prefer it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mn_log_loss()</code></td>
+<td>Mean negative log-likelihood</td>
+<td>Penalize overconfident wrong predictions</td>
+</tr>
+<tr>
+<td><code>roc_auc()</code></td>
+<td>Probability positive outranks negative</td>
+<td>Threshold-free ranking on balanced data</td>
+</tr>
+<tr>
+<td><code>pr_auc()</code></td>
+<td>Area under the PR curve</td>
+<td>Rare-positive ranking on imbalanced data</td>
+</tr>
+<tr>
+<td><code>brier_class()</code></td>
+<td><a class="auto-link" href="Point-Estimation-in-R.html" title="Point Estimation in R: What Makes an Estimator Good? Bias, Variance, and MSE">Mean squared error</a> of probabilities</td>
+<td>Calibration of binary probabilities</td>
+</tr>
+<tr>
+<td><code>accuracy()</code></td>
+<td>Share of correct labels at one cutoff</td>
+<td>Reporting a deployed threshold</td>
+</tr>
+</tbody>
+</table>
+
+<p><code>mn_log_loss()</code> is the right call whenever probability quality matters more than ranking or a single threshold. Boosting and neural net objectives are typically log loss, so reporting it keeps train-time and test-time metrics aligned.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from scikit-learn?</strong> <code>yardstick::mn_log_loss()</code> matches <code>sklearn.metrics.log_loss()</code> exactly. Both clip probabilities to avoid <code>-Inf</code> and both default to the mean over rows. Pass <code>sum = TRUE</code> in yardstick to match <code>normalize = False</code> in sklearn.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three small mistakes account for most mn_log_loss() errors.</strong></p>
+
+<p>The first is feeding class labels instead of probabilities. <code>mn_log_loss()</code> needs the positive-class probability for binary or one column per class for multiclass. Passing <code>.pred_class</code> from <code>parsnip::augment()</code> raises an error because hard labels are not numeric in [0, 1].</p>
+
+<p>The second is column-order drift on multiclass. The <code>...</code> arguments are matched against <code>levels(truth)</code> by position. If <code>levels(truth)</code> is <code>c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;)</code> but you pass <code>.pred_b, .pred_a, .pred_c</code>, yardstick assigns the wrong probability to each class.</p>
+
+<div class="webr-container" data-block-title="Fix: align column order with factor levels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fix: align column order with factor levels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">preds &lt;- tibble(
+  truth = factor(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;, &quot;a&quot;), levels = c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;)),
+  .pred_a = c(0.70, 0.10, 0.10, 0.60),
+  .pred_b = c(0.20, 0.80, 0.10, 0.30),
+  .pred_c = c(0.10, 0.10, 0.80, 0.10)
+)
+mn_log_loss(preds, truth, .pred_a, .pred_b, .pred_c)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric     .estimator .estimate
+#&gt;   &lt;chr&gt;       &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 mn_log_loss multiclass     0.354</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The third pitfall is unnormalized probabilities. Yardstick does not check that the K columns sum to 1 for multiclass. If they sum to 1.10 or 0.85 from a softmax bug, the score is still a number, just a wrong one. Verify <code>rowSums()</code> equals 1 before scoring.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Probabilities of 0 or 1 do not crash but they distort.</strong> Yardstick clips inputs to <code>[1e-15, 1 - 1e-15]</code>, so a hard 0 on the true class produces a loss near 34.5 per row, not <code>Inf</code>. One such row can dominate the mean. Cap engine outputs to <code>[0.001, 0.999]</code> before scoring.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the built-in <code>two_class_example</code> data from yardstick. The truth column is <code>truth</code> and the probability column for the positive class (<code>Class1</code>) is <code>Class1</code>. Compute the mean log loss, then compute the summed log loss with <code>sum = TRUE</code>. Save the second result to <code>ex_mll_sum</code>.</p>
+<div class="webr-container" data-block-title="Your turn: sum vs mean log loss">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: sum vs mean log loss</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+data(&quot;two_class_example&quot;)
+
+# Try it: mn_log_loss with sum = TRUE
+ex_mll_sum &lt;- # your code here
+
+ex_mll_sum
+#&gt; Expected: one row, .estimator binary, .estimate around 188.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+ex_mll_sum &lt;- two_class_example |&gt;
+  mn_log_loss(truth = truth, Class1, sum = TRUE)
+ex_mll_sum
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric     .estimator .estimate
+#&gt;   &lt;chr&gt;       &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 mn_log_loss binary         188.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Setting <code>sum = TRUE</code> returns the summed log loss across all 500 rows. Dividing by 500 recovers the default mean estimate of about 0.377; the two numbers are the same metric at different scales.</p>
+
+</details>
+</section>
+
+<h2>Related yardstick metrics</h2>
+
+<p><strong>mn_log_loss() is one entry in the yardstick probability-metric family.</strong> Reach for these when log loss alone is not enough:</p>
+
+<ul>
+
+<li><code>roc_auc()</code> for threshold-free ranking quality</li>
+
+<li><code>pr_auc()</code> for ranking on imbalanced data</li>
+
+<li><code>brier_class()</code> for calibration error of binary probabilities</li>
+
+<li><code>classification_cost()</code> for cost-weighted misclassification</li>
+
+<li><code>accuracy()</code>, <code>recall()</code>, <code>precision()</code> for one-threshold scoring</li>
+
+</ul>
+
+<p>For the full set, see the <a href="https://yardstick.tidymodels.org/reference/index.html">yardstick reference index</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is a good mn_log_loss score in R?</strong></p>
+
+<p>Mean log loss is unbounded above and bounded below by 0, so "good" depends on the class prior. The no-information baseline is the entropy <code>-sum(p * log(p))</code>. On a balanced two-class problem that floor is <code>log(2) = 0.693</code>; any model below adds value. Strong calibrated classifiers on real data typically land between 0.10 and 0.40.</p>
+
+<p><strong>Does mn_log_loss() need probabilities or class labels?</strong></p>
+
+<p>It needs probabilities. The function evaluates the negative log-likelihood of the observed classes under the predicted distribution, which requires numbers in [0, 1] per class. Pass probability columns from <code>parsnip::augment()</code>, usually named <code>.pred_&lt;class&gt;</code>. Feeding <code>.pred_class</code> (the hard label) raises a type error because the column is a factor.</p>
+
+<p><strong>When should I use mn_log_loss instead of accuracy?</strong></p>
+
+<p>Use <code>mn_log_loss()</code> whenever the downstream decision depends on a probability rather than a hard label. Calibration drives expected value in fraud, churn, advertising, and medical screening; accuracy throws that information away. Report log loss as the primary metric and accuracy as a sanity check on the deployed threshold.</p>
+
+<p><strong>Why does yardstick clip probabilities before computing log loss?</strong></p>
+
+<p>A predicted probability of exactly 0 for the true class would push <code>log(p)</code> to <code>-Inf</code> and the mean would be undefined. Yardstick clips inputs to <code>[1e-15, 1 - 1e-15]</code>, matching scikit-learn. The clip means a hard wrong call costs roughly 34.5 per row, severe but finite.</p>
+
+<p><strong>How is mn_log_loss different from cross-entropy in deep learning?</strong></p>
+
+<p>They are the same quantity. Categorical cross-entropy in Keras or PyTorch is exactly the multiclass mean negative log-likelihood that <code>mn_log_loss()</code> computes. The only difference is input shape: frameworks expect a softmax tensor while yardstick expects one probability column per class.</p>
