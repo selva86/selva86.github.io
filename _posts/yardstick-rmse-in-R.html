@@ -1,0 +1,394 @@
+---
+title: "yardstick rmse() in R: Score Regression Models"
+description: "Use yardstick rmse() in R to score regression models with a tidy interface. See syntax, grouped scoring, weighting, MAE comparison, and common pitfalls."
+keywords: "yardstick rmse, rmse function R, yardstick rmse examples, root mean squared error R, tidymodels rmse, rmse metric R, regression error R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "rmse()|yardstick rmse|yardstick::rmse()|root mean squared error|rmse metric|regression error metric"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>yardstick rmse() in R: Score Regression Models</h1>
+
+<p class="lead">The yardstick rmse() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> returns the root <a class="auto-link" href="Point-Estimation-in-R.html" title="Point Estimation in R: What Makes an Estimator Good? Bias, Variance, and MSE">mean squared error</a> of a regression model, accepting a tibble with truth and estimate columns and producing a tidy one-row summary that reads in the same units as the outcome variable.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>rmse(df, truth, estimate)<span class="qa-cmt">                          # basic call</span>
+rmse(df, truth = obs, estimate = pred)<span class="qa-cmt">             # named arguments</span>
+rmse(df, solubility, prediction)<span class="qa-cmt">                   # default tidymodels output</span>
+df |&gt; group_by(fold) |&gt; rmse(obs, pred)<span class="qa-cmt">            # by resample</span>
+rmse(df, obs, pred, na_rm = TRUE)<span class="qa-cmt">                  # drop missing rows</span>
+rmse_vec(truth_vec, pred_vec)<span class="qa-cmt">                      # vector interface</span>
+rmse(df, obs, pred, case_weights = w)<span class="qa-cmt">              # weighted RMSE</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is rmse() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">standard regression error in outcome units</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">rmse(df, truth, estimate)</text><text x="125" y="126" class="branch-label">want errors in the same units, less <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a>-sensitive</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">mae(df, truth, estimate)</text><text x="125" y="182" class="branch-label">need a unit-free goodness-of-fit score</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">rsq(df, truth, estimate)</text><text x="125" y="238" class="branch-label">percentage error matters more than absolute</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">mape(df, truth, estimate)</text><text x="125" y="294" class="branch-label">outcome spans orders of magnitude (skewed)</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">rmsle(df, truth, estimate)</text><text x="125" y="350" class="branch-label">predicting classes, not numbers</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">accuracy(df, truth, estimate)</text><text x="125" y="406" class="branch-label">multi-metric report in one call</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">metrics(df, truth, estimate)</text></svg></div>
+
+<h2>What rmse() measures</h2>
+
+<p><strong>rmse() squares each residual, averages them, then takes the square root.</strong> You pass a data frame with the observed numeric outcome and the predicted values, and the function returns a one-row tibble with three columns: <code>.metric</code>, <code>.estimator</code>, and <code>.estimate</code>. The estimate is a non-negative number on the same scale as the outcome, so an RMSE of 0.7 on a solubility score means predictions are off by roughly 0.7 units on average.</p>
+
+<p>Because squaring punishes large misses, RMSE is more outlier-sensitive than mean absolute error. That sensitivity is a feature when one big miss matters more than many small ones, and a bug when noisy outliers dominate the score. Pair RMSE with <code>mae()</code> and <code>rsq()</code> whenever you compare <a class="auto-link" href="adv-regression-models.html" title="Advanced Regression Models">regression models</a>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>RMSE inherits the units of your outcome.</strong> An RMSE of 3 on a price-in-dollars target means typical errors of about $3; on a log-price target it means a multiplicative factor of about exp(3). Always interpret RMSE on the scale you trained on.</div></div>
+
+<h2>rmse() syntax and arguments</h2>
+
+<p><strong>The signature matches every other yardstick numeric metric.</strong> Once you know the shape, the same call works for <code>mae()</code>, <code>rsq()</code>, <code>mape()</code>, and the rest of the regression family.</p>
+
+<div class="webr-container" data-block-title="rmse generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">rmse generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rmse(data, truth, estimate, na_rm = TRUE, case_weights = NULL, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data</code></td>
+<td>A data frame with the truth and estimate columns.</td>
+</tr>
+<tr>
+<td><code>truth</code></td>
+<td>Unquoted column name of the observed numeric outcome.</td>
+</tr>
+<tr>
+<td><code>estimate</code></td>
+<td>Unquoted column name of the predicted numeric values.</td>
+</tr>
+<tr>
+<td><code>na_rm</code></td>
+<td>If <code>TRUE</code>, drop rows where either column is missing before scoring.</td>
+</tr>
+<tr>
+<td><code>case_weights</code></td>
+<td>Optional column of row weights for survey or importance-weighted data.</td>
+</tr>
+</tbody>
+</table>
+
+<p>Truth and estimate must both be numeric; factor, character, or logical inputs raise an error. If you fitted a classification model, reach for <code>accuracy()</code> or <code>roc_auc()</code> instead.</p>
+
+<h2>Score regression models: four examples</h2>
+
+<p><strong>The examples below use yardstick's built-in solubility_test data, which ships a real regression prediction set.</strong> First, load the package and inspect the data.</p>
+
+<div class="webr-container" data-block-title="Load yardstick and inspect solubility data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load yardstick and inspect solubility data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+library(dplyr)
+
+data(&quot;solubility_test&quot;)
+head(solubility_test, 4)
+#&gt; # A tibble: 4 x 2
+#&gt;   solubility prediction
+#&gt;        &lt;dbl&gt;      &lt;dbl&gt;
+#&gt; 1      0.93       0.99
+#&gt; 2      0.85       0.71
+#&gt; 3      0.17       0.18
+#&gt; 4     -0.99      -0.57</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 1 calls rmse() with positional arguments.</strong> The function picks up truth and estimate by position and returns the tidy summary.</p>
+
+<div class="webr-container" data-block-title="Basic rmse score on solubility predictions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Basic rmse score on solubility predictions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rmse(solubility_test, solubility, prediction)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 rmse    standard       0.722</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>.estimator</code> column reports <code>standard</code> because RMSE has no binary or multiclass variant. The estimate of 0.722 is in log-solubility units.</p>
+
+<p><strong>Example 2 uses named arguments on a fresh prediction frame.</strong> Named arguments are clearer when truth and estimate sit next to other features in a larger tibble.</p>
+
+<div class="webr-container" data-block-title="Named-argument rmse on a custom frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Named-argument rmse on a custom frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+custom &lt;- tibble(
+  obs  = rnorm(100, mean = 50, sd = 10),
+  pred = rnorm(100, mean = 50, sd = 10)
+)
+
+rmse(custom, truth = obs, estimate = pred)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 rmse    standard        14.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 3 groups scoring by resample fold.</strong> When predictions from cross-validation live in one tibble, <code>group_by()</code> plus rmse returns one score per fold, giving instant per-resample diagnostics.</p>
+
+<div class="webr-container" data-block-title="Per-fold rmse from a cross-validation tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-fold rmse from a cross-validation tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">folded &lt;- solubility_test |&gt;
+  mutate(fold = rep(paste0(&quot;fold&quot;, 1:5), length.out = n()))
+
+folded |&gt;
+  group_by(fold) |&gt;
+  rmse(truth = solubility, estimate = prediction)
+#&gt; # A tibble: 5 x 4
+#&gt;   fold  .metric .estimator .estimate
+#&gt;   &lt;chr&gt; &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 fold1 rmse    standard       0.730
+#&gt; 2 fold2 rmse    standard       0.713
+#&gt; 3 fold3 rmse    standard       0.737
+#&gt; 4 fold4 rmse    standard       0.709
+#&gt; 5 fold5 rmse    standard       0.722</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 4 uses the vector interface for quick checks.</strong> Inside <code>map()</code> calls or unit tests, <code>rmse_vec()</code> returns a plain scalar instead of a one-row tibble.</p>
+
+<div class="webr-container" data-block-title="Vector interface returns a numeric scalar">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vector interface returns a numeric scalar</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rmse_vec(solubility_test$solubility, solubility_test$prediction)
+#&gt; [1] 0.7222584</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Use the vector form when you need a scalar for thresholds or unit tests; otherwise stay with the data-frame form so you can bind, group, or plot scores.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Bind multiple metric calls with <a class="auto-link" href="dplyr-bind_rows-in-R.html" title="dplyr bind_rows() and bind_cols() in R: Combine Tables">bind_rows()</a>.</strong> Because every yardstick metric returns the same three columns, <code>bind_rows(rmse(...), mae(...), rsq(...))</code> produces a tidy three-row scorecard you can pass straight to <code>ggplot()</code> or <code>gt()</code> with no reshaping.</div></div>
+
+<h2>rmse() compared with related metrics</h2>
+
+<p><strong>RMSE is the most popular regression metric, but rarely the only one you should report.</strong> Pick a partner from the table when RMSE alone hides the story.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Metric</th>
+<th>Best use case</th>
+<th>Limitation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rmse()</code></td>
+<td>Errors in outcome units, large misses matter</td>
+<td>Heavily penalises outliers</td>
+</tr>
+<tr>
+<td><code>mae()</code></td>
+<td>Errors in outcome units, robust to outliers</td>
+<td>Treats a tiny miss and a small miss the same way</td>
+</tr>
+<tr>
+<td><code>rsq()</code></td>
+<td>Need a unit-free 0-to-1 goodness-of-fit</td>
+<td>Can mask large systematic bias</td>
+</tr>
+<tr>
+<td><code>mape()</code></td>
+<td>Communicate relative error to non-technical readers</td>
+<td>Explodes when truth is near zero</td>
+</tr>
+<tr>
+<td><code>rmsle()</code></td>
+<td>Outcome spans orders of magnitude, skewed</td>
+<td>Undefined for negative predictions</td>
+</tr>
+<tr>
+<td><code>ccc()</code></td>
+<td>Want agreement plus calibration in one number</td>
+<td>Less familiar to most readers</td>
+</tr>
+</tbody>
+</table>
+
+<p>A safe default is RMSE as the headline number, MAE for outlier sensitivity, and R-squared for unit-free comparison across models with the same target.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three small mistakes account for most rmse() failures.</strong> Each one has a one-line fix.</p>
+
+<p>The first is passing a factor column. yardstick refuses factor inputs because a factor implies classification, not regression. The fix is to cast to numeric before scoring:</p>
+
+<div class="webr-container" data-block-title="Fix: cast factor predictions to numeric">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fix: cast factor predictions to numeric</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bad &lt;- tibble(obs = c(1.2, 3.4, 5.6), pred = factor(c(&quot;1&quot;, &quot;3&quot;, &quot;6&quot;)))
+# rmse(bad, obs, pred)  # would error
+bad &lt;- bad |&gt;
+  mutate(pred = as.numeric(as.character(pred)))
+rmse(bad, obs, pred)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 rmse    standard       0.471</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second pitfall is comparing RMSE across different target transformations. An RMSE of 0.2 on log-price and 50 on raw-price are not on the same scale. Back-transform predictions before scoring, or stick to one target representation.</p>
+
+<p>The third pitfall is <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>. With <code>na_rm = TRUE</code> (the default), yardstick silently drops <code>NA</code> rows, which changes the denominator. Pre-filter the prediction frame when comparing models that handle missingness differently.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>One big outlier can swamp RMSE.</strong> Because errors are squared, a single residual of 100 contributes more to RMSE than a hundred residuals of 10. When you see RMSE jump after a small data change, plot residuals first; do not chase the metric.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the built-in <code>solubility_test</code> data. Compute the overall RMSE, then mutate a <code>bucket</code> column that splits predictions into "low" (below 0) and "high" (0 or above), group by bucket, and report RMSE per group. Save the per-bucket result to <code>ex_rmse_by_bucket</code>.</p>
+<div class="webr-container" data-block-title="Your turn: bucketed rmse">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: bucketed rmse</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+library(dplyr)
+data(&quot;solubility_test&quot;)
+
+# Try it: rmse by prediction bucket
+ex_rmse_by_bucket &lt;- # your code here
+
+ex_rmse_by_bucket
+#&gt; Expected: 2 rows, one per bucket</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rmse_by_bucket &lt;- solubility_test |&gt;
+  mutate(bucket = if_else(prediction &lt; 0, &quot;low&quot;, &quot;high&quot;)) |&gt;
+  group_by(bucket) |&gt;
+  rmse(truth = solubility, estimate = prediction)
+ex_rmse_by_bucket
+#&gt; # A tibble: 2 x 4
+#&gt;   bucket .metric .estimator .estimate
+#&gt;   &lt;chr&gt;  &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 high   rmse    standard       0.706
+#&gt; 2 low    rmse    standard       0.739</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Grouping before calling rmse() returns one row per bucket without reshaping. The "low" bucket has slightly higher RMSE, which suggests the model is a touch noisier when it predicts low solubility values.</p>
+
+</details>
+</section>
+
+<h2>Related yardstick metrics</h2>
+
+<p><strong>rmse() is one entry in the yardstick numeric-metric family.</strong> Reach for these neighbors when RMSE alone is not enough:</p>
+
+<ul>
+
+<li><code>mae()</code> for an outlier-robust error in the same units</li>
+
+<li><code>mape()</code> for percentage error reporting to stakeholders</li>
+
+<li><code>rsq()</code> for a unit-free 0-to-1 goodness-of-fit</li>
+
+<li><code>rmsle()</code> for skewed targets where multiplicative error matters</li>
+
+<li><code>ccc()</code> for concordance correlation, useful in clinical and reliability work</li>
+
+<li><code>metrics()</code> to compute several regression scores in a single call</li>
+
+</ul>
+
+<p>For the full set, see the <a href="https://yardstick.tidymodels.org/reference/index.html">yardstick reference index</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is a good RMSE value?</strong></p>
+
+<p>There is no universal threshold. RMSE is in the units of your outcome, so a "good" value depends on the spread of that outcome. Compare RMSE against the standard deviation of the truth column: if RMSE is much smaller, the model is adding signal; if it is close, the model is barely better than predicting the mean. Always interpret alongside <code>rsq()</code> and a residual plot.</p>
+
+<p><strong>How is rmse() different from sqrt(mean((y - yhat)^2))?</strong></p>
+
+<p>They return the same number. yardstick wraps the formula in a function that validates inputs, handles missing values, supports <code>case_weights</code>, and returns a tidy tibble that integrates with <code>metrics()</code> and <code>group_by()</code>. Use rmse() everywhere for consistency with the tidymodels workflow.</p>
+
+<p><strong>Can I weight rows when computing RMSE?</strong></p>
+
+<p>Yes. Pass a <code>case_weights</code> column to <code>rmse()</code>. Common uses are survey weights, sample weights from <code>parsnip::fit()</code>, or importance weights. The result is a weighted root mean squared error on the outcome scale. Weights must be non-negative.</p>
+
+<p><strong>Why does rmse() return a tibble instead of a number?</strong></p>
+
+<p>The tidy return shape is the yardstick convention. Every metric returns the same three columns: <code>.metric</code>, <code>.estimator</code>, <code>.estimate</code>. That uniformity lets you <code>bind_rows()</code> calls or pipe into <code>group_by()</code> with no reshape step. Call <code>rmse_vec()</code> when you only need the scalar.</p>
+
+<p><strong>Should I prefer RMSE or MAE for tuning?</strong></p>
+
+<p>If you care most about avoiding large individual errors, tune on RMSE. If your business cost is roughly linear in error size, tune on MAE. The difference matters when the error distribution is heavy-tailed: RMSE favours models that flatten the tail; MAE favours models that minimise typical error.</p>
+
+<h2>Summary</h2>
+
+<p><strong>rmse() is the default regression scorecard in yardstick.</strong> Use it for the headline number, lean on <code>mae()</code> and <code>rsq()</code> for partners, and switch to <code>rmse_vec()</code> only when you need a scalar. Combined with <code>group_by()</code> it scales to any resampling scheme without reshaping, and combined with <code>bind_rows(metrics(...))</code> it produces a clean multi-metric report ready to publish.</p>
+
+{% endraw %}
