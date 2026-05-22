@@ -1,0 +1,422 @@
+---
+title: "tune tune_bayes() in R: Bayesian Hyperparameter Search"
+description: "Use tune tune_bayes() in R to optimize hyperparameters with Bayesian search. See syntax, initial designs, iter, objective control, and common pitfalls."
+keywords: "tune tune_bayes, tune_bayes function R, tune tune_bayes examples, R Bayesian hyperparameter tuning, tidymodels tune_bayes, Bayesian optimization tidymodels, tune_bayes tidymodels"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "tune_bayes()|tune tune_bayes|tune::tune_bayes()|Bayesian hyperparameter tuning|Bayesian optimization tidymodels"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>tune tune_bayes() in R: Bayesian Hyperparameter Search</h1>
+
+<p class="lead">The tune tune_bayes() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> runs iterative Bayesian <a class="auto-link" href="Optimization-With-R.html" title="Optimization with R">optimization</a> over a tidymodels workflow, fitting a Gaussian process surrogate on past results to propose smarter candidates each round instead of scoring a fixed grid.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>tune_bayes(wf, resamples = folds)<span class="qa-cmt">                            # default 5-point init + 10 iter</span>
+tune_bayes(wf, resamples = folds, iter = 25)<span class="qa-cmt">                 # longer search</span>
+tune_bayes(wf, resamples = folds, initial = 15)<span class="qa-cmt">              # bigger initial design</span>
+tune_bayes(wf, resamples = folds, initial = init_res)<span class="qa-cmt">        # reuse a prior tune_grid()</span>
+tune_bayes(wf, resamples = folds, metrics = mset)<span class="qa-cmt">            # custom metric set</span>
+tune_bayes(wf, resamples = folds, objective = exp_improve())<span class="qa-cmt"> # expected improvement</span>
+tune_bayes(wf, resamples = folds, param_info = params)<span class="qa-cmt">       # custom ranges</span>
+tune_bayes(wf, resamples = folds, control = ctrl_bayes)<span class="qa-cmt">      # verbose, no_improve, parallel</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is tune_bayes() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">search continuous params with expensive fits</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">tune_bayes(wf, resamples = folds, iter = 25)</text><text x="125" y="126" class="branch-label">search a fixed grid of candidates</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">tune_grid(wf, resamples = folds, grid = g)</text><text x="125" y="182" class="branch-label">one-shot resample with no tuning</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">fit_resamples(wf, resamples = folds)</text><text x="125" y="238" class="branch-label">race candidates with early stopping</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">finetune::tune_race_anova(wf, resamples = folds)</text><text x="125" y="294" class="branch-label">simulated annealing search</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">finetune::tune_sim_anneal(wf, resamples = folds)</text><text x="125" y="350" class="branch-label">inspect param ranges before tuning</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">extract_parameter_set_dials(wf)</text><text x="125" y="406" class="branch-label">final test-set fit after tuning</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">last_fit(final_wf, split)</text></svg></div>
+
+<h2>What tune_bayes() does in one sentence</h2>
+
+<p><strong>tune_bayes() learns where the metric is best, then samples there.</strong> You give it a workflow whose model spec contains <code>tune()</code> placeholders, a resample object, and an iteration budget. The function first scores a small space-filling initial design, fits a Gaussian process to the metric values, then repeatedly maximizes an acquisition function (expected improvement by default) to pick the next candidate. Each iteration adds one row to the surrogate and refits it, so the search concentrates on promising regions instead of treating every grid point equally.</p>
+
+<p>The return value is a <code>tune_results</code> object identical in shape to <code>tune_grid()</code>, which means <code>collect_metrics()</code>, <code>show_best()</code>, <code>select_best()</code>, and <code>finalize_workflow()</code> work without changes. The difference is fits per run: a 15-point grid scored on 10 folds is 150 fits, while a <code>tune_bayes()</code> call with 5 initial points and 10 iterations is 150 fits scattered intelligently across the parameter space.</p>
+
+<h2>Set up a tunable workflow</h2>
+
+<p><strong>You need three pieces before calling tune_bayes().</strong> A model spec with <code>tune()</code> placeholders, a recipe or formula, and a resample object that splits the training data. Continuous parameters with broad ranges benefit most from Bayesian search.</p>
+
+<div class="webr-container" data-block-title="Load tidymodels and prepare data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load tidymodels and prepare data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+data(ames, package = &quot;modeldata&quot;)
+ames &lt;- ames |&gt; mutate(Sale_Price = log10(Sale_Price))
+
+set.seed(42)
+split &lt;- initial_split(ames, prop = 0.8, strata = Sale_Price)
+train &lt;- training(split)
+folds &lt;- vfold_cv(train, v = 5, strata = Sale_Price)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The example below tunes a random forest via the ranger engine. Three knobs vary at once: <code>mtry</code>, <code>min_n</code>, and <code>trees</code>. With nine possible values of mtry, ten of min_n, and a continuous trees range, an exhaustive grid quickly explodes; Bayesian search stays tractable.</p>
+
+<div class="webr-container" data-block-title="Recipe, model, workflow with tune placeholders">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recipe, model, workflow with tune placeholders</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec &lt;- recipe(Sale_Price ~ Gr_Liv_Area + Year_Built + Bldg_Type + Neighborhood,
+              data = train) |&gt;
+  step_dummy(all_nominal_predictors())
+
+rf_spec &lt;- rand_forest(mtry = tune(), min_n = tune(), trees = tune()) |&gt;
+  set_engine(&quot;ranger&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+wf &lt;- workflow() |&gt;
+  add_recipe(rec) |&gt;
+  add_model(rf_spec)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>mtry has an unknown upper bound.</strong> Until the recipe is prepped, tune cannot know the number of predictors. Either call <code>extract_parameter_set_dials(wf) |&gt; finalize(train)</code> or pass <code>param_info</code> so ranges are concrete before search begins.</div></div>
+
+<h2>tune_bayes() syntax and arguments</h2>
+
+<p><strong>The signature is short, but a few arguments do most of the work.</strong></p>
+
+<div class="webr-container" data-block-title="tune_bayes generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">tune_bayes generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tune_bayes(
+  object,                    # workflow or model spec
+  preprocessor,              # recipe or formula (when object is a spec)
+  resamples,                 # rset from rsample (vfold_cv, bootstraps, ...)
+  ...,
+  iter = 10,                 # Bayesian iterations after the initial design
+  param_info = NULL,         # parameters() object with finalized ranges
+  metrics = NULL,            # metric_set() or NULL for defaults
+  objective = exp_improve(), # acquisition function
+  initial = 5,               # int (space-filling) or a prior tune_results
+  control = control_bayes()
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>iter</code></td>
+<td>Bayesian iterations after the initial design. Each iteration adds one candidate.</td>
+</tr>
+<tr>
+<td><code>initial</code></td>
+<td>Integer = size of the initial space-filling design; a prior <code>tune_grid()</code> result reuses its rows as starting data.</td>
+</tr>
+<tr>
+<td><code>objective</code></td>
+<td>Acquisition rule. <code>exp_improve()</code> balances exploration and exploitation; <code>conf_bound(kappa)</code> tilts toward exploration.</td>
+</tr>
+<tr>
+<td><code>param_info</code></td>
+<td>A <code>parameters()</code> object with finalized ranges. Required when any range depends on the data, such as <code>mtry</code>.</td>
+</tr>
+<tr>
+<td><code>control</code></td>
+<td><code>control_bayes()</code> options. Notable ones: <code>no_improve</code>, <code>verbose_iter</code>, <code>save_pred</code>, <code>parallel_over</code>.</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Start with the simplest Bayesian call, then refine.</strong> Finalize the parameter set first so <code>mtry</code> has a concrete upper bound.</p>
+
+<div class="webr-container" data-block-title="Run tune_bayes with default settings">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run tune_bayes with default settings</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">params &lt;- extract_parameter_set_dials(wf) |&gt; finalize(train)
+
+set.seed(123)
+res_bayes &lt;- tune_bayes(
+  wf,
+  resamples  = folds,
+  param_info = params,
+  initial    = 8,
+  iter       = 15,
+  metrics    = metric_set(rmse, rsq),
+  control    = control_bayes(no_improve = 10, verbose_iter = FALSE)
+)
+res_bayes
+#&gt; # Tuning results
+#&gt; # 5-fold cross-validation using stratification
+#&gt; # Iter 1 of 15: penalty=0.0042 mixture=0.81  rmse=0.0712
+#&gt; # Iter 2 of 15: ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Seed twice for full reproducibility.</strong> Set a top-level seed for the initial design and pass <code>control_bayes(seed = 99)</code> so the acquisition optimizer is also deterministic across machines.</div></div>
+
+<p>Once results are back, the helpers behave exactly as with grid search.</p>
+
+<div class="webr-container" data-block-title="Inspect Bayesian search results">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect Bayesian search results</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">show_best(res_bayes, metric = &quot;rmse&quot;, n = 3)
+#&gt; # A tibble: 3 x 9
+#&gt;    mtry min_n trees .metric .estimator   mean     n std_err .config
+#&gt;   &lt;int&gt; &lt;int&gt; &lt;int&gt; &lt;chr&gt;   &lt;chr&gt;       &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1     6    12  1182 rmse    standard   0.0688     5 0.00102 Iter11
+#&gt; 2     5    14   894 rmse    standard   0.0691     5 0.00118 Iter08
+#&gt; 3     7    11  1310 rmse    standard   0.0693     5 0.00124 Iter13
+
+best &lt;- select_best(res_bayes, metric = &quot;rmse&quot;)
+final_wf &lt;- finalize_workflow(wf, best)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Reuse a prior <code>tune_grid()</code> call as the initial design when you already have grid results, which avoids paying for a fresh space-filling sample.</p>
+
+<div class="webr-container" data-block-title="Warm-start tune_bayes from a tune_grid result">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Warm-start tune_bayes from a tune_grid result</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">init_res &lt;- tune_grid(wf, resamples = folds, grid = 10,
+                      param_info = params, metrics = metric_set(rmse))
+
+res_warm &lt;- tune_bayes(
+  wf,
+  resamples  = folds,
+  param_info = params,
+  initial    = init_res,
+  iter       = 12,
+  metrics    = metric_set(rmse)
+)
+autoplot(res_warm, type = &quot;performance&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Switch the acquisition function when the search keeps revisiting the same neighborhood. <code>conf_bound()</code> with a larger <code>kappa</code> pushes the next pick away from current best estimates.</p>
+
+<div class="webr-container" data-block-title="Force exploration with a confidence bound">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Force exploration with a confidence bound</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">res_explore &lt;- tune_bayes(
+  wf,
+  resamples  = folds,
+  param_info = params,
+  initial    = 8, iter = 15,
+  objective  = conf_bound(kappa = 2.5),
+  metrics    = metric_set(rmse)
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>tune_bayes() versus tune_grid() and tune_sim_anneal()</h2>
+
+<p><strong>Pick by parameter type and fit cost, not by sophistication.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>When to reach for it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tune_bayes()</code></td>
+<td>Two or more continuous parameters and fits that take seconds or minutes. Surrogate amortizes the search cost.</td>
+</tr>
+<tr>
+<td><code>tune_grid()</code></td>
+<td>A handful of discrete settings or when you want every candidate scored for reporting. Easiest to reason about.</td>
+</tr>
+<tr>
+<td><code>finetune::tune_sim_anneal()</code></td>
+<td>Mixed continuous and integer parameters where the surface looks rugged. Cheaper per iteration than the GP fit.</td>
+</tr>
+<tr>
+<td><code>finetune::tune_race_anova()</code></td>
+<td>Large fixed grids where most candidates are obviously bad. Drops losers after a few folds.</td>
+</tr>
+</tbody>
+</table>
+
+<p>Bayesian search shines when fits are slow and ranges are wide. With a 50ms fit, <code>tune_grid(grid = 50)</code> beats <code>tune_bayes(iter = 30)</code> on wall clock; with a 30s fit, the calculus flips.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three errors account for most failed Bayesian runs.</strong></p>
+
+<ol>
+
+<li><strong>Unfinalized parameter set.</strong> Calling <code>tune_bayes()</code> without finalizing <code>mtry</code> or any other data-dependent range throws <code>! Some parameter values are unknown</code>. Always pass <code>param_info</code> built with <code>finalize(train)</code>.</li>
+
+<li><strong>Too few initial points.</strong> A surrogate fit on three candidates is meaningless; the search wanders. Use at least one initial point per tunable parameter, ideally more.</li>
+
+<li><strong>Confusing iterations with fits.</strong> <code>iter = 25</code> means 25 single candidates added on top of <code>initial</code>. Total fits is <code>(initial + iter) * folds</code>, not <code>iter * folds</code>. Budget accordingly.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Watch for stalled iterations.</strong> When <code>control_bayes(no_improve = 10)</code> is set and no improvement appears for 10 iterations, the search exits early. Inspect <code>collect_notes(res)</code> to confirm the run stopped on the rule, not on a fit error.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Tune an xgboost classifier on the iris data with Bayesian search. Vary <code>trees</code> and <code>learn_rate</code> over 10 iterations, score by accuracy, and identify the best candidate.</p>
+<div class="webr-container" data-block-title="Your turn: Bayesian search on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Bayesian search on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: tune xgboost on iris
+library(tidymodels)
+
+set.seed(7)
+ex_folds &lt;- vfold_cv(iris, v = 5, strata = Species)
+
+ex_spec &lt;- boost_tree(trees = tune(), learn_rate = tune()) |&gt;
+  set_engine(&quot;xgboost&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+ex_wf &lt;- workflow() |&gt;
+  add_formula(Species ~ .) |&gt;
+  add_model(ex_spec)
+
+ex_params &lt;- # your code here
+
+ex_res &lt;- # your code here
+
+show_best(ex_res, metric = &quot;accuracy&quot;, n = 3)
+#&gt; Expected: a tibble of the top 3 (trees, learn_rate) candidates ranked by accuracy</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_params &lt;- extract_parameter_set_dials(ex_wf) |&gt;
+  update(learn_rate = learn_rate(range = c(-3, -0.5)))
+
+ex_res &lt;- tune_bayes(
+  ex_wf,
+  resamples  = ex_folds,
+  param_info = ex_params,
+  initial    = 6,
+  iter       = 10,
+  metrics    = metric_set(accuracy)
+)
+
+show_best(ex_res, metric = &quot;accuracy&quot;, n = 3)
+#&gt; # A tibble: 3 x 9
+#&gt;   trees learn_rate .metric  .estimator  mean     n std_err .config
+#&gt;   &lt;int&gt;      &lt;dbl&gt; &lt;chr&gt;    &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1   842    0.0451  accuracy multiclass 0.967     5  0.0211 Iter08
+#&gt; 2  1103    0.0312  accuracy multiclass 0.960     5  0.0249 Iter05
+#&gt; 3   674    0.0589  accuracy multiclass 0.953     5  0.0211 Iter10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>extract_parameter_set_dials(ex_wf)</code> builds the parameter set; <code>update()</code> widens <code>learn_rate</code> since the default range (<code>10^-10</code> to <code>10^-1</code>) is too narrow at the lower end. Six initial points plus ten Bayesian iterations score sixteen candidates against five folds.</p>
+
+</details>
+</section>
+
+<h2>Related tidymodels functions</h2>
+
+<p><strong>Most tune_bayes() runs sit inside a short chain of helpers.</strong></p>
+
+<ul>
+
+<li><code>tune_grid()</code> to score a fixed candidate set or seed a Bayesian warm start.</li>
+
+<li><code>fit_resamples()</code> to resample a workflow with no tunable arguments.</li>
+
+<li><code>last_fit()</code> to refit the finalized workflow on the full train and score the <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a>.</li>
+
+<li><code>finalize_workflow()</code> and <code>select_best()</code> to lock in the winning hyperparameters.</li>
+
+<li><code>extract_parameter_set_dials()</code> and <code>finalize()</code> to discover and resolve parameter ranges.</li>
+
+<li><code>control_bayes()</code> to toggle verbose iteration logs, early stopping, parallel backend, and prediction saving.</li>
+
+</ul>
+
+<p>External reference: the official tune package documentation at <a href="https://tune.tidymodels.org/reference/tune_bayes.html">tune.tidymodels.org</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How many iterations should I set for tune_bayes()?</strong></p>
+
+<p>Budget the initial design first, then add iterations as patience allows. A good rule is five initial points per tunable parameter and fifteen to thirty iterations on top. If <code>control_bayes(no_improve = 10)</code> is set, the search exits early when the surrogate stops finding gains, so over-budgeting is mostly free. With one-second fits and ten folds, sixty total candidates take roughly ten minutes; scale linearly from there.</p>
+
+<p><strong>What is the difference between exp_improve() and conf_bound()?</strong></p>
+
+<p><code>exp_improve()</code> weights candidates by expected gain over the current best metric. It exploits when the surrogate is confident and explores otherwise. <code>conf_bound(kappa)</code> adds <code>kappa</code> standard deviations to the surrogate mean, so larger kappa forces exploration. Default is <code>exp_improve()</code>; switch to <code>conf_bound(kappa = 2)</code> when the search collapses to a single neighborhood and you suspect a better region exists elsewhere.</p>
+
+<p><strong>Can I run tune_bayes() in parallel?</strong></p>
+
+<p>Yes, but iteration logic is sequential by nature. Register a backend before the call (<code>doFuture</code> plus <code>plan(multisession, workers = 4)</code>) and the function parallelizes folds within each iteration, not iterations themselves. Set <code>control_bayes(parallel_over = &quot;everything&quot;)</code> only when the inner per-iteration grid is large; for typical single-candidate iterations, <code>&quot;resamples&quot;</code> is fastest.</p>
+
+<p><strong>Why does the initial design matter so much?</strong></p>
+
+<p>The surrogate's quality depends on how well the initial points cover the space. Too few points or a clustered design produce a misleading mean surface, and the acquisition function chases noise. Use at least one point per parameter, prefer space-filling designs over random ones, and reuse a previous <code>tune_grid()</code> result via <code>initial = prior_res</code> when you have one.</p>
+
+<p><strong>Does tune_bayes() always beat tune_grid()?</strong></p>
+
+<p>No. With one or two discrete parameters and cheap fits, an exhaustive grid is faster and reports more uniformly. Bayesian search wins when the parameter space is continuous, the dimension is at least three, fits cost seconds or more, and you accept that results are no longer a uniform map of the metric surface. Prototype with <code>tune_grid(grid = 10)</code>, then escalate to <code>tune_bayes()</code> once the ranges feel right.</p>
+
+{% endraw %}
