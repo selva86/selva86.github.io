@@ -1,0 +1,365 @@
+---
+title: "glue glue_sql() in R: Safely Interpolate Values Into SQL"
+description: "Use glue glue_sql() in R to build SQL queries with auto-quoted values and identifiers. Five examples, vector splicing, three pitfalls, paste comparison."
+keywords: "glue glue_sql, glue_sql function R, glue_sql examples, R SQL interpolation, glue_sql parameterized query, glue_sql DBI, glue_sql identifier quoting"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "glue_sql()|glue::glue_sql()|glue glue_sql|glue_sql function|SQL interpolation in glue"
+auto_link_case_sensitive: true
+fr_parent: "stringr-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>glue glue_sql() in R: Safely Interpolate Values Into SQL</h1>
+
+<p class="lead">glue glue_sql() builds a SQL query by interpolating R values into a template, with each value auto-quoted for the connected database. It is the safe alternative to <a class="auto-link" href="base-paste-in-R.html" title="paste() and paste0() in R: Concatenate Strings">paste0()</a> or sprintf() for SQL because the connection object decides how literals, identifiers, and vectors are escaped. Use it whenever the query depends on user input or runtime data.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>glue_sql(&quot;SELECT * FROM x WHERE id = {id}&quot;, id = 7, .con = con)<span class="qa-cmt">        # literal</span>
+glue_sql(&quot;SELECT * FROM x WHERE name = {nm}&quot;, nm = &quot;Ada&quot;, .con = con)<span class="qa-cmt">  # string auto-quoted</span>
+glue_sql(&quot;SELECT * FROM x WHERE id IN ({ids*})&quot;, ids = 1:3, .con = con)<span class="qa-cmt"> # vector splice</span>
+glue_sql(&quot;SELECT {`col`} FROM x&quot;, col = &quot;name&quot;, .con = con)<span class="qa-cmt">            # identifier</span>
+glue_sql(&quot;SELECT * FROM {tbl}&quot;, tbl = SQL(&quot;users&quot;), .con = con)<span class="qa-cmt">         # raw SQL</span>
+glue_sql(&quot;UPDATE x SET v = {v} WHERE id = {id}&quot;, v = NA, id = 5, .con = con)<span class="qa-cmt"> # NULL safe</span>
+q &lt;- glue_sql(&quot;SELECT * FROM x WHERE age &gt; {a}&quot;, a = 30, .con = con)<span class="qa-cmt">   # then dbGetQuery(con, q)</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is glue_sql() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">build a safe SQL string with R values</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">glue_sql(&quot;WHERE x = {v}&quot;, .con = con)</text><text x="125" y="126" class="branch-label">interpolate into plain text, not SQL</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">glue(&quot;Hi {name}&quot;)</text><text x="125" y="182" class="branch-label">splice a vector into an IN clause</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">glue_sql(&quot;IN ({ids*})&quot;, .con = con)</text><text x="125" y="238" class="branch-label">pass a column or table name</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">glue_sql(&quot;FROM {`col`}&quot;, col = &quot;x&quot;, .con = con)</text><text x="125" y="294" class="branch-label">collapse a vector into one string</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">glue_collapse(x, sep = &quot;, &quot;)</text><text x="125" y="350" class="branch-label">write rows from a data frame</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">glue_data(df, &quot;{col1}-{col2}&quot;)</text></svg></div>
+
+<h2>What glue_sql() does in one sentence</h2>
+
+<p><strong>glue_sql() interpolates R values into a SQL template and quotes each value according to the rules of the connected database.</strong> You pass a <code>.con</code> argument (a <a class="auto-link" href="DBI-in-R.html" title="Connect R to Any Database: DBI + RSQLite, RPostgres, and RMySQL">DBI</a> connection), and the function uses that connection to decide how strings, numbers, vectors, identifiers, and <code>NA</code> appear inside the final query.</p>
+
+<p>The result is a <code>SQL</code> object that you can hand to <code>DBI::dbGetQuery()</code> or <code>DBI::dbExecute()</code>. Because the connection drives the quoting, the same template works against SQLite, Postgres, MySQL, or any other DBI backend. The <code>{name}</code> syntax is identical to glue(), but every interpolated value is sanitised before insertion.</p>
+
+<div class="webr-container" data-block-title="Load glue and DBI and build a safe query">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load glue and DBI and build a safe query</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(glue)
+library(DBI)
+
+con &lt;- dbConnect(RSQLite::SQLite(), &quot;:memory:&quot;)
+name &lt;- &quot;Ada&quot;
+glue_sql(&quot;SELECT * FROM users WHERE name = {name}&quot;, .con = con)
+#&gt; &lt;SQL&gt; SELECT * FROM users WHERE name = 'Ada'</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>{name}</code> slot is replaced by the string <code>Ada</code> wrapped in single quotes, the way SQLite expects literal strings. No manual escaping was needed.</p>
+
+<h2>Syntax</h2>
+
+<p><strong>glue_sql(..., .con, .envir = <a class="auto-link" href="R-Execution-Stack.html" title="R Execution Stack: sys.call(), parent.frame() & Call Stack Internals">parent.frame()</a>, .na = DBI::SQL("NULL")) builds a parameterized SQL statement.</strong> The <code>...</code> arguments are the template strings, <code>.con</code> is the live DBI connection that drives quoting, and <code>.na</code> sets the SQL token used for <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>.</p>
+
+<div class="webr-container" data-block-title="Function signature and the four arguments that matter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Function signature and the four arguments that matter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># glue_sql(..., .con, .envir = parent.frame(), .na = DBI::SQL(&quot;NULL&quot;))
+#
+# ...    : SQL template strings; values go inside {braces}
+# .con   : a DBI connection; required, drives all quoting
+# .envir : evaluation environment for {expr}, default caller
+# .na    : how to render NA; default is DBI::SQL(&quot;NULL&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Interpolation rules inside the template:</p>
+
+<ul>
+
+<li><code>{value}</code> is treated as a literal and quoted by <code>DBI::dbQuoteLiteral()</code>. Strings become quoted strings, numbers stay unquoted, and <code>NA</code> becomes the <code>.na</code> token.</li>
+
+<li>Wrapping the brace contents in backticks (as shown in example 3) flips the slot to identifier mode, with quoting handled by <code>DBI::dbQuoteIdentifier()</code>.</li>
+
+<li><code>{vec*}</code> (the <code>*</code> suffix) splices a vector into a comma-separated list, useful for <code>IN (...)</code> clauses and <code>VALUES (...)</code> tuples.</li>
+
+<li>A value wrapped in <code>DBI::SQL()</code> is treated as raw SQL and is NOT quoted, which is how you inject already-trusted fragments.</li>
+
+</ul>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pass the real connection, not a placeholder.</strong> The same template produces different SQL across SQLite, Postgres, and MySQL because each backend has its own quoting rules. Use the <code>.con</code> you will execute against, not a different driver chosen for convenience.</div></div>
+
+<h2>Common use cases</h2>
+
+<h3>1. Literal value interpolation</h3>
+
+<div class="webr-container" data-block-title="Quote a string value safely">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Quote a string value safely</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(glue)
+library(DBI)
+
+con &lt;- dbConnect(RSQLite::SQLite(), &quot;:memory:&quot;)
+dbWriteTable(con, &quot;users&quot;,
+  data.frame(id = 1:3, name = c(&quot;Ada&quot;, &quot;Bob&quot;, &quot;Cee&quot;), age = c(30, 25, 40)))
+
+target &lt;- &quot;Ada&quot;
+q &lt;- glue_sql(&quot;SELECT * FROM users WHERE name = {target}&quot;, .con = con)
+q
+#&gt; &lt;SQL&gt; SELECT * FROM users WHERE name = 'Ada'</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The string <code>Ada</code> is wrapped in single quotes. If <code>target</code> contained an apostrophe (<code>O&#x27;Brien</code>), glue_sql() would double the quote (<code>&#x27;O&#x27;&#x27;Brien&#x27;</code>) automatically, which is what stops naive concatenation from breaking on weird names. Numeric values are not quoted, and dates render in the dialect's preferred format.</p>
+
+<h3>2. Splice a vector into an IN clause</h3>
+
+<div class="webr-container" data-block-title="Use the star suffix for vector splicing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use the star suffix for vector splicing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ids &lt;- c(1, 3)
+q &lt;- glue_sql(&quot;SELECT * FROM users WHERE id IN ({ids*})&quot;, .con = con)
+q
+#&gt; &lt;SQL&gt; SELECT * FROM users WHERE id IN (1, 3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>*</code> suffix tells glue_sql() to expand <code>ids</code> into a comma-separated list, with each element quoted individually. Without <code>*</code>, a length-2 vector would produce a length-2 SQL vector (two separate queries), which is almost never what you want for <code>IN</code>.</p>
+
+<h3>3. Treat a value as an identifier</h3>
+
+<div class="webr-container" data-block-title="Backticks inside the brace mark an identifier">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Backticks inside the brace mark an identifier</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">col &lt;- &quot;name&quot;
+q &lt;- glue_sql(&quot;SELECT {`col`} FROM users WHERE id = {id}&quot;, id = 1, .con = con)
+q
+#&gt; &lt;SQL&gt; SELECT `name` FROM users WHERE id = 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The backticks around the brace contents flip glue_sql() from "quote as literal" to "quote as identifier". Identifier quoting uses the database-specific quote character (backticks in SQLite, double quotes in Postgres), so the same template works on either backend.</p>
+
+<h3>4. Inject raw SQL with DBI::SQL()</h3>
+
+<div class="webr-container" data-block-title="Wrap pre-trusted fragments in DBI::SQL">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrap pre-trusted fragments in DBI::SQL</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">order_clause &lt;- DBI::SQL(&quot;ORDER BY age DESC&quot;)
+q &lt;- glue_sql(&quot;SELECT * FROM users {order_clause}&quot;, .con = con)
+q
+#&gt; &lt;SQL&gt; SELECT * FROM users ORDER BY age DESC</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>DBI::SQL()</code> marks a string as already-safe SQL, so glue_sql() drops it in unchanged. Use this for fixed fragments you control (column lists, ORDER BY direction). Never wrap user input in <code>DBI::SQL()</code>, that disables the safety the rest of the function provides.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Everything passes through DBI's quoter except DBI::SQL().</strong> glue_sql() never trusts a value by default. The only way to skip quoting is to wrap a string in <code>DBI::SQL()</code>, which is the explicit opt-out. User input should never go through that wrapper.</div></div>
+
+<h3>5. End-to-end: build and execute</h3>
+
+<div class="webr-container" data-block-title="Build the query then run it with dbGetQuery">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build the query then run it with dbGetQuery</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">min_age &lt;- 27
+q &lt;- glue_sql(&quot;SELECT name, age FROM users WHERE age &gt; {min_age}&quot;, .con = con)
+dbGetQuery(con, q)
+#&gt;   name age
+#&gt; 1  Ada  30
+#&gt; 2  Cee  40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Build with glue_sql(), execute with <code>dbGetQuery()</code> or <code>dbExecute()</code>. Splitting the steps lets you inspect the assembled SQL before running it, which is much easier to debug than a <code>paste0()</code> buried inside the executor call.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never concatenate user input with paste0() for SQL.</strong> A single quote in the input becomes a query-breaking syntax error in the best case and a SQL injection vector in the worst. The whole reason glue_sql() exists is to remove that risk from the codebase.</div></div>
+
+<h2>glue_sql() vs paste0() and sprintf()</h2>
+
+<p><strong>Three approaches build SQL strings; only glue_sql() escapes correctly.</strong> paste0() and sprintf() are general-purpose string builders unaware of SQL, so they do not quote, do not handle vectors, and silently produce injection bugs.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Auto-quotes?</th>
+<th>Handles <code>NA</code>?</th>
+<th>Vector splice?</th>
+<th>Identifier safe?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>glue_sql(..., .con = con)</code></td>
+<td>Yes (DBI rules)</td>
+<td>Yes (<code>NULL</code>)</td>
+<td>Yes (<code>{x*}</code>)</td>
+<td>Yes (backticks)</td>
+</tr>
+<tr>
+<td><code>paste0(&quot;WHERE x = &#x27;&quot;, v, &quot;&#x27;&quot;)</code></td>
+<td>No (manual)</td>
+<td>No</td>
+<td>No</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>sprintf(&quot;WHERE x = &#x27;%s&#x27;&quot;, v)</code></td>
+<td>No (manual)</td>
+<td>No</td>
+<td>No</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>DBI::sqlInterpolate(con, &quot;?x&quot;, x = v)</code></td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Limited</td>
+<td>Limited</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule: any query whose values come from outside the script (user input, file rows, API responses) belongs in glue_sql(). Hard-coded queries with no interpolation are fine as plain literals.</p>
+
+<h2>Common pitfalls</h2>
+
+<ol>
+
+<li><strong>Forgetting <code>.con</code> argument.</strong> glue_sql() throws "Connection required" because it cannot quote without knowing the database. Pass a real DBI connection, not <code>NULL</code> or a string. For testing without a live driver, use <code>DBI::ANSI()</code>.</li>
+
+</ol>
+
+<ol>
+
+<li><strong>Using <code>{x}</code> instead of <code>{x*}</code> for vectors.</strong> A length-N vector inside plain <code>{x}</code> produces a length-N SQL object, one query per element. That breaks <code>IN</code> clauses and most other multi-value patterns. Add the <code>*</code> suffix any time the value is a vector and you want it spliced into one query.</li>
+
+</ol>
+
+<ol>
+
+<li><strong>Wrapping user input in <code>DBI::SQL()</code>.</strong> The <code>SQL()</code> wrapper marks a string as already-safe and skips quoting. If user-supplied data flows through that wrapper, glue_sql()'s safety is gone. Reserve <code>DBI::SQL()</code> for fragments authored in code, never for runtime values.</li>
+
+</ol>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>glue_sql()</code> to build a query that selects all <code>users</code> whose <code>id</code> is in the vector <code>c(2, 3)</code>. Save the result to <code>ex_query</code>, then run it through <code>dbGetQuery(con, ex_query)</code>.</p>
+<div class="webr-container" data-block-title="Your turn: build an IN clause with glue_sql">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build an IN clause with glue_sql</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: filter by a set of ids
+ex_ids &lt;- c(2, 3)
+ex_query &lt;- # your code here
+
+dbGetQuery(con, ex_query)
+#&gt; Expected: 2 rows (Bob and Cee)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_query &lt;- glue_sql(
+  &quot;SELECT * FROM users WHERE id IN ({ex_ids*})&quot;,
+  .con = con
+)
+ex_query
+#&gt; &lt;SQL&gt; SELECT * FROM users WHERE id IN (2, 3)
+dbGetQuery(con, ex_query)
+#&gt;   id name age
+#&gt; 1  2  Bob  25
+#&gt; 2  3  Cee  40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>*</code> suffix splices <code>ex_ids</code> into the parenthesised list. Each element is quoted by DBI before insertion, so the resulting query is safe even if the vector held strings or NAs.</p>
+
+</details>
+</section>
+
+<h2>Related glue functions</h2>
+
+<ul>
+
+<li><code>glue()</code> interpolates <code>{expressions}</code> into plain text strings. Use it whenever the output is not SQL.</li>
+
+<li><code>glue_data()</code> interpolates a template across the rows of a data frame, returning one string per row.</li>
+
+<li><code>glue_collapse()</code> joins a character vector into one string, useful for building summary lines after a glue() pipeline.</li>
+
+<li><code>DBI::sqlInterpolate()</code> is the lower-level DBI primitive that glue_sql() wraps. Reach for it directly only when you need full control over the placeholder syntax.</li>
+
+<li>See the <a href="https://glue.tidyverse.org/reference/glue_sql.html">glue_sql reference</a> for the complete argument list and backend-specific examples.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>Why use glue_sql() instead of paste0() for SQL?</strong></p>
+
+<p>paste0() concatenates strings with no awareness of SQL syntax. A value like <code>O&#x27;Brien</code> breaks the query; <code>1 OR 1=1</code> runs as code. glue_sql() routes every value through <code>DBI::dbQuoteLiteral()</code>, which escapes quotes and handles NAs.</p>
+
+<p><strong>What does the <code>*</code> suffix do in a glue_sql() template?</strong></p>
+
+<p>The <code>*</code> after a name (<code>{ids*}</code>) splices the vector into a comma-separated list rather than producing one query per element. It is the standard pattern for <code>IN ()</code> clauses and <code>VALUES ()</code> lists. Each element of the spliced vector is quoted individually by DBI.</p>
+
+<p><strong>How do I pass a column or table name through glue_sql()?</strong></p>
+
+<p>Wrap the brace contents in backticks inside the template (as in example 3). This switches glue_sql() to <code>DBI::dbQuoteIdentifier()</code>, which uses the right identifier quote for the backend (backticks in SQLite, double quotes in Postgres). For a known-safe fragment, wrap the value in <code>DBI::SQL()</code> to skip quoting.</p>
+
+<p><strong>How does glue_sql() handle <a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">NA values</a>?</strong></p>
+
+<p>By default, any <code>NA</code> in an interpolated value becomes <code>NULL</code> in the SQL output. Override the token via the <code>.na</code> argument, for example <code>.na = DBI::SQL(&quot;&#x27;missing&#x27;&quot;)</code> to use a sentinel string.</p>
+
+<p><strong>Can I use glue_sql() without a database connection for testing?</strong></p>
+
+<p>Yes, pass <code>DBI::ANSI()</code> as the <code>.con</code>. It is a synthetic connection that applies standard ANSI SQL quoting rules, so glue_sql() can build a representative query without a live driver. Switch back to the real connection before executing, since dialects diverge on identifier quoting and date formats.</p>
