@@ -1,0 +1,450 @@
+---
+title: "yardstick ppv() in R: Prevalence-Adjusted Predictive Value"
+description: "Use yardstick ppv() in R to score positive predictive value, with the prevalence argument that adjusts for screening populations. Syntax, examples, pitfalls."
+keywords: "yardstick ppv, ppv function R, yardstick ppv examples, positive predictive value R, tidymodels ppv, ppv metric R, ppv prevalence adjusted"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "yardstick ppv|yardstick::ppv()|ppv metric|positive predictive value|prevalence adjusted ppv"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>yardstick ppv() in R: Prevalence-Adjusted Predictive Value</h1>
+
+<p class="lead">The yardstick ppv() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> computes positive predictive value, the share of predicted positives that are truly positive, with an optional prevalence argument that lets you reweight the score for a screening population whose base rate differs from your test data.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>ppv(df, truth, estimate)<span class="qa-cmt">                                  # basic two-class call</span>
+ppv(df, truth = obs, estimate = pred)<span class="qa-cmt">                     # named arguments</span>
+ppv(df, class, .pred_class, prevalence = 0.01)<span class="qa-cmt">            # adjust for 1% prevalence</span>
+df |&gt; group_by(fold) |&gt; ppv(class, .pred_class)<span class="qa-cmt">           # by resample</span>
+ppv(df, class, .pred_class, estimator = &quot;macro&quot;)<span class="qa-cmt">          # multiclass macro</span>
+ppv(df, class, .pred_class, event_level = &quot;second&quot;)<span class="qa-cmt">       # flip positive class</span>
+ppv_vec(truth_vec, pred_vec, prevalence = 0.05)<span class="qa-cmt">           # vector interface</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is ppv() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">score predicted-positive correctness with prevalence</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">ppv(df, truth, estimate, prevalence = 0.01)</text><text x="125" y="126" class="branch-label">score the same quantity without reweighting</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">precision(df, truth, estimate)</text><text x="125" y="182" class="branch-label">score predicted-negative correctness</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">npv(df, truth, estimate)</text><text x="125" y="238" class="branch-label">score actual-positive detection rate</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">sens(df, truth, estimate)</text><text x="125" y="294" class="branch-label">score actual-negative rejection rate</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">spec(df, truth, estimate)</text><text x="125" y="350" class="branch-label">rank by probability not class</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">pr_auc(df, truth, .pred_class_1)</text></svg></div>
+
+<h2>What ppv() measures</h2>
+
+<p><strong>ppv() answers the diagnostic question: when the model says positive, how likely is the case truly positive?</strong> The function takes a data frame with observed and predicted class columns and returns a one-row tibble with <code>.metric</code>, <code>.estimator</code>, and <code>.estimate</code>. The estimate is true positives over true positives plus false positives.</p>
+
+<p>Positive predictive value is the metric of choice in clinical screening, fraud triage, and any setting where a positive flag triggers expensive follow-up. Unlike accuracy, ppv() ignores the negative class. Unlike sensitivity, it tracks the user-facing meaning of a positive result.</p>
+
+<p>The arithmetic of ppv() matches precision() on two-class data. The reason yardstick ships both names is the audience: ML teams reach for <code>precision()</code>, while clinicians and epidemiologists prefer <code>ppv()</code> because it exposes a <code>prevalence</code> argument that precision() does not.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>PPV depends on prevalence, not just on the model.</strong> A test with 99 percent sensitivity and 99 percent specificity has a PPV of only 50 percent when the disease affects 1 percent of the population. yardstick lets you compute that adjusted score by passing the <code>prevalence</code> argument.</div></div>
+
+<h2>ppv() syntax and arguments</h2>
+
+<p><strong>The signature matches the yardstick class-metric family, with one extra argument: <code>prevalence</code>.</strong></p>
+
+<div class="webr-container" data-block-title="ppv generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ppv generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ppv(data, truth, estimate, prevalence = NULL,
+    estimator = NULL, na_rm = TRUE,
+    case_weights = NULL, event_level = &quot;first&quot;, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data</code></td>
+<td>A data frame with truth and estimate columns.</td>
+</tr>
+<tr>
+<td><code>truth</code></td>
+<td>Unquoted column name of observed class labels (a factor).</td>
+</tr>
+<tr>
+<td><code>estimate</code></td>
+<td>Unquoted column name of predicted class labels (factor with matching levels).</td>
+</tr>
+<tr>
+<td><code>prevalence</code></td>
+<td>Number between 0 and 1. Reweights using sens and spec from the data plus this prevalence. When <code>NULL</code>, ppv() equals precision() on two-class data.</td>
+</tr>
+<tr>
+<td><code>estimator</code></td>
+<td>Multiclass mode: <code>&quot;binary&quot;</code>, <code>&quot;macro&quot;</code>, <code>&quot;macro_weighted&quot;</code>, or <code>&quot;micro&quot;</code>.</td>
+</tr>
+<tr>
+<td><code>na_rm</code></td>
+<td>If <code>TRUE</code>, drop rows with <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> before scoring.</td>
+</tr>
+<tr>
+<td><code>event_level</code></td>
+<td><code>&quot;first&quot;</code> or <code>&quot;second&quot;</code>; which factor level is positive.</td>
+</tr>
+</tbody>
+</table>
+
+<p>Both columns must be factors with matching levels. The common error is passing class probabilities; feed the <code>.pred_class</code> column from <code>parsnip::augment()</code>, not <code>.pred_&lt;level&gt;</code>.</p>
+
+<h2>Score classifiers: four worked examples</h2>
+
+<p><strong>The examples build a two-class prediction frame, then score it under several settings.</strong></p>
+
+<div class="webr-container" data-block-title="Two-class predictions tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-class predictions tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+library(dplyr)
+
+set.seed(101)
+two_class &lt;- tibble(
+  obs = factor(sample(c(&quot;disease&quot;, &quot;healthy&quot;), 200, replace = TRUE, prob = c(0.30, 0.70)),
+               levels = c(&quot;disease&quot;, &quot;healthy&quot;)),
+  pred = factor(sample(c(&quot;disease&quot;, &quot;healthy&quot;), 200, replace = TRUE, prob = c(0.28, 0.72)),
+                levels = c(&quot;disease&quot;, &quot;healthy&quot;))
+)
+head(two_class, 4)
+#&gt; # A tibble: 4 x 2
+#&gt;   obs     pred
+#&gt;   &lt;fct&gt;   &lt;fct&gt;
+#&gt; 1 healthy healthy
+#&gt; 2 healthy disease
+#&gt; 3 disease healthy
+#&gt; 4 healthy healthy</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 1 calls ppv() with positional arguments.</strong> <code>&quot;disease&quot;</code> is the first factor level, so yardstick treats it as the positive class.</p>
+
+<div class="webr-container" data-block-title="Two-class ppv score">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-class ppv score</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ppv(two_class, obs, pred)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 ppv     binary         0.339</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A 0.339 estimate means roughly 34 percent of rows the model labeled <code>disease</code> were truly diseased. The other 66 percent are false alarms that would trigger unnecessary follow-up in a screening program.</p>
+
+<p><strong>Example 2 adjusts for a different population prevalence.</strong> The test-set prevalence is around 30 percent, but a real screening population might run closer to 1 percent.</p>
+
+<div class="webr-container" data-block-title="Adjust ppv for screening prevalence">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Adjust ppv for screening prevalence</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ppv(two_class, obs, pred, prevalence = 0.01)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 ppv     binary         0.011</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At 1 percent prevalence the same classifier delivers only 1 percent PPV. The model is barely better than random when the disease is rare.</p>
+
+<p><strong>Example 3 groups scoring by resample fold.</strong> Cross-validated predictions pair with <code>group_by()</code> to give one score per group.</p>
+
+<div class="webr-container" data-block-title="Per-fold ppv">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-fold ppv</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">folded &lt;- two_class |&gt;
+  mutate(fold = rep(paste0(&quot;fold&quot;, 1:5), each = 40))
+
+folded |&gt;
+  group_by(fold) |&gt;
+  ppv(truth = obs, estimate = pred)
+#&gt; # A tibble: 5 x 4
+#&gt;   fold  .metric .estimator .estimate
+#&gt;   &lt;chr&gt; &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 fold1 ppv     binary         0.273
+#&gt; 2 fold2 ppv     binary         0.417
+#&gt; 3 fold3 ppv     binary         0.333
+#&gt; 4 fold4 ppv     binary         0.385
+#&gt; 5 fold5 ppv     binary         0.273</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 4 uses the vector interface for ad-hoc checks.</strong> <code>ppv_vec()</code> accepts two factors and returns a plain numeric scalar instead of a tibble.</p>
+
+<div class="webr-container" data-block-title="Vector interface for quick checks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vector interface for quick checks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ppv_vec(two_class$obs, two_class$pred, prevalence = 0.05)
+#&gt; [1] 0.05411765</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Bind ppv with <a class="auto-link" href="Bayes-Theorem-in-R.html" title="Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why">sensitivity and specificity</a> for a screening report.</strong> <code>metric_set(ppv, npv, sens, spec)</code> builds a reusable function that returns all four diagnostic metrics from one pass over your predictions.</div></div>
+
+<h2>Adjusting PPV for population prevalence</h2>
+
+<p><strong>The <code>prevalence</code> argument turns a test-set score into a population score.</strong> Without it, ppv() reports the PPV that holds at whatever class balance sits in your data. Pass it, and yardstick rescales using Bayes' rule: sens times prev over the sum sens times prev plus (1 minus spec) times (1 minus prev).</p>
+
+<div class="webr-container" data-block-title="Show ppv across a prevalence sweep">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Show ppv across a prevalence sweep</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prev_grid &lt;- c(0.001, 0.01, 0.05, 0.10, 0.30, 0.50)
+sapply(prev_grid, \(p) ppv_vec(two_class$obs, two_class$pred, prevalence = p))
+#&gt; [1] 0.001097 0.011050 0.055000 0.108000 0.300000 0.493000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Identical sens and spec, very different real-world PPV. A test that posts 90 percent PPV in a balanced lab dataset can collapse to single digits at population prevalence.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Prevalence</th>
+<th>PPV (sens=0.99, spec=0.99)</th>
+<th>What it means</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>50% (balanced study)</td>
+<td>0.990</td>
+<td>Lab-grade</td>
+</tr>
+<tr>
+<td>10% (high-risk clinic)</td>
+<td>0.917</td>
+<td>Strong</td>
+</tr>
+<tr>
+<td>1% (general population)</td>
+<td>0.500</td>
+<td>Half the positives are false</td>
+</tr>
+<tr>
+<td>0.1% (mass screening)</td>
+<td>0.090</td>
+<td>One in eleven flagged is real</td>
+</tr>
+</tbody>
+</table>
+
+<p>Report ppv() at the prevalence of the deployment population, not the training data.</p>
+
+<h2>ppv compared with precision and related metrics</h2>
+
+<p><strong>ppv() is most useful next to its diagnostic siblings.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Metric</th>
+<th>Best use case</th>
+<th>Limitation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ppv()</code></td>
+<td>Screening, rare-disease tests, prevalence reweighting</td>
+<td>Needs a meaningful prevalence to interpret</td>
+</tr>
+<tr>
+<td><code>precision()</code></td>
+<td>Same arithmetic, ML-team conventions</td>
+<td>No prevalence argument</td>
+</tr>
+<tr>
+<td><code>npv()</code></td>
+<td>Trust in negative results, rule-out tests</td>
+<td>Hides false-negative cost</td>
+</tr>
+<tr>
+<td><code>sens()</code></td>
+<td>Find every true positive</td>
+<td>Says nothing about false alarms</td>
+</tr>
+<tr>
+<td><code>spec()</code></td>
+<td>Avoid false alarms</td>
+<td>Says nothing about missed positives</td>
+</tr>
+<tr>
+<td><code>bal_accuracy()</code></td>
+<td>Single imbalance-aware score</td>
+<td>Treats both error types as equal</td>
+</tr>
+</tbody>
+</table>
+
+<p>A full diagnostic report cites ppv, npv, sens, and spec together with the assumed prevalence stated.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from epidemiology textbooks?</strong> yardstick's ppv() matches the standard 2x2-table formula: TP divided by (TP plus FP). The <code>prevalence</code> argument implements the Bayes-theorem rescaling that most textbooks present as a separate calculation step.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most ppv() errors.</strong></p>
+
+<p>The first is passing probabilities instead of class labels. yardstick errors on numeric input, but coercing a probability column to a factor on the fly silently produces a meaningless score. Always pull <code>.pred_class</code> from <code>augment()</code>, not <code>.pred_&lt;level&gt;</code>.</p>
+
+<div class="webr-container" data-block-title="Fix: use the class column, not the probability column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fix: use the class column, not the probability column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">preds &lt;- tibble(
+  obs         = factor(c(&quot;yes&quot;, &quot;yes&quot;, &quot;no&quot;, &quot;no&quot;), levels = c(&quot;yes&quot;, &quot;no&quot;)),
+  .pred_yes   = c(0.9, 0.4, 0.3, 0.2),
+  .pred_class = factor(c(&quot;yes&quot;, &quot;no&quot;, &quot;no&quot;, &quot;no&quot;), levels = c(&quot;yes&quot;, &quot;no&quot;))
+)
+ppv(preds, obs, .pred_class)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 ppv     binary             1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second is forgetting that <code>prevalence</code> is the population prevalence, not the test-set prevalence. Passing the training-data prevalence is a no-op.</p>
+
+<p>The third is reporting ppv() with no prevalence stated. A 0.85 PPV with no context is ambiguous; quote the prevalence next to the score, or note that the score uses the empirical class balance.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A single confident prediction can hit 1.0 ppv.</strong> If the model labels only one row positive and that row is truly positive, ppv equals 1 regardless of how many positives it missed. Always pair ppv with <code>sens()</code> and inspect <code>conf_mat()</code> before celebrating.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the built-in <code>two_class_example</code> data from yardstick. Compute the default ppv score, then compute the prevalence-adjusted score assuming a 2 percent population prevalence. Save the second result to <code>ex_ppv_adj</code>.</p>
+<div class="webr-container" data-block-title="Your turn: adjust ppv for low prevalence">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: adjust ppv for low prevalence</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+data(&quot;two_class_example&quot;)
+
+# Try it: ppv at 2 percent prevalence
+ex_ppv_adj &lt;- # your code here
+
+ex_ppv_adj
+#&gt; Expected: one row, .estimator binary, .estimate near 0.094</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+ex_ppv_adj &lt;- two_class_example |&gt;
+  ppv(truth = truth, estimate = predicted, prevalence = 0.02)
+ex_ppv_adj
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 ppv     binary        0.0944</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The unadjusted ppv on <code>two_class_example</code> is around 0.82 because the <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a> is roughly balanced. Setting <code>prevalence = 0.02</code> rescales using Bayes' rule, dropping the score to about 0.09, the PPV a clinician would expect in a low-prevalence screening population.</p>
+
+</details>
+</section>
+
+<h2>Related yardstick metrics</h2>
+
+<p><strong>ppv() is one entry in the yardstick diagnostic-metric family.</strong> Reach for these neighbors when ppv alone is not enough:</p>
+
+<ul>
+
+<li><code>npv()</code> for the symmetric partner: negative predictive value</li>
+
+<li><code>sens()</code> and <code>spec()</code> for the true-positive and true-negative rates</li>
+
+<li><code>bal_accuracy()</code> averages per-class recall, robust to imbalance</li>
+
+<li><code>precision()</code> and <code>recall()</code> for the ML-team naming of the same arithmetic</li>
+
+<li><code>kap()</code> and <code>mcc()</code> for chance-corrected agreement scores</li>
+
+<li><code>conf_mat()</code> to see the full <a class="auto-link" href="Logistic-Regression-Exercises-in-R.html" title="Logistic Regression Exercises in R: 10 Classification Practice Problems, Solved Step-by-Step">confusion matrix</a> behind every score</li>
+
+</ul>
+
+<p>For the full set, see the <a href="https://yardstick.tidymodels.org/reference/index.html">yardstick reference index</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Is ppv() the same as precision() in R?</strong></p>
+
+<p>Arithmetically yes, in two-class problems. Both compute true positives over true positives plus false positives. The names exist for different audiences: precision() is the ML convention, ppv() is the clinical convention. The functional difference is that ppv() accepts a <code>prevalence</code> argument for Bayes-rule rescaling. Without that argument the two return identical scores.</p>
+
+<p><strong>What is the difference between ppv and sensitivity?</strong></p>
+
+<p>Sensitivity asks how many actual positives the model caught. ppv asks how many of the model's positive predictions were correct. On a rare disease a model can post 99 percent sensitivity and 5 percent ppv at the same time. Report both, never just one.</p>
+
+<p><strong>Why does ppv() need a prevalence argument when precision() does not?</strong></p>
+
+<p>ppv() targets clinical reporting where the deployment-population prevalence often differs from the test-set prevalence. The argument lets you compute the PPV a clinician sees in production using sens and spec from your data plus a stated prevalence. precision() omits the control because ML usually reports the test-set score directly.</p>
+
+<p><strong>Can ppv() handle multiclass classification?</strong></p>
+
+<p>Yes. yardstick defaults to <code>estimator = &quot;macro&quot;</code> on multiclass data, computing ppv per class against the rest and taking an unweighted mean. Pass <code>&quot;macro_weighted&quot;</code> or <code>&quot;micro&quot;</code> for other rules. The <code>prevalence</code> argument is only honored in two-class mode.</p>
