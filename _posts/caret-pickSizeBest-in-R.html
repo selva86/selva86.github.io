@@ -1,0 +1,334 @@
+---
+title: "caret pickSizeBest() in R: Pick the Top RFE Subset Size"
+description: "caret pickSizeBest() in R picks the rfe subset size with the best resampled metric value. Covers signature, rfeControl wiring, pickSizeTolerance comparison."
+keywords: "caret pickSizeBest, pickSizeBest function R, caret pickSizeBest examples, R rfe optimal subset, caret rfe select best size, pickSizeBest rfeControl, caret feature elimination"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "pickSizeBest()|caret pickSizeBest|caret::pickSizeBest()|pickSizeTolerance()|rfe subset size selector"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret pickSizeBest() in R: Pick the Top RFE Subset Size</h1>
+
+<p class="lead">The <code>pickSizeBest()</code> function in caret scans the resampled performance table from a recursive feature elimination run and returns the single subset size whose metric value is best. It is the default size-selector wired into every built-in <code>rfeControl()</code> recipe, so most users invoke it indirectly through <code>rfe()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>pickSizeBest(x, metric = &quot;RMSE&quot;, maximize = FALSE)<span class="qa-cmt">    # regression default</span>
+pickSizeBest(x, metric = &quot;Accuracy&quot;, maximize = TRUE)<span class="qa-cmt"> # classification default</span>
+pickSizeBest(rfe_fit$results, &quot;ROC&quot;, TRUE)<span class="qa-cmt">            # call on a fitted rfe object</span>
+rfe_fit$optsize<span class="qa-cmt">                                       # the size pickSizeBest chose</span>
+rfeControl(functions = rfFuncs)<span class="qa-cmt">                       # uses pickSizeBest by default</span>
+identical(rfFuncs$selectSize, pickSizeBest)<span class="qa-cmt">           # TRUE; default size selector</span>
+pickSizeTolerance(x, metric, tol = 1.5, maximize)<span class="qa-cmt">     # parsimony alternative</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is pickSizeBest() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">pick the rfe subset with the single best resampled score</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">pickSizeBest(x, metric, maximize)</text><text x="125" y="126" class="branch-label">prefer a smaller subset within tolerance of best</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">pickSizeTolerance(x, metric, tol = 1.5, maximize)</text><text x="125" y="182" class="branch-label">run the recursive feature elimination loop itself</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">rfe(x, y, sizes, rfeControl)</text><text x="125" y="238" class="branch-label">configure the resampling and helper functions</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">rfeControl(functions = rfFuncs, method = &quot;cv&quot;)</text><text x="125" y="294" class="branch-label">rank predictors without elimination</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">varImp(fit)</text><text x="125" y="350" class="branch-label">write a custom rule that combines size, score, and stability</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">define your own selectSize function</text></svg></div>
+
+<h2>What pickSizeBest() does in one sentence</h2>
+
+<p><strong><code>pickSizeBest()</code> returns the subset size whose resampled performance metric is best across all sizes tried by <code>rfe()</code>.</strong> It is a stateless helper, not a model. You hand it the <code>results</code> data frame produced by a recursive feature elimination run, name the metric column, and tell it whether higher is better. It returns one integer, the chosen number of predictors.</p>
+
+<p>The function lives inside caret's <code>rfe()</code> machinery as the default value of <code>functions$selectSize</code>. When you call <code>rfe()</code> with <code>rfeControl(functions = rfFuncs)</code>, the loop fits models at each requested subset size, averages the metric across resamples, and at the end calls <code>pickSizeBest()</code> on that averaged table to decide which size <code>optsize</code> should hold.</p>
+
+<h2>pickSizeBest() syntax and arguments</h2>
+
+<p><strong>The signature has three arguments and no defaults that depend on the caller's data.</strong></p>
+
+<div class="webr-container" data-block-title="Load caret and call pickSizeBest on a toy table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and call pickSizeBest on a toy table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+results &lt;- data.frame(
+  Variables = c(2, 4, 6, 8, 10),
+  RMSE      = c(3.21, 2.85, 2.41, 2.39, 2.47),
+  Rsquared  = c(0.42, 0.55, 0.68, 0.69, 0.66)
+)
+
+pickSizeBest(results, metric = &quot;RMSE&quot;, maximize = FALSE)
+#&gt; [1] 8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signature is:</p>
+
+<pre><code>pickSizeBest(x, metric, maximize)</code></pre>
+
+<ul>
+
+<li><code>x</code>: a data frame of resampled results. Must contain a column named <code>Variables</code> (the subset size tried) and a column whose name matches <code>metric</code>.</li>
+
+<li><code>metric</code>: character string. The column name to optimize. For regression, <code>&quot;RMSE&quot;</code>, <code>&quot;MAE&quot;</code>, or <code>&quot;Rsquared&quot;</code>. For classification, <code>&quot;Accuracy&quot;</code>, <code>&quot;Kappa&quot;</code>, <code>&quot;ROC&quot;</code>, <code>&quot;Sens&quot;</code>, <code>&quot;Spec&quot;</code>.</li>
+
+<li><code>maximize</code>: logical. <code>TRUE</code> if higher is better (Accuracy, ROC, Rsquared). <code>FALSE</code> if lower is better (RMSE, MAE, logLoss).</li>
+
+</ul>
+
+<p>The return value is a single integer, the <code>Variables</code> value of the winning row. Ties are broken by <code>which.max</code> / <code>which.min</code>, which returns the first index, so the smallest size in a tie wins.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>pickSizeBest()</code> never inspects standard errors or fold-level spread.</strong> It optimizes the point estimate of the resampled metric, nothing more. For a more conservative choice that prefers parsimony, use <code>pickSizeTolerance()</code> (see the comparison section below).</div></div>
+
+<h2>pickSizeBest() examples by use case</h2>
+
+<h3>1. Standalone call on a fitted rfe object</h3>
+
+<p>After <code>rfe()</code> returns, its <code>results</code> slot holds one row per subset size. You can call <code>pickSizeBest()</code> directly on it.</p>
+
+<div class="webr-container" data-block-title="Run rfe on the Boston housing data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run rfe on the Boston housing data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+library(MASS)
+
+set.seed(1)
+ctrl  &lt;- rfeControl(functions = lmFuncs, method = &quot;cv&quot;, number = 5)
+sizes &lt;- c(2, 4, 6, 8, 10, 13)
+fit   &lt;- rfe(Boston[, -14], Boston$medv, sizes = sizes, rfeControl = ctrl)
+
+pickSizeBest(fit$results, metric = &quot;RMSE&quot;, maximize = FALSE)
+#&gt; [1] 13
+
+fit$optsize
+#&gt; [1] 13</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two calls agree because <code>rfe()</code> ran <code>pickSizeBest()</code> internally and stored its choice in <code>optsize</code>. Calling the helper yourself is useful when you want to re-evaluate the choice with a different metric or after filtering <code>fit$results</code>.</p>
+
+<h3>2. Default plug-in inside rfeControl()</h3>
+
+<p>The built-in function bundles (<code>rfFuncs</code>, <code>lmFuncs</code>, <code>nbFuncs</code>, <code>treebagFuncs</code>, <code>caretFuncs</code>) all set <code>selectSize = pickSizeBest</code>. You inherit the behavior whenever you pass one of those bundles to <code>rfeControl()</code>.</p>
+
+<div class="webr-container" data-block-title="Inspect the default selectSize">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the default selectSize</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">identical(rfFuncs$selectSize,  pickSizeBest)
+#&gt; [1] TRUE
+identical(lmFuncs$selectSize,  pickSizeBest)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The bundles also wire <code>pickVars</code>, the helper that returns the variable names belonging to the chosen size. Together, <code>pickSizeBest()</code> and <code>pickVars()</code> produce <code>fit$optsize</code> and <code>fit$optVariables</code>.</p>
+
+<h3>3. Re-wire to pickSizeTolerance for parsimony</h3>
+
+<p>If a tiny gain in metric is not worth a much larger feature set, swap the size selector before passing the bundle to <code>rfeControl()</code>.</p>
+
+<div class="webr-container" data-block-title="Prefer the smallest size within 1.5 percent of the best">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Prefer the smallest size within 1.5 percent of the best</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_funcs &lt;- rfFuncs
+my_funcs$selectSize &lt;- function(x, metric, maximize) {
+  pickSizeTolerance(x, metric, tol = 1.5, maximize = maximize)
+}
+
+set.seed(1)
+ctrl2 &lt;- rfeControl(functions = my_funcs, method = &quot;cv&quot;, number = 5)
+fit2  &lt;- rfe(Boston[, -14], Boston$medv,
+             sizes = sizes, rfeControl = ctrl2)
+fit2$optsize
+#&gt; [1] 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The tolerance variant pulled the chosen size down from 13 to 6 because the RMSE at size 6 is within 1.5 percent of the absolute best. The model is much smaller and rarely loses much accuracy.</p>
+
+<h3>4. Custom rule on top of pickSizeBest</h3>
+
+<p>Wrap the helper to combine its choice with a hard cap or a stability check.</p>
+
+<div class="webr-container" data-block-title="Cap the chosen size at 5 predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cap the chosen size at 5 predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_funcs$selectSize &lt;- function(x, metric, maximize) {
+  best &lt;- pickSizeBest(x, metric, maximize)
+  min(best, 5)
+}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The wrapper still defers to <code>pickSizeBest()</code> for the unconstrained choice and then enforces the cap. Custom rules belong here, not inside <code>rfe()</code> itself, because <code>rfeControl()</code> is the only injection point caret exposes.</p>
+
+<h2>pickSizeBest vs pickSizeTolerance</h2>
+
+<p><strong>Both helpers consume the same <code>results</code> table. They differ in how they balance score against subset size.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Helper</th>
+<th>What it returns</th>
+<th>When to prefer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pickSizeBest()</code></td>
+<td>Size with the single best resampled metric</td>
+<td>You want maximum point-estimate performance and can afford a larger feature set</td>
+</tr>
+<tr>
+<td><code>pickSizeTolerance()</code></td>
+<td>Smallest size within <code>tol</code> percent of best</td>
+<td>You want parsimony, robustness to fold noise, or a smaller production model</td>
+</tr>
+<tr>
+<td>Custom <code>selectSize</code></td>
+<td>Whatever your function returns</td>
+<td>You have domain rules (cost per feature, regulatory limits) the built-ins do not encode</td>
+</tr>
+</tbody>
+</table>
+
+<p><code>pickSizeTolerance()</code> takes an extra <code>tol</code> argument (default 1.5, in percent). The metric value at every candidate size is compared to the best; the smallest size whose value is within <code>tol</code> percent is returned. It typically picks a smaller subset than <code>pickSizeBest()</code> and is less likely to chase noise on small resampling samples.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>pickSizeTolerance()</code> with <code>tol = 1.5</code> as a low-effort upgrade for production models.</strong> You usually drop 30 to 70 percent of the features at the cost of fewer than 2 percent of the metric, and the resulting model trains and scores much faster.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes show up often when calling <code>pickSizeBest()</code> directly or inspecting its choice.</strong></p>
+
+<ol>
+
+<li><strong>Passing <code>maximize = TRUE</code> with RMSE.</strong> Lower RMSE is better. With <code>maximize = TRUE</code>, <code>pickSizeBest()</code> returns the worst size. Always set <code>maximize = FALSE</code> for RMSE, MAE, logLoss, and any error metric.</li>
+
+</ol>
+
+<ol>
+
+<li><strong>Calling it on the per-fold table instead of the averaged results.</strong> <code>rfe(...)$resample</code> has one row per fold per size and lacks a single metric column with the right shape. The right input is <code>rfe(...)$results</code>, which has one row per size with averaged metrics.</li>
+
+</ol>
+
+<ol>
+
+<li><strong>Expecting it to honor standard errors.</strong> A 0.001 RMSE win at size 14 over size 6 is meaningless if the fold standard error is 0.05. <code>pickSizeBest()</code> will still choose 14. For statistical parity within noise, use <code>pickSizeTolerance()</code> or a custom rule that consults <code>fit$results$RMSESD</code>.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>pickSizeBest()</code> requires that the <code>Variables</code> column matches one of the sizes you passed to <code>rfe(sizes = ...)</code>.</strong> If the helper is called on a filtered table that no longer contains the candidate sizes, the returned integer will be the best of whatever rows remain, not the best overall. <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> the table only when you mean to constrain the choice.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run <code>rfe()</code> on <code>iris</code> to classify <code>Species</code>, then call <code>pickSizeBest()</code> on the result with the <code>&quot;Accuracy&quot;</code> metric.</p>
+<div class="webr-container" data-block-title="Your turn: rfe on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rfe on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: pick the best subset size for an iris classifier
+library(caret)
+set.seed(1)
+ctrl_ex &lt;- rfeControl(functions = rfFuncs, method = &quot;cv&quot;, number = 5)
+fit_ex  &lt;- # your code here
+
+best_ex &lt;- # your code here
+
+best_ex
+#&gt; Expected: an integer between 1 and 4 (often 2 or 4)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_ex  &lt;- rfe(iris[, 1:4], iris$Species,
+               sizes = c(1, 2, 3, 4), rfeControl = ctrl_ex)
+best_ex &lt;- pickSizeBest(fit_ex$results, metric = &quot;Accuracy&quot;,
+                        maximize = TRUE)
+best_ex
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Petal width and petal length carry nearly all the signal in iris, so the size-2 subset typically ties or beats the full set on cross-validated accuracy. <code>pickSizeBest()</code> returns the smallest tied size first, which is why size 2 wins.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<ul>
+
+<li><code>pickSizeTolerance(x, metric, tol, maximize)</code>: the parsimony-aware sibling. Same inputs, prefers smaller sizes within a tolerance.</li>
+
+<li><code>rfe(x, y, sizes, rfeControl)</code>: the recursive feature elimination loop that produces the <code>results</code> table <code>pickSizeBest()</code> consumes.</li>
+
+<li><code>rfeControl(functions, method, number)</code>: configures the resampling scheme and the function bundle that contains <code>selectSize</code>.</li>
+
+<li><code>pickVars(y, size)</code>: companion to <code>pickSizeBest()</code>, returns the variable names belonging to the chosen size.</li>
+
+<li><code>varImp(fit)</code>: ranks predictors inside a fitted <code>train</code> object. Useful for inspecting why a given subset was selected.</li>
+
+</ul>
+
+<p>External reference: the <a href="https://topepo.github.io/caret/recursive-feature-elimination.html">caret variable selection guide</a> on the official caret site documents the full set of <code>selectSize</code> plug-ins.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between <code>pickSizeBest()</code> and <code>pickSizeTolerance()</code> in caret?</strong></p>
+
+<p><code>pickSizeBest()</code> returns the subset size with the highest (or lowest) resampled metric value, ignoring how close other sizes came. <code>pickSizeTolerance()</code> returns the smallest size whose metric is within a tolerance, defaulting to 1.5 percent of the best. Use <code>pickSizeBest()</code> for raw performance and <code>pickSizeTolerance()</code> when you prefer a smaller model that is statistically indistinguishable from the best.</p>
+
+<p><strong>How does <code>rfe()</code> use <code>pickSizeBest()</code> automatically?</strong></p>
+
+<p>Every built-in function bundle (<code>rfFuncs</code>, <code>lmFuncs</code>, <code>nbFuncs</code>, <code>treebagFuncs</code>, <code>caretFuncs</code>) sets <code>selectSize = pickSizeBest</code>. When <code>rfe()</code> finishes its resampling loop, it calls the bundle's <code>selectSize</code> on the averaged <code>results</code> table and stores the chosen size in <code>fit$optsize</code>. You never call <code>pickSizeBest()</code> yourself in the default workflow, but the choice is entirely controlled by it.</p>
+
+<p><strong>Why does <code>pickSizeBest()</code> sometimes pick the largest subset?</strong></p>
+
+<p>When the resampled metric improves monotonically with more features, the best score lands at the largest size you tried, so <code>pickSizeBest()</code> returns that size. This is common with linear models on low-noise data. If you want to discourage the result, swap in <code>pickSizeTolerance()</code> or pass a wrapper that caps the returned size.</p>
+
+<p><strong>Can <code>pickSizeBest()</code> be used outside of <code>rfe()</code>?</strong></p>
+
+<p>Yes. The helper is a pure function over a data frame. Any table with a <code>Variables</code> column and a named metric column will work, including hand-built tables from other <a class="auto-link" href="Variable-Selection-and-Importance-With-R.html" title="Feature Selection and Variable Importance">feature selection</a> routines. The only contract is the column layout, not the source of the rows.</p>
+
+<p><strong>Does <code>pickSizeBest()</code> look at standard errors or fold-level variance?</strong></p>
+
+<p>No. It optimizes the point estimate in the metric column. If your resampling has high variance, the chosen size may be unstable across reruns of <code>rfe()</code>. Use <code>pickSizeTolerance()</code> for a noise-aware alternative, or build a custom <code>selectSize</code> that consults the metric's <code>SD</code> column.</p>
