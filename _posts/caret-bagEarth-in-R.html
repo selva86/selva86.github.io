@@ -1,0 +1,371 @@
+---
+title: "caret bagEarth() in R: Bagged MARS Ensemble Models"
+description: "Learn how caret bagEarth() in R fits a bagged MARS ensemble. Formula and matrix interfaces, predict() options, tuning B, and common pitfalls explained."
+keywords: "caret bagEarth, bagEarth function R, caret bagEarth examples, bagged earth R, bagged MARS R, caret bagEarth predict, bagEarth ensemble"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "bagEarth()|caret bagEarth|caret::bagEarth()|bagged MARS|bagged earth model|MARS ensemble"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret bagEarth() in R: Bagged MARS Ensemble Models</h1>
+
+<p class="lead">The <code>bagEarth()</code> function in caret fits a bagged ensemble of MARS models by drawing many bootstrap samples, fitting <code>earth::earth()</code> on each, and averaging the predictions. It stabilizes a learner that is otherwise sensitive to the exact training rows, and exposes a familiar formula and matrix interface with full <code>predict()</code> support.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>bagEarth(mpg ~ ., data = mtcars)<span class="qa-cmt">                   # formula interface</span>
+bagEarth(x = mtcars[, -1], y = mtcars$mpg)<span class="qa-cmt">         # x, y interface</span>
+bagEarth(mpg ~ ., data = mtcars, B = 100)<span class="qa-cmt">          # 100 bootstrap samples</span>
+bagEarth(mpg ~ ., data = mtcars, keepX = FALSE)<span class="qa-cmt">    # smaller model object</span>
+predict(fit, newdata = mtcars[1:5, ])<span class="qa-cmt">              # averaged prediction</span>
+train(mpg ~ ., method = &quot;bagEarth&quot;, data = mtcars)<span class="qa-cmt"> # CV-tuned via caret</span>
+varImp(fit)<span class="qa-cmt">                                         # importance over bag</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is bagEarth() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">bagged MARS for stable predictions</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">bagEarth(mpg ~ ., data = mtcars)</text><text x="125" y="126" class="branch-label">single MARS model (not bagged)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">earth::earth(mpg ~ ., data = mtcars)</text><text x="125" y="182" class="branch-label">bagged regression trees</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">ipred::bagging(mpg ~ ., data = mtcars)</text><text x="125" y="238" class="branch-label">random forest of trees</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">randomForest(mpg ~ ., data = mtcars)</text><text x="125" y="294" class="branch-label">gradient boosting on stumps</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">train(method = &quot;gbm&quot;, data = mtcars)</text><text x="125" y="350" class="branch-label">tune degree and nprune by CV</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">train(method = &quot;bagEarth&quot;)</text></svg></div>
+
+<h2>What bagEarth() does in one sentence</h2>
+
+<p><strong><code>bagEarth()</code> is caret's bootstrap aggregator for the earth (MARS) model.</strong> You hand it a formula or <code>x</code> and <code>y</code>, set <code>B</code> (the number of bootstrap samples, default 50), and caret resamples the training rows <code>B</code> times, fits an earth model on each resample, and stores every fitted model inside a single <code>bagEarth</code> object. Calling <code>predict()</code> later averages predictions across the bag, which absorbs the variance MARS picks up from sensitive knot placement and typically beats a single MARS fit on noisy data.</p>
+
+<h2>bagEarth() syntax and arguments</h2>
+
+<p><strong>Two equivalent entry points cover formula and matrix workflows.</strong> caret mirrors the <code>lm()</code> and <code>glm()</code> API, then layers the bagging parameter on top.</p>
+
+<div class="webr-container" data-block-title="Load caret and inspect mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and inspect mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(1)
+head(mtcars, 3)
+#&gt;                mpg cyl disp  hp drat    wt  qsec vs am gear carb
+#&gt; Mazda RX4     21.0   6  160 110 3.90 2.620 16.46  0  1    4    4
+#&gt; Mazda RX4 Wag 21.0   6  160 110 3.90 2.875 17.02  0  1    4    4
+#&gt; Datsun 710    22.8   4  108  93 3.85 2.320 16.46  1  1    4    1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Formula form:</p>
+
+<pre><code>bagEarth(formula, data, B = 50, summary = mean, keepX = TRUE, ...)</code></pre>
+
+<p>Matrix form:</p>
+
+<pre><code>bagEarth(x, y, weights = NULL, B = 50, summary = mean, keepX = TRUE, ...)</code></pre>
+
+<ul>
+
+<li><code>formula</code>: like <code>mpg ~ .</code>, numeric outcome for regression or factor for two-class classification.</li>
+
+<li><code>data</code>: a data frame holding the columns named in the formula.</li>
+
+<li><code>x</code>, <code>y</code>: matrix or data frame of predictors, plus a numeric or factor outcome vector.</li>
+
+<li><code>B</code>: number of bootstrap samples drawn from the training rows. Default 50.</li>
+
+<li><code>summary</code>: function used to combine predictions across the <code>B</code> models. Default <code>mean</code>.</li>
+
+<li><code>keepX</code>: keep the bootstrap predictor matrices for inspection. Default <code>TRUE</code>; set <code>FALSE</code> for smaller objects.</li>
+
+<li><code>...</code>: forwarded to the underlying earth fit (<code>degree</code>, <code>nprune</code>, etc.).</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>bagEarth()</code> accepts every <code>earth()</code> tuning knob.</strong> Pass <code>degree = 2</code> to allow two-way interactions, or <code>nprune = 15</code> to cap the number of basis functions per bootstrap fit. The same hyperparameters apply uniformly to every model in the bag.</div></div>
+
+<h2>bagEarth() examples by use case</h2>
+
+<h3>1. Fit a bagged regression model on mtcars</h3>
+
+<p>The shortest call uses every column to predict <code>mpg</code>. The fitted object stores all 50 underlying earth models plus the bootstrap row indices.</p>
+
+<div class="webr-container" data-block-title="Fit bagEarth with defaults">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit bagEarth with defaults</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+fit &lt;- bagEarth(mpg ~ ., data = mtcars)
+fit
+#&gt; Bagged Earth
+#&gt;
+#&gt; Call:
+#&gt; bagEarth.formula(formula = mpg ~ ., data = mtcars)
+#&gt;
+#&gt; B: 50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each model has its own selected basis functions, so different bootstraps may keep different predictors, and the averaged prediction inherits stability from this diversity. Saving the object with <code>saveRDS()</code> is enough to score new data later.</p>
+
+<h3>2. Score new data with predict()</h3>
+
+<p><code>predict()</code> returns the ensemble average across all bootstrap models for regression.</p>
+
+<div class="webr-container" data-block-title="Predict for first five cars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict for first five cars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(fit, newdata = mtcars[1:5, ])
+#&gt; [1] 21.45 21.06 24.92 21.07 18.36</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Compare these to the actual <code>mtcars$mpg[1:5]</code> values (21.0, 21.0, 22.8, 21.4, 18.7) and the ensemble tracks the truth closely. To inspect individual bootstrap predictions, look at <code>fit$fit</code> and apply <code>predict()</code> to each member.</p>
+
+<h3>3. Increase B for a smoother ensemble</h3>
+
+<p>A larger bag reduces Monte Carlo noise in the averaged prediction. The marginal gain shrinks quickly: 100 to 200 is usually enough for tabular regression.</p>
+
+<div class="webr-container" data-block-title="Refit with 100 bootstrap samples">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Refit with 100 bootstrap samples</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+fit_big &lt;- bagEarth(mpg ~ ., data = mtcars, B = 100)
+mean((predict(fit_big, mtcars) - mtcars$mpg)^2)
+#&gt; [1] 4.123
+mean((predict(fit, mtcars) - mtcars$mpg)^2)
+#&gt; [1] 4.512</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Training MSE drops because more bootstrap samples cover the input space more evenly. For honest evaluation always use a holdout split or <code>train()</code> with cross-validation, never the training set itself.</p>
+
+<h3>4. Hold out a test set and check RMSE</h3>
+
+<p>The <code>mtcars</code> sample is tiny, but the same pattern applies to any tabular regression task.</p>
+
+<div class="webr-container" data-block-title="Train and score on holdout">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Train and score on holdout</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+idx &lt;- createDataPartition(mtcars$mpg, p = 0.7, list = FALSE)
+train_df &lt;- mtcars[idx, ]
+test_df  &lt;- mtcars[-idx, ]
+
+fit_split &lt;- bagEarth(mpg ~ ., data = train_df, B = 100)
+pred &lt;- predict(fit_split, newdata = test_df)
+sqrt(mean((pred - test_df$mpg)^2))
+#&gt; [1] 3.214</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A test-set RMSE around 3 mpg on 32 rows is the noise floor. The real value of bagEarth shows on hundreds to thousands of rows where a single MARS fit becomes unstable; swap <code>bagEarth</code> for <code>earth::earth</code> on the same split to see the variance bagging absorbed.</p>
+
+<h3>5. Tune through caret train()</h3>
+
+<p>For grid search over <code>degree</code> and <code>nprune</code>, hand bagEarth to <code>train()</code> and let caret cross-validate.</p>
+
+<div class="webr-container" data-block-title="Cross-validate via caret train">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cross-validate via caret train</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+grid &lt;- expand.grid(degree = 1:2, nprune = c(5, 10, 15))
+ctrl &lt;- trainControl(method = &quot;cv&quot;, number = 5)
+fit_tuned &lt;- train(
+  mpg ~ ., data = mtcars,
+  method = &quot;bagEarth&quot;,
+  tuneGrid = grid,
+  trControl = ctrl,
+  B = 50
+)
+fit_tuned$bestTune
+#&gt;   nprune degree
+#&gt; 4     10      2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>train()</code> refits the bagged ensemble once per hyperparameter combination, so total cost is <code>nrow(grid) * folds * B</code> earth fits. Cap <code>B</code> modestly during search, then refit with a larger <code>B</code> at the winning hyperparameters.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Bagging stabilizes high-variance learners, not biased ones.</strong> MARS is exactly that kind of learner: small changes to the training rows can move knots and selected features. Bagging averages the noise out without changing the underlying bias, so a poorly specified earth model will not improve from being bagged. Tune <code>degree</code> and <code>nprune</code> first; then bag.</div></div>
+
+<h2>bagEarth() vs other ensembles</h2>
+
+<p><strong><code>bagEarth()</code> is the right pick when MARS is already a sensible base learner.</strong> Other ensembles target different biases.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Base learner</th>
+<th>Resampling</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bagEarth()</code> (caret)</td>
+<td>earth/MARS</td>
+<td>bootstrap, B copies</td>
+<td>smooth nonlinear regression with noisy training rows</td>
+</tr>
+<tr>
+<td><code>earth::earth()</code></td>
+<td>single MARS</td>
+<td>none</td>
+<td>quick interpretable fit, no ensemble cost</td>
+</tr>
+<tr>
+<td><code>ipred::bagging()</code></td>
+<td>rpart tree</td>
+<td>bootstrap</td>
+<td><a class="auto-link" href="ggplot2-geom_step-in-R.html" title="ggplot2 geom_step() in R: Step Function Lines">piecewise constant</a> fit, simple step relationships</td>
+</tr>
+<tr>
+<td><code>randomForest()</code></td>
+<td>rpart tree</td>
+<td>bootstrap plus column subsampling</td>
+<td>tabular default, handles interactions</td>
+</tr>
+<tr>
+<td><code>gbm::gbm()</code></td>
+<td>trees</td>
+<td>sequential boosting</td>
+<td>small base learners, careful tuning, top accuracy</td>
+</tr>
+</tbody>
+</table>
+
+<p>For the full caret method registry, see the <a href="https://topepo.github.io/caret/">caret reference</a>.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting the earth package.</strong> caret loads earth lazily on first use. Run <code>install.packages(&quot;earth&quot;)</code> once and keep <code>library(earth)</code> available before calling <code>bagEarth()</code> to avoid an opaque "<a class="auto-link" href="R-Common-Errors.html" title="50 Most Common R Error Messages: What They Mean & How to Fix Them">could not find function</a>" error.</p>
+
+<p><strong>Pitfall 2: B too low.</strong> With <code>B = 10</code> predictions still wobble because the bootstrap average has not stabilized. Default 50; scale to 100-200 when time allows.</p>
+
+<p><strong>Pitfall 3: ignoring the size of the model object.</strong> Each bootstrap stores its earth fit and (by default) the bootstrap predictor matrix. For 100 bootstraps on a 50,000-row dataset, the saved object can run into gigabytes. Set <code>keepX = FALSE</code> for production deployments.</p>
+
+<p><strong>Pitfall 4: bagging a misconfigured earth model.</strong> Bagging cannot fix a wrong <code>degree</code>. Validate a single <code>earth::earth()</code> fit before wrapping it.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>predict()</code> does not accept a bare numeric vector.</strong> Pass a data frame or matrix with the same column structure as the training data. A single new observation must be wrapped as a one-row data frame, not a numeric vector, or the call will silently misalign predictors.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a bagged MARS model on mtcars with <code>B = 80</code>, predict mpg for the first three rows, and compute the residuals. Save the predictions to <code>ex_pred</code> and residuals to <code>ex_resid</code>.</p>
+<div class="webr-container" data-block-title="Your turn fit and score">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn fit and score</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: bagEarth with B = 80
+set.seed(1)
+ex_fit &lt;- bagEarth(mpg ~ ., data = mtcars, B = 80)
+ex_pred  &lt;- # your code here
+ex_resid &lt;- # your code here
+
+ex_pred
+ex_resid
+#&gt; Expected: 3 numeric predictions and 3 residuals near zero</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+ex_fit &lt;- bagEarth(mpg ~ ., data = mtcars, B = 80)
+ex_pred  &lt;- predict(ex_fit, newdata = mtcars[1:3, ])
+ex_resid &lt;- mtcars$mpg[1:3] - ex_pred
+
+ex_pred
+#&gt; [1] 21.42 21.08 24.85
+ex_resid
+#&gt; [1] -0.42 -0.08 -2.05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>predict()</code> averages over the 80 bootstrap earth fits. Subtracting the predictions from the true <code>mpg</code> values gives per-row residuals; small residuals confirm the ensemble fits the training rows well.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p>These complete a typical bagEarth workflow:</p>
+
+<ul>
+
+<li><code>train()</code> with <code>method = &quot;bagEarth&quot;</code>: cross-validated hyperparameter search</li>
+
+<li><code>varImp()</code>: <a class="auto-link" href="Variable-Selection-and-Importance-With-R.html" title="Feature Selection and Variable Importance">variable importance</a> averaged across the bagged earth models</li>
+
+<li><code>createDataPartition()</code>: stratified train and test split before fitting</li>
+
+<li><code>preProcess()</code>: center, scale, or impute predictors prior to bagging</li>
+
+<li><code>bagFDA()</code>: caret's bagged flexible discriminant analysis cousin</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is bagEarth in caret used for?</strong></p>
+
+<p><code>bagEarth()</code> fits a bagged ensemble of MARS models for regression. It resamples the training rows <code>B</code> times, fits an earth model on each bootstrap, and averages the predictions. The averaging stabilizes the high-variance MARS estimator, which is sensitive to knot selection. Use it when a single earth fit looks promising but predictions shift noticeably across reruns or holdout splits.</p>
+
+<p><strong>How many bootstrap samples should I use for bagEarth?</strong></p>
+
+<p>Start with the default <code>B = 50</code>, then scale to 100 or 200 if predictions are still noisy across reruns. Marginal gain decays after about 100 bootstraps for most tabular regression problems, while model size and prediction time scale linearly with <code>B</code>. Sweep <code>B = 25, 50, 100, 200</code> once and pick the smallest value where validation error plateaus.</p>
+
+<p><strong>How is bagEarth different from random forest?</strong></p>
+
+<p>Both are bootstrap ensembles, but the base learner differs. <code>bagEarth()</code> bags MARS models, which fit smooth piecewise-linear functions with selected knots. <code>randomForest()</code> bags decision trees with random column subsampling at each split. Forests handle high-dimensional inputs and categorical splits naturally; bagEarth is better for smooth nonlinear regression on continuous predictors.</p>
+
+<p><strong>Can bagEarth do variable importance?</strong></p>
+
+<p>Yes. Call <code>varImp(fit)</code> on a fitted <code>bagEarth</code> object and caret averages the earth variable importance across all <code>B</code> bootstraps. The output is a <code>varImp.bagEarth</code> object with one row per predictor; print it for a ranking or pass it to <code>plot()</code>. Variables that appear in many bootstrap fits and contribute large reductions in GCV rank highest.</p>
+
+<p><strong>Why is my bagEarth model object so large?</strong></p>
+
+<p>Each bootstrap stores its fitted earth model and, by default, the bootstrap predictor matrix. For 100 bootstraps on tens of thousands of rows, that adds up fast. Set <code>keepX = FALSE</code> at fit time to drop predictor matrices, and use <code>saveRDS(fit, compress = &quot;xz&quot;)</code> to compress the saved object. A smaller <code>nprune</code> also shrinks each earth fit.</p>
