@@ -1,0 +1,470 @@
+---
+title: "rsample group_vfold_cv() in R: Group-Aware CV Splits"
+description: "Build group-aware v-fold cross-validation splits with rsample group_vfold_cv() in R. Covers v, balance, leave-one-group-out, and how to prevent group leakage."
+keywords: "rsample group_vfold_cv, group_vfold_cv function R, rsample group_vfold_cv examples, R group cross validation, group v-fold cv tidymodels, grouped k-fold cross validation R, group resampling R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "group_vfold_cv()|rsample group_vfold_cv|rsample::group_vfold_cv()|group-aware cross-validation|grouped v-fold cross-validation"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>rsample group_vfold_cv() in R: Group-Aware CV Splits</h1>
+
+<p class="lead">The rsample group_vfold_cv() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> builds <a class="auto-link" href="rsample-vfold_cv-in-R.html" title="rsample vfold_cv() in R: V-Fold Cross-Validation Splits">v-fold cross-validation</a> splits that keep every observation from the same group inside a single fold, so models trained on hierarchical data never see leaked information from the assessment set.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>group_vfold_cv(df, patient_id, v = 4)<span class="qa-cmt">              # 4 group-aware folds</span>
+group_vfold_cv(df, patient_id)<span class="qa-cmt">                     # leave-one-group-out</span>
+group_vfold_cv(df, patient_id, v = 5, balance = &quot;observations&quot;)<span class="qa-cmt">  # balance rows</span>
+group_vfold_cv(df, patient_id, v = 5, balance = &quot;groups&quot;)<span class="qa-cmt">        # equal groups per fold</span>
+group_vfold_cv(df, patient_id, v = 5, repeats = 3)<span class="qa-cmt"> # repeated grouped CV</span>
+analysis(folds$splits[[1]])<span class="qa-cmt">                        # training rows of fold 1</span>
+assessment(folds$splits[[1]])<span class="qa-cmt">                      # held-out rows of fold 1</span>
+set.seed(42); group_vfold_cv(df, patient_id)<span class="qa-cmt">       # reproducible folds</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is group_vfold_cv() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">groups must stay together across folds</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">group_vfold_cv(df, group_var, v = 5)</text><text x="125" y="126" class="branch-label">rows are independent observations</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">vfold_cv(df, v = 10)</text><text x="125" y="182" class="branch-label">one fold per group (leave-one-group-out)</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">group_vfold_cv(df, group_var)</text><text x="125" y="238" class="branch-label">single train/test split with grouping</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">group_initial_split(df, group_var)</text><text x="125" y="294" class="branch-label">time-ordered windows</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">rolling_origin(df, initial = 100)</text><text x="125" y="350" class="branch-label">monte carlo random splits</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">mc_cv(df, prop = 0.8, times = 25)</text><text x="125" y="406" class="branch-label">standard stratified resampling</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">vfold_cv(df, v = 10, strata = y)</text></svg></div>
+
+<h2>What group_vfold_cv() does</h2>
+
+<p><strong>group_vfold_cv() partitions a data frame into v folds so that every observation from a single group lands in exactly one fold.</strong> It belongs to the rsample package, the resampling engine of the tidymodels stack. Groups are defined by a variable you pass to the <code>group</code> argument: patient IDs, customer IDs, sentence IDs, sensor IDs, anything that ties multiple rows to the same underlying unit.</p>
+
+<p>The function returns a tibble of <code>rsplit</code> objects in a <code>splits</code> list-column. Each split stores the row indices that belong to the analysis (training) portion and the assessment (held-out) portion of one fold. Because group membership is preserved, a patient who appears five times in the data will contribute all five rows to one and only one fold.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Group leakage is the silent killer of clustered-data models.</strong> If the same patient, customer, or session appears in both the training and assessment portion of a fold, the model has effectively seen the test answer key during training. Ordinary <code>vfold_cv()</code> cannot prevent this. <code>group_vfold_cv()</code> is the fix.</div></div>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>The signature has one required argument plus four tuning knobs.</strong></p>
+
+<div class="webr-container" data-block-title="group_vfold_cv signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">group_vfold_cv signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">group_vfold_cv(
+  data,
+  group   = NULL,
+  v       = NULL,
+  repeats = 1,
+  balance = c(&quot;groups&quot;, &quot;observations&quot;),
+  ...
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Purpose</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data</code></td>
+<td>Data frame or tibble to resample</td>
+<td>required</td>
+</tr>
+<tr>
+<td><code>group</code></td>
+<td>Column whose values define the groups</td>
+<td>required</td>
+</tr>
+<tr>
+<td><code>v</code></td>
+<td>Number of folds; <code>NULL</code> means leave-one-group-out</td>
+<td><code>NULL</code></td>
+</tr>
+<tr>
+<td><code>repeats</code></td>
+<td>Number of independent resampling rounds</td>
+<td><code>1</code></td>
+</tr>
+<tr>
+<td><code>balance</code></td>
+<td><code>&quot;groups&quot;</code> for equal group counts per fold; <code>&quot;observations&quot;</code> for equal row counts</td>
+<td><code>&quot;groups&quot;</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Setting <code>v = NULL</code> produces one fold per unique group, the leave-one-group-out variant. Setting <code>v</code> to a smaller integer buckets groups together. The <code>balance</code> argument matters when group sizes are uneven and you care about fold-to-fold sample size stability.</p>
+
+<h2>group_vfold_cv() examples</h2>
+
+<p><strong>Five examples cover the practical shape of grouped resampling.</strong> They use a small synthetic patient cohort with 8 patients and 5 visits each. Each block builds on the previous one, so variables persist across runs.</p>
+
+<h3>Group-aware 4-fold CV</h3>
+
+<p><strong>Build the data first, then ask for 4 folds.</strong> A naive split would shuffle visits across folds; the grouped call keeps all five visits per patient together.</p>
+
+<div class="webr-container" data-block-title="Load tidymodels and build group data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load tidymodels and build group data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+
+set.seed(42)
+patients &lt;- tibble(
+  patient_id = rep(paste0(&quot;P&quot;, 1:8), each = 5),
+  visit      = rep(1:5, times = 8),
+  bp         = round(rnorm(40, mean = 130, sd = 8))
+)
+head(patients, 6)
+#&gt; # A tibble: 6 x 3
+#&gt;   patient_id visit    bp
+#&gt;   &lt;chr&gt;      &lt;int&gt; &lt;dbl&gt;
+#&gt; 1 P1             1   142
+#&gt; 2 P1             2   125
+#&gt; 3 P1             3   127
+#&gt; 4 P1             4   136
+#&gt; 5 P1             5   131
+#&gt; 6 P2             1   135</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each patient has five rows. Pass the data and the group column to <code>group_vfold_cv()</code>.</p>
+
+<div class="webr-container" data-block-title="Build 4 group-aware folds">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build 4 group-aware folds</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">folds &lt;- group_vfold_cv(patients, group = patient_id, v = 4)
+folds
+#&gt; # Group V-fold cross-validation 
+#&gt; # A tibble: 4 x 2
+#&gt;   splits           id       
+#&gt;   &lt;list&gt;           &lt;chr&gt;    
+#&gt; 1 &lt;split [30/10]&gt;  Resample1
+#&gt; 2 &lt;split [30/10]&gt;  Resample2
+#&gt; 3 &lt;split [30/10]&gt;  Resample3
+#&gt; 4 &lt;split [30/10]&gt;  Resample4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each split shows <code>[30/10]</code>, meaning 30 analysis rows and 10 assessment rows. With 8 patients and 4 folds, each fold holds out exactly 2 patients, which is 10 rows.</p>
+
+<h3>Confirm zero group leakage</h3>
+
+<p><strong>No patient should appear in both halves of a split.</strong> Verify it directly with <code>intersect()</code>.</p>
+
+<div class="webr-container" data-block-title="Confirm no patient appears in both sets">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm no patient appears in both sets</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train1 &lt;- analysis(folds$splits[[1]])
+test1  &lt;- assessment(folds$splits[[1]])
+
+intersect(unique(train1$patient_id), unique(test1$patient_id))
+#&gt; character(0)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>An empty character vector is the success signal. If you ever see a non-empty intersection here, group preservation has broken and you have a bug upstream.</p>
+
+<h3>Leave-one-group-out (v = NULL)</h3>
+
+<p><strong>Drop the <code>v</code> argument to get one fold per group.</strong> With 8 patients, you get 8 folds and each fold holds out exactly one patient.</p>
+
+<div class="webr-container" data-block-title="Leave-one-group-out cross-validation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Leave-one-group-out cross-validation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">logo &lt;- group_vfold_cv(patients, group = patient_id)
+nrow(logo)
+#&gt; [1] 8
+
+assessment(logo$splits[[1]]) |&gt; 
+  pull(patient_id) |&gt;
+  unique()
+#&gt; [1] &quot;P1&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Leave-one-group-out is appropriate when you have a moderate number of groups (10 to 50) and need every group evaluated independently. With hundreds of groups it gets expensive, so pick a smaller <code>v</code>.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Choose v based on group count, not row count.</strong> With 50 patients, <code>v = 5</code> gives 10 patients per fold; with 500 patients, <code>v = 10</code> gives 50 per fold. Keep at least 5 groups in every assessment fold so per-fold metrics are not dominated by a single noisy group.</div></div>
+
+<h3>Balance by observations instead of groups</h3>
+
+<p><strong>Switch the <code>balance</code> argument when group sizes vary widely.</strong> The default <code>balance = &quot;groups&quot;</code> produces folds with similar group counts but uneven row counts; <code>balance = &quot;observations&quot;</code> flips the priority.</p>
+
+<div class="webr-container" data-block-title="Balance folds by observations instead of group count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Balance folds by observations instead of group count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">uneven &lt;- tibble(
+  group_id = c(rep(&quot;A&quot;, 2), rep(&quot;B&quot;, 4), rep(&quot;C&quot;, 10), rep(&quot;D&quot;, 14)),
+  y        = rnorm(30)
+)
+
+obs_folds &lt;- group_vfold_cv(uneven, group = group_id, v = 2,
+                            balance = &quot;observations&quot;)
+map_int(obs_folds$splits, ~ nrow(assessment(.x)))
+#&gt; [1] 14 16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Compare that to the default. Two folds, two groups each, but very different row counts.</p>
+
+<div class="webr-container" data-block-title="Default balance puts equal group counts per fold">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Default balance puts equal group counts per fold</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grp_folds &lt;- group_vfold_cv(uneven, group = group_id, v = 2,
+                            balance = &quot;groups&quot;)
+map_int(grp_folds$splits, ~ nrow(assessment(.x)))
+#&gt; [1] 12 18</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Repeated grouped CV</h3>
+
+<p><strong>Repeats stabilize the performance metric.</strong> Set <code>repeats = 3</code> to run the grouping procedure three independent times.</p>
+
+<div class="webr-container" data-block-title="Repeated grouped CV">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Repeated grouped CV</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+rep_folds &lt;- group_vfold_cv(patients, group = patient_id,
+                            v = 4, repeats = 3)
+nrow(rep_folds)
+#&gt; [1] 12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>You get 12 splits total (4 folds times 3 repeats). Average your metric across all 12 for a tighter estimate.</p>
+
+<h2>group_vfold_cv() vs vfold_cv()</h2>
+
+<p><strong>Use group_vfold_cv() the moment your rows are not independent.</strong> The two functions look similar but solve different problems.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Use when</th>
+<th>Risk if misused</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vfold_cv()</code></td>
+<td>Rows are independent (one row per unit)</td>
+<td>None for IID data</td>
+</tr>
+<tr>
+<td><code>group_vfold_cv()</code></td>
+<td>Multiple rows belong to the same unit (panel, repeated measures, hierarchical)</td>
+<td>Performance estimates inflated by leakage if you use vfold_cv() instead</td>
+</tr>
+</tbody>
+</table>
+
+<p>Here is the leakage demonstrated. The naive <code>vfold_cv()</code> on the patient data splits one patient's visits across both halves.</p>
+
+<div class="webr-container" data-block-title="Why ordinary v-fold leaks group signal">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Why ordinary v-fold leaks group signal</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+naive &lt;- vfold_cv(patients, v = 4)
+
+train_p &lt;- analysis(naive$splits[[1]])$patient_id
+test_p  &lt;- assessment(naive$splits[[1]])$patient_id
+
+length(intersect(unique(train_p), unique(test_p)))
+#&gt; [1] 8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All 8 patients appear in both the training and assessment portion of fold 1. A model fit on the training portion has already seen rows belonging to every patient it will be scored against. The resulting RMSE will be optimistically low.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A clean train/test split is not enough on its own.</strong> If you call <code>initial_split()</code> without grouping and then call <code>vfold_cv()</code> on the training portion, the same group can still cross folds inside the training data. Use <code>group_initial_split()</code> paired with <code>group_vfold_cv()</code> for a fully group-safe pipeline.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most failures with this function.</strong></p>
+
+<ol>
+
+<li><strong>Forgetting the <code>group</code> argument.</strong> The function does not infer the grouping variable; you have to pass it. Missing it errors immediately.</li>
+
+</ol>
+
+<div class="webr-container" data-block-title="Pitfall: missing group argument">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: missing group argument</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">group_vfold_cv(patients, v = 4)
+#&gt; Error in `group_vfold_cv()`: ! `group` is required when calling
+#&gt; `group_vfold_cv()`.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<ol>
+
+<li><strong>Quoting the group name unnecessarily.</strong> Tidyselect-style unquoted names work; so do strings; mixing them with double-bang <code>!!</code> does not.</li>
+
+</ol>
+
+<div class="webr-container" data-block-title="Pitfall: do not double-bang">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: do not double-bang</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">group_var &lt;- &quot;patient_id&quot;
+group_vfold_cv(patients, group = !!group_var, v = 4)
+#&gt; Error: object 'group_var' not found, or invalid !! context.
+# Correct: use .data pronoun or a bare string
+group_vfold_cv(patients, group = group_var, v = 4)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<ol>
+
+<li><strong>Setting <code>v</code> larger than the group count.</strong> If you have 8 patients and ask for <code>v = 10</code>, the function errors. The maximum useful <code>v</code> is the unique group count.</li>
+
+</ol>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a leave-one-group-out resampling object from <code>mtcars</code> using <code>cyl</code> as the group variable, then count how many folds you got. Save the result to <code>ex_cv</code>.</p>
+<div class="webr-container" data-block-title="Your turn: LOGO on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: LOGO on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: leave-one-cyl-out CV
+ex_cv &lt;- # your code here
+
+nrow(ex_cv)
+#&gt; Expected: 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cv &lt;- group_vfold_cv(mtcars, group = cyl)
+nrow(ex_cv)
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>mtcars$cyl</code> has 3 unique values (4, 6, 8). With <code>v</code> left at the default of <code>NULL</code>, <code>group_vfold_cv()</code> builds one fold per group, giving 3 splits.</p>
+
+</details>
+</section>
+
+<h2>Related rsample functions</h2>
+
+<ul>
+
+<li><a href="rsample-vfold_cv-in-R.html">rsample vfold_cv()</a> for standard v-fold CV when rows are independent</li>
+
+<li><a href="rsample-loo_cv-in-R.html">rsample loo_cv()</a> for leave-one-out CV at the row level</li>
+
+<li><a href="rsample-mc_cv-in-R.html">rsample mc_cv()</a> for Monte Carlo random splits</li>
+
+<li><a href="rsample-initial_split-in-R.html">rsample initial_split()</a> for the underlying train/test partition</li>
+
+<li><a href="rsample-bootstraps-in-R.html">rsample bootstraps()</a> for <a class="auto-link" href="Bootstrap-Confidence-Intervals-in-R.html" title="Bootstrap CIs in R: Distribution-Free Confidence Intervals for Any Statistic">bootstrap resampling</a></li>
+
+</ul>
+
+<p>External reference: the <a href="https://rsample.tidymodels.org/reference/group_vfold_cv.html">rsample group_vfold_cv documentation</a> on the tidymodels site lists the full argument set and edge cases.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between group_vfold_cv and vfold_cv?</strong></p>
+
+<p><code>vfold_cv()</code> shuffles rows randomly into folds and assumes rows are independent. <code>group_vfold_cv()</code> assigns entire groups (all rows sharing a group ID) to one fold, so the same group never appears in both the training and assessment portion of a split. Use the grouped variant whenever multiple rows belong to the same patient, customer, session, or hierarchical unit.</p>
+
+<p><strong>When should I leave v as NULL?</strong></p>
+
+<p>Leave <code>v = NULL</code> to get leave-one-group-out cross-validation, one fold per unique group. It works well when group counts are moderate (roughly 10 to 50). With hundreds of groups, the full pass becomes slow and individual fold estimates become noisy, so pick a smaller integer <code>v</code> instead.</p>
+
+<p><strong>Can I stratify and group at the same time?</strong></p>
+
+<p>Not directly. <code>group_vfold_cv()</code> does not expose a <code>strata</code> argument because the grouping constraint and the stratification constraint can conflict. If you need both, a common workaround is to compute a group-level summary of the stratifier first, then pass the groups through <code>group_vfold_cv()</code>. The tidymodels team treats this as an open enhancement.</p>
+
+<p><strong>Does group_vfold_cv work with <a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">time series</a>?</strong></p>
+
+<p>It can keep panels of time series together (one panel per group), but it does not enforce chronological order inside a fold. For time-aware grouped resampling, combine grouping with a rolling origin or use <code>sliding_window()</code> from rsample with a grouping pre-step. Pure <code>group_vfold_cv()</code> is fine for cross-sectional clustered data, not sequential <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a>.</p>
+
+<p><strong>Is the function reproducible?</strong></p>
+
+<p>Yes. Call <code>set.seed()</code> immediately before <code>group_vfold_cv()</code> and the same groups will land in the same folds every run. The seed governs the random assignment of groups to folds; the rows inside each group never reshuffle because they always move together.</p>
