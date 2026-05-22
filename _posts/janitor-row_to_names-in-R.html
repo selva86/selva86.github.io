@@ -1,0 +1,453 @@
+---
+title: "janitor row_to_names() in R: Promote a Row to Column Names"
+description: "janitor::row_to_names() promotes any data frame row to the column header. Fix messy Excel imports, multi-row headers, and stray title rows in one call."
+keywords: "janitor row_to_names, row_to_names function R, janitor row_to_names example, R promote row to column names, R first row as header, fix messy Excel import R, janitor clean header row"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "row_to_names()|janitor row_to_names|janitor::row_to_names()|promote row to column names|row to names function"
+auto_link_case_sensitive: true
+fr_parent: "janitor-Package-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>janitor row_to_names() in R: Promote a Row to Column Names</h1>
+
+<p class="lead">janitor::<a class="auto-link" href="janitor-Package-in-R.html" title="janitor Package in R: Clean Messy Data with 5 Lines of Code">row_to_names()</a> promotes any row of a data frame to become its column names, then drops that row (and optionally the rows above it). It is the standard fix for messy Excel imports where the real header sits below a title row.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>row_to_names(df, 1)<span class="qa-cmt">                                # promote row 1, drop it</span>
+row_to_names(df, 2)<span class="qa-cmt">                                # row 2 has headers, drop rows 1-2</span>
+row_to_names(df, 1, remove_row = FALSE)<span class="qa-cmt">            # use row 1 as names, keep it</span>
+row_to_names(df, 3, remove_rows_above = FALSE)<span class="qa-cmt">     # keep rows 1-2 as data</span>
+df |&gt; row_to_names(1) |&gt; clean_names()<span class="qa-cmt">             # promote, then snake_case</span>
+read_excel(&quot;f.xlsx&quot;) |&gt; row_to_names(2)<span class="qa-cmt">            # canonical Excel fix</span>
+df |&gt; row_to_names(1) |&gt; mutate(across(everything(), as.numeric))<span class="qa-cmt">   # retype</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is row_to_names() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">a real header row sits inside the data</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">row_to_names(df, 2)</text><text x="125" y="126" class="branch-label">file has clean headers but messy names</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">clean_names(df)</text><text x="125" y="182" class="branch-label">need just a quick column rename</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">rename(df, new = old)</text><text x="125" y="238" class="branch-label">header is split across two rows</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">combine then row_to_names</text><text x="125" y="294" class="branch-label">ADD a header to a headerless frame</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">setNames(df, c(&quot;a&quot;,&quot;b&quot;))</text><text x="125" y="350" class="branch-label">column types are wrong after promotion</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">type.convert(df, as.is = TRUE)</text></svg></div>
+
+<h2>What row_to_names() does</h2>
+
+<p><strong>row_to_names() turns a data row into the column header.</strong> You pass a data frame and the position of the row that holds the real column names. The function lifts that row up, assigns its values as <code>names(dat)</code>, then deletes the row (and by default every row above it). It returns a data frame, never a tibble, so wrap it in <code>as_tibble()</code> if you need one. The result is a frame whose first row is real data and whose names match what a human would write if the file had been clean from the start.</p>
+
+<p>This is the canonical janitor fix for spreadsheet exports. Excel files often carry a title row, a blank row, and only then the actual header. <code>read_excel()</code> reads the title row as the header and pushes the real names into row 2, leaving you with columns named <code>...1</code>, <code>...2</code>, <code>Quarterly Report</code>. One call to <code>row_to_names(df, 2)</code> undoes the damage and collapses three manual cleanup steps into a single pipe-friendly call.</p>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>The signature has four arguments, two of which you usually keep at default.</strong> In day-to-day use you pass the data frame and the row position only. The two boolean flags are reserved for edge cases where you need to preserve rows around the header.</p>
+
+<div class="webr-container" data-block-title="Function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+
+# row_to_names(dat, row_number, remove_row = TRUE, remove_rows_above = TRUE)
+args(row_to_names)
+#&gt; function (dat, row_number, remove_row = TRUE, remove_rows_above = TRUE)
+#&gt; NULL</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Default</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dat</code></td>
+<td>required</td>
+<td>The data frame to modify</td>
+</tr>
+<tr>
+<td><code>row_number</code></td>
+<td>required</td>
+<td>Position (integer) of the row to promote</td>
+</tr>
+<tr>
+<td><code>remove_row</code></td>
+<td><code>TRUE</code></td>
+<td>Drop the promoted row from the data</td>
+</tr>
+<tr>
+<td><code>remove_rows_above</code></td>
+<td><code>TRUE</code></td>
+<td>Drop every row above the promoted row</td>
+</tr>
+</tbody>
+</table>
+
+<p><code>row_number</code> is 1-indexed and matches the row position in the data, not any preserved row label. Pick <code>row_number</code> by looking at the printed frame, not at the <code>rownames()</code> attribute, because filter and arrange operations leave the label out of sync with the visible order. Set <code>remove_rows_above = FALSE</code> when rows above the header are real data you need to keep, and <code>remove_row = FALSE</code> when the header row should stay as data.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>row_to_names() converts everything to character.</strong> When the promoted row sits inside columns that started as numeric, every column ends up character because the header value mixed with the data. Always retype after promotion (see Pitfalls).</div></div>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Four patterns cover almost every real-world call to row_to_names().</strong> Each pattern below uses a small built-in or hand-built example so you can paste the code into a fresh R session and run it as is.</p>
+
+<p><strong>Use 1: classic Excel import with a title row.</strong> A common pattern is a one-cell title in row 1, the header in row 2, and data from row 3 onward.</p>
+
+<div class="webr-container" data-block-title="Promote row 2 of a messy import">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Promote row 2 of a messy import</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+library(tibble)
+
+messy &lt;- tribble(
+  ~X1,             ~X2,        ~X3,
+  &quot;Sales Report&quot;,  NA,         NA,
+  &quot;region&quot;,        &quot;quarter&quot;,  &quot;revenue&quot;,
+  &quot;North&quot;,         &quot;Q1&quot;,       &quot;1200&quot;,
+  &quot;South&quot;,         &quot;Q1&quot;,       &quot;900&quot;
+)
+
+clean &lt;- row_to_names(messy, 2)
+clean
+#&gt;   region quarter revenue
+#&gt; 3  North      Q1    1200
+#&gt; 4  South      Q1     900</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Row 2 became the header. Row 1 (the title) was dropped by <code>remove_rows_above = TRUE</code>. Row 2 itself was dropped by <code>remove_row = TRUE</code>.</p>
+
+<p><strong>Use 2: keep the rows above as data.</strong> Set <code>remove_rows_above = FALSE</code> when the rows above the header are also valid data, such as a subtotal row.</p>
+
+<div class="webr-container" data-block-title="Keep rows above the promoted header">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keep rows above the promoted header</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+
+with_subtotal &lt;- data.frame(
+  V1 = c(&quot;Subtotal&quot;, &quot;Item&quot;, &quot;Apple&quot;,  &quot;Banana&quot;),
+  V2 = c(&quot;100&quot;,      &quot;name&quot;, &quot;10&quot;,     &quot;20&quot;),
+  V3 = c(&quot;USD&quot;,      &quot;ccy&quot;,  &quot;USD&quot;,    &quot;USD&quot;),
+  stringsAsFactors = FALSE
+)
+
+row_to_names(with_subtotal, 2, remove_rows_above = FALSE)
+#&gt;         name ccy V3
+#&gt; 1   Subtotal 100 USD
+#&gt; 3      Apple  10 USD
+#&gt; 4     Banana  20 USD</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The Subtotal row stays at the top with the new column names applied.</p>
+
+<p><strong>Use 3: chain with <a class="auto-link" href="janitor-clean_names-in-R.html" title="janitor clean_names() in R: Standardize Messy Column Names">clean_names()</a> and retyping.</strong> The promoted header often contains spaces, hashes, or units. Pipe through <code>clean_names()</code> to snake_case the names, then retype the columns.</p>
+
+<div class="webr-container" data-block-title="Pipe with clean_names and type.convert">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pipe with clean_names and type.convert</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+library(tibble)
+
+raw &lt;- tribble(
+  ~A,           ~B,            ~C,
+  &quot;Region&quot;,     &quot;Quarter #&quot;,   &quot;Revenue ($)&quot;,
+  &quot;North&quot;,      &quot;Q1&quot;,          &quot;1200&quot;,
+  &quot;South&quot;,      &quot;Q2&quot;,          &quot;950&quot;
+)
+
+tidy &lt;- raw |&gt;
+  row_to_names(1) |&gt;
+  clean_names() |&gt;
+  type.convert(as.is = TRUE)
+
+str(tidy)
+#&gt; 'data.frame': 2 obs. of  3 variables:
+#&gt;  $ region    : chr  &quot;North&quot; &quot;South&quot;
+#&gt;  $ quarter_number: chr  &quot;Q1&quot; &quot;Q2&quot;
+#&gt;  $ revenue   : int  1200 950</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>row_to_names()</code> promotes, <code>clean_names()</code> standardises, <code>type.convert()</code> restores numeric types in one pass. This three-step recipe handles the bulk of dirty CSV and Excel imports without writing a <a class="auto-link" href="R-Subsetting.html" title="R Subsetting: One Definitive Rule for [], [[]], $, and @ — No More Guessing">single bracket</a> subset. Reach for it whenever a fresh file lands and the column names look wrong on first inspection.</p>
+
+<p><strong>Use 4: deeper in a tidy import pipeline.</strong> Many production import scripts read a folder of files, clean each one, and bind the results into a single frame. Drop <code>row_to_names()</code> into the cleaning function and the same pipeline handles every spreadsheet the same way.</p>
+
+<div class="webr-container" data-block-title="Pipeline-friendly cleaning function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pipeline-friendly cleaning function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+library(dplyr)
+library(tibble)
+
+clean_sheet &lt;- function(df, header_row = 1) {
+  df |&gt;
+    row_to_names(header_row) |&gt;
+    clean_names() |&gt;
+    remove_empty(which = c(&quot;rows&quot;, &quot;cols&quot;)) |&gt;
+    mutate(across(where(is.character), \(x) type.convert(x, as.is = TRUE)))
+}
+
+raw_a &lt;- tribble(~X1, ~X2, &quot;id&quot;, &quot;value&quot;, &quot;1&quot;, &quot;100&quot;, &quot;2&quot;, &quot;200&quot;)
+clean_sheet(raw_a)
+#&gt;   id value
+#&gt; 2  1   100
+#&gt; 3  2   200</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Wrapping the cleanup in a named function makes each step explicit and lets you swap out individual stages without rewriting the orchestration code. Pass <code>header_row = 2</code> for files where a title precedes the header. The same function handles every variant.</p>
+
+<h2>Compare with alternatives</h2>
+
+<p><strong>Three other patterns <a class="auto-link" href="dplyr-mutate-rename.html" title="dplyr mutate() and rename(): Create & Modify Columns (8 Examples)">rename columns</a>, but only row_to_names() drops the row it used.</strong> Picking the right one comes down to two questions: do you control the file read, and do you need to keep the source row in the data after renaming.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>What it does</th>
+<th>When to pick it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>row_to_names(df, n)</code></td>
+<td>Promotes row n, deletes row + rows above</td>
+<td>Header lives inside the data</td>
+</tr>
+<tr>
+<td><code>names(df) &lt;- df[1, ]; df &lt;- df[-1, ]</code></td>
+<td>Manual base R equivalent</td>
+<td>One-off, no janitor dependency</td>
+</tr>
+<tr>
+<td><code>setNames(df, df[1, ])</code></td>
+<td>Renames but does NOT drop the row</td>
+<td>You want both name AND keep that row</td>
+</tr>
+<tr>
+<td><code>read_excel(skip = n)</code></td>
+<td>Re-read with a skip offset</td>
+<td>You control the import call</td>
+</tr>
+</tbody>
+</table>
+
+<p>For interactive cleanup, prefer <code>row_to_names()</code>. For a fresh pipeline, set <code>skip =</code> at read time so the header is correct from the start. Choose the manual base R approach only when you cannot add a janitor dependency. Choose <code>setNames()</code> when you need the source row to remain in the data after renaming.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use skip in <a class="auto-link" href="Importing-Data-in-R.html" title="Importing Data into R: read_csv(), read_excel(), read_json() — Complete Guide">read_excel</a> when you can.</strong> <code>read_excel(&quot;f.xlsx&quot;, skip = 1)</code> reads the second row as the header directly. <code>row_to_names()</code> is the rescue when you cannot change how the file was loaded.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three traps recur with row_to_names(), all fixable.</strong> Each is a downstream consequence of forcing a row of strings into the header slot. The pattern is the same in every case: run <code>row_to_names()</code>, then run one follow-up call to repair what the promotion changed.</p>
+
+<div class="webr-container" data-block-title="Pitfall 1: NA values in the promoted row">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 1: NA values in the promoted row</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+
+bad &lt;- data.frame(
+  V1 = c(&quot;region&quot;, &quot;North&quot;),
+  V2 = c(NA,       &quot;Q1&quot;),
+  V3 = c(&quot;rev&quot;,    &quot;1200&quot;),
+  stringsAsFactors = FALSE
+)
+
+row_to_names(bad, 1)
+#&gt;   region NA  rev
+#&gt; 2  North Q1 1200</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A literal <code>NA</code> ends up as a column name. Fill blanks before promotion: <code>bad[1, is.na(bad[1, ])] &lt;- &quot;col_NA&quot;</code>.</p>
+
+<div class="webr-container" data-block-title="Pitfall 2: duplicate header values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 2: duplicate header values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+
+dup &lt;- data.frame(
+  X1 = c(&quot;id&quot;, &quot;1&quot;),
+  X2 = c(&quot;id&quot;, &quot;2&quot;),
+  stringsAsFactors = FALSE
+)
+
+row_to_names(dup, 1)
+#&gt;   id id
+#&gt; 2  1  2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two columns named <code>id</code> will break <code>dplyr::select(id)</code>. Chain <code>clean_names()</code> after; it appends a numeric suffix to duplicates, giving <code>id</code> and <code>id_2</code>.</p>
+
+<div class="webr-container" data-block-title="Pitfall 3: every column is character after promotion">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 3: every column is character after promotion</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+library(tibble)
+
+before &lt;- tribble(
+  ~A,         ~B,
+  &quot;label&quot;,    &quot;value&quot;,
+  &quot;Apple&quot;,    &quot;10&quot;,
+  &quot;Banana&quot;,   &quot;20&quot;
+)
+
+after &lt;- row_to_names(before, 1)
+sapply(after, class)
+#&gt;     label     value 
+#&gt; &quot;character&quot; &quot;character&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Numeric columns are now strings. Always follow with <code>type.convert(as.is = TRUE)</code> or explicit <code>mutate(across(..., as.numeric))</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>row_to_names() never returns a tibble.</strong> Even if you pass a tibble in, you get a base data.frame back. Wrap with <code>as_tibble()</code> if downstream code expects tibble printing or class checks.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A messy import has a title in row 1, headers in row 2, data from row 3. Use row_to_names() to clean it up, then snake_case the column names.</p>
+<div class="webr-container" data-block-title="Your turn: clean a two-row preamble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: clean a two-row preamble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+library(tibble)
+
+ex_raw &lt;- tribble(
+  ~X1,                   ~X2,           ~X3,
+  &quot;Q1 2026 Summary&quot;,     NA,            NA,
+  &quot;Region Name&quot;,         &quot;Total Sales&quot;, &quot;Year-over-Year %&quot;,
+  &quot;North America&quot;,       &quot;12500&quot;,       &quot;8.2&quot;,
+  &quot;Europe&quot;,              &quot;9800&quot;,        &quot;5.1&quot;
+)
+
+ex_clean &lt;- # your code here
+
+ex_clean
+#&gt; Expected: 2 rows, columns region_name, total_sales, year_over_year_percent</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_clean &lt;- ex_raw |&gt;
+  row_to_names(2) |&gt;
+  clean_names()
+
+names(ex_clean)
+#&gt; [1] &quot;region_name&quot;            &quot;total_sales&quot;            &quot;year_over_year_percent&quot;
+nrow(ex_clean)
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>row_to_names(2)</code> promotes row 2 to the header and drops rows 1-2. <code>clean_names()</code> then converts the spaces, the dash, and the percent sign into snake_case.</p>
+
+</details>
+</section>
+
+<h2>Related janitor functions</h2>
+
+<p><strong>janitor pairs row_to_names() with five other cleanup helpers.</strong> Use them together when fixing real-world imports.</p>
+
+<ul>
+
+<li><code>clean_names()</code> standardises names after promotion, converting spaces, hyphens, and special characters to underscores</li>
+
+<li><code>make_clean_names()</code> cleans a character vector before assigning to <code>names()</code></li>
+
+<li><code>remove_empty()</code> drops empty <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">rows and columns</a> left over from the import</li>
+
+<li><code>remove_constant()</code> drops columns that hold a single value across all rows</li>
+
+<li><code>get_dupes()</code> finds duplicate rows once the headers are sorted out</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>Why is my numeric column suddenly character after row_to_names()?</strong></p>
+
+<p>The promoted row sat inside the column, so the column type was forced to character to hold the header text. After promotion, follow with <code>type.convert(as.is = TRUE)</code> to let R re-infer numeric and integer types, or use <code>dplyr::mutate(across(where(is.character), as.numeric))</code> for an explicit cast. The function itself does no retyping.</p>
+
+<p><strong>How do I handle two header rows that should be combined?</strong></p>
+
+<p>Concatenate the two rows first, then promote the combined row. One pattern: <code>df[1, ] &lt;- paste(df[1, ], df[2, ], sep = &quot;_&quot;)</code> then <code>row_to_names(df, 1)</code>. This collapses a two-row header like <code>Q1 / Sales</code>, <code>Q1 / Units</code> into <code>Q1_Sales</code>, <code>Q1_Units</code> in a single step.</p>
+
+<p><strong>Does row_to_names() work on tibbles?</strong></p>
+
+<p>Yes, you can pass a tibble in. The catch is that it returns a base data.frame, not a tibble, even when given one. If your pipeline depends on tibble methods, wrap the call with <code>tibble::as_tibble()</code> immediately after.</p>
+
+<p><strong>Can I use row_to_names() to set columns from a separate vector?</strong></p>
+
+<p>No. The function reads the names from a row that is already inside the data frame. To rename from an external vector, use <code>names(df) &lt;- new_vector</code> or <code>dplyr::rename_with(df, ~ new_vector)</code>. Use <code>row_to_names()</code> only when the header is embedded in the data.</p>
+
+<p><strong>What if the row I want has blank cells?</strong></p>
+
+<p>Blank cells become literal <code>NA</code> column names, which break subsequent selection. Either fill them first with <code>df[row_number, is.na(df[row_number, ])] &lt;- &quot;blank&quot;</code> or rely on the <code>clean_names()</code> follow-up, which converts <code>NA</code> to <code>na</code> and appends position suffixes when several blanks collide.</p>
+
+{% endraw %}
