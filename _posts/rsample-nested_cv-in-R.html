@@ -1,0 +1,343 @@
+---
+title: "rsample nested_cv() in R: Nested Cross-Validation Splits"
+description: "Build nested cross-validation splits with rsample nested_cv() in R. Covers outer/inner resampling, inner_resamples column, and honest tuning workflows."
+keywords: "rsample nested_cv, nested_cv function R, rsample nested_cv examples, nested cross validation R, tidymodels nested cv, rsample nested resampling"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "nested_cv()|rsample nested_cv|rsample::nested_cv()|nested cross-validation|nested resampling"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>rsample nested_cv() in R: Nested Cross-Validation Splits</h1>
+
+<p class="lead">The rsample nested_cv() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> builds nested cross-validation splits, so hyperparameter tuning happens inside an outer loop that gives an unbiased performance estimate of the entire model-selection pipeline.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>nested_cv(df, outside = vfold_cv(v = 5), inside = vfold_cv(v = 5))<span class="qa-cmt">   # nested k-fold</span>
+nested_cv(df, outside = vfold_cv(v = 5), inside = bootstraps(times = 25))<span class="qa-cmt">  # CV outside, boot inside</span>
+nested_cv(df, outside = vfold_cv(v = 10, repeats = 3), inside = vfold_cv(v = 5))<span class="qa-cmt">  # repeated outer</span>
+nested_cv(df, outside = mc_cv(prop = 0.8, times = 10), inside = vfold_cv(v = 5))<span class="qa-cmt">  # MC outer</span>
+folds$inner_resamples[[1]]<span class="qa-cmt">                                            # inner resamples for fold 1</span>
+analysis(folds$splits[[1]])<span class="qa-cmt">                                           # outer training rows</span>
+assessment(folds$splits[[1]])<span class="qa-cmt">                                         # outer held-out rows</span>
+set.seed(123); nested_cv(df, vfold_cv(v = 5), vfold_cv(v = 5))<span class="qa-cmt">        # reproducible nesting</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is nested_cv() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">unbiased estimate after tuning</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">nested_cv(df, vfold_cv(v = 5), vfold_cv(v = 5))</text><text x="125" y="126" class="branch-label">single train/test for final reporting</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">initial_split(df, prop = 0.8)</text><text x="125" y="182" class="branch-label">plain k-fold tuning, no outer loop</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">vfold_cv(df, v = 10)</text><text x="125" y="238" class="branch-label">repeated resampling with replacement</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">bootstraps(df, times = 25)</text><text x="125" y="294" class="branch-label">time-ordered resampling</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">rolling_origin(df, initial = 100)</text><text x="125" y="350" class="branch-label">monte carlo random splits</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">mc_cv(df, prop = 0.8, times = 25)</text><text x="125" y="406" class="branch-label">keep grouped rows together</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">group_vfold_cv(df, group_var)</text></svg></div>
+
+<h2>What nested_cv() does</h2>
+
+<p><strong>nested_cv() builds a two-level resampling object, an outer scheme for evaluation and an inner scheme for tuning.</strong> It belongs to the rsample package, the resampling engine of the tidymodels ecosystem. The function does not duplicate data. It returns a tibble of outer <code>rsplit</code> objects in a <code>splits</code> list-column, plus an <code>inner_resamples</code> list-column where each entry is itself a tibble of inner splits drawn from that outer fold's analysis set.</p>
+
+<p>The point of nesting is honesty. Plain <a class="auto-link" href="rsample-vfold_cv-in-R.html" title="rsample vfold_cv() in R: V-Fold Cross-Validation Splits">k-fold cross-validation</a> that doubles as both the tuning loop and the reporting loop reuses the same held-out rows twice, which biases the final metric upward. nested_cv() prevents that leak: the inner resamples pick hyperparameters, and the outer assessment set, untouched until the inner loop finishes, scores the chosen model.</p>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>The signature has one required data argument and two unquoted resampling expressions.</strong></p>
+
+<div class="webr-container" data-block-title="nested_cv function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">nested_cv function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nested_cv(
+  data,      # the data frame to resample
+  outside,   # outer resampling call: vfold_cv(v = 5), mc_cv(...), bootstraps(...)
+  inside     # inner resampling call evaluated within each outer fold
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments that matter in practice:</p>
+
+<ul>
+
+<li><strong>data</strong>: the data frame or tibble to resample.</li>
+
+<li><strong>outside</strong>: an unquoted call to any rsample resampler. This drives the outer loop where each split's assessment set is the honest <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a> for one model-selection cycle.</li>
+
+<li><strong>inside</strong>: an unquoted call to any rsample resampler. It is re-run on each outer fold's analysis set, so the inner splits are nested inside the outer training data and never see the outer held-out rows.</li>
+
+</ul>
+
+<p>Both <code>outside</code> and <code>inside</code> accept the full set of rsample functions: <code>vfold_cv()</code>, <code>bootstraps()</code>, <code>mc_cv()</code>, <code>loo_cv()</code>, <code>validation_split()</code>, and others. The inner call is wrapped in a quoting machinery, so write it as a bare function call, not a string.</p>
+
+<h2>nested_cv() examples</h2>
+
+<h3>Basic nested 5x5 cross-validation</h3>
+
+<p><strong>Call nested_cv() with two resampling expressions to get an outer-by-inner split structure.</strong> A 5-fold outer with 5-fold inner is the standard starting point.</p>
+
+<div class="webr-container" data-block-title="Build a 5x5 nested CV object">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a 5x5 nested CV object</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rsample)
+
+set.seed(123)
+folds &lt;- nested_cv(mtcars,
+                   outside = vfold_cv(v = 5),
+                   inside  = vfold_cv(v = 5))
+folds
+#&gt; # Nested resampling:
+#&gt; #  outer: 5-fold cross-validation
+#&gt; #  inner: 5-fold cross-validation
+#&gt; # A tibble: 5 x 3
+#&gt;   splits          id    inner_resamples
+#&gt;   &lt;list&gt;          &lt;chr&gt; &lt;list&gt;         
+#&gt; 1 &lt;split [25/7]&gt;  Fold1 &lt;vfold_cv [5x2]&gt;
+#&gt; 2 &lt;split [25/7]&gt;  Fold2 &lt;vfold_cv [5x2]&gt;
+#&gt; 3 &lt;split [25/7]&gt;  Fold3 &lt;vfold_cv [5x2]&gt;
+#&gt; 4 &lt;split [25/7]&gt;  Fold4 &lt;vfold_cv [5x2]&gt;
+#&gt; 5 &lt;split [25/7]&gt;  Fold5 &lt;vfold_cv [5x2]&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Inspect the inner resamples for one outer fold</h3>
+
+<p><strong>Each row of the result carries its own inner resampling tibble in the inner_resamples column.</strong> Index it like any list-column.</p>
+
+<div class="webr-container" data-block-title="Pull the inner resamples for fold 1">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pull the inner resamples for fold 1</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">inner &lt;- folds$inner_resamples[[1]]
+inner
+#&gt; #  5-fold cross-validation 
+#&gt; # A tibble: 5 x 2
+#&gt;   splits          id   
+#&gt;   &lt;list&gt;          &lt;chr&gt;
+#&gt; 1 &lt;split [20/5]&gt;  Fold1
+#&gt; 2 &lt;split [20/5]&gt;  Fold2
+#&gt; 3 &lt;split [20/5]&gt;  Fold3
+#&gt; 4 &lt;split [20/5]&gt;  Fold4
+#&gt; 5 &lt;split [20/5]&gt;  Fold5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 25 analysis rows from outer fold 1 are split again into five inner folds of 20 train / 5 assess. Those inner folds drive tuning for that one outer pass.</p>
+
+<h3>Extract analysis and assessment sets</h3>
+
+<p><strong>Inside any fold, analysis() and assessment() return ordinary data frames.</strong> The same helpers work at both outer and inner levels.</p>
+
+<div class="webr-container" data-block-title="Pull data frames from outer and inner folds">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pull data frames from outer and inner folds</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">outer_train &lt;- analysis(folds$splits[[1]])
+outer_test  &lt;- assessment(folds$splits[[1]])
+
+inner_fold1 &lt;- folds$inner_resamples[[1]]$splits[[1]]
+inner_train &lt;- analysis(inner_fold1)
+inner_test  &lt;- assessment(inner_fold1)
+
+c(outer = nrow(outer_train), inner = nrow(inner_train))
+#&gt; outer inner 
+#&gt;    25    20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Mix resampling schemes across levels</h3>
+
+<p><strong>The outer and inner schemes do not have to match.</strong> A common pattern uses cross-validation outside and bootstraps inside for variance-friendly inner tuning on small data.</p>
+
+<div class="webr-container" data-block-title="CV outside, bootstrap inside">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">CV outside, bootstrap inside</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(123)
+mix_folds &lt;- nested_cv(mtcars,
+                       outside = vfold_cv(v = 5),
+                       inside  = bootstraps(times = 25))
+mix_folds$inner_resamples[[1]]
+#&gt; # Bootstrap sampling 
+#&gt; # A tibble: 25 x 2
+#&gt;    splits          id         
+#&gt;    &lt;list&gt;          &lt;chr&gt;      
+#&gt;  1 &lt;split [25/9]&gt;  Bootstrap01
+#&gt;  2 &lt;split [25/8]&gt;  Bootstrap02
+#&gt;  3 &lt;split [25/9]&gt;  Bootstrap03
+#&gt; # i 22 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>nested_cv() vs other resampling functions</h2>
+
+<p><strong>nested_cv() is the only rsample builder that combines two resampling schemes into one object.</strong> Pick by what the next consumer in your pipeline needs.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Produces</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>nested_cv()</code></td>
+<td>Outer splits + per-fold inner resamples</td>
+<td>Tuning AND honest performance reporting on small data</td>
+</tr>
+<tr>
+<td><code>vfold_cv()</code></td>
+<td>v folds, every row held out once</td>
+<td>Tuning OR reporting, not both at once</td>
+</tr>
+<tr>
+<td><code>initial_split()</code></td>
+<td>One train/test split</td>
+<td>Final hold-out reporting after tuning</td>
+</tr>
+<tr>
+<td><code>bootstraps()</code></td>
+<td>Resamples with replacement</td>
+<td>Variance estimates, small data</td>
+</tr>
+<tr>
+<td><code>mc_cv()</code></td>
+<td>Random train/test splits, can overlap</td>
+<td>Many resamples without v-fold structure</td>
+</tr>
+</tbody>
+</table>
+
+<p>A typical workflow uses <code>vfold_cv()</code> for tuning when the dataset is large enough to keep a separate test set with <code>initial_split()</code>. When data is too small to spare a single test set, <code>nested_cv()</code> substitutes its outer loop for that hold-out.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The inner_resamples column is the whole point.</strong> Every outer fold carries its own inner resampling tibble, so when you fit a model per outer fold, the inner splits act as a private tuning set for that fold. Compute the cross-validated metric inside, pick the best hyperparameters, refit on the outer analysis set, and score on the outer assessment set. That outer metric is the unbiased estimate the rest of the pipeline can quote.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most nested_cv() bugs.</strong></p>
+
+<ul>
+
+<li><strong>Quoting the resampling calls.</strong> Passing <code>outside = &quot;vfold_cv(v = 5)&quot;</code> as a string fails because the arguments are evaluated as expressions, not parsed as text. Write <code>outside = vfold_cv(v = 5)</code> bare, no quotes.</li>
+
+<li><strong>Using inner metrics as the final report.</strong> The inner cross-validation exists to pick hyperparameters; its averaged metric is optimistic because the chosen model was selected on those same folds. Always report the outer assessment metric, computed once per outer fold after tuning is done.</li>
+
+<li><strong>Forgetting set.seed().</strong> Each outer fold runs an independent inner resample, so two unseeded runs produce different nested structures. Set the seed once before nested_cv() to lock both levels.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>nested_cv() does not exist in caret.</strong> If you are porting code from <code>trainControl(method = &quot;repeatedcv&quot;)</code> to tidymodels, there is no single tuning helper that combines the two loops. You build the nested object with <code>nested_cv()</code>, then drive the inner loop with <code>tune_grid()</code> per outer fold, typically inside a <code>purrr::map()</code> or <code>fit_resamples()</code> wrapper.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a 3-fold outer, 5-bootstrap inner nested resampling on the <code>iris</code> dataset stratified by <code>Species</code> on the outer loop. Save it to <code>ex_nested</code>.</p>
+<div class="webr-container" data-block-title="Your turn: nested CV on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: nested CV on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: 3-fold outer, 5-bootstrap inner
+set.seed(42)
+ex_nested &lt;- # your code here
+
+nrow(ex_nested)
+#&gt; Expected: 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+ex_nested &lt;- nested_cv(iris,
+                       outside = vfold_cv(v = 3, strata = Species),
+                       inside  = bootstraps(times = 5))
+nrow(ex_nested)
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>vfold_cv(v = 3, strata = Species)</code> builds the outer loop with balanced species proportions across the three folds. <code>bootstraps(times = 5)</code> builds five inner <a class="auto-link" href="broom-bootstrap-in-R.html" title="broom Bootstrap in R: Tidy Resampled Estimates">bootstrap resamples</a> per outer <a class="auto-link" href="rsample-training-in-R.html" title="rsample training() in R: Get the Training Set From a Split">training set</a>. The result has one row per outer fold.</p>
+
+</details>
+</section>
+
+<h2>Related rsample functions</h2>
+
+<p><strong>nested_cv() is the wrapper; these are the building blocks it composes.</strong></p>
+
+<ul>
+
+<li><code>vfold_cv()</code>: standard k-fold cross-validation, the most common outer or inner choice.</li>
+
+<li><code>bootstraps()</code>: bootstrap resamples, popular as an inner scheme on small data.</li>
+
+<li><code>analysis()</code> and <code>assessment()</code>: extract the two data frames from any outer or inner split.</li>
+
+<li><code>mc_cv()</code>: monte carlo random splits, useful for large outer loops without v-fold rigidity.</li>
+
+<li><code>initial_split()</code>: build the single hold-out set you would use instead of nested_cv() when data is plentiful.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from scikit-learn?</strong> <code>nested_cv(df, vfold_cv(v = 5), vfold_cv(v = 5))</code> is the tidymodels equivalent of pairing <code>cross_val_score</code> with an inner <code>GridSearchCV</code>. The inner_resamples list-column matches what scikit-learn builds implicitly when you stack two cv iterators.</div></div>
+
+<h2>FAQ</h2>
+
+<p><strong>When should I use nested_cv() instead of vfold_cv()?</strong></p>
+
+<p>Use nested_cv() when the same dataset has to drive both hyperparameter tuning and the final performance report, and the dataset is too small to spare a separate <code>initial_split()</code> test set. Plain v-fold tuning inflates the reported metric because the model was chosen on the same held-out rows it is scored on. nested_cv() prevents that by giving each outer fold its own inner tuning set, which the outer assessment rows never see.</p>
+
+<p><strong>What goes in the outside vs inside argument?</strong></p>
+
+<p>The <code>outside</code> argument is the loop that produces the honest performance estimate. The <code>inside</code> argument is the loop that picks hyperparameters within each outer training fold. Outside is usually 3 to 10 fold cross-validation; inside is often 5-fold CV or 25-<a class="auto-link" href="Bootstrap-Confidence-Intervals-in-R.html" title="Bootstrap CIs in R: Distribution-Free Confidence Intervals for Any Statistic">bootstrap resampling</a>. They do not have to use the same resampling family, and inner can be cheaper than outer because it runs many times.</p>
+
+<p><strong>How do I access the inner resamples?</strong></p>
+
+<p>Each row of a nested_cv() result has an <code>inner_resamples</code> list-column. <code>folds$inner_resamples[[i]]</code> returns the tibble of inner splits for outer fold <code>i</code>, which has the same shape as the output of the inner resampler called on its own. From there, <code>analysis()</code> and <code>assessment()</code> work the same as on any rsample split.</p>
+
+<p><strong>Is nested_cv() computationally expensive?</strong></p>
+
+<p>Yes. With 5-fold outer and 5-fold inner, you fit each candidate model 25 times, plus 5 refits on the outer analysis sets, so cost grows as outer x inner x number-of-hyperparameter-combinations. Use 3 to 5 folds at each level for prototyping, and reserve 10x10 nesting for the final reportable result.</p>
+
+<p><strong>Does nested_cv() respect stratification?</strong></p>
+
+<p>It respects whatever the inner and outer resamplers do. Pass <code>strata = Species</code> inside the outer or inner call, for example <code>outside = vfold_cv(v = 5, strata = Species)</code>, and that level stratifies. The outer and inner stratification are independent, so you can stratify one level and skip the other.</p>
+
+{% endraw %}
