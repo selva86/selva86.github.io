@@ -1,0 +1,350 @@
+---
+title: "broom tidy() for Survival Models in R: coxph and survfit"
+description: "Tidy survival models in R using broom::tidy(). Get clean data frames of coefficients, hazard ratios, and KM curves from coxph, survfit, and survreg fits."
+keywords: "broom tidy survival, tidy coxph R, tidy survfit, broom survival objects, broom tidy survreg, tidy survival models R, broom hazard ratio"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "broom::tidy()|broom tidy|tidy coxph|tidy survfit|tidy survival models"
+auto_link_case_sensitive: true
+fr_parent: "Linear-Regression.html"
+---
+<!-- md2html:generated -->
+
+<h1>broom tidy() for Survival Models in R: coxph and survfit</h1>
+
+<p class="lead">The <code>broom::tidy()</code> function turns survival model objects into one-row-per-term data frames you can pipe into <code>dplyr</code>, <code>ggplot2</code>, or a report. It works on <code>coxph</code>, <code>survfit</code>, and <code>survreg</code>, and can return hazard ratios with <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a> in a single call.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>tidy(cox_fit)<span class="qa-cmt">                                   # coefficients, log hazard</span>
+tidy(cox_fit, exponentiate = TRUE)<span class="qa-cmt">              # hazard ratios</span>
+tidy(cox_fit, conf.int = TRUE)<span class="qa-cmt">                  # add 95% CI columns</span>
+tidy(cox_fit, exponentiate = TRUE, conf.int = TRUE)<span class="qa-cmt">  # HR + CI together</span>
+tidy(km_fit)<span class="qa-cmt">                                    # KM curve: time, estimate, CI</span>
+tidy(km_fit) |&gt; filter(strata == &quot;sex=Female&quot;)<span class="qa-cmt">  # subset stratified output</span>
+tidy(aft_fit)<span class="qa-cmt">                                   # survreg AFT coefficients</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is <a class="auto-link" href="parsnip-tidy-fit-in-R.html" title="parsnip tidy() in R: Tidy Model Coefficients">tidy()</a> the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">coefficients or HR table from a fitted model</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">tidy(cox_fit, exponentiate = TRUE)</text><text x="125" y="126" class="branch-label">one-row model summary (concordance, n, <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a>)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">glance(cox_fit)</text><text x="125" y="182" class="branch-label">per-observation predictions or residuals</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">augment(cox_fit, newdata = df)</text><text x="125" y="238" class="branch-label">raw survival probabilities at custom times</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">summary(survfit_fit, times = c(...))</text><text x="125" y="294" class="branch-label">plot Kaplan-Meier curves</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">ggsurvfit::ggsurvfit() or survminer::ggsurvplot()</text><text x="125" y="350" class="branch-label">export results to Word or HTML</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">gtsummary::<a class="auto-link" href="Regression-Tables-in-R.html" title="Regression Tables in R: modelsummary vs stargazer vs gtsummary, Which to Use">tbl_regression</a>(cox_fit)</text></svg></div>
+
+<h2>What tidy() does for survival models in one sentence</h2>
+
+<p><strong><code>tidy()</code> reshapes survival objects into rectangular data frames.</strong> A fitted Cox model is an S3 object with deeply nested matrices for coefficients, variance, and call metadata. <code>broom::tidy()</code> extracts the parts you usually need (term, estimate, standard error, statistic, <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a>) and returns a tibble with one row per term.</p>
+
+<p>For a <code>survfit</code> object (a Kaplan-Meier curve), <code>tidy()</code> returns one row per event time with the survival estimate, the number at risk, the number of events, and confidence bounds. This makes downstream plotting and reporting much easier than working with the <code>$surv</code>, <code>$time</code>, and <code>$n.risk</code> slots by hand.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>tidy()</code> is an S3 generic, so the call is the same regardless of model class.</strong> broom dispatches to the right method (<code>tidy.coxph</code>, <code>tidy.survfit</code>, <code>tidy.survreg</code>) based on the input object.</p>
+
+<div class="webr-container" data-block-title="Load packages and fit a Cox model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load packages and fit a Cox model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(survival)
+library(broom)
+library(dplyr)
+
+# lung dataset ships with the survival package
+data(lung, package = &quot;survival&quot;)
+
+cox_fit &lt;- coxph(Surv(time, status) ~ age + sex + ph.ecog, data = lung)
+class(cox_fit)
+#&gt; [1] &quot;coxph&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The most useful arguments are:</p>
+
+<ul>
+
+<li><code>exponentiate</code>: <code>TRUE</code> returns hazard ratios (exp of the coefficient) for Cox and Weibull AFT models; default <code>FALSE</code> gives log scale</li>
+
+<li><code>conf.int</code>: <code>TRUE</code> adds <code>conf.low</code> and <code>conf.high</code> columns; default <code>FALSE</code></li>
+
+<li><code>conf.level</code>: confidence level for the interval; default <code>0.95</code></li>
+
+</ul>
+
+<p>These three cover almost every reporting use case.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Combine <code>exponentiate = TRUE</code> and <code>conf.int = TRUE</code> for a publication-ready hazard ratio table.</strong> This single call gives you the columns most journals require: HR, lower CI, upper CI, and p-value. No manual <code>exp(coef())</code> or <code>confint()</code> step needed.</div></div>
+
+<h2>Common patterns</h2>
+
+<h3>1. Coefficient table from a Cox model</h3>
+
+<div class="webr-container" data-block-title="Tidy a coxph fit with log coefficients">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tidy a coxph fit with log coefficients</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(cox_fit)
+#&gt; # A tibble: 3 x 5
+#&gt;   term    estimate std.error statistic   p.value
+#&gt;   &lt;chr&gt;      &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 age      0.0170    0.00922    1.84   0.0657
+#&gt; 2 sex     -0.513     0.167     -3.06   0.00219
+#&gt; 3 ph.ecog  0.464     0.116      3.99   0.0000661</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row corresponds to a predictor. The <code>estimate</code> column holds the log hazard ratio. A positive estimate means higher hazard (shorter survival), and a negative estimate means lower hazard.</p>
+
+<h3>2. Hazard ratios with confidence intervals</h3>
+
+<div class="webr-container" data-block-title="Hazard ratios with 95% CI">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Hazard ratios with 95% CI</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(cox_fit, exponentiate = TRUE, conf.int = TRUE)
+#&gt; # A tibble: 3 x 7
+#&gt;   term    estimate std.error statistic   p.value conf.low conf.high
+#&gt;   &lt;chr&gt;      &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 age        1.02    0.00922    1.84   0.0657      0.999      1.04
+#&gt; 2 sex        0.599   0.167     -3.06   0.00219     0.431      0.831
+#&gt; 3 ph.ecog    1.59    0.116      3.99   0.0000661   1.27       1.99</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the table you put in a Methods / Results section. Each <code>estimate</code> is a hazard ratio; values below 1 mean protective, above 1 mean increased risk. Females (<code>sex = 2</code>) have about 40% lower hazard than males in <code>lung</code>.</p>
+
+<h3>3. Kaplan-Meier curves with tidy(survfit)</h3>
+
+<div class="webr-container" data-block-title="Tidy a stratified survfit object">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tidy a stratified survfit object</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">km_fit &lt;- survfit(Surv(time, status) ~ sex, data = lung)
+km_tidy &lt;- tidy(km_fit)
+head(km_tidy, 4)
+#&gt; # A tibble: 4 x 9
+#&gt;    time n.risk n.event n.censor estimate std.error conf.high conf.low strata
+#&gt;   &lt;dbl&gt;  &lt;int&gt;   &lt;int&gt;    &lt;int&gt;    &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1    11    138       3        0    0.978   0.0126     1.00     0.954 sex=1
+#&gt; 2    12    135       1        0    0.971   0.0145     0.999    0.943 sex=1
+#&gt; 3    13    134       2        0    0.957   0.0179     0.991    0.924 sex=1
+#&gt; 4    15    132       1        0    0.949   0.0194     0.986    0.914 sex=1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every row is one event time. The <code>strata</code> column appears because we fit <code>~ sex</code>. With <code>strata</code>, you can pipe straight into <code>ggplot2</code>:</p>
+
+<div class="webr-container" data-block-title="Plot survival curves from tidy output">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot survival curves from tidy output</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+ggplot(km_tidy, aes(x = time, y = estimate, color = strata)) +
+  geom_step() +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high, fill = strata),
+              alpha = 0.2, linetype = 0) +
+  labs(y = &quot;Survival probability&quot;, x = &quot;Days&quot;)
+#&gt; A two-curve step plot with shaded CI ribbons</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>For an unstratified KM curve, <code>tidy()</code> omits the <code>strata</code> column.</strong> <code>survfit(Surv(time, status) ~ 1, data = lung)</code> returns a single overall curve, so the tidy output has 8 columns instead of 9.</div></div>
+
+<h3>4. AFT models with tidy(survreg)</h3>
+
+<div class="webr-container" data-block-title="Tidy a Weibull AFT model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tidy a Weibull AFT model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aft_fit &lt;- survreg(Surv(time, status) ~ age + sex, data = lung, dist = &quot;weibull&quot;)
+tidy(aft_fit, conf.int = TRUE)
+#&gt; # A tibble: 3 x 7
+#&gt;   term        estimate std.error statistic   p.value conf.low conf.high
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 (Intercept)   6.89     0.420     16.4    1.30e-60   6.07      7.72
+#&gt; 2 age          -0.00733  0.00686   -1.07   2.85e-01  -0.0208    0.00611
+#&gt; 3 sex           0.396    0.124      3.20   1.39e-03   0.153     0.638</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>survreg</code> uses the accelerated failure time (AFT) parameterization, so coefficients are on the log-time scale. A positive estimate means longer survival.</p>
+
+<h2>tidy() vs base summary() and gtsummary</h2>
+
+<p><strong>Three tools cover the same job from different angles.</strong> Pick by what you do next with the output.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Output type</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>summary(fit)</code></td>
+<td>printed text + nested list</td>
+<td>Quick console check</td>
+</tr>
+<tr>
+<td><code>broom::tidy(fit)</code></td>
+<td>tibble (data frame)</td>
+<td>dplyr piping, ggplot, custom tables</td>
+</tr>
+<tr>
+<td><code>gtsummary::tbl_regression(fit)</code></td>
+<td>rendered HTML/Word table</td>
+<td>Final reports without manual formatting</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>tidy()</code> whenever the next step is code: filtering terms, combining models, drawing a forest plot, writing to CSV. Use <code>gtsummary</code> for the final document; under the hood it calls <code>broom::tidy()</code> for you.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> frame is the bridge between modeling and tidyverse tooling.</strong> Once <code>tidy()</code> returns a tibble, every dplyr verb, every ggplot geom, and every <code>gt</code>/<code>flextable</code> layout works without any custom shim. This is why <code>broom</code> is in the tidymodels meta-package even when you only fit one model.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting <code>exponentiate = TRUE</code>.</strong> The default is the log scale, which is rarely what you want to report. If your hazard ratio column looks like 0.017 instead of 1.02, you forgot the argument.</p>
+
+<div class="webr-container" data-block-title="Wrong scale: log hazard reported as if it were a ratio">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrong scale: log hazard reported as if it were a ratio</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(cox_fit) |&gt; select(term, estimate)
+#&gt; # A tibble: 3 x 2
+#&gt;   term    estimate
+#&gt;   &lt;chr&gt;      &lt;dbl&gt;
+#&gt; 1 age      0.0170
+#&gt; 2 sex     -0.513
+#&gt; 3 ph.ecog  0.464</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Pitfall 2: <code>tidy()</code> on a <code>Surv</code> object instead of a fit.</strong> <code>Surv(time, status)</code> is a response object, not a model. Pass the output of <code>coxph()</code>, <code>survfit()</code>, or <code>survreg()</code>, not the bare <code>Surv</code> call.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>broom does not provide <code>tidy.survfit.cox</code> for adjusted survival curves.</strong> If you call <code>survfit(cox_fit, newdata = ...)</code> you get a <code>survfitcox</code> object. <code>tidy()</code> will fall back to the generic <code>survfit</code> method and may drop the adjustment metadata. For Cox-adjusted curves, use <code>ggsurvfit::tidy_survfit()</code> instead.</div></div>
+
+<p><strong>Pitfall 3: mixing <code>conf.int</code> with <code>level</code>.</strong> Older broom versions used <code>conf.level</code>. Some tutorials still show <code>level = 0.9</code>; the current argument name is <code>conf.level</code>. Check the version with <code>packageVersion(&quot;broom&quot;)</code> if you see an unused-argument warning.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a Cox model on <code>lung</code> with <code>age</code>, <code>sex</code>, and <code>ph.karno</code> as predictors. Use <code>tidy()</code> to produce a hazard-ratio table with 95% confidence intervals. Save the result to <code>ex_hr_table</code>.</p>
+<div class="webr-container" data-block-title="Your turn: build a hazard ratio table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build a hazard ratio table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: tidy a coxph fit as HR + CI
+ex_hr_table &lt;- # your code here
+
+ex_hr_table
+#&gt; Expected: 3 rows with estimate (HR), conf.low, conf.high columns</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- coxph(Surv(time, status) ~ age + sex + ph.karno, data = lung)
+ex_hr_table &lt;- tidy(ex_fit, exponentiate = TRUE, conf.int = TRUE)
+ex_hr_table
+#&gt; # A tibble: 3 x 7
+#&gt;   term     estimate std.error statistic  p.value conf.low conf.high
+#&gt;   &lt;chr&gt;       &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 age          1.02   0.00937     1.94  0.0521     1.000      1.04
+#&gt; 2 sex          0.598  0.169      -3.04  0.00233    0.430      0.832
+#&gt; 3 ph.karno     0.984  0.00614    -2.65  0.00805    0.972      0.996</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Combining <code>exponentiate = TRUE</code> with <code>conf.int = TRUE</code> returns hazard ratios alongside their 95% interval in a single call. No manual <code>exp()</code> or <code>confint()</code> step is required.</p>
+
+</details>
+</section>
+
+<h2>Related broom functions for survival</h2>
+
+<p>After mastering <code>tidy()</code>, look at:</p>
+
+<ul>
+
+<li><code>glance()</code>: one-row model summary with <code>n</code>, <code>nevent</code>, <code>concordance</code>, and <code>AIC</code></li>
+
+<li><code>augment()</code>: per-observation residuals and predictions (Cox only)</li>
+
+<li><code>tidy_survfit()</code> in the ggsurvfit package: drop-in replacement that handles Cox-adjusted curves</li>
+
+<li><code>gtsummary::tbl_regression()</code>: formatted regression table built on top of broom</li>
+
+</ul>
+
+<p>For a forest plot of hazard ratios, pipe <code>tidy(cox_fit, exponentiate = TRUE, conf.int = TRUE)</code> into <code>ggplot2::geom_pointrange()</code>. Use a log x-axis so HR = 1 sits in the middle.</p>
+
+<p>See the official <a href="https://broom.tidymodels.org/reference/index.html#survival">broom documentation for survival methods</a> for the complete argument list per method.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I get hazard ratios from a coxph object?</strong></p>
+
+<p>Call <code>tidy(cox_fit, exponentiate = TRUE)</code>. The <code>estimate</code> column then holds hazard ratios instead of log coefficients. Add <code>conf.int = TRUE</code> to include 95% confidence bounds in the same call. This replaces the older two-step pattern of <code>exp(coef(cox_fit))</code> plus <code>exp(confint(cox_fit))</code>.</p>
+
+<p><strong>Does broom tidy work with survfit objects?</strong></p>
+
+<p>Yes. <code>tidy(survfit_object)</code> returns one row per event time with columns for <code>time</code>, <code>n.risk</code>, <code>n.event</code>, <code>estimate</code> (survival probability), <code>std.error</code>, <code>conf.high</code>, and <code>conf.low</code>. If the survfit call was stratified, a <code>strata</code> column identifies each group.</p>
+
+<p><strong>What is the difference between tidy(), <a class="auto-link" href="parsnip-glance-fit-in-R.html" title="parsnip glance() in R: One-Row Model Summary">glance()</a>, and augment()?</strong></p>
+
+<p><code>tidy()</code> returns one row per model term. <code>glance()</code> returns one row total summarizing the whole model (n, log-likelihood, AIC, concordance). <code>augment()</code> returns one row per observation with predictions, residuals, or fitted values. All three are <a class="auto-link" href="S3-Classes-in-R.html" title="S3 Classes in R: Create, Inherit & Write Methods — Complete Tutorial">S3 generics</a> that dispatch on model class.</p>
+
+<p><strong>Can tidy() return median survival from a survfit object?</strong></p>
+
+<p>Not directly. <code>tidy(survfit_fit)</code> gives the full survival curve, but median survival is a summary statistic, not a row in the tidy output. Use <code>summary(survfit_fit)$table</code> or <code>survminer::surv_median()</code> to extract median survival time per stratum.</p>
+
+<p><strong>Why does tidy() drop my model name or call?</strong></p>
+
+<p>By design. <code>tidy()</code> returns coefficient-level data, not metadata. Model-level information lives in <code>glance()</code>. If you fit many models with <code>purrr::map()</code>, combine them with <code>bind_rows(.id = &quot;model&quot;)</code> after tidying so the model identifier becomes a column.</p>
