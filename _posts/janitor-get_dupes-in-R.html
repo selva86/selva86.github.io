@@ -1,0 +1,430 @@
+---
+title: "janitor get_dupes() in R: Find Duplicate Rows With Counts"
+description: "Use janitor get_dupes() to find every duplicate row in an R data frame by chosen columns, with a dupe_count showing how many times each combination appears."
+keywords: "janitor get_dupes, get_dupes function R, janitor get_dupes examples, R find duplicate rows, dupe_count janitor, duplicates in R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "get_dupes()|janitor get_dupes|janitor::get_dupes()|dupe_count|find duplicate rows"
+auto_link_case_sensitive: true
+fr_parent: "janitor-Package-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>janitor get_dupes() in R: Find Duplicate Rows With Counts</h1>
+
+<p class="lead">The <code>get_dupes()</code> function in janitor returns every duplicate row in a data frame along with a <code>dupe_count</code> column showing how many times each combination appears. Unlike <code>distinct()</code>, which keeps one of each, <code>get_dupes()</code> surfaces ALL copies so you can inspect what is duplicated and why.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>get_dupes(df)<span class="qa-cmt">                                  # duplicates across all columns</span>
+get_dupes(df, customer_id)<span class="qa-cmt">                     # duplicates by one column</span>
+get_dupes(df, customer_id, order_date)<span class="qa-cmt">         # duplicates by composite key</span>
+df |&gt; janitor::get_dupes(email)<span class="qa-cmt">                # pipe-friendly</span>
+get_dupes(df, starts_with(&quot;name&quot;))<span class="qa-cmt">             # tidyselect helpers</span>
+get_dupes(df, -id, -timestamp)<span class="qa-cmt">                 # all columns except these</span>
+nrow(get_dupes(df, email))<span class="qa-cmt">                     # how many duplicate rows exist</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is <a class="auto-link" href="janitor-Package-in-R.html" title="janitor Package in R: Clean Messy Data with 5 Lines of Code">get_dupes()</a> the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">list every duplicate row with a count</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">get_dupes(df, key)</text><text x="125" y="126" class="branch-label">keep one row per key, drop the rest</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">distinct(df, key, .keep_all = TRUE)</text><text x="125" y="182" class="branch-label">flag duplicates without filtering</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">df |&gt; mutate(dup = duplicated(key))</text><text x="125" y="238" class="branch-label">count unique combinations only</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">dplyr::count(df, key, sort = TRUE)</text><text x="125" y="294" class="branch-label">remove rows with any NA in key</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">tidyr::drop_na(df, key)</text><text x="125" y="350" class="branch-label">find rows matching a lookup table</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">dplyr::<a class="auto-link" href="R-Joins.html" title="R Joins With Visual Diagrams: Pick the Right Join Every Time">semi_join</a>(df, lookup, by = &quot;id&quot;)</text><text x="125" y="406" class="branch-label">check primary-key uniqueness in a test</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">stopifnot(nrow(get_dupes(df, id)) == 0)</text></svg></div>
+
+<h2>What get_dupes() does in one sentence</h2>
+
+<p><strong><code>get_dupes()</code> filters a data frame down to rows whose chosen columns appear more than once, then adds a <code>dupe_count</code> column so you can see how many copies of each combination exist.</strong> It always returns ALL copies of every duplicate, not just the extra ones.</p>
+
+<p>Reach for it when a key that is supposed to be unique might not be. Audit a customer table, check a join key before merging, or spot rows loaded twice.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>get_dupes()</code> takes a data frame and an optional list of columns; if no columns are passed, it uses all of them.</strong> The result is a tibble sorted so duplicates of the same key sit next to each other.</p>
+
+<div class="webr-container" data-block-title="Load janitor and a sample data frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load janitor and a sample data frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+library(dplyr)
+
+orders &lt;- data.frame(
+  customer_id = c(1, 2, 2, 3, 3, 3, 4),
+  product     = c(&quot;A&quot;, &quot;B&quot;, &quot;B&quot;, &quot;C&quot;, &quot;C&quot;, &quot;D&quot;, &quot;E&quot;),
+  qty         = c(1, 2, 2, 5, 5, 1, 3)
+)
+orders
+#&gt;   customer_id product qty
+#&gt; 1           1       A   1
+#&gt; 2           2       B   2
+#&gt; 3           2       B   2
+#&gt; 4           3       C   5
+#&gt; 5           3       C   5
+#&gt; 6           3       D   1
+#&gt; 7           4       E   3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signature is short:</p>
+
+<pre><code>get_dupes(dat, ...)</code></pre>
+
+<p><code>dat</code> is the data frame; <code>...</code> accepts bare column names, tidyselect helpers, or negated columns. The output is always a tibble with one extra column called <code>dupe_count</code> placed first.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pipe <code>get_dupes()</code> straight after every import.</strong> Running <code>read_csv(&quot;file.csv&quot;) |&gt; get_dupes(primary_key)</code> immediately flags whether your supposedly unique key is actually unique. Catching duplication at the door prevents silent fan-out joins downstream that quietly double row counts and inflate every aggregation.</div></div>
+
+<h2>Six common patterns</h2>
+
+<h3>1. Find duplicates across all columns</h3>
+
+<div class="webr-container" data-block-title="Whole-row duplicates">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Whole-row duplicates</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">orders |&gt;
+  get_dupes()
+#&gt; # A tibble: 4 x 4
+#&gt;   customer_id product   qty dupe_count
+#&gt;         &lt;dbl&gt; &lt;chr&gt;   &lt;dbl&gt;      &lt;int&gt;
+#&gt; 1           2 B           2          2
+#&gt; 2           2 B           2          2
+#&gt; 3           3 C           5          2
+#&gt; 4           3 C           5          2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With no arguments, <code>get_dupes()</code> compares the entire row. Rows 2 and 3 are exact copies (<code>2, B, 2</code>), and rows 4 and 5 are exact copies (<code>3, C, 5</code>). Each group's <code>dupe_count</code> shows the size of the cluster.</p>
+
+<h3>2. Duplicates by one column</h3>
+
+<div class="webr-container" data-block-title="Duplicates by single key">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Duplicates by single key</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">orders |&gt;
+  get_dupes(customer_id)
+#&gt; # A tibble: 5 x 4
+#&gt;   customer_id dupe_count product   qty
+#&gt;         &lt;dbl&gt;      &lt;int&gt; &lt;chr&gt;   &lt;dbl&gt;
+#&gt; 1           2          2 B           2
+#&gt; 2           2          2 B           2
+#&gt; 3           3          3 C           5
+#&gt; 4           3          3 C           5
+#&gt; 5           3          3 D           1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Passing one column finds rows that share a value there even if other columns differ. Customer 3 appears 3 times because the same id ordered both <code>C</code> and <code>D</code>.</p>
+
+<h3>3. Duplicates by composite key</h3>
+
+<div class="webr-container" data-block-title="Duplicates by multiple columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Duplicates by multiple columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">orders |&gt;
+  get_dupes(customer_id, product)
+#&gt; # A tibble: 4 x 4
+#&gt;   customer_id product dupe_count   qty
+#&gt;         &lt;dbl&gt; &lt;chr&gt;        &lt;int&gt; &lt;dbl&gt;
+#&gt; 1           2 B                2     2
+#&gt; 2           2 B                2     2
+#&gt; 3           3 C                2     5
+#&gt; 4           3 C                2     5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Pass multiple bare column names to define a composite key. This is the most common production use: confirming that <code>(customer_id, order_date)</code> or <code>(user_id, event_id)</code> uniquely identifies a row.</p>
+
+<h3>4. Tidyselect helpers</h3>
+
+<div class="webr-container" data-block-title="Choose columns by pattern">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Choose columns by pattern</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">people &lt;- tibble(
+  first_name = c(&quot;Ann&quot;, &quot;Ann&quot;, &quot;Bob&quot;, &quot;Cara&quot;),
+  last_name  = c(&quot;Lee&quot;, &quot;Lee&quot;, &quot;Tan&quot;, &quot;Park&quot;),
+  email      = c(&quot;a@x&quot;, &quot;a@y&quot;, &quot;b@x&quot;, &quot;c@x&quot;)
+)
+
+people |&gt;
+  get_dupes(starts_with(&quot;name&quot;))
+#&gt; Error: Can't subset columns that don't exist.
+#&gt; Hint: did you mean starts_with(&quot;first&quot;) or starts_with(&quot;last&quot;)?</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first-attempt above fails because no columns START with "name". Use a real prefix:</p>
+
+<div class="webr-container" data-block-title="Tidyselect with valid prefix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tidyselect with valid prefix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">people |&gt;
+  get_dupes(ends_with(&quot;name&quot;))
+#&gt; # A tibble: 2 x 4
+#&gt;   first_name last_name dupe_count email
+#&gt;   &lt;chr&gt;      &lt;chr&gt;          &lt;int&gt; &lt;chr&gt;
+#&gt; 1 Ann        Lee                2 a@x
+#&gt; 2 Ann        Lee                2 a@y</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>get_dupes()</code> accepts any tidyselect helper: <code>starts_with()</code>, <code>ends_with()</code>, <code>contains()</code>, <code>matches()</code>, <code>where()</code>. Useful when your duplicate-key spans several columns sharing a naming convention.</p>
+
+<h3>5. Negate columns to ignore</h3>
+
+<div class="webr-container" data-block-title="All columns except some">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">All columns except some</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">logs &lt;- tibble(
+  user_id   = c(1, 1, 2, 2),
+  event     = c(&quot;click&quot;, &quot;click&quot;, &quot;view&quot;, &quot;view&quot;),
+  timestamp = c(1, 2, 3, 4)
+)
+
+logs |&gt;
+  get_dupes(-timestamp)
+#&gt; # A tibble: 4 x 4
+#&gt;   user_id event dupe_count timestamp
+#&gt;     &lt;dbl&gt; &lt;chr&gt;      &lt;int&gt;     &lt;dbl&gt;
+#&gt; 1       1 click          2         1
+#&gt; 2       1 click          2         2
+#&gt; 3       2 view           2         3
+#&gt; 4       2 view           2         4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Negation excludes columns from the duplicate check while keeping them in the output. Common pattern: ignore timestamps or surrogate ids when looking for semantic duplicates (same user, same event, different time).</p>
+
+<h3>6. Use it as a test in a pipeline</h3>
+
+<div class="webr-container" data-block-title="Assert a primary key is unique">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Assert a primary key is unique</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n_dupes &lt;- nrow(get_dupes(orders, customer_id, product))
+
+if (n_dupes &gt; 0) {
+  message(&quot;Found &quot;, n_dupes, &quot; duplicate (customer_id, product) rows&quot;)
+} else {
+  message(&quot;Key is unique&quot;)
+}
+#&gt; Found 4 duplicate (customer_id, product) rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Because <code>get_dupes()</code> returns a tibble, you can use <code>nrow()</code> to count violations in a script. Adding this check to every ETL step beats hunting doubled metrics later.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>get_dupes()</code> returns ALL copies, not just the extras.</strong> If a value appears 3 times, you get all 3 rows back, with <code>dupe_count = 3</code> on each. This is the opposite of <code>duplicated()</code> in base R, which returns <code>FALSE</code> for the first occurrence and <code>TRUE</code> for the rest. The all-copies behavior is what makes <code>get_dupes()</code> an inspection tool rather than a filter.</div></div>
+
+<h2>get_dupes() vs distinct() vs duplicated()</h2>
+
+<p><strong>Three tools deal with duplicate rows; pick by what answer you need.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Task</th>
+<th><code>get_dupes()</code></th>
+<th><code>distinct()</code></th>
+<th><code>duplicated()</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>List every duplicate row</td>
+<td>yes, with count</td>
+<td>no</td>
+<td>no</td>
+</tr>
+<tr>
+<td>Keep one row per key</td>
+<td>no</td>
+<td>yes</td>
+<td>manual</td>
+</tr>
+<tr>
+<td>Flag rows as duplicate</td>
+<td>no</td>
+<td>no</td>
+<td>yes, logical vector</td>
+</tr>
+<tr>
+<td>Show the dupe_count</td>
+<td>yes</td>
+<td>no</td>
+<td>no</td>
+</tr>
+<tr>
+<td>Returns input class</td>
+<td>tibble</td>
+<td>yes</td>
+<td>logical vector</td>
+</tr>
+<tr>
+<td>Best for inspection</td>
+<td>yes</td>
+<td>no</td>
+<td>no</td>
+</tr>
+<tr>
+<td>Best for cleaning</td>
+<td>no</td>
+<td>yes</td>
+<td>yes</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li>Use <code>get_dupes()</code> to audit and inspect. The output answers "which rows are duplicates, and how many times?"</li>
+
+<li>Use <code>dplyr::distinct()</code> to deduplicate. The output is the cleaned data with one row per key.</li>
+
+<li>Use base R <code>duplicated()</code> when you need a logical flag to combine with other conditions, for example <code>df[!duplicated(df$id) &amp; df$valid, ]</code>.</li>
+
+</ul>
+
+<p>For a side-by-side walkthrough of the deduplication option, see <a href="dplyr-distinct-in-R.html">dplyr distinct() in R</a>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The closest equivalent is <code>df[df.duplicated(subset=[&#x27;key&#x27;], keep=False)]</code> followed by a groupby-size to add a count column. Pandas has no single function with <code>get_dupes()</code>'s combined filter-and-count behavior, which is why janitor packs both steps into one call.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">NA values</a> are treated as equal.</strong> Two rows with <code>NA</code> in the key column count as duplicates of each other. If you want NAs ignored, drop them first with <code>tidyr::drop_na(df, key) |&gt; get_dupes(key)</code>.</p>
+
+<p><strong>Pitfall 2: forgetting that all copies are returned.</strong> A duplicate group of 5 rows produces 5 rows in the output, not 4 (extras only). If you want only the extras, use <code>get_dupes()</code> to identify the key then anti-join: <code>df |&gt; anti_join(distinct(df, key, .keep_all = TRUE))</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Numeric precision can cause silent false negatives.</strong> Two floating-point values that look identical when printed (<code>0.1 + 0.2</code> and <code>0.3</code>) are NOT equal under the hood, so <code>get_dupes()</code> will miss them. For numeric keys, round to a fixed precision first: <code>df |&gt; mutate(key = round(key, 4)) |&gt; get_dupes(key)</code>.</div></div>
+
+<p><strong>Pitfall 3: empty result is normal.</strong> If no duplicates exist, <code>get_dupes()</code> returns a zero-row tibble plus a console message: <code>No duplicate combinations found of: &lt;columns&gt;</code>. Treat the message as a pass, not a warning.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>get_dupes()</code> on the built-in <code>iris</code> data frame to find rows where the same <code>Sepal.Length</code> and <code>Species</code> combination appears more than once. Save the result to <code>ex_dupes</code> and count them.</p>
+<div class="webr-container" data-block-title="Your turn: iris duplicates">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: iris duplicates</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: find duplicates by Sepal.Length and Species
+ex_dupes &lt;- iris |&gt;
+  get_dupes(# your code here)
+
+nrow(ex_dupes)
+#&gt; Expected: &gt; 100</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_dupes &lt;- iris |&gt;
+  get_dupes(Sepal.Length, Species)
+
+nrow(ex_dupes)
+#&gt; [1] 134</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Passing the two bare column names defines a composite key. Iris has many repeated Sepal.Length values within each species, so most rows participate in some duplicate group. The 134 returned rows include EVERY copy of each duplicated combination, with <code>dupe_count</code> showing the <a class="auto-link" href="dplyr-n-in-R.html" title="dplyr n() in R: Count Rows Inside summarise or mutate">group size</a>.</p>
+
+</details>
+</section>
+
+<h2>Related janitor functions</h2>
+
+<p>After mastering <code>get_dupes()</code>, look at:</p>
+
+<ul>
+
+<li><code>clean_names()</code>: standardize messy column names before deduplication so keys actually match</li>
+
+<li><code>remove_empty()</code>: drop fully empty rows or columns that can otherwise show up as duplicates</li>
+
+<li><code>tabyl()</code>: cross-tabulate the duplicated keys to see which values cluster</li>
+
+<li><code>dplyr::distinct()</code>: keep one row per key once you have confirmed the duplicates are real</li>
+
+<li><code>dplyr::count()</code>: <a class="auto-link" href="dplyr-n_distinct-in-R.html" title="dplyr n_distinct() in R: Count Unique Values Fast">count unique values</a> without filtering, complementary to <code>get_dupes()</code></li>
+
+</ul>
+
+<p>For a tour of the wider package, see the <a href="janitor-Package-in-R.html">janitor package guide</a>. The official reference is <a href="https://sfirke.github.io/janitor/reference/get_dupes.html">sfirke.github.io/janitor</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does janitor get_dupes() do?</strong></p>
+
+<p><code>get_dupes()</code> returns every row in a data frame whose chosen columns appear more than once, with an added <code>dupe_count</code> column showing the size of each duplicate group. It is an inspection tool: you see all copies, not just the extras, so you can decide whether each duplicate is a data-entry mistake, a legitimate repeat event, or a join that fanned out unexpectedly. The function leaves the input unchanged and returns a new tibble.</p>
+
+<p><strong>How is get_dupes() different from distinct()?</strong></p>
+
+<p><code>distinct()</code> deduplicates: it keeps one row per unique combination and discards the rest, leaving you with clean data. <code>get_dupes()</code> does the opposite: it surfaces the duplicates so you can examine them. Use <code>get_dupes()</code> to audit and understand the problem, then use <code>distinct()</code> to actually <a class="auto-link" href="dplyr-distinct-in-R.html" title="dplyr distinct() in R: Remove Duplicate Rows">remove duplicates</a> once you have decided which version of each row to keep.</p>
+
+<p><strong>Does get_dupes() treat NA values as duplicates?</strong></p>
+
+<p>Yes. Two rows whose key columns are both <code>NA</code> are treated as a duplicate pair and appear in the output with <code>dupe_count = 2</code>. If you do not want NAs to count, filter them out before calling: <code>df |&gt; tidyr::drop_na(key_column) |&gt; get_dupes(key_column)</code>. This matches how SQL <code>GROUP BY</code> typically treats NULLs for the purpose of duplicate detection.</p>
+
+<p><strong>Can I use get_dupes() to test a primary key in a script?</strong></p>
+
+<p>Yes, and it is a common pattern. Wrap the call in <code>nrow()</code>: <code>stopifnot(nrow(get_dupes(df, id)) == 0)</code>. The assertion passes silently when the key is unique and throws a hard error the moment a duplicate appears, which is exactly what you want in a data pipeline that assumes one row per id.</p>
+
+<p><strong>Why does my numeric column miss duplicates that look identical?</strong></p>
+
+<p>Floating-point values that print the same can differ in their underlying bits, so <code>get_dupes()</code> treats them as distinct. To avoid this, round to a fixed precision before the duplicate check: <code>df |&gt; mutate(amount = round(amount, 2)) |&gt; get_dupes(amount)</code>. For string or integer columns the issue does not apply; comparisons there are exact.</p>
