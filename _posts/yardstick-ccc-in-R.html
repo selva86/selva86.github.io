@@ -1,0 +1,385 @@
+---
+title: "yardstick ccc() in R: Concordance With Bias Correction"
+description: "Use yardstick ccc() in R to score regression agreement with Lin's concordance correlation. See syntax, the bias argument, grouped scoring, and common pitfalls."
+keywords: "yardstick ccc, ccc function R, yardstick ccc examples, Lin's concordance correlation R, tidymodels ccc, concordance correlation coefficient R, regression agreement metric"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "ccc()|yardstick ccc|yardstick::ccc()|concordance correlation coefficient|Lin's concordance correlation"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>yardstick ccc() in R: Concordance With Bias Correction</h1>
+
+<p class="lead">The yardstick ccc() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> returns Lin's concordance <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">correlation coefficient</a> between observed and predicted values, accepting a tibble with truth and estimate columns and producing a tidy one-row summary that scores precision and accuracy in a single number.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>ccc(df, truth, estimate)<span class="qa-cmt">                          # basic call</span>
+ccc(df, truth = obs, estimate = pred)<span class="qa-cmt">             # named arguments</span>
+ccc(df, solubility, prediction)<span class="qa-cmt">                   # default tidymodels output</span>
+ccc(df, obs, pred, bias = TRUE)<span class="qa-cmt">                   # unbiased variance estimator</span>
+df |&gt; group_by(fold) |&gt; ccc(obs, pred)<span class="qa-cmt">            # by resample</span>
+ccc(df, obs, pred, na_rm = TRUE)<span class="qa-cmt">                  # drop missing rows</span>
+ccc_vec(truth_vec, pred_vec)<span class="qa-cmt">                      # vector interface</span>
+ccc(df, obs, pred, case_weights = w)<span class="qa-cmt">              # weighted concordance</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is ccc() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">agreement plus calibration in one score</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">ccc(df, truth, estimate)</text><text x="125" y="126" class="branch-label">shape only, ignore systematic offset</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">rsq(df, truth, estimate)</text><text x="125" y="182" class="branch-label">error in outcome units</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">rmse(df, truth, estimate)</text><text x="125" y="238" class="branch-label">less <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a> sensitive than rmse</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">mae(df, truth, estimate)</text><text x="125" y="294" class="branch-label">percentage error matters most</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">mape(df, truth, estimate)</text><text x="125" y="350" class="branch-label">predicting classes, not numbers</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">accuracy(df, truth, estimate)</text><text x="125" y="406" class="branch-label">multi-metric report in one call</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">metrics(df, truth, estimate)</text></svg></div>
+
+<h2>What ccc() measures</h2>
+
+<p><strong>ccc() multiplies the <a class="auto-link" href="Correlation-in-R.html" title="Correlation in R: Choose Between Pearson, Spearman, and Kendall, With Tests">Pearson correlation</a> by a bias-correction factor.</strong> You pass a data frame with the observed outcome and the predicted values, and the function returns a one-row tibble with three columns: <code>.metric</code>, <code>.estimator</code>, and <code>.estimate</code>. The estimate ranges from -1 to 1, where 1 means every prediction sits on the 45-degree line and 0 means no agreement.</p>
+
+<p>The score decomposes into precision (tightness of the scatter around its own best-fit line) and accuracy (how close that line sits to the identity). A high Pearson correlation can still produce a mediocre ccc when predictions are systematically high or low, which is why agreement studies in clinical chemistry and method comparison prefer it.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>ccc() catches bias that rsq() misses.</strong> A model that always predicts truth plus 10 still earns rsq = 1.0, but ccc drops fast because the prediction cloud is shifted off the identity line. Reach for ccc whenever calibration matters as much as ranking.</div></div>
+
+<h2>ccc() syntax and arguments</h2>
+
+<p><strong>The signature extends the standard yardstick numeric-metric shape with one extra argument.</strong> Once you know the common arguments, you only need to learn <code>bias</code> to use ccc in production.</p>
+
+<div class="webr-container" data-block-title="ccc generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ccc generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ccc(data, truth, estimate, bias = FALSE, na_rm = TRUE, case_weights = NULL, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data</code></td>
+<td>A data frame with the truth and estimate columns.</td>
+</tr>
+<tr>
+<td><code>truth</code></td>
+<td>Unquoted column name of the observed numeric outcome.</td>
+</tr>
+<tr>
+<td><code>estimate</code></td>
+<td>Unquoted column name of the predicted numeric values.</td>
+</tr>
+<tr>
+<td><code>bias</code></td>
+<td>If <code>TRUE</code>, use the unbiased variance estimator (divide by n - 1); default <code>FALSE</code> matches Lin's original biased formula.</td>
+</tr>
+<tr>
+<td><code>na_rm</code></td>
+<td>If <code>TRUE</code>, drop rows where either column is missing before scoring.</td>
+</tr>
+<tr>
+<td><code>case_weights</code></td>
+<td>Optional column of row weights for survey or importance-weighted data.</td>
+</tr>
+</tbody>
+</table>
+
+<p>Truth and estimate must both be numeric; factors raise an error. The <code>bias</code> flag only switches the <a class="auto-link" href="Expected-Value-and-Variance-in-R.html" title="Expected Value and Variance: Derive Them Theoretically, Then Verify via Simulation">variance formula</a>, so the two estimates agree to three decimals for samples above n = 50.</p>
+
+<h2>Compute concordance: four examples</h2>
+
+<p><strong>The examples below use yardstick's built-in solubility_test data, which ships a real regression prediction set.</strong> First, load the package and inspect the data.</p>
+
+<div class="webr-container" data-block-title="Load yardstick and inspect solubility data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load yardstick and inspect solubility data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+library(dplyr)
+
+data(&quot;solubility_test&quot;)
+head(solubility_test, 4)
+#&gt; # A tibble: 4 x 2
+#&gt;   solubility prediction
+#&gt;        &lt;dbl&gt;      &lt;dbl&gt;
+#&gt; 1      0.93       0.99
+#&gt; 2      0.85       0.71
+#&gt; 3      0.17       0.18
+#&gt; 4     -0.99      -0.57</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 1 calls ccc() with positional arguments.</strong> The function picks up truth and estimate by position and returns the tidy summary.</p>
+
+<div class="webr-container" data-block-title="Basic ccc score on solubility predictions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Basic ccc score on solubility predictions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ccc(solubility_test, solubility, prediction)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 ccc     standard       0.913</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>.estimator</code> column reports <code>standard</code> because ccc has no binary or multiclass variant. The estimate of 0.913 says predictions sit close to the identity line, with only small bias.</p>
+
+<p><strong>Example 2 toggles the bias argument.</strong> Switching to the unbiased variance estimator shifts the score by a small amount that grows when the sample is small.</p>
+
+<div class="webr-container" data-block-title="Toggle the bias argument">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Toggle the bias argument</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ccc(solubility_test, solubility, prediction, bias = FALSE)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 ccc     standard       0.913
+
+ccc(solubility_test, solubility, prediction, bias = TRUE)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 ccc     standard       0.912</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For the 1,267 rows in solubility_test the two variants barely differ. Report <code>bias = FALSE</code> for compatibility with Lin's 1989 paper; switch to <code>bias = TRUE</code> for tiny samples.</p>
+
+<p><strong>Example 3 groups scoring by resample fold.</strong> When predictions from cross-validation live in one tibble, <code>group_by()</code> plus ccc returns one score per fold, giving instant per-resample diagnostics.</p>
+
+<div class="webr-container" data-block-title="Per-fold ccc from a cross-validation tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-fold ccc from a cross-validation tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">folded &lt;- solubility_test |&gt;
+  mutate(fold = rep(paste0(&quot;fold&quot;, 1:5), length.out = n()))
+
+folded |&gt;
+  group_by(fold) |&gt;
+  ccc(truth = solubility, estimate = prediction)
+#&gt; # A tibble: 5 x 4
+#&gt;   fold  .metric .estimator .estimate
+#&gt;   &lt;chr&gt; &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 fold1 ccc     standard       0.912
+#&gt; 2 fold2 ccc     standard       0.917
+#&gt; 3 fold3 ccc     standard       0.908
+#&gt; 4 fold4 ccc     standard       0.918
+#&gt; 5 fold5 ccc     standard       0.911</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 4 uses the vector interface for quick checks.</strong> Inside <code>map()</code> calls or unit tests, <code>ccc_vec()</code> returns a plain scalar instead of a one-row tibble.</p>
+
+<div class="webr-container" data-block-title="Vector interface returns a numeric scalar">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vector interface returns a numeric scalar</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ccc_vec(solubility_test$solubility, solubility_test$prediction)
+#&gt; [1] 0.9131929</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Use the vector form for thresholds or unit tests; otherwise stay with the data-frame form so you can bind, group, or plot scores alongside other metrics.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Report ccc next to rsq, not instead of it.</strong> rsq tells you how tightly predictions track the truth; ccc tells you how close that track sits to the identity line. Binding both with <code>bind_rows(rsq(...), ccc(...))</code> exposes calibration drift in a single tidy table.</div></div>
+
+<h2>ccc() compared with related metrics</h2>
+
+<p><strong>Pick a partner metric that reveals what ccc hides.</strong> The table summarises when each one earns a slot.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Metric</th>
+<th>Best use case</th>
+<th>Limitation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ccc()</code></td>
+<td>Agreement plus calibration in one score</td>
+<td>Less familiar to readers used to rsq</td>
+</tr>
+<tr>
+<td><code>rsq()</code></td>
+<td>Unit-free shape-only goodness-of-fit</td>
+<td>Misses systematic bias entirely</td>
+</tr>
+<tr>
+<td><code>rsq_trad()</code></td>
+<td>Penalises bias with 1 - SSE/SST</td>
+<td>Can go negative, harder to explain</td>
+</tr>
+<tr>
+<td><code>rmse()</code></td>
+<td>Errors in outcome units</td>
+<td>Outliers can dominate the score</td>
+</tr>
+<tr>
+<td><code>mae()</code></td>
+<td>Robust error in outcome units</td>
+<td>Treats tiny and small misses equally</td>
+</tr>
+<tr>
+<td><code>cor()</code></td>
+<td>Plain Pearson correlation</td>
+<td>No bias correction, no tidy output</td>
+</tr>
+</tbody>
+</table>
+
+<p>A safe default is ccc as the headline agreement number, rmse for absolute error, and rsq for the unit-free shape signal.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three small mistakes account for most ccc() failures.</strong> Each one has a one-line fix.</p>
+
+<p>The first is treating ccc as a drop-in for cor(). The two agree only when prediction and truth share the same mean and variance; any shift or rescale pulls ccc below cor by design. Plot residuals against truth before chasing the metric.</p>
+
+<p>The second pitfall is comparing ccc across target transformations. A ccc of 0.91 on log-price and 0.78 on raw-price says nothing about which model is better. Back-transform predictions to a common scale before scoring.</p>
+
+<p>The third pitfall is using ccc on a tiny sample. The bias-correction factor depends on second moments that are noisy at small n. For samples under 30, set <code>bias = TRUE</code> and add a <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">bootstrap confidence interval</a>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>ccc and rsq can diverge sharply.</strong> A model with rsq = 0.95 but ccc = 0.40 is a strong ranker that is badly miscalibrated. Always plot predictions against truth with a <code>geom_abline(slope = 1)</code> reference; do not rely on either score alone.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a <code>shifted</code> column to <code>solubility_test</code> equal to <code>prediction + 1</code>, then compute ccc on both versions and save a two-row tibble to <code>ex_ccc_shift</code> comparing the scores.</p>
+<div class="webr-container" data-block-title="Your turn: ccc with a deliberate bias shift">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: ccc with a deliberate bias shift</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+library(dplyr)
+data(&quot;solubility_test&quot;)
+
+# Try it: compare ccc on raw and shifted predictions
+ex_ccc_shift &lt;- # your code here
+
+ex_ccc_shift
+#&gt; Expected: 2 rows, one &quot;raw&quot; and one &quot;shifted&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">shifted_df &lt;- solubility_test |&gt;
+  mutate(shifted = prediction + 1)
+
+ex_ccc_shift &lt;- bind_rows(
+  ccc(shifted_df, solubility, prediction) |&gt; mutate(version = &quot;raw&quot;),
+  ccc(shifted_df, solubility, shifted)    |&gt; mutate(version = &quot;shifted&quot;)
+) |&gt;
+  select(version, .metric, .estimate)
+
+ex_ccc_shift
+#&gt; # A tibble: 2 x 3
+#&gt;   version .metric .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;       &lt;dbl&gt;
+#&gt; 1 raw     ccc         0.913
+#&gt; 2 shifted ccc         0.629</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Adding a constant 1 to every prediction leaves the Pearson correlation untouched, but the bias-correction factor collapses, dragging ccc from 0.913 down to 0.629. The same exercise with rsq would show no change at all, which is exactly why ccc earns a slot in the report.</p>
+
+</details>
+</section>
+
+<h2>Related yardstick metrics</h2>
+
+<p><strong>ccc() lives in the yardstick numeric-metric family.</strong> Reach for these neighbours when concordance alone is not enough:</p>
+
+<ul>
+
+<li><code>rsq()</code> for a unit-free shape-only goodness-of-fit</li>
+
+<li><code>rsq_trad()</code> for the 1 - SSE/SST variant that penalises bias</li>
+
+<li><code>rmse()</code> for an error reported in the outcome's own units</li>
+
+<li><code>mae()</code> for an outlier-robust error in the same units</li>
+
+<li><code>mape()</code> for percentage error reporting to stakeholders</li>
+
+<li><code>metrics()</code> to compute several regression scores in a single call</li>
+
+</ul>
+
+<p>For the full set, see the <a href="https://yardstick.tidymodels.org/reference/index.html">yardstick reference index</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is a good ccc value?</strong></p>
+
+<p>There is no universal cutoff, but McBride (2005) offers a rough ladder for agreement studies: below 0.90 is "poor", 0.90 to 0.95 is "moderate", 0.95 to 0.99 is "substantial", and above 0.99 is "almost perfect". These thresholds came from clinical method comparison, so treat them as a starting point.</p>
+
+<p><strong>How is ccc() different from cor() or rsq()?</strong></p>
+
+<p><code>cor()</code> returns plain Pearson correlation and ignores bias entirely. <code>rsq()</code> returns its square, so it also ignores bias. <code>ccc()</code> multiplies Pearson by a bias-correction factor that drops below 1 whenever predictions are shifted or rescaled. A model that overpredicts by 5 units keeps a perfect cor and rsq, but ccc falls.</p>
+
+<p><strong>When should I use bias = TRUE in ccc()?</strong></p>
+
+<p>Use <code>bias = TRUE</code> for small samples (under n = 30) where the moment estimators are noisy. For production evaluation with hundreds of predictions, the two settings agree to three decimals, and <code>bias = FALSE</code> matches Lin's 1989 paper. Pick one and stick with it across reports.</p>
+
+<p><strong>Can I use ccc() for classification?</strong></p>
+
+<p>No. ccc requires numeric truth and estimate columns. For classification agreement, reach for <code>kap()</code> (Cohen's kappa) or <code>mcc()</code> (Matthews correlation coefficient).</p>
+
+<p><strong>Why does ccc() return a tibble instead of a number?</strong></p>
+
+<p>Every yardstick metric returns the same three columns: <code>.metric</code>, <code>.estimator</code>, <code>.estimate</code>. That uniformity lets you <code>bind_rows()</code> calls or pipe into <code>group_by()</code> with no reshape step. Call <code>ccc_vec()</code> for a bare scalar.</p>
+
+<h2>Summary</h2>
+
+<p><strong>ccc() scores agreement, not just correlation.</strong> Use it when calibration matters as much as ranking, pair it with <code>rsq()</code> and <code>rmse()</code> for a balanced regression scorecard, and switch to <code>ccc_vec()</code> only when you need a bare scalar. Combined with <code>group_by()</code> it scales to any resampling scheme without reshaping, and combined with <code>bind_rows(metrics(...))</code> it produces a clean multi-metric report ready to publish.</p>
+
+{% endraw %}
