@@ -1,0 +1,473 @@
+---
+title: "yardstick pr_auc() in R: Score Imbalanced Classifier Ranking"
+description: "Score precision-recall AUC with yardstick pr_auc() in R. See syntax, binary and multiclass examples, macro averaging, sklearn mapping, and common pitfalls."
+keywords: "yardstick pr_auc, pr_auc function R, yardstick pr_auc examples, precision recall AUC R, R pr_auc tidymodels, area under PR curve R, PR AUC yardstick"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "yardstick pr_auc|yardstick::pr_auc()|PR AUC in R|precision-recall AUC|pr_auc yardstick"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>yardstick pr_auc() in R: Score Imbalanced Classifier Ranking</h1>
+
+<p class="lead">The yardstick pr_auc() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> scores how well a classifier ranks the minority class on imbalanced data, returning a tidy one-row summary of the area under the precision-recall curve.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>pr_auc(df, truth, .pred_class1)<span class="qa-cmt">                            # basic two-class call</span>
+pr_auc(df, truth = obs, .pred_class1)<span class="qa-cmt">                      # named truth column</span>
+pr_auc(df, class, .pred_yes, event_level = &quot;second&quot;)<span class="qa-cmt">       # flip positive class</span>
+df |&gt; group_by(fold) |&gt; pr_auc(class, .pred_yes)<span class="qa-cmt">           # by resample</span>
+pr_auc(df, class, .pred_a, .pred_b, .pred_c)<span class="qa-cmt">               # multiclass, macro default</span>
+pr_auc(df, class, .pred_a:.pred_c, estimator = &quot;macro_weighted&quot;)<span class="qa-cmt"> # weighted by prevalence</span>
+pr_auc_vec(truth_vec, prob_vec)<span class="qa-cmt">                            # vector interface</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is pr_auc() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">score ranking on rare positives</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">pr_auc(df, truth, .pred_class1)</text><text x="125" y="126" class="branch-label">score ranking on balanced data</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">roc_auc(df, truth, .pred_class1)</text><text x="125" y="182" class="branch-label">score class labels at one threshold</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">accuracy(df, truth, estimate)</text><text x="125" y="238" class="branch-label">score calibrated probabilities</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">brier_class(df, truth, .pred_class1)</text><text x="125" y="294" class="branch-label">plot the PR curve points</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">pr_curve(df, truth, .pred_class1)</text><text x="125" y="350" class="branch-label">score precision at a fixed cutoff</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">precision(df, truth, estimate)</text></svg></div>
+
+<h2>What pr_auc() measures</h2>
+
+<p><strong>pr_auc() answers how well a model ranks positives when positives are rare.</strong> Pass a tibble with the truth column and one or more probability columns; the function returns a one-row tibble with <code>.metric</code>, <code>.estimator</code>, and <code>.estimate</code>. The estimate is the area under the precision-recall curve as the threshold sweeps from 1 to 0.</p>
+
+<p>A score of 1.0 means perfect ranking with no false positives at any recall. The random baseline equals the share of positives, so it shifts with class prevalence, which is why PR AUC fits imbalanced problems better than ROC AUC.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>PR AUC focuses on the positive class only.</strong> ROC AUC integrates the false-positive rate, whose denominator is dominated by abundant negatives, so a useless classifier on a 1:99 problem can still hit 0.9. PR AUC has no such free lunch.</div></div>
+
+<h2>pr_auc() syntax and arguments</h2>
+
+<p><strong>The signature follows the yardstick probability-metric family.</strong> Argument shape changes between binary and multiclass.</p>
+
+<div class="webr-container" data-block-title="pr_auc generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">pr_auc generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pr_auc(data, truth, ..., estimator = NULL, na_rm = TRUE,
+       event_level = &quot;first&quot;, case_weights = NULL)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data</code></td>
+<td>A data frame with truth and probability columns.</td>
+</tr>
+<tr>
+<td><code>truth</code></td>
+<td>Unquoted column name of the observed class labels (a factor).</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Unquoted column names of the predicted probabilities. One column for binary; one per class for multiclass.</td>
+</tr>
+<tr>
+<td><code>estimator</code></td>
+<td>Averaging mode for multiclass: <code>&quot;macro&quot;</code> (default) or <code>&quot;macro_weighted&quot;</code>. Ignored for binary.</td>
+</tr>
+<tr>
+<td><code>na_rm</code></td>
+<td>If <code>TRUE</code>, drop rows where any column is missing before scoring.</td>
+</tr>
+<tr>
+<td><code>event_level</code></td>
+<td><code>&quot;first&quot;</code> or <code>&quot;second&quot;</code>; for binary, names the positive class.</td>
+</tr>
+<tr>
+<td><code>case_weights</code></td>
+<td>Optional unquoted column for weighting.</td>
+</tr>
+</tbody>
+</table>
+
+<p>For binary problems, pass the positive-class probability column as the third argument. For multiclass, pass every class probability column with <code>tidyselect</code> syntax. Truth must be a factor whose levels match the probability column names after <code>.pred_</code>. Unlike <code>roc_auc()</code>, no <code>hand_till</code> estimator exists because the PR curve is asymmetric.</p>
+
+<h2>Score classifiers: four worked examples</h2>
+
+<p><strong>The examples build an imbalanced two-class tibble you can run end to end.</strong> It mimics a fraud-detection problem where positives are rare.</p>
+
+<div class="webr-container" data-block-title="Imbalanced two-class predictions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Imbalanced two-class predictions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+library(dplyr)
+
+set.seed(202)
+fraud &lt;- tibble(
+  truth = factor(sample(c(&quot;fraud&quot;, &quot;legit&quot;), 500, replace = TRUE,
+                        prob = c(0.05, 0.95)),
+                 levels = c(&quot;fraud&quot;, &quot;legit&quot;)),
+  .pred_fraud = runif(500, 0, 1)
+) |&gt;
+  mutate(.pred_fraud = ifelse(truth == &quot;fraud&quot;,
+                              pmin(1, .pred_fraud + 0.40),
+                              .pred_fraud))
+table(fraud$truth)
+#&gt; 
+#&gt; fraud legit 
+#&gt;    27   473</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 1 calls pr_auc() with the positive-class probability column.</strong> <code>&quot;fraud&quot;</code> is the first factor level, so yardstick treats it as positive.</p>
+
+<div class="webr-container" data-block-title="Two-class PR AUC score">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-class PR AUC score</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pr_auc(fraud, truth, .pred_fraud)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 pr_auc  binary         0.293</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A 0.293 PR AUC on a 5 percent positive base is real lift; the random baseline equals 0.054 (the prevalence). ROC AUC on the same predictions would look optimistically higher.</p>
+
+<p><strong>Example 2 flips the positive class with <code>event_level</code>.</strong> Setting <code>&quot;second&quot;</code> makes <code>&quot;legit&quot;</code> positive.</p>
+
+<div class="webr-container" data-block-title="Flip the positive class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Flip the positive class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pr_auc(fraud, truth, .pred_fraud, event_level = &quot;second&quot;)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 pr_auc  binary         0.957</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The flipped estimate is the PR AUC for the majority class, which sits near 1.0 because the majority baseline is already 0.946. PR AUC is asymmetric, so the two scores are never mirror images; always state which class is positive in any report.</p>
+
+<p><strong>Example 3 scores per resample fold.</strong> Pair <code>group_by()</code> with <code>pr_auc()</code> to get one score per fold without a loop.</p>
+
+<div class="webr-container" data-block-title="Per-fold PR AUC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-fold PR AUC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">folded &lt;- fraud |&gt;
+  mutate(fold = rep(paste0(&quot;fold&quot;, 1:5), each = 100))
+
+folded |&gt;
+  group_by(fold) |&gt;
+  pr_auc(truth, .pred_fraud)
+#&gt; # A tibble: 5 x 4
+#&gt;   fold  .metric .estimator .estimate
+#&gt;   &lt;chr&gt; &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 fold1 pr_auc  binary         0.281
+#&gt; 2 fold2 pr_auc  binary         0.318
+#&gt; 3 fold3 pr_auc  binary         0.265
+#&gt; 4 fold4 pr_auc  binary         0.302
+#&gt; 5 fold5 pr_auc  binary         0.299</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 4 uses the vector interface for ad-hoc checks.</strong> <code>pr_auc_vec()</code> accepts a truth factor and a probability vector and returns a plain numeric scalar.</p>
+
+<div class="webr-container" data-block-title="Vector interface for quick checks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vector interface for quick checks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pr_auc_vec(fraud$truth, fraud$.pred_fraud)
+#&gt; [1] 0.2934</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Bundle pr_auc with roc_auc and brier_class.</strong> <code>metric_set(pr_auc, roc_auc, brier_class)</code> returns a reusable function that scores ranking and calibration in one call, the minimum honest report for any imbalanced classifier.</div></div>
+
+<h2>Multiclass averaging: macro and macro_weighted</h2>
+
+<p><strong>pr_auc() handles multiclass data with two averaging modes.</strong> Yardstick defaults to <code>&quot;macro&quot;</code>, the unweighted mean of one-vs-rest PR AUC.</p>
+
+<div class="webr-container" data-block-title="Multiclass predictions tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multiclass predictions tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(101)
+n &lt;- 240
+multi &lt;- tibble(
+  truth = factor(sample(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), n, replace = TRUE,
+                        prob = c(0.50, 0.30, 0.20)),
+                 levels = c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;)),
+  .pred_a = runif(n, 0, 1),
+  .pred_b = runif(n, 0, 1),
+  .pred_c = runif(n, 0, 1)
+) |&gt;
+  mutate(s = .pred_a + .pred_b + .pred_c,
+         .pred_a = .pred_a / s,
+         .pred_b = .pred_b / s,
+         .pred_c = .pred_c / s) |&gt;
+  select(-s)
+
+pr_auc(multi, truth, .pred_a, .pred_b, .pred_c)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 pr_auc  macro          0.351</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Comparing modes shows how prevalence shifts the score:</p>
+
+<div class="webr-container" data-block-title="Compare averaging modes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare averaging modes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">modes &lt;- c(&quot;macro&quot;, &quot;macro_weighted&quot;)
+lapply(modes, \(m)
+  pr_auc(multi, truth, .pred_a, .pred_b, .pred_c, estimator = m)) |&gt;
+  bind_rows()
+#&gt; # A tibble: 2 x 3
+#&gt;   .metric .estimator     .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;              &lt;dbl&gt;
+#&gt; 1 pr_auc  macro              0.351
+#&gt; 2 pr_auc  macro_weighted     0.394</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Estimator</th>
+<th>What it does</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>macro</code></td>
+<td>One-vs-rest PR AUC, unweighted mean</td>
+<td>Treat every class as equally important</td>
+</tr>
+<tr>
+<td><code>macro_weighted</code></td>
+<td>One-vs-rest PR AUC, weighted by prevalence</td>
+<td>Reflect production traffic mix</td>
+</tr>
+</tbody>
+</table>
+
+<p><code>macro</code> is the safe default because no single abundant class can dominate the score. Production teams often prefer <code>macro_weighted</code> so the headline number tracks real traffic mix.</p>
+
+<h2>pr_auc vs roc_auc vs accuracy</h2>
+
+<p><strong>Three metrics show up around the AUC column.</strong> The table sorts out the overlap.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>What it scores</th>
+<th>When to prefer it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pr_auc()</code></td>
+<td>Area under the PR curve</td>
+<td>Severe imbalance; rare positives</td>
+</tr>
+<tr>
+<td><code>roc_auc()</code></td>
+<td>Probability positive outranks negative</td>
+<td>Balanced data, threshold-free reports</td>
+</tr>
+<tr>
+<td><code>accuracy()</code></td>
+<td>Share of correct labels at one cutoff</td>
+<td>Reporting a deployed threshold</td>
+</tr>
+<tr>
+<td><code>mn_log_loss()</code></td>
+<td>Mean <a class="auto-link" href="Maximum-Likelihood-Estimation-in-R.html" title="Maximum Likelihood Estimation in R: Build Genuine Intuition, Then Fit Real Models">negative log-likelihood</a></td>
+<td>Penalty for confident wrong predictions</td>
+</tr>
+<tr>
+<td><code>brier_class()</code></td>
+<td>MSE between probability and truth</td>
+<td>Calibration metric, lower is better</td>
+</tr>
+</tbody>
+</table>
+
+<p><code>pr_auc()</code> is the right call whenever the minority class drives business value: fraud, churn, rare disease, click conversion. On a 1:99 imbalance, ROC AUC can read 0.95 while PR AUC sits at 0.20, and the lower number is the honest one.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from scikit-learn?</strong> <code>yardstick::pr_auc()</code> matches <code>sklearn.metrics.average_precision_score()</code>, not <code>sklearn.metrics.auc()</code> on PR points. The <code>estimator</code> argument maps to scikit-learn's <code>average</code>: <code>&quot;macro&quot;</code> to <code>average=&quot;macro&quot;</code>, <code>&quot;macro_weighted&quot;</code> to <code>average=&quot;weighted&quot;</code>.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three small mistakes account for most pr_auc() errors.</strong></p>
+
+<p>The first is feeding class labels instead of probabilities. <code>pr_auc()</code> needs the positive-class probability. Passing <code>.pred_class</code> from <code>parsnip::augment()</code> when you meant <code>.pred_yes</code> is the common slip.</p>
+
+<p>The second is the <code>event_level</code> and column-order interaction. The factor level order in <code>truth</code> pins the positive class, not the probability column name. If <code>levels(df$truth)</code> is <code>c(&quot;no&quot;, &quot;yes&quot;)</code>, then <code>&quot;no&quot;</code> is positive by default. PR AUC is asymmetric, so the wrong positive can swing the score by 0.5 or more.</p>
+
+<div class="webr-container" data-block-title="Fix: pin levels and pass the matching probability column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fix: pin levels and pass the matching probability column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">preds &lt;- tibble(
+  truth   = factor(c(&quot;yes&quot;,&quot;yes&quot;,&quot;no&quot;,&quot;no&quot;,&quot;yes&quot;), levels = c(&quot;yes&quot;,&quot;no&quot;)),
+  .pred_yes = c(0.85, 0.40, 0.10, 0.30, 0.70)
+)
+levels(preds$truth)
+#&gt; [1] &quot;yes&quot; &quot;no&quot;
+pr_auc(preds, truth, .pred_yes)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 pr_auc  binary         0.733</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The third pitfall is comparing PR AUC across datasets with different class balance. The random baseline equals the positive prevalence, so 0.30 on a 5 percent set differs from 0.30 on a 50 percent set. Report prevalence alongside the score, or compute lift over baseline.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>pr_auc() returns NA when truth has only one class.</strong> The PR curve is undefined without at least one positive and one negative present. This bites per-fold scoring on rare-event data; a fold with zero positives silently produces NA. Stratify resamples to guarantee both classes appear.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the built-in <code>two_class_example</code> data from yardstick. The truth column is <code>truth</code> and the probability column for the positive class (<code>Class1</code>) is <code>Class1</code>. Compute the PR AUC for the default positive class, then compute it again with <code>event_level = &quot;second&quot;</code>. Save the second result to <code>ex_pr_alt</code>.</p>
+<div class="webr-container" data-block-title="Your turn: flip the positive class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: flip the positive class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+data(&quot;two_class_example&quot;)
+
+# Try it: pr_auc with flipped event level
+ex_pr_alt &lt;- # your code here
+
+ex_pr_alt
+#&gt; Expected: one row, .estimator binary, .estimate near 0.946</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+ex_pr_alt &lt;- two_class_example |&gt;
+  pr_auc(truth = truth, Class1, event_level = &quot;second&quot;)
+ex_pr_alt
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 pr_auc  binary         0.946</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>event_level = &quot;second&quot;</code> flips <code>Class2</code> to be the positive class while still scoring against the <code>Class1</code> probability column. Because PR AUC is asymmetric, the result is not 1 minus the default score; the metric is recomputed against the new positive set.</p>
+
+</details>
+</section>
+
+<h2>Related yardstick metrics</h2>
+
+<p><strong>pr_auc() is one entry in the yardstick probability-metric family.</strong> Reach for these when PR AUC alone is not enough:</p>
+
+<ul>
+
+<li><code>roc_auc()</code> for area under the <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">ROC curve</a>, better on balanced data</li>
+
+<li><code>mn_log_loss()</code> for log-likelihood penalty</li>
+
+<li><code>brier_class()</code> for calibration error of binary probabilities</li>
+
+<li><code>pr_curve()</code> to extract threshold points for plotting</li>
+
+<li><code>accuracy()</code>, <code>recall()</code>, <code>precision()</code> for one-threshold scoring</li>
+
+</ul>
+
+<p>For the full set, see the <a href="https://yardstick.tidymodels.org/reference/index.html">yardstick reference index</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is a good PR AUC score in R?</strong></p>
+
+<p>PR AUC ranges from 0 to 1, but the floor is not 0.5; it equals the positive-class prevalence in your data. On a 1 percent positive set, the random baseline is 0.01, so 0.20 is real lift. Above 0.80 is strong on most business problems; above 0.95 is exceptional and worth checking for leakage.</p>
+
+<p><strong>Does pr_auc() need probabilities or class labels?</strong></p>
+
+<p>It needs probabilities. The function scores how the model ranks positives across every threshold, which requires a continuous score. Pass the column holding the predicted probability of the positive class, usually <code>.pred_&lt;positive_class&gt;</code> from <code>parsnip::augment()</code>. Feeding <code>.pred_class</code> runs but produces a meaningless number.</p>
+
+<p><strong>When should I use pr_auc instead of roc_auc?</strong></p>
+
+<p>Use <code>pr_auc()</code> whenever the positive class is rare (under 10 percent prevalence) or when false positives carry a real cost. ROC AUC integrates against abundant negatives, so it overstates performance on imbalanced problems. PR AUC ignores true negatives entirely and tracks only the pair (precision, recall) that matters for finding the minority class.</p>
+
+<p><strong>Why does yardstick default to macro for multiclass PR AUC?</strong></p>
+
+<p><code>macro</code> treats every class equally regardless of size, so a dominant class cannot mask poor performance on minority classes. Switch to <code>macro_weighted</code> via the <code>estimator</code> argument when the headline score should reflect production traffic mix.</p>
+
+<p><strong>How is pr_auc different from average precision in scikit-learn?</strong></p>
+
+<p>They are the same number. Yardstick's <code>pr_auc()</code> computes the step-function definition of the PR curve area, identical to <code>sklearn.metrics.average_precision_score()</code>. Both avoid the optimistic linear interpolation that <code>sklearn.metrics.auc()</code> would apply to PR points.</p>
