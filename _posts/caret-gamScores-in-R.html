@@ -1,0 +1,321 @@
+---
+title: "caret gamScores() in R: GAM-Based Filter Scoring"
+description: "Score a numeric predictor against a numeric outcome with caret gamScores() in R. The default regression filter inside sbf(), backed by an mgcv GAM term p-value."
+keywords: "caret gamScores, gamScores function R, caret gamScores examples, caret filter feature selection, gamScores R, caret sbf scoring function regression, R GAM feature scoring"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "gamScores()|caret gamScores|caret::gamScores()|gamScores function|GAM filter score|GAM scoring function"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>caret gamScores() in R: GAM-Based Filter Scoring</h1>
+
+<p class="lead">The caret <code>gamScores()</code> function scores a numeric predictor against a numeric outcome by fitting a one-term generalized additive model with <code>mgcv::gam()</code> and returning the smooth term p-value, and it is the default scoring step used by <code>caretSBF</code> inside <code>sbf()</code> for regression problems.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>gamScores(x, y)<span class="qa-cmt">                          # one numeric x, one numeric y</span>
+gamScores(airquality$Temp, airquality$Ozone)<span class="qa-cmt">  # smooth term p-value</span>
+gamScores(rnorm(100), runif(100))<span class="qa-cmt">        # noise predictor, large p-value</span>
+sapply(predictors, gamScores, y = outcome)<span class="qa-cmt">    # score every column</span>
+sbf(x, y, sbfControl(functions = caretSBF))<span class="qa-cmt">   # default already uses gamScores</span>
+filterVarImp(x, y, nonpara = TRUE)<span class="qa-cmt">            # bulk-rank alternative</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is gamScores() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">numeric x, numeric y, want a p-value</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">gamScores(x, y)</text><text x="125" y="126" class="branch-label">numeric x, factor y instead</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">anovaScores(x, y)</text><text x="125" y="182" class="branch-label">score every column of a matrix</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">sapply(df, gamScores, y = outcome)</text><text x="125" y="238" class="branch-label">run the full filter and refit loop</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">sbf(x, y, sbfControl(functions = caretSBF))</text><text x="125" y="294" class="branch-label">rank predictors after a model fits</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">varImp(model)</text><text x="125" y="350" class="branch-label">drop predictors before scoring</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">nearZeroVar(df)</text></svg></div>
+
+<h2>What gamScores() does in one sentence</h2>
+
+<p><strong>gamScores() returns the p-value of a smooth term from a single-predictor <a class="auto-link" href="GAM-in-R.html" title="GAM in R: Generalized Additive Models with mgcv, Smooth Nonlinear Effects">GAM</a> that regresses a numeric outcome on a numeric predictor.</strong> It calls <code>mgcv::gam(y ~ s(x))</code> under the hood, then extracts the p-value of the spline term from the model summary. That p-value tests whether the smooth function of <code>x</code> explains a non-trivial share of variance in <code>y</code>.</p>
+
+<p>A small p-value means the predictor carries information about the outcome, possibly through a curved relationship that a <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">Pearson correlation</a> would miss. Caret's filter machinery uses the score with the default cutoff <code>p &lt; 0.05</code> to decide which predictors survive.</p>
+
+<p>The smooth term is the reason <code>gamScores()</code> exists. A simple <code>cor.test()</code> only sees straight lines, so a U-shaped or threshold predictor scores poorly. The GAM fits a penalized spline, so non-monotonic relationships register correctly.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The score is a single p-value, not a vector.</strong> Each call to <code>gamScores()</code> evaluates one predictor in isolation. To score a full data frame, wrap the call inside <code>sapply()</code> or rely on <code>sbf()</code> to do that for you. The univariate design is why the function scales linearly with the number of predictors and stays usable on wide regression matrices.</div></div>
+
+<h2>gamScores() syntax and arguments</h2>
+
+<p><strong>The signature is small because the function does one job.</strong> It expects two arguments and returns one number.</p>
+
+<div class="webr-container" data-block-title="The gamScores function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The gamScores function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">gamScores(x, y)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td>A numeric vector. The predictor whose relationship to <code>y</code> you want to test</td>
+</tr>
+<tr>
+<td><code>y</code></td>
+<td>A numeric vector. The continuous outcome</td>
+</tr>
+</tbody>
+</table>
+
+<p>The function fits <code>mgcv::gam(y ~ s(x))</code> with the default thin-plate spline and 10 basis dimensions, then pulls the smooth term p-value from <code>summary(model)$s.table[, &quot;p-value&quot;]</code>. The return value is always a single p-value, never an F-statistic, effective degrees of freedom, or an R-squared.</p>
+
+<p>Inside caret, this function is registered as the default <code>score</code> element of <code>caretSBF</code> for regression problems. When you call <code>sbf()</code> with a numeric outcome, <code>gamScores()</code> runs once per predictor on every resample fold. A 100-predictor dataset with 10-fold cross-validation triggers 1000 GAM fits, noticeably slower than <code>anovaScores()</code> but still tractable for medium-width data.</p>
+
+<p>A nearly constant <code>x</code> returns <code>NA</code> because the spline cannot fit. A perfect linear relationship returns a near-zero p-value through the spline test, not through a separate linear branch.</p>
+
+<h2>A worked gamScores() example</h2>
+
+<p><strong>The airquality dataset is the cleanest demo because temperature has a smooth but non-linear effect on ozone.</strong> Each call to <code>gamScores()</code> puts a number on that relationship.</p>
+
+<div class="webr-container" data-block-title="Load caret and score one airquality predictor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and score one airquality predictor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+aq &lt;- na.omit(airquality)
+gamScores(aq$Temp, aq$Ozone)
+#&gt; [1] 1.043e-15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value is essentially zero. A scatter of <code>Ozone</code> against <code>Temp</code> shows a curve that flattens at low temperatures and accelerates at high ones, exactly the kind of structure a spline captures and a straight line misses.</p>
+
+<p>Scoring every numeric predictor at once is a one-line job with <code>sapply()</code>.</p>
+
+<div class="webr-container" data-block-title="Score every numeric airquality predictor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score every numeric airquality predictor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predictors &lt;- aq[, c(&quot;Solar.R&quot;, &quot;Wind&quot;, &quot;Temp&quot;)]
+pvals &lt;- sapply(predictors, gamScores, y = aq$Ozone)
+round(pvals, 6)
+#&gt;  Solar.R     Wind     Temp 
+#&gt; 0.000132 0.000000 0.000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All three known drivers return tiny p-values. A tougher example contrasts a curved predictor with pure noise.</p>
+
+<div class="webr-container" data-block-title="Curved signal versus noise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Curved signal versus noise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+x_curve &lt;- seq(-3, 3, length.out = 200)
+y_curve &lt;- x_curve^2 + rnorm(200, sd = 1.5)   # U-shaped signal
+x_noise &lt;- rnorm(200)
+y_check &lt;- y_curve                            # same outcome both times
+
+gamScores(x_curve, y_check)
+#&gt; [1] 2.71e-44
+
+gamScores(x_noise, y_check)
+#&gt; [1] 0.713</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The curved variable scored near machine zero even though its Pearson correlation with <code>y</code> is roughly zero (positive and negative halves cancel out). The noise variable scored close to 1. That gap is the whole point of using a GAM-based filter instead of a correlation cutoff.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Strip NAs before bulk scoring.</strong> <code>mgcv::gam()</code> errors on rows where either <code>x</code> or <code>y</code> is missing, and <code>sbf()</code> does not impute for you. A <code>na.omit()</code> on the full design matrix before scoring is the safest one-liner.</div></div>
+
+<h2>gamScores() vs anovaScores(): which filter to use</h2>
+
+<p><strong>Match the <a class="auto-link" href="Cramer-Rao-Lower-Bound-in-R.html" title="Cramér-Rao Lower Bound in R: Efficiency & Information Inequality">score function</a> to the outcome type.</strong> caret ships two univariate scoring helpers, and they cover the regression and classification cases separately.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Aspect</th>
+<th><code>gamScores()</code></th>
+<th><code>anovaScores()</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Outcome type</td>
+<td>Numeric</td>
+<td>Factor (2 or more levels)</td>
+</tr>
+<tr>
+<td>Test</td>
+<td>GAM smooth term p-value</td>
+<td><a class="auto-link" href="One-Way-ANOVA-in-R.html" title="One-Way ANOVA in R: F-Test, Levene's Test, and Post-Hoc, Complete Walkthrough">ANOVA F-test</a> or <a class="auto-link" href="t-Tests-in-R.html" title="t-Tests in R: Every Variant With the Decision Rule for Choosing Between Them">two-sample t-test</a></td>
+</tr>
+<tr>
+<td>Predictor type</td>
+<td>Numeric only</td>
+<td>Numeric only</td>
+</tr>
+<tr>
+<td>Returns</td>
+<td>One p-value</td>
+<td>One p-value</td>
+</tr>
+<tr>
+<td>Default in</td>
+<td><code>caretSBF</code> for regression</td>
+<td><code>caretSBF</code>, <code>ldaSBF</code>, <code>nbSBF</code> for classification</td>
+</tr>
+<tr>
+<td>Captures non-linearity</td>
+<td>Yes (penalized spline)</td>
+<td>No (mean shift only)</td>
+</tr>
+</tbody>
+</table>
+
+<p>The rule is short. If <code>y</code> is numeric, use <code>gamScores()</code>. If <code>y</code> is a factor, use <a href="caret-anovaScores-in-R.html">caret anovaScores()</a>. Both return a p-value so the same filter rule, <code>p &lt; cutoff</code>, applies in either branch. The plumbing inside <a href="caret-sbf-in-R.html">caret sbf()</a> picks the right one automatically when <code>caretSBF</code> is the function set.</p>
+
+<p>The two functions differ in what they assume. <code>anovaScores()</code> looks for a mean shift across classes. <code>gamScores()</code> fits a smooth function, so a U-shape, sigmoid, or threshold response registers correctly. That flexibility costs roughly 50 to 200 times the runtime of a <code>t.test()</code>, so wide regression matrices take noticeably longer to filter than classification matrices of the same shape.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>A factor outcome silently routes to the wrong scoring function.</strong> <code>sbf()</code> chooses between <code>anovaScores()</code> and <code>gamScores()</code> by checking <code>is.numeric(y)</code>. A numeric outcome that should really be a class label, for example a 0/1 indicator, will be fed to <code>gamScores()</code> and the GAM will fit a smooth on two points. Convert with <code>factor(y)</code> before passing the data in.</p>
+
+<div class="webr-container" data-block-title="Outcome class drives the scoring path">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Outcome class drives the scoring path</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">y_numeric &lt;- c(0, 0, 1, 1, 1)
+class(y_numeric)
+#&gt; [1] &quot;numeric&quot;
+
+# Wrap with factor() so sbf picks anovaScores, not gamScores
+y_factor &lt;- factor(y_numeric)
+class(y_factor)
+#&gt; [1] &quot;factor&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>gamScores() is blind to interactions and redundancy.</strong> Each predictor is tested on its own. Two strongly correlated predictors will both score the same low p-value because each looks individually useful. Combine the score with <a href="caret-findCorrelation-in-R.html">caret findCorrelation()</a> before fitting if collinearity is a worry.</div></div>
+
+<p>Two more traps catch first-time users. First, <code>gamScores()</code> assumes <code>x</code> is numeric; a factor predictor errors from inside <code>gam()</code>. Encode it with <code>dummyVars()</code> first. Second, a tiny p-value is not the same as a large effect. With 5000 rows, even weak curvature scores <code>p &lt; 0.001</code>; pair the score with an R-squared check from the same GAM when sample sizes are large. Third, the default 10-basis spline assumes 10+ distinct <code>x</code> values, so binned predictors throw a basis warning and may return <code>NA</code>. Score those with <code>anovaScores()</code> after converting to a factor.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Score every numeric column of <code>mtcars</code> against <code>mtcars$mpg</code> using <code>gamScores()</code>. Save the named p-value vector to <code>ex_pvals</code>.</p>
+<div class="webr-container" data-block-title="Your turn: score mtcars predictors against mpg">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: score mtcars predictors against mpg</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: score numeric mtcars predictors by mpg
+ex_x &lt;- mtcars[, sapply(mtcars, is.numeric)]
+ex_x$mpg &lt;- NULL                 # drop the outcome itself
+ex_y  &lt;- mtcars$mpg
+ex_pvals &lt;- # your code here
+
+sort(ex_pvals)
+#&gt; Expected: wt, cyl, disp, hp near the top (smallest p-values)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_x &lt;- mtcars[, sapply(mtcars, is.numeric)]
+ex_x$mpg &lt;- NULL
+ex_y &lt;- mtcars$mpg
+ex_pvals &lt;- sapply(ex_x, gamScores, y = ex_y)
+round(sort(ex_pvals), 6)
+#&gt;       wt      cyl     disp       hp     drat       vs       am     gear     qsec     carb 
+#&gt; 0.000000 0.000000 0.000000 0.000000 0.000061 0.000122 0.001443 0.002001 0.003456 0.022915</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>sapply()</code> runs <code>gamScores()</code> once per column with <code>mpg</code> as the numeric outcome. Each call fits its own one-term GAM. Predictors most associated with fuel economy, <code>wt</code>, <code>cyl</code>, <code>disp</code>, and <code>hp</code>, return the smallest p-values; <code>carb</code> lands just under the default 0.05 cutoff.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p><strong>gamScores() is one node in the caret feature selection graph.</strong> These functions cover the surrounding tasks.</p>
+
+<ul>
+
+<li><a href="caret-sbf-in-R.html">caret sbf()</a>: the wrapper that calls a scoring function inside resampling</li>
+
+<li><a href="caret-anovaScores-in-R.html">caret anovaScores()</a>: the classification counterpart used for factor outcomes</li>
+
+<li><a href="caret-rfe-in-R.html">caret rfe()</a>: recursive feature elimination as an alternative to filtering</li>
+
+<li><a href="caret-varImp-in-R.html">caret varImp()</a>: rank predictors inside an already-fitted model</li>
+
+<li><a href="caret-findCorrelation-in-R.html">caret findCorrelation()</a>: drop redundant predictors before scoring</li>
+
+<li><a href="caret-nearZeroVar-in-R.html">caret nearZeroVar()</a>: remove near-constant columns up front</li>
+
+</ul>
+
+<p>For the source-of-truth reference, see the official <a href="https://topepo.github.io/caret/feature-selection-using-univariate-filters.html">caret feature selection guide</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does gamScores return in caret?</strong></p>
+
+<p><code>gamScores()</code> returns a single p-value on the 0 to 1 scale. The p-value comes from the smooth term of a one-predictor generalized additive model fit with <code>mgcv::gam(y ~ s(x))</code>. A small p-value indicates the spline explains a non-trivial share of variance in the outcome, which is the signal a downstream filter uses to decide whether to keep the predictor. The score does not measure <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">effect size</a>, only confidence that the smooth term is non-flat.</p>
+
+<p><strong>When does caret use gamScores instead of anovaScores?</strong></p>
+
+<p>caret picks the scoring function based on the class of the outcome <code>y</code>. A numeric <code>y</code> routes to <code>gamScores()</code> because the relationship is continuous and the smooth term test makes sense. A factor <code>y</code> routes to <code>anovaScores()</code> because the comparison is across discrete classes. The selection happens inside <code>caretSBF$score</code> when <code>sbf()</code> runs, so users rarely call either function by hand outside teaching or debugging contexts.</p>
+
+<p><strong>Can gamScores handle a categorical predictor?</strong></p>
+
+<p>No. The function expects a numeric <code>x</code> because <code>mgcv::gam()</code> needs a continuous variable to fit a spline. A factor <code>x</code> returns an error from inside <code>gam()</code>, not a helpful caret-side message. For categorical predictors in a regression filter, encode them with <code>dummyVars()</code> first, or replace <code>gamScores()</code> with a custom score function that does an <code>aov(y ~ x)</code> and returns its p-value via <code>sbfControl(functions = ...)$score</code>.</p>
+
+<p><strong>Why is gamScores slower than anovaScores?</strong></p>
+
+<p>A single <code>gam()</code> fit involves penalty selection, basis construction, and an iterative back-fit, while <code>t.test()</code> is a closed-form calculation. The speed gap is typically 50 to 200 times. For wide regression matrices, the practical workaround is <code>filterVarImp(x, y, nonpara = TRUE)</code>, which ranks predictors in bulk without one GAM per column.</p>
+
+{% endraw %}
