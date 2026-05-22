@@ -1,0 +1,360 @@
+---
+title: "caret getModelInfo() in R: Inspect Tuning Grids and Code"
+description: "Use caret getModelInfo() in R to fetch tuning grids, fit code, library deps, and class probability support for any of caret's 230+ models. Worked examples."
+keywords: "caret getModelInfo, getModelInfo function R, caret getModelInfo examples, caret model registry R, caret tuning grid lookup, getModelInfo vs modelLookup, caret list available models"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "getModelInfo()|caret getModelInfo|caret::getModelInfo()|getModelInfo function in caret|caret model registry"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret getModelInfo() in R: Inspect Tuning Grids and Code</h1>
+
+<p class="lead">The <code>getModelInfo()</code> function in caret returns the full registry entry for any of caret's 230+ models, including its tuning parameters, library dependencies, fit and predict functions, and whether it supports regression, classification, or class probabilities. Use it to inspect what <code>train()</code> will actually do before you fit a single model.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>getModelInfo(&quot;rf&quot;, regex = FALSE)<span class="qa-cmt">              # one full entry</span>
+getModelInfo(&quot;rf&quot;, regex = FALSE)[[1]]$parameters<span class="qa-cmt"> # tuning grid columns</span>
+getModelInfo(&quot;rf&quot;, regex = FALSE)[[1]]$library<span class="qa-cmt">  # required packages</span>
+getModelInfo(&quot;rf&quot;, regex = FALSE)[[1]]$type<span class="qa-cmt">    # Classification or Regression</span>
+names(getModelInfo())<span class="qa-cmt">                          # every method name</span>
+getModelInfo(&quot;rf&quot;, regex = FALSE)[[1]]$fit<span class="qa-cmt">     # underlying fit function</span>
+length(getModelInfo())<span class="qa-cmt">                         # total models in registry</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is getModelInfo() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">inspect a model's full definition</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">getModelInfo(&quot;rf&quot;, regex = FALSE)</text><text x="125" y="126" class="branch-label">just see tuning parameters</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">modelLookup(&quot;xgbTree&quot;)</text><text x="125" y="182" class="branch-label">list every caret method name</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">names(getModelInfo())</text><text x="125" y="238" class="branch-label">fit and tune the model</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">train(y ~ ., data = df, method = &quot;rf&quot;)</text><text x="125" y="294" class="branch-label">build a custom model wrapper</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">list(library, type, parameters, fit, predict)</text><text x="125" y="350" class="branch-label">compare resampled performance</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">resamples(list(rf = m1, gbm = m2))</text></svg></div>
+
+<h2>What getModelInfo() does in one sentence</h2>
+
+<p><strong><code>getModelInfo()</code> returns the entire caret recipe for a model.</strong> You pass a method string like <code>&quot;rf&quot;</code> or <code>&quot;xgbTree&quot;</code> and get back a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> whose elements are the same objects <code>train()</code> consults internally: the tuning parameters, the library to load, the fit function, the predict function, the probability function, and a few smaller fields.</p>
+
+<p>The point of <code>getModelInfo()</code> is to look under the hood. <code>modelLookup()</code> tells you <em>which</em> parameters a model tunes; <code>getModelInfo()</code> tells you <em>how</em> the model is actually wired into caret. Use it when you need to audit a method, build a custom model, or copy-paste an existing recipe as a starting template.</p>
+
+<h2>getModelInfo() syntax and arguments</h2>
+
+<p><strong>The signature has two arguments, both with sensible defaults.</strong> Most calls look like <code>getModelInfo(&quot;rf&quot;, regex = FALSE)</code>.</p>
+
+<div class="webr-container" data-block-title="Load caret and check the signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and check the signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+args(getModelInfo)
+#&gt; function (model = NULL, regex = TRUE, ...)
+#&gt; NULL</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Arguments:</p>
+
+<ul>
+
+<li><code>model</code>: a character string naming a caret method. Default <code>NULL</code> returns the entire registry.</li>
+
+<li><code>regex</code>: when <code>TRUE</code> (default), <code>model</code> is treated as a regular expression and partial matches return multiple entries. Set to <code>FALSE</code> for exact-name lookup.</li>
+
+<li><code>...</code>: passed to <code>grepl()</code> when <code>regex = TRUE</code>, useful for <code>ignore.case</code>.</li>
+
+</ul>
+
+<p>Each registry entry is a list with these key fields:</p>
+
+<ul>
+
+<li><code>library</code>: character vector of packages caret will <code>library()</code> before fitting.</li>
+
+<li><code>type</code>: a vector containing <code>&quot;Classification&quot;</code>, <code>&quot;Regression&quot;</code>, or both.</li>
+
+<li><code>parameters</code>: a data frame of tuning parameter names and labels.</li>
+
+<li><code>grid</code>: a function that builds the default tuning grid.</li>
+
+<li><code>fit</code>: the function caret calls to train one model.</li>
+
+<li><code>predict</code>: the function caret calls for predictions.</li>
+
+<li><code>prob</code>: the function for class probabilities (<code>NULL</code> if the model has none).</li>
+
+<li><code>sort</code>, <code>loop</code>, <code>levels</code>, <code>tags</code>: smaller bookkeeping fields.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>getModelInfo()</code> reads metadata, it does not fit a model.</strong> Calls are cheap and have no side effects, so you can run them in a loop or a Shiny dropdown without performance worry.</div></div>
+
+<h2>getModelInfo() examples by use case</h2>
+
+<h3>1. Fetch one model's full entry</h3>
+
+<p>The most common call: pass a method string with <code>regex = FALSE</code> and read the result.</p>
+
+<div class="webr-container" data-block-title="Inspect the rf entry">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the rf entry</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rf &lt;- getModelInfo(&quot;rf&quot;, regex = FALSE)
+class(rf)
+#&gt; [1] &quot;list&quot;
+
+names(rf)
+#&gt; [1] &quot;rf&quot;
+
+names(rf$rf)
+#&gt;  [1] &quot;label&quot;      &quot;library&quot;    &quot;loop&quot;       &quot;type&quot;       &quot;parameters&quot;
+#&gt;  [6] &quot;grid&quot;       &quot;fit&quot;        &quot;predict&quot;    &quot;prob&quot;       &quot;predictors&quot;
+#&gt; [11] &quot;varImp&quot;     &quot;levels&quot;     &quot;tags&quot;       &quot;sort&quot;       &quot;oob&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The outer list is keyed by model name, so use <code>rf[[&quot;rf&quot;]]</code> (or <code>rf$rf</code>) to reach the registry entry. From there, every field is a regular R object you can inspect, modify, or pass to <code>train(method = list(...))</code>.</p>
+
+<h3>2. Read the tuning parameters and library</h3>
+
+<p>These are the two fields you reach for most often before calling <code>train()</code>.</p>
+
+<div class="webr-container" data-block-title="Tuning parameters and required packages">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tuning parameters and required packages</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rf_def &lt;- getModelInfo(&quot;rf&quot;, regex = FALSE)[[&quot;rf&quot;]]
+
+rf_def$parameters
+#&gt;   parameter   class                         label
+#&gt; 1      mtry numeric #Randomly Selected Predictors
+
+rf_def$library
+#&gt; [1] &quot;randomForest&quot;
+
+rf_def$type
+#&gt; [1] &quot;Regression&quot;     &quot;Classification&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>parameters</code> tells you the column names a <code>tuneGrid</code> data frame must have (<code>mtry</code>, one column). <code>library</code> lists the packages caret loads before fitting; you need them installed. <code>type</code> confirms <code>rf</code> handles both regression and classification.</p>
+
+<h3>3. List every caret method</h3>
+
+<p>Calling <code>getModelInfo()</code> with no arguments returns the full registry. Take <code>names()</code> of it to get the method strings you can pass to <code>train(method = ...)</code>.</p>
+
+<div class="webr-container" data-block-title="Browse every available model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Browse every available model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">all_models &lt;- names(getModelInfo())
+length(all_models)
+#&gt; [1] 238
+
+head(all_models, 10)
+#&gt;  [1] &quot;ada&quot;             &quot;AdaBag&quot;          &quot;AdaBoost.M1&quot;     &quot;adaboost&quot;
+#&gt;  [5] &quot;amdai&quot;           &quot;ANFIS&quot;           &quot;avNNet&quot;          &quot;awnb&quot;
+#&gt;  [9] &quot;awtan&quot;           &quot;bag&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The exact count drifts a little across caret versions; on most installs you will see roughly 230 to 240 methods. Use this list to populate a Shiny dropdown, audit available algorithms, or sanity-check that a method string is valid.</p>
+
+<h3>4. Filter for classifiers that support probabilities</h3>
+
+<p>The registry is just a named list, so any list operation works on it. This is how you find every model that can return <code>predict(type = &quot;prob&quot;)</code>.</p>
+
+<div class="webr-container" data-block-title="Classifiers with class probability support">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Classifiers with class probability support</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prob_classifiers &lt;- Filter(function(m) {
+  info &lt;- getModelInfo(m, regex = FALSE)[[1]]
+  &quot;Classification&quot; %in% info$type &amp;&amp; !is.null(info$prob)
+}, names(getModelInfo()))
+
+length(prob_classifiers)
+#&gt; [1] 197
+
+head(prob_classifiers, 8)
+#&gt; [1] &quot;ada&quot;         &quot;AdaBag&quot;      &quot;AdaBoost.M1&quot; &quot;adaboost&quot;
+#&gt; [5] &quot;amdai&quot;       &quot;avNNet&quot;      &quot;awnb&quot;        &quot;awtan&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>You can adapt the predicate to any field: regression-only models, models that need a specific package, models with a particular tuning parameter, or models tagged with a keyword in <code>info$tags</code>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>getModelInfo()</code> is what <code>train()</code> calls under the hood.</strong> When you write <code>train(method = &quot;rf&quot;, ...)</code>, caret looks up the same entry you just inspected and dispatches <code>fit</code>, <code>predict</code>, and <code>prob</code> from it. Reading the entry is reading the actual code path.</div></div>
+
+<h2>getModelInfo() vs modelLookup()</h2>
+
+<p><strong>Both inspect the registry, but they return different shapes.</strong> <code>modelLookup()</code> returns a flat data frame of tuning parameters; <code>getModelInfo()</code> returns the entire recipe.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Concern</th>
+<th><code>modelLookup()</code></th>
+<th><code>getModelInfo()</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Return type</td>
+<td>Data frame, one row per parameter</td>
+<td>Named list of named lists</td>
+</tr>
+<tr>
+<td>Scope</td>
+<td>Tuning parameters only</td>
+<td>Library, type, parameters, fit, predict, prob, grid, sort, loop</td>
+</tr>
+<tr>
+<td>Filtering by name</td>
+<td>Exact method string</td>
+<td>Regex by default; pass <code>regex = FALSE</code> for exact</td>
+</tr>
+<tr>
+<td>Typical use</td>
+<td>Build a <code>tuneGrid</code> quickly</td>
+<td>Audit code, build custom models, inspect probability support</td>
+</tr>
+<tr>
+<td>Output size</td>
+<td>One row of metadata</td>
+<td>Full closures and helper functions</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for <code>modelLookup()</code> when you just need parameter names. Reach for <code>getModelInfo()</code> when you need the surrounding context: which package gets loaded, whether <code>predict(type = &quot;prob&quot;)</code> is supported, or what the default tuning grid looks like.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>With <code>regex = TRUE</code> (the default), <code>&quot;rf&quot;</code> matches more than one model.</strong> It will pull <code>rf</code>, <code>RRF</code>, <code>RRFglobal</code>, <code>Rborist</code>, <code>parRF</code>, and any other method whose name contains the substring. Always pass <code>regex = FALSE</code> for an exact lookup, or read <code>length()</code> of the result before subsetting.</div></div>
+
+<div class="webr-container" data-block-title="Regex vs exact lookup">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Regex vs exact lookup</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">length(getModelInfo(&quot;rf&quot;, regex = TRUE))
+#&gt; [1] 6
+
+length(getModelInfo(&quot;rf&quot;, regex = FALSE))
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Forgetting <code>regex = FALSE</code></strong> is the single most frequent mistake. The default returns a list of every method whose name partial-matches the string, which silently breaks code that assumes a one-element list. Pin the lookup with <code>regex = FALSE</code> or guard with <code>stopifnot(length(info) == 1)</code>.</p>
+
+<p><strong>Trying to fit from <code>getModelInfo()</code> alone</strong> does not work. The <code>fit</code> field is a function, but it expects caret's internal arguments (training data already preprocessed, parameter row from the tuning grid, <code>wts</code>, <code>lev</code>, <code>last</code>, <code>classProbs</code>). Call <code>train()</code> for the user-facing path; reach into <code>fit</code> only when building a custom method.</p>
+
+<p><strong>Assuming every method supports probabilities.</strong> Some classifiers return <code>info$prob = NULL</code>, meaning <code>predict(type = &quot;prob&quot;)</code> will error. Check <code>!is.null(info$prob)</code> before configuring <code>trainControl(classProbs = TRUE)</code>.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> List every caret method whose <code>library</code> field is exactly <code>&quot;randomForest&quot;</code>. Save the result to <code>ex_rf_models</code>.</p>
+<div class="webr-container" data-block-title="Your turn: find randomForest-backed methods">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find randomForest-backed methods</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: filter the registry by library
+ex_rf_models &lt;- # your code here
+
+ex_rf_models
+#&gt; Expected: a character vector containing &quot;rf&quot; and &quot;parRF&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rf_models &lt;- Filter(function(m) {
+  identical(getModelInfo(m, regex = FALSE)[[1]]$library, &quot;randomForest&quot;)
+}, names(getModelInfo()))
+
+ex_rf_models
+#&gt; [1] &quot;parRF&quot; &quot;rf&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Iterate every method name, pull its entry with <code>regex = FALSE</code>, and keep the names whose <code>library</code> field equals <code>&quot;randomForest&quot;</code> exactly. <code>identical()</code> is safer than <code>==</code> because the field can be a multi-element character vector for models that need several packages.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p>Several caret helpers work alongside <code>getModelInfo()</code>:</p>
+
+<ul>
+
+<li><code>modelLookup()</code>: shortcut for the parameter table, no other fields.</li>
+
+<li><code>train()</code>: actually fits the model whose recipe you just inspected.</li>
+
+<li><code>trainControl()</code>: configures resampling; set <code>classProbs = TRUE</code> only when <code>info$prob</code> is non-<code>NULL</code>.</li>
+
+<li><code>getModelInfo()</code> itself accepts any caret method, including custom ones you registered.</li>
+
+</ul>
+
+<p>For caret's official model list see the <a href="https://topepo.github.io/caret/available-models.html">caret model documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I list every model caret supports?</strong></p>
+
+<p>Call <code>names(getModelInfo())</code> with no arguments. It returns a character vector of every method string registered in your installed caret version, typically 230 to 240 entries. The exact count varies because some methods depend on optional packages; methods are still listed even when the backing package is not installed, but <code>train()</code> will fail until you install it.</p>
+
+<p><strong>What is the difference between getModelInfo() and modelLookup()?</strong></p>
+
+<p><code>modelLookup()</code> returns a flat data frame of tuning parameters and a few flags (<code>forReg</code>, <code>forClass</code>, <code>probModel</code>). <code>getModelInfo()</code> returns the full registry entry: the same parameters plus the library, type, fit function, predict function, probability function, default tuning grid, and bookkeeping fields. Use <code>modelLookup()</code> to build a <code>tuneGrid</code>; use <code>getModelInfo()</code> to audit code or build a custom method.</p>
+
+<p><strong>Can I modify a model entry and pass it to <a class="auto-link" href="caret-train-in-R.html" title="caret train() in R: Fit and Tune ML Models">train()</a>?</strong></p>
+
+<p>Yes. Take <code>info &lt;- getModelInfo(&quot;rf&quot;, regex = FALSE)[[&quot;rf&quot;]]</code>, edit the fields you want (a custom <code>grid</code> function, a smaller default tuning grid, a different <code>prob</code> handler), and pass the result via <code>train(..., method = info)</code>. This is the canonical way to extend caret without forking the package.</p>
+
+<p><strong>Why does getModelInfo("rf") return six entries?</strong></p>
+
+<p>Because <code>regex = TRUE</code> is the default and <code>&quot;rf&quot;</code> substring-matches <code>rf</code>, <code>parRF</code>, <code>RRF</code>, <code>RRFglobal</code>, <code>Rborist</code>, and any other registry entry whose name contains the letters. Pass <code>regex = FALSE</code> to lock the lookup to an exact match, or use <code>getModelInfo(&quot;^rf$&quot;, regex = TRUE)</code> if you prefer regex anchors.</p>
