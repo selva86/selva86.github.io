@@ -1,0 +1,370 @@
+---
+title: "rsample sliding_window() in R: Slider-Style Resamples"
+description: "Build sliding-window resamples with rsample sliding_window() in R. Covers lookback, assess_start, assess_stop, step, and skip for time-series backtests."
+keywords: "rsample sliding_window, sliding_window function R, rsample sliding_window examples, sliding window cross validation R, tidymodels sliding window, R rolling window resampling, slider rsample"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "sliding_window()|rsample sliding_window|rsample::sliding_window()|sliding-window resampling|slider-style splits"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>rsample sliding_window() in R: Slider-Style Resamples</h1>
+
+<p class="lead">The rsample sliding_window() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> builds row-based sliding window resamples for <a class="auto-link" href="caret-createTimeSlices-in-R.html" title="caret createTimeSlices() in R: Time-Series CV Folds">time-series cross-validation</a>, where every split's analysis window has the same length and the assessment window sits a fixed number of rows ahead, mirroring the slider package's semantics inside the tidymodels resampling engine.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>sliding_window(df, lookback = 9)<span class="qa-cmt">                              # 10-row train, 1-row test</span>
+sliding_window(df, lookback = 9, assess_stop = 5)<span class="qa-cmt">             # 5-row forecast horizon</span>
+sliding_window(df, lookback = 9, step = 5)<span class="qa-cmt">                    # advance 5 rows each split</span>
+sliding_window(df, lookback = 9, complete = FALSE)<span class="qa-cmt">            # keep partial windows</span>
+sliding_window(df, lookback = 9, skip = 4)<span class="qa-cmt">                    # use 1 of every 5 splits</span>
+sliding_window(df, lookback = 9, assess_start = 8, assess_stop = 14)<span class="qa-cmt">  # gapped horizon</span>
+analysis(sw$splits[[1]])<span class="qa-cmt">                                      # training rows of split 1</span>
+assessment(sw$splits[[1]])<span class="qa-cmt">                                    # held-out rows of split 1</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is sliding_window() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">fixed-size training window by row count</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">sliding_window(df, lookback = n)</text><text x="125" y="126" class="branch-label">expanding training window over time</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">rolling_origin(df, initial = n)</text><text x="125" y="182" class="branch-label">sliding by calendar period (days, months)</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">sliding_period(df, date, &quot;month&quot;)</text><text x="125" y="238" class="branch-label">sliding by index column values</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">sliding_index(df, date)</text><text x="125" y="294" class="branch-label">standard shuffled k-fold cross-validation</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">vfold_cv(df, v = 10)</text><text x="125" y="350" class="branch-label"><a class="auto-link" href="broom-bootstrap-in-R.html" title="broom Bootstrap in R: Tidy Resampled Estimates">bootstrap resamples</a> with replacement</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">bootstraps(df, times = 25)</text><text x="125" y="406" class="branch-label">single train/test split</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">initial_split(df, prop = 0.8)</text></svg></div>
+
+<h2>What sliding_window() does</h2>
+
+<p><strong>sliding_window() carves a time-ordered data frame into fixed-size analysis and assessment windows that slide forward one row at a time.</strong> It is rsample's port of the slider package's window semantics. Every split has the same analysis length, set by <code>lookback</code>, and the assessment window is a contiguous block defined by <code>assess_start</code> and <code>assess_stop</code> relative to the current row.</p>
+
+<p>The function returns a tibble with a <code>splits</code> list-column and an <code>id</code> column. Each row is one <code>rsplit</code> object whose analysis and assessment indices you extract with <code>analysis()</code> and <code>assessment()</code>. Unlike <code>rolling_origin()</code>, the training window never grows. That matches how a production forecaster typically operates: keep the most recent N rows and discard older history when newer data arrives.</p>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>The signature has one data argument and six knobs that shape the window.</strong></p>
+
+<div class="webr-container" data-block-title="sliding_window function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">sliding_window function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sliding_window(
+  data,
+  lookback     = 0L,    # rows before the current position included in analysis
+  assess_start = 1L,    # first assessment row offset from current position
+  assess_stop  = 1L,    # last assessment row offset from current position
+  complete     = TRUE,  # drop iterations whose windows do not fully fit
+  step         = 1L,    # rows to advance the current position each iteration
+  skip         = 0L     # iterations to drop between kept iterations
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments that matter most:</p>
+
+<ul>
+
+<li><strong>lookback</strong>: positions backward from the current row included in analysis. <code>lookback = 9</code> produces a 10-row training window (current row plus 9 prior).</li>
+
+<li><strong>assess_start</strong> and <strong>assess_stop</strong>: offsets ahead of the current row that define the assessment window. Defaults give a one-row, one-step-ahead test.</li>
+
+<li><strong>complete</strong>: <code>TRUE</code> drops iterations where the lookback or assessment window would run off either end of the data. Use <code>FALSE</code> only when partial windows are acceptable.</li>
+
+<li><strong>step</strong>: how far the current row advances between iterations. <code>step = 1</code> produces maximally overlapping splits; <code>step = assess_stop - assess_start + 1</code> produces tiled windows.</li>
+
+<li><strong>skip</strong>: iterations dropped between kept iterations. Often easier to control density via <code>step</code> instead.</li>
+
+</ul>
+
+<h2>sliding_window() examples</h2>
+
+<h3>Basic fixed-window backtest</h3>
+
+<p><strong>Call sliding_window() on a sorted data frame to get a tibble of splits.</strong> With defaults each split holds 1 row of analysis and 1 row of assessment, so set <code>lookback</code> to define a realistic training horizon.</p>
+
+<div class="webr-container" data-block-title="Create fixed-size sliding splits">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create fixed-size sliding splits</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rsample)
+
+ts_df &lt;- data.frame(t = 1:30, y = cumsum(rnorm(30)))
+sw &lt;- sliding_window(ts_df, lookback = 9, assess_stop = 5)
+sw
+#&gt; # Sliding window resampling 
+#&gt; # A tibble: 16 x 2
+#&gt;    splits         id     
+#&gt;    &lt;list&gt;         &lt;chr&gt;  
+#&gt;  1 &lt;split [10/5]&gt; Slice01
+#&gt;  2 &lt;split [10/5]&gt; Slice02
+#&gt;  3 &lt;split [10/5]&gt; Slice03
+#&gt;  4 &lt;split [10/5]&gt; Slice04
+#&gt;  5 &lt;split [10/5]&gt; Slice05
+#&gt;  6 &lt;split [10/5]&gt; Slice06
+#&gt;  7 &lt;split [10/5]&gt; Slice07
+#&gt;  8 &lt;split [10/5]&gt; Slice08
+#&gt;  9 &lt;split [10/5]&gt; Slice09
+#&gt; 10 &lt;split [10/5]&gt; Slice10
+#&gt; # i 6 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every <code>&lt;split [10/5]&gt;</code> confirms the windows are identical: 10 training rows and 5 assessment rows. <code>rolling_origin()</code> would have produced <code>[10/5]</code>, <code>[11/5]</code>, <code>[12/5]</code>, and so on.</p>
+
+<h3>Extract analysis and assessment rows</h3>
+
+<p><strong>Use analysis() and assessment() to materialize one split as plain data frames.</strong> These are the inputs you feed into any modeling function.</p>
+
+<div class="webr-container" data-block-title="Pull one split&#x27;s data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pull one split&#x27;s data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">slice1 &lt;- sw$splits[[1]]
+
+train_set &lt;- analysis(slice1)
+test_set  &lt;- assessment(slice1)
+
+range(train_set$t)
+#&gt; [1]  1 10
+range(test_set$t)
+#&gt; [1] 11 15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The training rows cover <code>t = 1</code> through <code>t = 10</code> and the assessment rows pick up at <code>t = 11</code>. Chronology is preserved.</p>
+
+<h3>Non-overlapping windows with step</h3>
+
+<p><strong>Set step to the assessment length to produce tiled, non-overlapping splits.</strong> This matches the standard backtesting convention where each held-out horizon is independent.</p>
+
+<div class="webr-container" data-block-title="Tile the data with step = 5">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tile the data with step = 5</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tiled &lt;- sliding_window(
+  ts_df,
+  lookback     = 9,
+  assess_stop  = 5,
+  step         = 5
+)
+sapply(tiled$splits, function(s) range(assessment(s)$t))
+#&gt;      [,1] [,2] [,3] [,4]
+#&gt; [1,]   11   16   21   26
+#&gt; [2,]   15   20   25   30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The four assessment windows cover <code>t = 11:15</code>, <code>16:20</code>, <code>21:25</code>, and <code>26:30</code> with no overlap. Compare this to the 16 maximally overlapping splits from the previous example.</p>
+
+<h3>Insert a gap with assess_start</h3>
+
+<p><strong>Move assess_start above 1 to leave a forecast gap between training and assessment.</strong> This mimics the production lag between when a model retrains and when it serves a prediction.</p>
+
+<div class="webr-container" data-block-title="Insert a 7-row gap before assessment">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Insert a 7-row gap before assessment</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">gapped &lt;- sliding_window(
+  ts_df,
+  lookback     = 9,
+  assess_start = 8,
+  assess_stop  = 14
+)
+slice1 &lt;- gapped$splits[[1]]
+range(analysis(slice1)$t)
+#&gt; [1]  1 10
+range(assessment(slice1)$t)
+#&gt; [1] 18 24</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Analysis stops at <code>t = 10</code>; assessment begins at <code>t = 18</code>, leaving rows 11 through 17 as a buffer that a model using lagged features cannot peek into.</p>
+
+<h2>sliding_window() vs other resampling functions</h2>
+
+<p><strong>sliding_window() locks the training window size; the rsample family offers four other ways to split time-ordered data.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Window behavior</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sliding_window()</code></td>
+<td>Fixed-size, slider-style row windows</td>
+<td><a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">Forecasting</a> with stable training size</td>
+</tr>
+<tr>
+<td><code>rolling_origin()</code></td>
+<td>Expanding or sliding by row</td>
+<td>Classic backtest, expanding history</td>
+</tr>
+<tr>
+<td><code>sliding_index()</code></td>
+<td>Fixed window keyed to an index column</td>
+<td>Irregular time stamps</td>
+</tr>
+<tr>
+<td><code>sliding_period()</code></td>
+<td>Window of calendar periods (day, month)</td>
+<td>Daily or monthly aggregated data</td>
+</tr>
+<tr>
+<td><code>vfold_cv()</code></td>
+<td>Shuffled <a class="auto-link" href="rsample-vfold_cv-in-R.html" title="rsample vfold_cv() in R: V-Fold Cross-Validation Splits">v-fold cross-validation</a></td>
+<td>Cross-sectional data, no time order</td>
+</tr>
+</tbody>
+</table>
+
+<p>A typical tidymodels backtest pipes the resamples into <code>fit_resamples()</code> so every split is scored with the same metric set. For a final hold-out evaluation before training the production model, take the latest rows out with <code>initial_time_split()</code> and run <code>sliding_window()</code> on what remains.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>sliding_window() indexes by row position, not by date.</strong> The current row advances one position at a time regardless of whether the time stamp jumps a day, a week, or a year. If your data has gaps or mixed frequencies, prefer <code>sliding_index()</code> or <code>sliding_period()</code> so the windows track wall-clock time rather than row counts.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most sliding_window() bugs.</strong></p>
+
+<ul>
+
+<li><strong>Confusing lookback with initial.</strong> <code>rolling_origin(initial = 10)</code> gives a 10-row training window; <code>sliding_window(lookback = 10)</code> gives an 11-row training window. The slider semantic counts the current row plus <code>lookback</code> prior rows, not the total span.</li>
+
+<li><strong>Forgetting complete = TRUE drops the start of the data.</strong> With <code>lookback = 9</code>, the first nine rows are never the current position of any kept iteration, so they only ever appear inside analysis windows. If you need every row to be assessed at least once, switch to <code>vfold_cv()</code> after de-trending.</li>
+
+<li><strong>Setting step too aggressively.</strong> <code>step = 10</code> on a 30-row series produces only three iterations. Use a step matched to your reporting cadence: daily models tile by <code>assess_stop - assess_start + 1</code>, weekly models can step by 7.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>rsample's sliding_window() was added in version 1.2.0 and uses different argument names than rolling_origin().</strong> Older blog posts still write <code>initial</code>, <code>assess</code>, and <code>cumulative</code>. Those belong to <code>rolling_origin()</code>. The slider-family functions use <code>lookback</code>, <code>assess_start</code>, <code>assess_stop</code>, <code>step</code>, and <code>complete</code>. Mixing the two argument vocabularies will silently produce wrong windows or a runtime error.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a sliding window resample of <code>AirPassengers</code> with a 24-row training window, a 12-row forecast horizon, and tiled non-overlapping assessment windows. Save the resamples to <code>ex_sw</code>.</p>
+<div class="webr-container" data-block-title="Your turn: monthly forecast backtest">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: monthly forecast backtest</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rsample)
+
+ap_df &lt;- data.frame(
+  month = seq.Date(as.Date(&quot;1949-01-01&quot;), by = &quot;month&quot;, length.out = 144),
+  y     = as.numeric(AirPassengers)
+)
+
+# Try it: tiled sliding window backtest
+ex_sw &lt;- # your code here
+
+nrow(ex_sw)
+#&gt; Expected: 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rsample)
+
+ap_df &lt;- data.frame(
+  month = seq.Date(as.Date(&quot;1949-01-01&quot;), by = &quot;month&quot;, length.out = 144),
+  y     = as.numeric(AirPassengers)
+)
+
+ex_sw &lt;- sliding_window(
+  ap_df,
+  lookback    = 23,
+  assess_stop = 12,
+  step        = 12
+)
+nrow(ex_sw)
+#&gt; [1] 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>lookback = 23</code> gives a 24-row training window (current row plus 23 prior). <code>assess_stop = 12</code> evaluates a one-year forecast. <code>step = 12</code> advances the current row 12 positions each iteration, producing ten tiled, non-overlapping assessment windows that cover the rest of the series.</p>
+
+</details>
+</section>
+
+<h2>Related rsample functions</h2>
+
+<p><strong>sliding_window() is the row-based slider; these functions extend it.</strong></p>
+
+<ul>
+
+<li><code>analysis()</code> and <code>assessment()</code>: extract the two data frames from any rsplit object.</li>
+
+<li><code>sliding_index()</code>: fixed-size windows keyed to an index column (typically a date), respects irregular spacing.</li>
+
+<li><code>sliding_period()</code>: windows of calendar periods such as days, weeks, or months.</li>
+
+<li><code>rolling_origin()</code>: expanding-window variant where the training window grows each split.</li>
+
+<li><code>initial_time_split()</code>: carve off the most recent rows as a final hold-out before backtesting.</li>
+
+<li><code>int_pctl()</code>: build percentile <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a> from resampled metrics.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from scikit-learn?</strong> <code>sliding_window(df, lookback = n - 1, assess_stop = m, step = m)</code> is the tidymodels equivalent of <code>TimeSeriesSplit(n_splits=k, max_train_size=n, test_size=m)</code>. The <code>assess_start</code> argument has no direct sklearn counterpart and is closer to the <code>gap</code> parameter introduced in scikit-learn 0.24.</div></div>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between sliding_window() and rolling_origin()?</strong></p>
+
+<p><code>rolling_origin()</code> defaults to an expanding training window: each split adds one more row to the analysis set. <code>sliding_window()</code> always uses a fixed-size training window because <code>lookback</code> is constant across iterations. They also use different argument vocabularies: <code>initial</code>, <code>assess</code>, <code>cumulative</code> for <code>rolling_origin()</code> versus <code>lookback</code>, <code>assess_start</code>, <code>assess_stop</code>, <code>step</code>, <code>complete</code> for <code>sliding_window()</code>. Pick <code>sliding_window()</code> when stable training size matters and <code>rolling_origin()</code> when more history is always better.</p>
+
+<p><strong>Why does my sliding_window() return zero splits?</strong></p>
+
+<p>The most common cause is <code>complete = TRUE</code> combined with a <code>lookback</code> or <code>assess_stop</code> larger than the data itself. If your data has 30 rows and you request <code>lookback = 50</code>, no iteration can fill the full analysis window, so the result is empty. <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Reduce</a> <code>lookback</code>, reduce <code>assess_stop</code>, or set <code>complete = FALSE</code> to keep partial windows.</p>
+
+<p><strong>Does sliding_window() work with calendar dates?</strong></p>
+
+<p>It indexes by row position, not by date. Two rows one week apart and two rows one day apart both count as a single step. For calendar-aware sliding, switch to <code>sliding_index()</code> if your dates live in one column, or <code>sliding_period()</code> for bucket-by-month or bucket-by-week windows. Both accept the same arguments as <code>sliding_window()</code>.</p>
+
+<p><strong>How do I make sliding_window() reproducible?</strong></p>
+
+<p><code>sliding_window()</code> is deterministic. It does not shuffle or sample at random, so identical inputs always produce identical splits and no <code>set.seed()</code> call is required. Randomness in a backtest pipeline usually enters through the model itself or through companion resamples like <code>bootstraps()</code>. Set seeds before those steps, not before <code>sliding_window()</code>.</p>
+
+<p><strong>Can sliding_window() handle multiple <a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">time series</a> in one data frame?</strong></p>
+
+<p>Not directly. The function treats the data frame as one ordered sequence and does not segment by group. For panel data, nest the series with <code>tidyr::nest()</code> and apply <code>sliding_window()</code> per group via <code>purrr::map()</code>. For a shuffled alternative that ignores within-group time order, use <code>group_vfold_cv()</code>.</p>
+
+{% endraw %}
