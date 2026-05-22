@@ -1,0 +1,416 @@
+---
+title: "tune tune_race_anova() in R: ANOVA Hyperparameter Racing"
+description: "Use tune tune_race_anova() in R to race tidymodels hyperparameter candidates with ANOVA early stopping. See syntax, control_race options, and pitfalls."
+keywords: "tune tune_race_anova, tune_race_anova function R, finetune tune_race_anova, tidymodels racing methods, ANOVA hyperparameter racing R, race tune grid R, finetune package R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "tune_race_anova()|finetune tune_race_anova|finetune::tune_race_anova()|ANOVA racing|race tuning"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>tune tune_race_anova() in R: ANOVA Hyperparameter Racing</h1>
+
+<p class="lead">The tune tune_race_anova() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a>, from the finetune package, runs a tidymodels grid against an initial set of resamples, then uses repeated-measures ANOVA to drop losing candidates so the remaining folds only score the survivors.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>tune_race_anova(wf, resamples = folds)<span class="qa-cmt">                          # default racing with grid = 10</span>
+tune_race_anova(wf, resamples = folds, grid = 25)<span class="qa-cmt">               # larger grid to race down</span>
+tune_race_anova(wf, resamples = folds, grid = my_grid)<span class="qa-cmt">          # explicit candidate tibble</span>
+tune_race_anova(wf, resamples = folds, metrics = mset)<span class="qa-cmt">          # custom metric set</span>
+tune_race_anova(wf, resamples = folds, control = ctrl)<span class="qa-cmt">          # control_race(): burn_in, alpha</span>
+tune_race_anova(wf, resamples = folds, param_info = params)<span class="qa-cmt">     # custom parameter ranges</span>
+tune_race_anova(model_spec, recipe, resamples = folds)<span class="qa-cmt">          # spec + recipe shortcut</span>
+plot_race(res)<span class="qa-cmt">                                                  # visualize candidate survival</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is tune_race_anova() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">race candidates with ANOVA early stopping</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">tune_race_anova(wf, resamples = folds, grid = 25)</text><text x="125" y="126" class="branch-label">race with head-to-head win-loss instead</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">finetune::tune_race_win_loss(wf, resamples = folds)</text><text x="125" y="182" class="branch-label">search every candidate on every fold</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">tune_grid(wf, resamples = folds, grid = g)</text><text x="125" y="238" class="branch-label">continuous params with expensive fits</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">tune_bayes(wf, resamples = folds, iter = 25)</text><text x="125" y="294" class="branch-label">iterative search via simulated annealing</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">finetune::tune_sim_anneal(wf, resamples = folds)</text><text x="125" y="350" class="branch-label">final fit on full train + test</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">last_fit(final_wf, split)</text><text x="125" y="406" class="branch-label">inspect tuning ranges only</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">extract_parameter_set_dials(wf)</text></svg></div>
+
+<h2>What tune_race_anova() does in one sentence</h2>
+
+<p><strong>tune_race_anova() prunes losing hyperparameter candidates after a <a class="auto-link" href="MCMC-in-R.html" title="Build MCMC From Scratch in R: The 50-Line Algorithm Behind brms and Stan">burn-in</a> set of resamples.</strong> You hand it a workflow with at least one <code>tune()</code> placeholder, a resample object, and a grid. The function scores every candidate on the first few folds (the burn-in), then fits a repeated-measures ANOVA on the per-resample metric. Candidates whose 1-sided <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence interval</a> lies entirely below the current leader get dropped, and the next fold only scores survivors. The total number of model fits drops sharply when the parameter range has clear winners and losers.</p>
+
+<p>The function lives in the finetune package, which is part of the tidymodels family but shipped separately. Install it once with <code>install.packages(&quot;finetune&quot;)</code> and load alongside tidymodels.</p>
+
+<h2>Set up a tunable workflow</h2>
+
+<p><strong>You need the same three pieces as tune_grid(): spec, recipe or formula, and resamples.</strong> Racing only changes how fits are scheduled, not what they are.</p>
+
+<div class="webr-container" data-block-title="Load tidymodels and finetune">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load tidymodels and finetune</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+library(finetune)
+data(ames, package = &quot;modeldata&quot;)
+ames &lt;- ames |&gt; mutate(Sale_Price = log10(Sale_Price))
+
+set.seed(42)
+split  &lt;- initial_split(ames, prop = 0.8, strata = Sale_Price)
+train  &lt;- training(split)
+folds  &lt;- vfold_cv(train, v = 10, strata = Sale_Price)
+folds
+#&gt; #  10-fold cross-validation using stratification
+#&gt; # A tibble: 10 x 2
+#&gt;   splits             id
+#&gt;   &lt;list&gt;             &lt;chr&gt;
+#&gt; 1 &lt;split [2107/235]&gt; Fold01
+#&gt; 2 &lt;split [2107/235]&gt; Fold02</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Racing benefits from more folds, not fewer. Use 10-fold or higher so the ANOVA has degrees of freedom to detect losers early.</p>
+
+<div class="webr-container" data-block-title="Recipe, model, and workflow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recipe, model, and workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec &lt;- recipe(Sale_Price ~ Gr_Liv_Area + Year_Built + Bldg_Type + Neighborhood,
+              data = train) |&gt;
+  step_dummy(all_nominal_predictors()) |&gt;
+  step_normalize(all_numeric_predictors())
+
+glmnet_spec &lt;- linear_reg(penalty = tune(), mixture = tune()) |&gt;
+  set_engine(&quot;glmnet&quot;)
+
+wf &lt;- workflow() |&gt;
+  add_recipe(rec) |&gt;
+  add_model(glmnet_spec)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>tune_race_anova() syntax and arguments</h2>
+
+<p><strong>Most arguments mirror tune_grid(); the racing knobs live in control_race().</strong></p>
+
+<div class="webr-container" data-block-title="tune_race_anova generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">tune_race_anova generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tune_race_anova(
+  object,                    # workflow or model spec
+  preprocessor,              # recipe or formula (when object is a spec)
+  resamples,                 # rset with v &gt;= 5; 10 is a good floor
+  ...,
+  param_info = NULL,         # parameters() object with custom ranges
+  grid = 10,                 # int (space-filling) or tibble of candidates
+  metrics  = NULL,           # metric_set() or NULL for defaults
+  eval_time = NULL,          # numeric vector for survival models
+  control  = control_race()
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>object</code></td>
+<td>A workflow or a model spec. If a spec, pass <code>preprocessor</code> next.</td>
+</tr>
+<tr>
+<td><code>resamples</code></td>
+<td>An rset such as <code>vfold_cv()</code>. Need at least <code>burn_in + 2</code> folds.</td>
+</tr>
+<tr>
+<td><code>grid</code></td>
+<td>Integer = space-filling design; tibble = explicit candidates. Larger grids benefit racing the most.</td>
+</tr>
+<tr>
+<td><code>metrics</code></td>
+<td>A <code>metric_set()</code>; the FIRST metric in the set drives the race.</td>
+</tr>
+<tr>
+<td><code>control</code></td>
+<td>A <code>control_race()</code> object with <code>burn_in</code>, <code>num_ties</code>, <code>alpha</code>, <code>verbose_elim</code>.</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Only the first metric drives elimination.</strong> <code>metric_set(rmse, rsq, mae)</code> races on RMSE; the others ride along for diagnostics. If you want to race on R-squared, list it first.</div></div>
+
+<p>The four control_race() knobs are worth knowing by name:</p>
+
+<ul>
+
+<li><code>burn_in = 3</code>: how many resamples score every candidate before testing begins.</li>
+
+<li><code>num_ties = 10</code>: candidates within this many resamples of the leader survive even if the ANOVA would drop them.</li>
+
+<li><code>alpha = 0.05</code>: <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">significance level</a> for the elimination test.</li>
+
+<li><code>verbose_elim = FALSE</code>: set to TRUE to log each elimination round.</li>
+
+</ul>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Start with a moderately large grid; racing pays off as the grid grows.</strong> The following races 25 glmnet candidates across 10 folds.</p>
+
+<div class="webr-container" data-block-title="Race a 25-point glmnet grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Race a 25-point glmnet grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(123)
+ctrl &lt;- control_race(verbose_elim = TRUE, burn_in = 3, alpha = 0.05)
+
+res &lt;- tune_race_anova(
+  wf,
+  resamples = folds,
+  grid      = 25,
+  metrics   = metric_set(rmse, rsq),
+  control   = ctrl
+)
+res
+#&gt; # Tuning results
+#&gt; # 10-fold cross-validation using stratification
+#&gt; # A tibble: 10 x 5
+#&gt;   splits             id     .order .metrics          .notes
+#&gt;   &lt;list&gt;             &lt;chr&gt;   &lt;int&gt; &lt;list&gt;            &lt;list&gt;
+#&gt; 1 &lt;split [2107/235]&gt; Fold01      1 &lt;tibble [50 x 6]&gt; &lt;tibble [0 x 3]&gt;
+#&gt; 2 &lt;split [2107/235]&gt; Fold02      2 &lt;tibble [50 x 6]&gt; &lt;tibble [0 x 3]&gt;
+#&gt; 3 &lt;split [2107/235]&gt; Fold03      3 &lt;tibble [50 x 6]&gt; &lt;tibble [0 x 3]&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>After racing, <code>show_best()</code>, <code>select_best()</code>, and <code>collect_metrics()</code> work exactly as they do for tune_grid(). The losers simply have fewer fold entries.</p>
+
+<div class="webr-container" data-block-title="Inspect survivors and pick the winner">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect survivors and pick the winner</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">show_best(res, metric = &quot;rmse&quot;, n = 3)
+#&gt; # A tibble: 3 x 8
+#&gt;   penalty mixture .metric .estimator   mean     n std_err .config
+#&gt;     &lt;dbl&gt;   &lt;dbl&gt; &lt;chr&gt;   &lt;chr&gt;       &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 0.00214   0.758 rmse    standard   0.0701    10 0.00098 Preprocessor1_Model07
+#&gt; 2 0.00318   0.612 rmse    standard   0.0703    10 0.00104 Preprocessor1_Model14
+#&gt; 3 0.00118   0.823 rmse    standard   0.0708    10 0.00112 Preprocessor1_Model21
+
+best  &lt;- select_best(res, metric = &quot;rmse&quot;)
+final &lt;- finalize_workflow(wf, best)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Racing shines on uneven grids and slow fits.</strong> When most candidates are clearly bad after 3 folds, racing fits 2x to 4x fewer models than tune_grid() with the same final answer. When all candidates are close, racing degrades to tune_grid() with a small overhead.</div></div>
+
+<p>For a visual sense of who survived how long, pipe results into <code>plot_race()</code> from finetune.</p>
+
+<div class="webr-container" data-block-title="Visualize candidate survival">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Visualize candidate survival</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">plot_race(res)
+#&gt; A ggplot showing per-resample metric trajectories for each .config,
+#&gt; with eliminated candidates ending early and survivors continuing
+#&gt; across all 10 folds.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>tune_race_anova() versus alternatives</h2>
+
+<p><strong>Pick by how candidates compare across folds, not by raw speed.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>When to reach for it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tune_race_anova()</code></td>
+<td>Many candidates, ANOVA-friendly metric, runtime per fit matters. Drops losers using a parametric test.</td>
+</tr>
+<tr>
+<td><code>finetune::tune_race_win_loss()</code></td>
+<td>Same racing idea, non-parametric. Robust when metrics are skewed or candidates are highly correlated.</td>
+</tr>
+<tr>
+<td><code>tune_grid()</code></td>
+<td>Small grids (<= 10), or when you want every candidate on every fold for downstream stacking.</td>
+</tr>
+<tr>
+<td><code>tune_bayes()</code></td>
+<td>Continuous parameters, expensive fits, no need to score a fixed candidate list.</td>
+</tr>
+</tbody>
+</table>
+
+<p>Racing is a wrapper around the same fitting machinery as tune_grid(); the return object is interchangeable with downstream helpers like <code>select_best()</code>, <code>finalize_workflow()</code>, and <code>last_fit()</code>.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three issues account for most failed races.</strong></p>
+
+<ol>
+
+<li><strong>Too few folds.</strong> Racing needs <code>burn_in + 2</code> folds minimum, and elimination is unreliable below 10. Bump <code>vfold_cv(v = 10)</code> rather than <code>v = 5</code> when you adopt this function.</li>
+
+<li><strong>Tiny grid.</strong> A 5-candidate grid rarely produces statistically distinct losers. Racing only pays off above roughly 15 candidates, so size up the grid when switching from tune_grid().</li>
+
+<li><strong>Wrong leading metric.</strong> Racing eliminates against the FIRST metric in <code>metric_set()</code>. Reorder when the metric you care about is not first; otherwise the wrong candidates survive.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Set a seed before racing.</strong> The elimination sequence depends on resample order. Without <code>set.seed()</code> ahead of <code>tune_race_anova()</code>, two runs can produce different survivors even on the same data and grid.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Race a 12-point knn grid on iris using 10-fold cross-validation and accuracy. Use <code>control_race(burn_in = 3)</code> and pick the best k.</p>
+<div class="webr-container" data-block-title="Your turn: race knn on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: race knn on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: race knn on iris with finetune
+library(tidymodels)
+library(finetune)
+
+set.seed(7)
+ex_folds &lt;- vfold_cv(iris, v = 10, strata = Species)
+
+ex_spec &lt;- nearest_neighbor(neighbors = tune()) |&gt;
+  set_engine(&quot;kknn&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+ex_wf &lt;- workflow() |&gt;
+  add_formula(Species ~ .) |&gt;
+  add_model(ex_spec)
+
+ex_grid &lt;- # your code here
+
+ex_res  &lt;- # your code here
+
+show_best(ex_res, metric = &quot;accuracy&quot;, n = 3)
+#&gt; Expected: a tibble of the top 3 k values that survived racing</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_grid &lt;- tibble(neighbors = c(1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 25))
+
+ex_res &lt;- tune_race_anova(
+  ex_wf,
+  resamples = ex_folds,
+  grid      = ex_grid,
+  metrics   = metric_set(accuracy),
+  control   = control_race(burn_in = 3, alpha = 0.05)
+)
+
+show_best(ex_res, metric = &quot;accuracy&quot;, n = 3)
+#&gt; # A tibble: 3 x 7
+#&gt;   neighbors .metric  .estimator  mean     n std_err .config
+#&gt;       &lt;dbl&gt; &lt;chr&gt;    &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1         9 accuracy multiclass 0.973    10  0.0163 Preprocessor1_Model04
+#&gt; 2         7 accuracy multiclass 0.967    10  0.0167 Preprocessor1_Model03
+#&gt; 3        11 accuracy multiclass 0.967    10  0.0163 Preprocessor1_Model05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Twelve neighbor values plus 10 folds would be 120 fits with tune_grid(). Racing drops the obviously bad k values (1, 25) after the burn-in, leaving a handful of mid-range survivors. The <a class="auto-link" href="yardstick-accuracy-in-R.html" title="yardstick accuracy() in R: Score Classification Models">accuracy metric</a> leads the race because it is first in the metric set.</p>
+
+</details>
+</section>
+
+<h2>Related tidymodels functions</h2>
+
+<p><strong>Racing sits next to a short stack of helpers.</strong></p>
+
+<ul>
+
+<li><code>tune_grid()</code> for the unraced baseline.</li>
+
+<li><code>tune_bayes()</code> for surrogate-driven search when fits are expensive.</li>
+
+<li><code>finetune::tune_race_win_loss()</code> for the non-parametric racing variant.</li>
+
+<li><code>finetune::tune_sim_anneal()</code> for iterative simulated annealing search.</li>
+
+<li><code>control_race()</code> to set burn_in, alpha, num_ties, and verbose_elim.</li>
+
+<li><code>plot_race()</code> for the candidate-survival ggplot.</li>
+
+<li><code>last_fit()</code> and <code>finalize_workflow()</code> to lock in the survivor on full train and test.</li>
+
+</ul>
+
+<p>External reference: the finetune package documentation at <a href="https://finetune.tidymodels.org/reference/tune_race_anova.html">finetune.tidymodels.org</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How is tune_race_anova() different from tune_grid()?</strong></p>
+
+<p>tune_grid() scores every candidate on every resample, so its total work is <code>candidates x folds</code> fits. tune_race_anova() scores every candidate on the first <code>burn_in</code> resamples, then runs a repeated-measures ANOVA after each subsequent fold. Candidates whose 1-sided confidence interval falls below the current leader are eliminated; remaining folds only score the survivors. On grids of 20 or more with a clearly varying metric, racing typically does 30 to 60 percent of the fits with the same winning candidate.</p>
+
+<p><strong>When should I use tune_race_anova() versus tune_race_win_loss()?</strong></p>
+
+<p>tune_race_anova() is parametric; it assumes the metric distribution across resamples is roughly normal. That holds for RMSE, R-squared, log loss, and accuracy on moderate-size folds. tune_race_win_loss() is a non-parametric ranking test (binomial <a class="auto-link" href="Sign-Test-in-R.html" title="Sign Test in R: The Simplest One-Sample Nonparametric Test">sign test</a> on <a class="auto-link" href="Post-Hoc-Tests-After-ANOVA.html" title="ANOVA Post-Hoc Tests in R: Tukey, Bonferroni, and Scheffé, Clear Decision Rules">pairwise comparisons</a>). Prefer it when the metric is skewed, when fold sample sizes vary a lot, or when ANOVA assumptions are obviously violated.</p>
+
+<p><strong>Does racing change the winning candidate compared to tune_grid()?</strong></p>
+
+<p>In well-conditioned grids, no. Racing is designed to drop candidates that are statistically unlikely to beat the leader, so the survivor matches what tune_grid() would have chosen. Near-tied candidates occasionally swap rank because they are eliminated before the late folds add evidence. Lower <code>alpha</code> (for example <code>alpha = 0.01</code>) to be more conservative, or raise <code>num_ties</code> to keep close runners alive longer.</p>
+
+<p><strong>What control_race() defaults should I tune first?</strong></p>
+
+<p><code>burn_in</code> is the highest-leverage knob. A burn-in of 3 works on standard benchmark data; bump to 5 when the metric is noisy across folds. <code>alpha = 0.05</code> is sensible for exploration; tighten to 0.01 when you want to be slow to eliminate. Leave <code>num_ties = 10</code> alone unless your grid has many near-identical candidates, in which case raise it so close runners survive into the late folds.</p>
+
+<p><strong>Can I parallelize tune_race_anova()?</strong></p>
+
+<p>Yes, and it benefits more than tune_grid() because surviving candidates dominate later folds. Register a parallel backend with <code>library(doFuture); plan(multisession, workers = 4)</code> before the call. Set <code>control_race(parallel_over = &quot;everything&quot;)</code> for grids large enough that fold-level parallelism alone leaves cores idle. Racing detects the backend automatically.</p>
+
+{% endraw %}
