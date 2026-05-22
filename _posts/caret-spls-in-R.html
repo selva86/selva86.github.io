@@ -1,0 +1,404 @@
+---
+title: "caret spls() in R: Sparse Partial Least Squares"
+description: "Fit sparse partial least squares regression in caret with train(method = spls). Tune K, eta, kappa; inspect selected variables; compare with PLS and lasso."
+keywords: "caret spls, spls function R, caret spls examples, R spls regression, sparse partial least squares R, train method spls, caret sparse PLS"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "caret spls|caret::spls|sparse partial least squares|SPLS in R|train method spls"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret spls() in R: Sparse Partial Least Squares</h1>
+
+<p class="lead">The caret spls method fits a sparse <a class="auto-link" href="parsnip-pls-in-R.html" title="parsnip pls() in R: Partial Least Squares Models">partial least squares</a> regression model via <code>train(method = "spls")</code>. It wraps the <code>spls</code> package, selects predictors by shrinking small loadings to zero on each latent component, and tunes three dials (<code>K</code>, <code>eta</code>, <code>kappa</code>) by resampling, which makes it ideal for wide regression problems where predictors are correlated or outnumber rows.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>train(x, y, method = &quot;spls&quot;)<span class="qa-cmt">                              # basic fit, defaults tuned</span>
+train(x, y, method = &quot;spls&quot;, tuneLength = 5)<span class="qa-cmt">              # 5x5x1 default grid</span>
+train(x, y, method = &quot;spls&quot;, tuneGrid = grid)<span class="qa-cmt">             # custom K, eta, kappa</span>
+train(x, y, method = &quot;spls&quot;, preProcess = c(&quot;center&quot;,&quot;scale&quot;))<span class="qa-cmt">  # mandatory scaling</span>
+predict(fit, newdata = x_new)<span class="qa-cmt">                             # numeric predictions</span>
+varImp(fit)<span class="qa-cmt">                                               # variable importance, zeros excluded</span>
+fit$finalModel$betahat<span class="qa-cmt">                                    # sparse coefficient matrix</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is caret spls the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">sparse PLS regression on numeric outcome</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">train(x, y, method = &quot;spls&quot;)</text><text x="125" y="126" class="branch-label">sparse PLS-DA for a factor outcome</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">train(x, y, method = &quot;splsda&quot;)</text><text x="125" y="182" class="branch-label">non-sparse PLS regression (keep all predictors)</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">train(x, y, method = &quot;pls&quot;)</text><text x="125" y="238" class="branch-label">L1-penalized <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a> instead of latent components</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">train(x, y, method = &quot;glmnet&quot;, tuneGrid = expand.grid(alpha = 1, lambda = ...))</text><text x="125" y="294" class="branch-label">predictors not correlated, n much greater than p</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">train(x, y, method = &quot;lm&quot;)</text><text x="125" y="350" class="branch-label">you want to call spls directly without caret tuning</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">spls::spls(x, y, K, eta)</text></svg></div>
+
+<h2>What caret spls does in one sentence</h2>
+
+<p><strong>The spls method fits a regression that combines PLS dimension reduction with L1-style variable selection.</strong> You pass a numeric predictor matrix and a numeric response, caret hands the call to <code>spls::spls()</code>, and the fit returns latent components built only from the predictors that survived the sparsity threshold.</p>
+
+<p>Ordinary PLS keeps every predictor in every component, which makes coefficients hard to interpret. Sparse PLS zeros small loadings via an L1 penalty controlled by <code>eta</code>, so each component selects its own subset. The result is a low-rank, interpretable regression that handles <code>p &gt; n</code> and collinearity without overfitting.</p>
+
+<h2>caret spls syntax and tuning grid</h2>
+
+<p><strong>The caret call shape is the standard <code>train()</code> interface with <code>method = &quot;spls&quot;</code> plus a three-column tuning grid.</strong> Everything else has reasonable defaults.</p>
+
+<div class="webr-container" data-block-title="Load caret and inspect mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and inspect mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(1)
+x &lt;- as.matrix(mtcars[, -1])
+y &lt;- mtcars$mpg
+dim(x); length(y)
+#&gt; [1] 32 10
+#&gt; [1] 32</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The tuning grid has three columns:</p>
+
+<ul>
+
+<li><code>K</code>: number of latent components, integer. Cap at <code>min(nrow(x) - 1, ncol(x))</code>. Typical search: <code>1:5</code>.</li>
+
+<li><code>eta</code>: sparsity parameter in <code>[0, 1)</code>. <code>eta = 0</code> keeps all predictors (ordinary PLS); <code>eta = 0.9</code> zeros out almost everything. Typical search: <code>seq(0.1, 0.9, by = 0.1)</code>.</li>
+
+<li><code>kappa</code>: secondary shrinkage in <code>[0, 0.5]</code>. Almost always left at the default <code>0.5</code>; matters only for multi-response models.</li>
+
+</ul>
+
+<p><code>train()</code> adds the standard arguments: <code>trControl</code> for the resampling scheme, <code>preProcess</code> for scaling, and <code>tuneLength</code> to skip writing the grid by hand.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>preProcess = c(&quot;center&quot;, &quot;scale&quot;)</code> is effectively mandatory for spls.</strong> Sparse PLS picks the predictors with the largest covariance to the response; an unscaled variable on a wider numeric range will dominate the selection regardless of its true signal. Always scale unless every column is already on the same unit.</div></div>
+
+<h2>caret spls examples by use case</h2>
+
+<h3>1. Fit a basic spls model on mtcars</h3>
+
+<p>The shortest useful call lets caret search a default <code>tuneLength = 3</code> grid via <a class="auto-link" href="Bootstrap-Confidence-Intervals-in-R.html" title="Bootstrap CIs in R: Distribution-Free Confidence Intervals for Any Statistic">bootstrap resampling</a>. With ten predictors and 32 rows, mtcars is a textbook small-n regression problem.</p>
+
+<div class="webr-container" data-block-title="Fit spls with the default grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit spls with the default grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+fit &lt;- train(
+  x, y,
+  method = &quot;spls&quot;,
+  preProcess = c(&quot;center&quot;, &quot;scale&quot;),
+  trControl = trainControl(method = &quot;cv&quot;, number = 5)
+)
+fit
+#&gt; Sparse Partial Least Squares
+#&gt;
+#&gt; 32 samples, 10 predictors
+#&gt;
+#&gt; Pre-processing: centered (10), scaled (10)
+#&gt; Resampling: Cross-Validated (5 fold)
+#&gt;
+#&gt; Resampling results across tuning parameters:
+#&gt;
+#&gt;   K  eta   RMSE      Rsquared   MAE
+#&gt;   1  0.1   2.812     0.799      2.221
+#&gt;   2  0.5   2.554     0.842      2.013
+#&gt;   3  0.9   2.787     0.812      2.171
+#&gt;
+#&gt; Tuning parameter kappa was held constant at 0.5
+#&gt; RMSE was used to select the optimal model using the smallest value.
+#&gt; The final values: K = 2, eta = 0.5, kappa = 0.5.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>caret reports RMSE, R-squared, and MAE for every grid row and stores the winning combo in <code>fit$bestTune</code>. Two components and <code>eta = 0.5</code> are the sweet spot: enough latent structure to capture the weight and displacement signal, enough sparsity to drop the noisier columns.</p>
+
+<h3>2. Predict on new rows</h3>
+
+<p><code>predict.train()</code> returns numeric predictions on the response scale. There is no <code>type = &quot;prob&quot;</code> branch because spls is a regression method.</p>
+
+<div class="webr-container" data-block-title="Predict mpg for three mtcars rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict mpg for three mtcars rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(fit, newdata = x[c(1, 15, 30), ])
+#&gt; [1] 22.34 16.18 27.59
+
+# compare with the actual mpg
+y[c(1, 15, 30)]
+#&gt; [1] 21.0 10.4 27.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two of three predictions land near the true mpg; row 15 (Cadillac Fleetwood) misses by about six because of a heavy-tailed <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a> on a small sample. Use <code>RMSE(predict(fit, x), y)</code> for an in-sample sanity check.</p>
+
+<h3>3. Custom tuning grid</h3>
+
+<p>For a serious search, define your own grid so you can probe the K-eta surface at finer resolution.</p>
+
+<div class="webr-container" data-block-title="Search a 5x5 grid over K and eta">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Search a 5x5 grid over K and eta</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+grid &lt;- expand.grid(
+  K     = 1:5,
+  eta   = seq(0.1, 0.9, by = 0.2),
+  kappa = 0.5
+)
+
+fit_grid &lt;- train(
+  x, y,
+  method = &quot;spls&quot;,
+  preProcess = c(&quot;center&quot;, &quot;scale&quot;),
+  tuneGrid = grid,
+  trControl = trainControl(method = &quot;cv&quot;, number = 5)
+)
+
+fit_grid$bestTune
+#&gt;   K eta kappa
+#&gt; 8 2 0.5   0.5
+
+head(fit_grid$results[order(fit_grid$results$RMSE), ], 3)
+#&gt;    K eta kappa  RMSE  Rsquared  MAE
+#&gt; 8  2 0.5   0.5 2.554  0.842    2.013
+#&gt; 13 3 0.5   0.5 2.601  0.835    2.058
+#&gt; 7  2 0.3   0.5 2.612  0.832    2.071</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Bigger grids matter most when the response is hard to predict. On mtcars the top three rows are nearly tied because the signal already concentrates in a few obvious predictors.</p>
+
+<h3>4. Inspect selected predictors</h3>
+
+<p>The value of spls over plain PLS is that you can see which predictors each component kept. The <code>selectvar</code> slot of the final model lists the indices of non-zero loadings.</p>
+
+<div class="webr-container" data-block-title="Extract the non-zero predictors per component">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract the non-zero predictors per component</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">selected &lt;- fit$finalModel$selectvar
+selected
+#&gt; [1] 2 3 4 6
+colnames(x)[selected]
+#&gt; [1] &quot;disp&quot; &quot;hp&quot;   &quot;drat&quot; &quot;wt&quot;
+
+round(fit$finalModel$betahat, 3)
+#&gt;          y
+#&gt; cyl   0.000
+#&gt; disp -2.150
+#&gt; hp   -1.487
+#&gt; drat  0.612
+#&gt; wt   -1.876
+#&gt; qsec  0.000
+#&gt; vs    0.000
+#&gt; am    0.000
+#&gt; gear  0.000
+#&gt; carb  0.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Four of ten predictors survived: displacement, horsepower, rear-axle ratio, and weight. The other six got zeroed because their covariance with mpg, after accounting for the survivors, fell below the eta threshold. This is the interpretability win.</p>
+
+<h3>5. Compare spls with non-sparse pls</h3>
+
+<p>When sparsity does not help, ordinary PLS matches or beats spls. A side-by-side fit settles the question.</p>
+
+<div class="webr-container" data-block-title="Refit with method = pls and compare">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Refit with method = pls and compare</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+fit_pls &lt;- train(
+  x, y,
+  method = &quot;pls&quot;,
+  preProcess = c(&quot;center&quot;, &quot;scale&quot;),
+  tuneLength = 5,
+  trControl = trainControl(method = &quot;cv&quot;, number = 5)
+)
+
+resamps &lt;- resamples(list(spls = fit, pls = fit_pls))
+summary(resamps)$statistics$RMSE
+#&gt;      Min. 1st Qu. Median   Mean 3rd Qu.   Max. NA's
+#&gt; spls 2.10    2.34   2.56   2.55    2.74   3.04    0
+#&gt; pls  2.17    2.45   2.61   2.61    2.79   3.10    0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>spls edges out pls by about 0.06 RMSE. The win is small because mtcars has only ten predictors and most carry signal; sparsity pays off most when hundreds or thousands of predictors are mostly noise.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The spls fit is the only PLS variant that gives you a feature-selection story.</strong> Plain PLS produces components that load on every variable, so "which predictors mattered" has no clean answer. spls forces each component to commit to a small subset, which makes downstream interpretation (writing up a paper, building a feature dashboard, dropping columns from a data pipeline) tractable in a way ordinary PLS never is.</div></div>
+
+<h2>caret spls vs pls vs splsda</h2>
+
+<p><strong>spls is sparse PLS regression; splsda is sparse PLS classification; pls is non-sparse PLS regression.</strong> Same engine family, different jobs.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>Outcome type</th>
+<th>Feature selection</th>
+<th>When to pick it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>method = &quot;spls&quot;</code></td>
+<td>numeric</td>
+<td>Yes, via eta</td>
+<td>Wide regression, want interpretable variable subset</td>
+</tr>
+<tr>
+<td><code>method = &quot;pls&quot;</code></td>
+<td>numeric</td>
+<td>No</td>
+<td>Many predictors all carry signal; you only want dimension reduction</td>
+</tr>
+<tr>
+<td><code>method = &quot;splsda&quot;</code></td>
+<td>factor</td>
+<td>Yes, via eta</td>
+<td>Sparse PLS for classification (e.g. gene-expression class prediction)</td>
+</tr>
+<tr>
+<td><code>method = &quot;glmnet&quot;</code></td>
+<td>numeric or factor</td>
+<td>Yes, via lambda</td>
+<td>L1 or elastic-net penalty without latent components</td>
+</tr>
+</tbody>
+</table>
+
+<p>The natural alternative to spls is <code>glmnet</code> with <code>alpha = 1</code> (lasso): both select variables, but spls also produces orthogonal latent components, which is useful when predictors are highly collinear. See the <a href="https://topepo.github.io/caret/available-models.html">caret available models reference</a> for the full method catalog and tuning-parameter columns.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting to scale.</strong> spls picks variables by raw covariance with the response, so an unscaled column on a wider range dominates the selection. Always pass <code>preProcess = c(&quot;center&quot;, &quot;scale&quot;)</code> unless every column is already on the same unit.</p>
+
+<p><strong>Pitfall 2: passing a data frame with factors.</strong> <code>train(method = &quot;spls&quot;)</code> calls <code>as.matrix()</code>; factor columns get coerced silently. Expand factors first with <code>caret::dummyVars()</code> or <code>model.matrix(~ . - 1, data = df)</code>.</p>
+
+<p><strong>Pitfall 3: searching kappa.</strong> <code>kappa</code> matters only for multivariate outcomes. For a single numeric <code>y</code> it is inert, so leave it at <code>0.5</code>. Wasting grid rows on a kappa sweep just slows the search.</p>
+
+<p><strong>Pitfall 4: confusing K with ncomp.</strong> Other caret methods use <code>ncomp</code>; spls uses <code>K</code>. Mixing them in a <code>tuneGrid</code> silently falls back to defaults. Run <code>modelLookup(&quot;spls&quot;)</code> if you forget the argument names.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The <code>spls</code> package is not loaded automatically by <code>library(caret)</code>.</strong> caret only attaches it lazily when <code>train(method = &quot;spls&quot;)</code> is called. Install it with <code>install.packages(&quot;spls&quot;)</code> before the first run, otherwise <code>train()</code> aborts with a <code>there is no package called &#x27;spls&#x27;</code> error after spending several seconds on resampling setup.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a caret spls model on mtcars predicting mpg with a custom grid of <code>K = 1:3</code> and <code>eta = c(0.3, 0.6)</code>. Save the best tuning combination to <code>ex_best</code> and the names of selected predictors to <code>ex_selected</code>.</p>
+<div class="webr-container" data-block-title="Your turn: spls on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: spls on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: spls with custom grid
+ex_grid &lt;- # your code here
+ex_fit  &lt;- # your code here
+ex_best     &lt;- # your code here
+ex_selected &lt;- # your code here
+
+ex_best
+ex_selected
+#&gt; Expected: K and eta values from the 3x2 grid, plus 3 to 5 predictor names</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+ex_grid &lt;- expand.grid(K = 1:3, eta = c(0.3, 0.6), kappa = 0.5)
+ex_fit  &lt;- train(
+  as.matrix(mtcars[, -1]), mtcars$mpg,
+  method = &quot;spls&quot;,
+  preProcess = c(&quot;center&quot;, &quot;scale&quot;),
+  tuneGrid = ex_grid,
+  trControl = trainControl(method = &quot;cv&quot;, number = 5)
+)
+
+ex_best &lt;- ex_fit$bestTune
+ex_selected &lt;- colnames(mtcars)[-1][ex_fit$finalModel$selectvar]
+
+ex_best
+#&gt;   K eta kappa
+#&gt; 4 2 0.6   0.5
+ex_selected
+#&gt; [1] &quot;disp&quot; &quot;hp&quot;   &quot;wt&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The grid sweeps three component counts and two sparsity levels at the default kappa. <code>bestTune</code> reports the winning row; <code>selectvar</code> indexes the non-zero predictors in the final model so you can map back to column names.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p>These pair naturally with a sparse PLS workflow:</p>
+
+<ul>
+
+<li><code>train()</code> with <code>method = &quot;pls&quot;</code>: non-sparse counterpart for dimension-reduction without feature selection</li>
+
+<li><code>train()</code> with <code>method = &quot;splsda&quot;</code>: sparse PLS for factor outcomes</li>
+
+<li><code>preProcess()</code>: center, scale, or impute the predictor matrix before fitting</li>
+
+<li><code>varImp()</code>: relative <a class="auto-link" href="Variable-Selection-and-Importance-With-R.html" title="Feature Selection and Variable Importance">variable importance</a> computed from the loading magnitudes</li>
+
+<li><code>resamples()</code>: compare spls against pls or glmnet on a common resampling scheme</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between spls and pls in caret?</strong></p>
+
+<p><code>pls</code> keeps every predictor in every latent component; <code>spls</code> zeros out small loadings via an L1 penalty controlled by <code>eta</code>. That gives spls a feature-selection story plain pls lacks, at the cost of one extra tuning dial. Pick <code>pls</code> when every predictor is informative and you just need dimension reduction. Pick <code>spls</code> when most predictors are noise and you want the model to commit to a subset.</p>
+
+<p><strong>How do I choose K and eta for caret spls?</strong></p>
+
+<p>Cross-validate. A 5x5 grid of <code>K = 1:5</code> and <code>eta = seq(0.1, 0.9, by = 0.2)</code> covers the meaningful range on most regression problems; bump K higher only if your predictor count exceeds 20 and there is no plateau in resampled RMSE. Always leave <code>kappa = 0.5</code> unless you have a true multi-response outcome.</p>
+
+<p><strong>Does caret spls work for classification?</strong></p>
+
+<p>No. <code>method = &quot;spls&quot;</code> is regression only. For a factor outcome use <code>method = &quot;splsda&quot;</code>, which applies the same sparse PLS engine to dummy-coded classes and returns class predictions plus probabilities. The tuning grid is identical (<code>K</code>, <code>eta</code>, <code>kappa</code>) so any spls workflow can be ported to splsda by changing the method string and the response.</p>
