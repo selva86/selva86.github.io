@@ -1,0 +1,354 @@
+---
+title: "tune collect_metrics() in R: Extract Tuning Metrics"
+description: "Use tune collect_metrics() in R to pull mean and per-resample metrics from tune_grid, fit_resamples, and last_fit results. See summarize, type, and pitfalls."
+keywords: "tune collect_metrics, collect_metrics function R, tune collect_metrics examples, collect_metrics tidymodels, R extract tuning metrics, collect_metrics summarize, collect_metrics wide format"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "collect_metrics()|tune collect_metrics|tune::collect_metrics()|collect_metrics tidymodels|extract tuning metrics"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>tune collect_metrics() in R: Extract Tuning Metrics</h1>
+
+<p class="lead">The tune collect_metrics() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> pulls performance metrics out of a tune_results object, returning a tidy tibble with one row per hyperparameter candidate (and metric) so you can rank, plot, or join the results downstream.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>collect_metrics(res)<span class="qa-cmt">                          # aggregated mean and std_err</span>
+collect_metrics(res, summarize = FALSE)<span class="qa-cmt">       # per-resample, per-candidate</span>
+collect_metrics(res, type = &quot;wide&quot;)<span class="qa-cmt">           # one column per metric</span>
+collect_metrics(last_fit_obj)<span class="qa-cmt">                 # test set metrics from last_fit()</span>
+collect_metrics(res) |&gt; filter(.metric == &quot;rmse&quot;)<span class="qa-cmt">  # keep one metric</span>
+collect_metrics(res) |&gt; arrange(mean)<span class="qa-cmt">         # rank candidates by mean</span>
+collect_metrics(res) |&gt; group_by(.metric) |&gt; slice_min(mean, n = 1)<span class="qa-cmt">  # best per metric</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is collect_metrics() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">pull mean metrics from tuning</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">collect_metrics(res)</text><text x="125" y="126" class="branch-label">get the top-N candidates ranked</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">show_best(res, metric = &quot;rmse&quot;)</text><text x="125" y="182" class="branch-label">pick a single best candidate as a tibble</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">select_best(res, metric = &quot;rmse&quot;)</text><text x="125" y="238" class="branch-label">raw out-of-fold predictions, not metrics</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">collect_predictions(res)</text><text x="125" y="294" class="branch-label">notes thrown during tuning fits</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">collect_notes(res)</text><text x="125" y="350" class="branch-label">extract the underlying fitted workflow</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">extract_workflow(res)</text><text x="125" y="406" class="branch-label">finalize and fit on full train + test</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">last_fit(final_wf, split)</text></svg></div>
+
+<h2>What collect_metrics() does in one sentence</h2>
+
+<p><strong>collect_metrics() unpacks the metric column of a tune_results tibble into a flat, mergeable summary.</strong> When <a class="auto-link" href="tune-tune_grid-in-R.html" title="tune tune_grid() in R: Hyperparameter Search on Resamples">tune_grid()</a>, fit_resamples(), <a class="auto-link" href="tune-tune_bayes-in-R.html" title="tune tune_bayes() in R: Bayesian Hyperparameter Search">tune_bayes()</a>, or last_fit() runs, each row of the returned object stores a nested list column called <code>.metrics</code> with the per-resample numbers. collect_metrics() walks that column, optionally averages across folds, and hands you a tibble with the tuning parameters, <code>.metric</code>, <code>.estimator</code>, <code>mean</code>, <code>n</code>, and <code>std_err</code>.</p>
+
+<p>This is the function you almost always call right after a tuning run finishes. show_best() and autoplot() rely on the same data; collect_metrics() is the version you reach for when you want full control over filtering, grouping, or joining.</p>
+
+<h2>Set up a tune_results object</h2>
+
+<p><strong>You need a fitted tuning result before collect_metrics() does anything useful.</strong> The block below tunes the elastic-net penalty and mixture on a 5-fold split of the Ames housing data so the rest of the page has a real object to work with.</p>
+
+<div class="webr-container" data-block-title="Tune a small elastic net grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tune a small elastic net grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+data(ames, package = &quot;modeldata&quot;)
+ames &lt;- ames |&gt; mutate(Sale_Price = log10(Sale_Price))
+
+set.seed(1)
+split &lt;- initial_split(ames, prop = 0.8, strata = Sale_Price)
+train &lt;- training(split)
+folds &lt;- vfold_cv(train, v = 5, strata = Sale_Price)
+
+rec &lt;- recipe(Sale_Price ~ Gr_Liv_Area + Year_Built + Bldg_Type, data = train) |&gt;
+  step_dummy(all_nominal_predictors()) |&gt;
+  step_normalize(all_numeric_predictors())
+
+spec &lt;- linear_reg(penalty = tune(), mixture = tune()) |&gt; set_engine(&quot;glmnet&quot;)
+wf   &lt;- workflow() |&gt; add_recipe(rec) |&gt; add_model(spec)
+
+set.seed(2)
+res &lt;- tune_grid(wf, resamples = folds, grid = 6)
+res
+#&gt; # Tuning results
+#&gt; # 5-fold cross-validation using stratification
+#&gt; # A tibble: 5 x 4
+#&gt;   splits             id    .metrics          .notes
+#&gt;   &lt;list&gt;             &lt;chr&gt; &lt;list&gt;            &lt;list&gt;
+#&gt; 1 &lt;split [1873/469]&gt; Fold1 &lt;tibble [12 x 6]&gt; &lt;tibble [0 x 3]&gt;
+#&gt; ... 4 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>.metrics</code> list column is exactly what collect_metrics() will flatten.</p>
+
+<h2>collect_metrics() syntax and arguments</h2>
+
+<p><strong>The signature is intentionally minimal.</strong></p>
+
+<div class="webr-container" data-block-title="collect_metrics signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">collect_metrics signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">collect_metrics(
+  x,                 # tune_results, last_fit, or fit_resamples object
+  ...,
+  summarize = TRUE,  # TRUE = mean + std_err across resamples
+  type = &quot;long&quot;,     # &quot;long&quot; (default) or &quot;wide&quot;
+  event_level        # passed through for survival / class metrics
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>x</code> is the tuning result. <code>summarize = TRUE</code> aggregates across folds; <code>summarize = FALSE</code> returns one row per fold per candidate per metric. <code>type = &quot;wide&quot;</code> pivots <code>.metric</code> into columns, which is handy for plotting two metrics against the same parameter axis.</p>
+
+<p>The four switches above interact with the input shape. The table below shows which columns to expect for each combination, so you know which downstream code to write.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Input type</th>
+<th><a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarize</a></th>
+<th>Returns</th>
+<th>Key columns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tune_grid / tune_bayes</td>
+<td>TRUE</td>
+<td>one row per candidate per metric</td>
+<td>params, <code>.metric</code>, <code>mean</code>, <code>n</code>, <code>std_err</code></td>
+</tr>
+<tr>
+<td>tune_grid / tune_bayes</td>
+<td>FALSE</td>
+<td>one row per resample per candidate per metric</td>
+<td>params, <code>id</code>, <code>.metric</code>, <code>.estimate</code></td>
+</tr>
+<tr>
+<td>fit_resamples</td>
+<td>TRUE</td>
+<td>one row per metric</td>
+<td><code>.metric</code>, <code>mean</code>, <code>n</code>, <code>std_err</code></td>
+</tr>
+<tr>
+<td>last_fit</td>
+<td>(ignored)</td>
+<td>one row per metric on the <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a></td>
+<td><code>.metric</code>, <code>.estimate</code></td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>collect_metrics() works on more than tune_grid().</strong> It accepts output from fit_resamples(), tune_bayes(), <a class="auto-link" href="tune-tune_race_anova-in-R.html" title="tune tune_race_anova() in R: ANOVA Hyperparameter Racing">finetune::tune_race_anova()</a>, <a class="auto-link" href="tune-tune_sim_anneal-in-R.html" title="tune tune_sim_anneal() in R: Simulated Annealing Tuning">finetune::tune_sim_anneal()</a>, and last_fit(). The shape of the returned tibble adapts to what the input carries: tuning runs include candidate parameter columns, while last_fit() returns a single row per metric.</div></div>
+
+<h2>Aggregated vs per-resample results</h2>
+
+<p><strong>The default aggregates across folds; pass summarize = FALSE to keep individual fold scores.</strong> Aggregated output is what you usually want for <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">model selection</a>. Per-resample output is what you want for variance plots, paired comparisons, or to feed into perf_mod().</p>
+
+<div class="webr-container" data-block-title="Default aggregated metrics">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Default aggregated metrics</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">collect_metrics(res)
+#&gt; # A tibble: 12 x 8
+#&gt;   penalty mixture .metric .estimator    mean     n std_err .config
+#&gt;     &lt;dbl&gt;   &lt;dbl&gt; &lt;chr&gt;   &lt;chr&gt;        &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 3.13e-7  0.0123 rmse    standard    0.0879     5 0.00185 Preprocessor1_Model1
+#&gt; 2 3.13e-7  0.0123 rsq     standard    0.692      5 0.0119  Preprocessor1_Model1
+#&gt; 3 1.05e-4  0.211  rmse    standard    0.0875     5 0.00181 Preprocessor1_Model2
+#&gt; ... 9 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="Per-resample metrics with summarize = FALSE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-resample metrics with summarize = FALSE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">collect_metrics(res, summarize = FALSE) |&gt;
+  filter(.metric == &quot;rmse&quot;) |&gt;
+  head()
+#&gt; # A tibble: 6 x 7
+#&gt;   id    penalty mixture .metric .estimator .estimate .config
+#&gt;   &lt;chr&gt;   &lt;dbl&gt;   &lt;dbl&gt; &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 Fold1 3.13e-7  0.0123 rmse    standard      0.0870 Preprocessor1_Model1
+#&gt; 2 Fold2 3.13e-7  0.0123 rmse    standard      0.0902 Preprocessor1_Model1
+#&gt; ... 4 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Notice the column rename: aggregated output has <code>mean</code> and <code>std_err</code>, per-resample has <code>.estimate</code> and <code>id</code>. Code that consumes both modes must check which columns exist.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The <code>n</code> column tells you how many resamples actually scored.</strong> If <code>n</code> is less than the resample count you set up, some folds failed silently. Check <code>collect_notes(res)</code> to see why and decide whether the mean is still trustworthy.</div></div>
+
+<h2>Long vs wide format</h2>
+
+<p><strong>Wide format gives one row per candidate and one column per metric.</strong> This is what you want when you plot rmse against rsq, or when a downstream join expects a single key per parameter set.</p>
+
+<div class="webr-container" data-block-title="Wide format pivots metrics into columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wide format pivots metrics into columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">collect_metrics(res, type = &quot;wide&quot;)
+#&gt; # A tibble: 6 x 7
+#&gt;   penalty mixture .config                   n    rmse    rsq mae_default
+#&gt;     &lt;dbl&gt;   &lt;dbl&gt; &lt;chr&gt;                 &lt;int&gt;   &lt;dbl&gt;  &lt;dbl&gt;       &lt;dbl&gt;
+#&gt; 1 3.13e-7  0.0123 Preprocessor1_Model1      5 0.0879  0.692       NA
+#&gt; 2 1.05e-4  0.211  Preprocessor1_Model2      5 0.0875  0.694       NA
+#&gt; ... 4 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>std_err</code> columns are dropped in wide mode. Use long for variance work, wide for plotting and joining.</p>
+
+<h2>Joining with show_best() and select_best()</h2>
+
+<p><strong>collect_metrics() is the source; show_best() and select_best() are convenience wrappers.</strong> They call collect_metrics() internally, then sort and slice. You can replicate either by hand and add custom filters along the way.</p>
+
+<div class="webr-container" data-block-title="Replicate show_best with collect_metrics">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Replicate show_best with collect_metrics</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">collect_metrics(res) |&gt;
+  filter(.metric == &quot;rmse&quot;) |&gt;
+  arrange(mean) |&gt;
+  slice_head(n = 3) |&gt;
+  select(penalty, mixture, mean, std_err)
+#&gt; # A tibble: 3 x 4
+#&gt;   penalty mixture    mean std_err
+#&gt;     &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 0.00104   0.421 0.0871  0.00179
+#&gt; 2 1.05e-4   0.211 0.0875  0.00181
+#&gt; 3 3.13e-7   0.0123 0.0879 0.00185</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When you want to inspect a metric the default helpers do not surface (for example a custom yardstick metric inside a metric_set), collect_metrics() is the only path that gives you the full set.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three failure modes account for most of the friction.</strong></p>
+
+<ul>
+
+<li><strong>Calling collect_metrics() on a workflow instead of the result.</strong> The workflow has no metrics yet. Run tune_grid() or fit_resamples() first; pass the returned object.</li>
+
+<li><strong>Assuming <code>mean</code> always exists.</strong> With <code>summarize = FALSE</code>, the column is <code>.estimate</code>. Code that hard-codes <code>mean</code> breaks. Branch on summarize or rename early.</li>
+
+<li><strong>Forgetting the metric filter.</strong> <code>slice_min(mean, n = 1)</code> without a <code>.metric</code> filter picks the row with the smallest value across rmse, rsq, and any others. Always filter to a single metric or group by <code>.metric</code> before slicing.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>collect_metrics() never refits the model.</strong> It only summarises what was already computed. If you tuned with a small grid and want different aggregation, you can re-call collect_metrics() with new arguments, but you cannot recover metrics you did not score during the original run. Add the metric to your metric_set() before tuning.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> From the <code>res</code> tibble above, use collect_metrics() to find the candidate with the smallest RMSE and save its penalty and mixture to <code>ex_best</code>.</p>
+<div class="webr-container" data-block-title="Your turn: find the best candidate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the best candidate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: smallest RMSE row
+ex_best &lt;- # your code here
+
+ex_best
+#&gt; Expected: 1 row, columns penalty and mixture</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_best &lt;- collect_metrics(res) |&gt;
+  filter(.metric == &quot;rmse&quot;) |&gt;
+  arrange(mean) |&gt;
+  slice_head(n = 1) |&gt;
+  select(penalty, mixture)
+
+ex_best
+#&gt; # A tibble: 1 x 2
+#&gt;   penalty mixture
+#&gt;     &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 0.00104   0.421</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> collect_metrics() flattens the nested <code>.metrics</code> column, the filter keeps RMSE rows only, and <a class="auto-link" href="dplyr-slice-in-R.html" title="dplyr slice() in R: Select Rows by Position">slice_head()</a> after <a class="auto-link" href="dplyr-arrange-slice.html" title="dplyr arrange(), slice(), and top_n(): Get Exactly the Rows You Want">arrange()</a> picks the smallest mean. <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">select()</a> trims to the two tuning parameters so <code>ex_best</code> is a one-row, two-column tibble ready to plug into finalize_workflow().</p>
+
+</details>
+</section>
+
+<h2>Related tune functions</h2>
+
+<ul>
+
+<li>show_best() returns the top-N candidates pre-sorted on one metric.</li>
+
+<li>select_best() returns the single best candidate as a one-row tibble.</li>
+
+<li>collect_predictions() pulls out-of-fold predictions instead of metrics.</li>
+
+<li>autoplot() on tune_results uses collect_metrics() output to draw faceted curves.</li>
+
+<li>finalize_workflow() takes the tibble select_best() returns and fills in the tune() placeholders.</li>
+
+</ul>
+
+<p>For the official reference, see the <a href="https://tune.tidymodels.org/reference/collect_predictions.html">tune package documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between collect_metrics() and show_best()?</strong></p>
+
+<p>show_best() is collect_metrics() plus a filter on one metric, an arrange by mean, and a slice_head() of the top N. If you want all metrics, custom filters, or the full table for plotting, call collect_metrics() directly. If you just want the leaderboard for one metric, show_best() saves three lines.</p>
+
+<p><strong>Why does collect_metrics() return NA for std_err sometimes?</strong></p>
+
+<p>NA appears when only one resample produced a finite value for that metric. With <code>n = 1</code>, the standard error is undefined. The fix is upstream: check collect_notes() for fold-level errors, add more resamples, or remove problematic candidates.</p>
+
+<p><strong>Can I use collect_metrics() with last_fit()?</strong></p>
+
+<p>Yes. last_fit() returns a one-row tibble that behaves like a single-resample tune_results object. collect_metrics() on it gives the test-set scores (one row per metric in the metric_set you passed). There is no <code>summarize</code> choice in that case because there is only one fold.</p>
+
+<p><strong>Does collect_metrics() work with custom yardstick metrics?</strong></p>
+
+<p>Yes. Any metric that was part of the metric_set() at tune time is included automatically. The column shape is identical: <code>.metric</code> carries the custom metric name and the rest of the columns are unchanged.</p>
+
+<p><strong>Can I pivot back from <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">wide to long</a>?</strong></p>
+
+<p>Yes, but the more direct path is to re-call <code>collect_metrics(res, type = &quot;long&quot;)</code>. The wide form drops <code>std_err</code>, so manual pivoting from wide cannot reconstruct the standard errors. Always derive both views from the same tune_results object.</p>
