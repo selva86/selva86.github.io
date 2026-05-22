@@ -1,0 +1,367 @@
+---
+title: "caret knn3() in R: k-Nearest Neighbors Classification"
+description: "Learn how caret knn3() in R fits a k-nearest neighbors classifier. Formula and matrix interfaces, predict() probabilities, tuning k, and pitfalls explained."
+keywords: "caret knn3, knn3 function R, caret knn3 examples, R knn3 classification, knn3 caret package, k nearest neighbors caret, knn3 vs knn"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "knn3()|caret knn3|caret::knn3()|k-nearest neighbors caret|knn3 classifier"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret knn3() in R: k-Nearest Neighbors Classification</h1>
+
+<p class="lead">The <code>knn3()</code> function in caret fits a k-nearest neighbors classifier directly, without the resampling overhead of <code>train()</code>. It accepts a formula or an x-y interface, returns a model object that predicts both classes and class probabilities, and is the classification cousin of <code>knnreg()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>knn3(Species ~ ., data = iris, k = 5)<span class="qa-cmt">                  # formula interface</span>
+knn3(x = iris[, 1:4], y = iris$Species, k = 5)<span class="qa-cmt">         # x, y interface</span>
+knn3(Species ~ ., data = iris, k = 1)<span class="qa-cmt">                  # 1-NN (max variance)</span>
+knn3(Species ~ ., data = iris, k = 7, na.action = na.omit)<span class="qa-cmt"> # drop NA rows</span>
+predict(fit, newdata = iris[1:5, ], type = &quot;class&quot;)<span class="qa-cmt">    # predicted class</span>
+predict(fit, newdata = iris[1:5, ], type = &quot;prob&quot;)<span class="qa-cmt">     # class probabilities</span>
+caret::knn3Train(train, test, cl, k = 5)<span class="qa-cmt">               # low-level vector path</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is knn3() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">direct k-NN classification, no resampling</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">knn3(Species ~ ., data = iris, k = 5)</text><text x="125" y="126" class="branch-label">k-NN with cross-validation and tuning</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">train(Species ~ ., method = &quot;knn&quot;)</text><text x="125" y="182" class="branch-label">k-NN for regression (numeric outcome)</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">knnreg(mpg ~ ., data = mtcars, k = 5)</text><text x="125" y="238" class="branch-label">distance-weighted neighbors</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">kknn::kknn(formula, train, test)</text><text x="125" y="294" class="branch-label">nearest neighbors search without modelling</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">FNN::get.knn(x, k = 5)</text><text x="125" y="350" class="branch-label">find best k via grid search</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">train(method = &quot;knn&quot;, tuneGrid = data.frame(k = 1:15))</text></svg></div>
+
+<h2>What knn3() does in one sentence</h2>
+
+<p><strong><code>knn3()</code> is caret's formula-friendly k-nearest neighbors classifier.</strong> You hand it a formula and a data frame, pick a <code>k</code>, and it stores the training rows; calling <code>predict()</code> later finds the k closest training points to each new observation (by <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">Euclidean distance</a> on the predictors) and assigns the majority class.</p>
+
+<p>There is no model to "fit" in the parametric sense. <code>knn3()</code> simply packages the training data, the response, and <code>k</code> into an object that <code>predict()</code> knows how to query. The actual classification work happens at prediction time, which is why k-NN is called a lazy learner. The entire training set travels with the model; prediction cost scales linearly with the number of training rows.</p>
+
+<h2>knn3() syntax and arguments</h2>
+
+<p><strong>The signature has just three required pieces: predictors, an outcome, and a value of k.</strong> caret offers two equivalent entry points.</p>
+
+<div class="webr-container" data-block-title="Load caret and inspect iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and inspect iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(1)
+head(iris, 3)
+#&gt;   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+#&gt; 1          5.1         3.5          1.4         0.2  setosa
+#&gt; 2          4.9         3.0          1.4         0.2  setosa
+#&gt; 3          4.7         3.2          1.3         0.2  setosa</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The formula form mirrors <code>lm()</code>:</p>
+
+<pre><code>knn3(formula, data, subset, na.action, k = 5, ...)</code></pre>
+
+<p>The matrix form skips the formula expansion:</p>
+
+<pre><code>knn3(x, y, k = 5, ...)</code></pre>
+
+<ul>
+
+<li><code>formula</code>: a model formula like <code>Species ~ .</code> with a factor on the left.</li>
+
+<li><code>data</code>: a data frame holding the columns named in the formula.</li>
+
+<li><code>x</code>: a numeric matrix of predictors, one column per feature.</li>
+
+<li><code>y</code>: a factor vector of class labels, one entry per row of <code>x</code>.</li>
+
+<li><code>k</code>: the number of nearest neighbors used at prediction time. Default 5.</li>
+
+<li><code>na.action</code>: <code>na.action = na.omit</code> drops rows with <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> before fitting.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The x-y interface is faster on wide numeric data.</strong> The formula path builds a model matrix in memory and copies columns; passing <code>x</code> and <code>y</code> directly skips that work, which matters when you have hundreds of predictors or millions of rows.</div></div>
+
+<h2>knn3() examples by use case</h2>
+
+<h3>1. Fit a basic classifier on iris</h3>
+
+<p>The shortest call uses every column to predict <code>Species</code>. The fitted object prints its training size, <code>k</code>, and the class levels.</p>
+
+<div class="webr-container" data-block-title="Fit knn3 with default settings">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit knn3 with default settings</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+fit &lt;- knn3(Species ~ ., data = iris, k = 5)
+fit
+#&gt; 5-nearest neighbor classification model
+#&gt; Training set class distribution:
+#&gt;
+#&gt;     setosa versicolor  virginica
+#&gt;         50         50         50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The returned object is of class <code>knn3</code> and carries the training rows. Saving it to disk and loading it later is enough to score new data; there are no learned coefficients to ship.</p>
+
+<h3>2. Predict classes and probabilities</h3>
+
+<p><code>predict.knn3()</code> has two prediction types. <code>&quot;class&quot;</code> returns a factor; <code>&quot;prob&quot;</code> returns a numeric matrix with one column per class.</p>
+
+<div class="webr-container" data-block-title="Score the first three rows two ways">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score the first three rows two ways</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(fit, newdata = iris[c(1, 60, 130), ], type = &quot;class&quot;)
+#&gt; [1] setosa     versicolor virginica
+#&gt; Levels: setosa versicolor virginica
+
+predict(fit, newdata = iris[c(1, 60, 130), ], type = &quot;prob&quot;)
+#&gt;     setosa versicolor virginica
+#&gt; 1      1.0        0.0       0.0
+#&gt; 60     0.0        1.0       0.0
+#&gt; 130    0.0        0.2       0.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The probability is the fraction of the <code>k</code> neighbors that belong to each class. With <code>k = 5</code>, possible values are 0, 0.2, 0.4, 0.6, 0.8, 1.0. Tied votes default to alphabetical class order. Use these probabilities to set custom decision thresholds or compute area under the <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">ROC curve</a> via <code>pROC::roc()</code>.</p>
+
+<h3>3. Use the x, y interface for speed</h3>
+
+<p>When the predictors are already a numeric matrix and the response is a factor, skip the formula entirely.</p>
+
+<div class="webr-container" data-block-title="Fit knn3 via the x, y interface">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit knn3 via the x, y interface</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- as.matrix(iris[, 1:4])
+y &lt;- iris$Species
+
+set.seed(1)
+fit_mat &lt;- knn3(x = x, y = y, k = 5)
+predict(fit_mat, newdata = x[c(1, 60, 130), ], type = &quot;class&quot;)
+#&gt; [1] setosa     versicolor virginica
+#&gt; Levels: setosa versicolor virginica</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fit is identical to the formula version on the same columns; only the construction cost changes. For a dataset wider than a few hundred predictors, the matrix path is noticeably faster. It also makes it easy to drop in pre-standardized predictors: scale <code>x</code> once with <code>scale()</code> and pass the result.</p>
+
+<h3>4. Hold out a test set and check accuracy</h3>
+
+<p>k-NN scores on training data look unrealistically good because each row is its own nearest neighbor. Split the data first.</p>
+
+<div class="webr-container" data-block-title="Train on 70 percent and score on the rest">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Train on 70 percent and score on the rest</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+idx &lt;- createDataPartition(iris$Species, p = 0.7, list = FALSE)
+train_df &lt;- iris[idx, ]
+test_df  &lt;- iris[-idx, ]
+
+fit_split &lt;- knn3(Species ~ ., data = train_df, k = 5)
+pred &lt;- predict(fit_split, newdata = test_df, type = &quot;class&quot;)
+mean(pred == test_df$Species)
+#&gt; [1] 0.9555556</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 0.95 accuracy on held-out rows is an honest estimate. Re-running with <code>k = 1</code> inflates training accuracy to 1.0 but typically drops test accuracy because the model memorizes noise. Larger k values smooth the boundary at the cost of letting rare classes get outvoted.</p>
+
+<h3>5. Compare k values without resampling</h3>
+
+<p>A quick sweep over candidate k values, scored once on a held-out set, is enough to pick a reasonable neighborhood size for exploration.</p>
+
+<div class="webr-container" data-block-title="Score multiple k values on the same split">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score multiple k values on the same split</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ks &lt;- c(1, 3, 5, 7, 11, 15)
+acc &lt;- sapply(ks, function(k) {
+  fit_k &lt;- knn3(Species ~ ., data = train_df, k = k)
+  mean(predict(fit_k, test_df, type = &quot;class&quot;) == test_df$Species)
+})
+data.frame(k = ks, accuracy = acc)
+#&gt;    k  accuracy
+#&gt; 1  1 0.9333333
+#&gt; 2  3 0.9555556
+#&gt; 3  5 0.9555556
+#&gt; 4  7 0.9777778
+#&gt; 5 11 0.9777778
+#&gt; 6 15 0.9555556</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The sweet spot here is <code>k = 7</code> to <code>k = 11</code>. A single split is a noisy estimator; for a defensible choice, switch to repeated cross-validation through <code>train()</code> once the rough range is known.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Standardize predictors before any k-NN fit.</strong> Euclidean distance treats one unit of <code>Petal.Width</code> (a centimeter difference) the same as one unit of <code>Sepal.Length</code>. When features live on different scales, the larger-range variable silently dominates the distance. Run <code>scale()</code> or wrap <code>knn3</code> inside a <code>train()</code> call with <code>preProcess = c(&quot;center&quot;, &quot;scale&quot;)</code> to neutralize that bias.</div></div>
+
+<h2>knn3() vs knn() and caret train(method = "knn")</h2>
+
+<p><strong><code>knn3()</code> is the model object; <code>knn()</code> is a one-shot call; <code>train(method = &quot;knn&quot;)</code> is the resampled wrapper.</strong> All three compute the same neighbors and majority vote, but expose the result differently.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>Resampling built in</th>
+<th>Probability output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>knn3()</code> (caret)</td>
+<td>a <code>knn3</code> model object that supports <code>predict()</code></td>
+<td>No, use <code>train()</code> for that</td>
+<td>Yes, <code>predict(fit, type = &quot;prob&quot;)</code></td>
+</tr>
+<tr>
+<td><code>class::knn()</code></td>
+<td>a factor of predicted classes only</td>
+<td>No</td>
+<td>No, only votes</td>
+</tr>
+<tr>
+<td><code>train(method = &quot;knn&quot;)</code></td>
+<td>a <code>train</code> object with cross-validated metrics and a <code>bestTune</code> row</td>
+<td>Yes, via <code>trControl</code></td>
+<td>Yes, via <code>predict(fit, type = &quot;prob&quot;)</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Pick <code>knn3()</code> when you want a saved model to <code>predict()</code> on later. Pick <code>class::knn()</code> for one-line scripts. Pick <code>train(method = &quot;knn&quot;)</code> when you want caret to pick <code>k</code> via cross-validation. See the <a href="https://topepo.github.io/caret/">caret reference</a> for the full option list.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: passing a numeric outcome.</strong> <code>knn3()</code> is classification-only; for numeric outcomes use <code>knnreg()</code>. Check <code>class(df$y)</code> first.</p>
+
+<p><strong>Pitfall 2: forgetting to scale predictors.</strong> Variables on larger scales dominate the Euclidean distance. Standardize with <code>scale()</code> first, or use <code>preProcess = c(&quot;center&quot;, &quot;scale&quot;)</code> inside <code>train()</code>.</p>
+
+<p><strong>Pitfall 3: choosing k by training accuracy.</strong> k = 1 always achieves perfect training accuracy because each row is its closest neighbor. Score on a held-out partition, never on training rows.</p>
+
+<p><strong>Pitfall 4: imbalanced classes.</strong> Majority voting biases toward whichever class fills the neighborhood. Rebalance with <code>caret::upSample()</code>, or use distance-weighted <code>kknn::kknn()</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>predict()</code> on <code>knn3</code> does not accept a vector.</strong> Pass a data frame or matrix with the same column names and structure as the training data. A single new observation must be wrapped as a one-row data frame, not a numeric vector.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a knn3 classifier on iris with <code>k = 7</code>, predict the class of the first row of the training data, and check the predicted probabilities. Save the predictions to <code>ex_class</code> and <code>ex_prob</code>.</p>
+<div class="webr-container" data-block-title="Your turn: predict class and probability">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: predict class and probability</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: knn3 with k = 7
+ex_fit &lt;- knn3(Species ~ ., data = iris, k = 7)
+ex_class &lt;- # your code here
+ex_prob  &lt;- # your code here
+
+ex_class
+ex_prob
+#&gt; Expected: setosa and a probability row with 1.0 in the setosa column</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- knn3(Species ~ ., data = iris, k = 7)
+ex_class &lt;- predict(ex_fit, newdata = iris[1, ], type = &quot;class&quot;)
+ex_prob  &lt;- predict(ex_fit, newdata = iris[1, ], type = &quot;prob&quot;)
+
+ex_class
+#&gt; [1] setosa
+#&gt; Levels: setosa versicolor virginica
+ex_prob
+#&gt;   setosa versicolor virginica
+#&gt; 1      1          0         0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>type = &quot;class&quot;</code> returns the majority vote; <code>type = &quot;prob&quot;</code> returns the vote fractions. For the first iris row (a clear setosa), all 7 neighbors are setosa.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p>These complete a typical k-NN workflow:</p>
+
+<ul>
+
+<li><code>knnreg()</code>: regression counterpart for numeric outcomes</li>
+
+<li><code>train()</code> with <code>method = &quot;knn&quot;</code>: resampled, cross-validated k-NN</li>
+
+<li><code>createDataPartition()</code>: stratified train/test split before fitting</li>
+
+<li><code>confusionMatrix()</code>: per-class metrics for predictions</li>
+
+<li><code>preProcess()</code>: center, scale, or impute predictors before distances</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between knn3() and knn() in R?</strong></p>
+
+<p><code>class::knn()</code> is a one-shot base R function that takes training data, test data, and labels, and returns predictions in a single call. <code>knn3()</code> returns a model object you can save and reuse; call <code>predict()</code> on it later with new data. <code>knn3()</code> also exposes <code>type = &quot;prob&quot;</code> for class probabilities, which base <code>knn()</code> does not. Pick <code>knn3()</code> when you want to score multiple test sets without rebuilding the training structure.</p>
+
+<p><strong>How do I choose the best k for knn3?</strong></p>
+
+<p>Cross-validate over a grid of candidate values via <code>train(Species ~ ., method = &quot;knn&quot;, tuneGrid = data.frame(k = c(3, 5, 7, 9, 11)), trControl = trainControl(method = &quot;cv&quot;, number = 10))</code>. The <code>bestTune</code> slot stores the winning k. Start near the square root of the training-set size and search 5 values around it.</p>
+
+<p><strong>Does knn3() return probabilities?</strong></p>
+
+<p>Yes. Call <code>predict(fit, newdata = ..., type = &quot;prob&quot;)</code> to get a numeric matrix with one column per class. Each row sums to 1. The probability is the fraction of the <code>k</code> neighbors in that class, so with <code>k = 5</code> the possible values are 0, 0.2, 0.4, 0.6, 0.8, and 1.0.</p>
+
+<p><strong>Can knn3() handle missing values?</strong></p>
+
+<p>Not directly. By default it errors on <code>NA</code> rows. Either pre-impute with <code>caret::preProcess(..., method = &quot;knnImpute&quot;)</code> or drop incomplete rows with <code>na.action = na.omit</code>. Imputing is safer when missingness is not at random; dropping works for a quick exploratory fit on otherwise clean data.</p>
+
+<p><strong>Is knn3() suitable for large datasets?</strong></p>
+
+<p>Not really. k-NN computes distances from every test row to every training row at prediction time, so cost scales with <code>n_train * n_test * p</code>. For training sets above 100,000 rows, use approximate-neighbor packages like <code>FNN</code> or <code>RANN</code>, or switch to a parametric model. <code>knn3()</code> is best for teaching, prototyping, and moderate-sized tabular problems.</p>
