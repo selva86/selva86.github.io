@@ -1,0 +1,365 @@
+---
+title: "caret treebag in R: Bagging Decision Trees with train()"
+description: "Fit bagged decision trees in R with caret method treebag via train(): setup, tuning, cross-validation, variable importance, plus a full worked example."
+keywords: "caret treebag, treebag R, caret bagged trees, treebag method caret, bagged decision trees R, caret train treebag, treebag varImp"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "treebag|caret treebag|method = \"treebag\"|caret bagged trees|bagged decision trees|bagged trees in caret"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret treebag in R: Bagging Decision Trees with train()</h1>
+
+<p class="lead">The <code>caret treebag</code> method fits a bagged ensemble of unpruned decision trees by drawing many bootstrap samples, growing one <code>rpart</code> tree on each, and averaging the predictions. You invoke it through <code>train(method = "treebag")</code>, which delegates to <code>ipred::bagging()</code> and gives you cross-validation, <a class="auto-link" href="Variable-Selection-and-Importance-With-R.html" title="Feature Selection and Variable Importance">variable importance</a>, and a single tidy model object in return.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>train(mpg ~ ., data = mtcars, method = &quot;treebag&quot;)<span class="qa-cmt">              # regression</span>
+train(Species ~ ., data = iris, method = &quot;treebag&quot;)<span class="qa-cmt">            # classification</span>
+train(mpg ~ ., data = mtcars, method = &quot;treebag&quot;, nbagg = 50)<span class="qa-cmt">  # 50 trees</span>
+train(mpg ~ ., data = mtcars, method = &quot;treebag&quot;,<span class="qa-cmt">              # 10-fold CV</span>
+      trControl = trainControl(method = &quot;cv&quot;, number = 10))
+predict(fit, newdata = mtcars[1:5, ])<span class="qa-cmt">                          # bag-averaged</span>
+varImp(fit)<span class="qa-cmt">                                                    # importance</span>
+ipred::bagging(mpg ~ ., data = mtcars, nbagg = 25)<span class="qa-cmt">             # direct call</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is treebag the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">bagged trees with caret tuning + CV</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">train(method = &quot;treebag&quot;)</text><text x="125" y="126" class="branch-label">bagged trees without caret wrapper</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">ipred::bagging(mpg ~ ., data = mtcars)</text><text x="125" y="182" class="branch-label">random forest (bagging + feature sampling)</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">train(method = &quot;rf&quot;)</text><text x="125" y="238" class="branch-label">gradient boosted trees instead</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">train(method = &quot;gbm&quot;)</text><text x="125" y="294" class="branch-label">bagged MARS, not trees</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">train(method = &quot;bagEarth&quot;)</text><text x="125" y="350" class="branch-label">single decision tree (no bagging)</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">rpart::rpart(mpg ~ ., data = mtcars)</text></svg></div>
+
+<h2>What treebag does in one sentence</h2>
+
+<p><strong><code>treebag</code> is caret's name for bootstrap-aggregated CART trees.</strong> When you pass <code>method = &quot;treebag&quot;</code> to <code>train()</code>, caret bootstraps the training rows <code>nbagg</code> times, fits an unpruned <code>rpart</code> tree on each resample, and stores all trees inside one object. Calling <code>predict()</code> later averages the regression outputs or majority-votes the classification labels, cutting the high variance a single tree shows on noisy data.</p>
+
+<h2>treebag syntax and arguments</h2>
+
+<p><strong>There is no <code>treebag()</code> function; you call it through <code>train()</code>.</strong> caret routes <code>method = &quot;treebag&quot;</code> to <code>ipred::bagging()</code> under the hood and exposes the standard <code>train()</code> interface for tuning, resampling, and pre-processing.</p>
+
+<div class="webr-container" data-block-title="Load caret and inspect mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and inspect mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+library(ipred)
+
+set.seed(1)
+head(mtcars, 3)
+#&gt;                mpg cyl disp  hp drat    wt  qsec vs am gear carb
+#&gt; Mazda RX4     21.0   6  160 110 3.90 2.620 16.46  0  1    4    4
+#&gt; Mazda RX4 Wag 21.0   6  160 110 3.90 2.875 17.02  0  1    4    4
+#&gt; Datsun 710    22.8   4  108  93 3.85 2.320 16.46  1  1    4    1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Formula and matrix shapes both work:</p>
+
+<pre><code>train(formula, data, method = &quot;treebag&quot;, trControl, ...)
+train(x, y,        method = &quot;treebag&quot;, trControl, ...)</code></pre>
+
+<p>Arguments you actually tune:</p>
+
+<ul>
+
+<li><code>formula</code> or <code>x</code>, <code>y</code>: target on the left, predictors on the right; numeric outcome for regression, factor for classification.</li>
+
+<li><code>data</code>: data frame matching the formula.</li>
+
+<li><code>method = &quot;treebag&quot;</code>: tells caret to use bagged trees.</li>
+
+<li><code>trControl</code>: the resampling plan, built with <code>trainControl()</code>. Default is bootstrap with 25 reps.</li>
+
+<li><code>nbagg</code>: number of bootstrap trees. Forwarded to <code>ipred::bagging()</code>; default 25, push to 50 to 100 for noisy data.</li>
+
+<li><code>keepX</code>: keep the predictor matrices on the fitted object; set <code>FALSE</code> to shrink memory.</li>
+
+<li><code>...</code>: extra args forwarded to <code>ipred::bagging()</code> and then on to <code>rpart</code> (<code>control = rpart.control(...)</code>).</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>treebag</code> has zero tunable hyperparameters.</strong> <code>modelLookup(&quot;treebag&quot;)</code> returns one row with <code>parameter = &quot;parameter&quot;</code>, which is caret's signal that there is nothing to grid-search. Cross-validation still gives you an honest performance estimate; it just won't sweep a tuning grid.</div></div>
+
+<h2>treebag examples by use case</h2>
+
+<p><strong>Four worked examples cover the calls you will reach for most.</strong> Each one runs in a fresh session and prints the resampled performance summary.</p>
+
+<h3>1. Regression on mtcars</h3>
+
+<div class="webr-container" data-block-title="Bagged tree regression on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bagged tree regression on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2)
+fit_reg &lt;- train(mpg ~ ., data = mtcars, method = &quot;treebag&quot;)
+fit_reg
+#&gt; Bagged CART
+#&gt;
+#&gt; 32 samples
+#&gt; 10 predictors
+#&gt;
+#&gt; No pre-processing
+#&gt; Resampling: Bootstrapped (25 reps)
+#&gt; Summary of sample sizes: 32, 32, 32, ...
+#&gt; Resampling results:
+#&gt;
+#&gt;   RMSE      Rsquared   MAE
+#&gt;   2.612473  0.7949481  2.158139</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>2. Classification on iris</h3>
+
+<div class="webr-container" data-block-title="Bagged tree classification on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bagged tree classification on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(3)
+fit_cls &lt;- train(Species ~ ., data = iris, method = &quot;treebag&quot;)
+fit_cls
+#&gt; Bagged CART
+#&gt;
+#&gt; 150 samples
+#&gt;   4 predictor
+#&gt;   3 classes: 'setosa', 'versicolor', 'virginica'
+#&gt;
+#&gt; Resampling: Bootstrapped (25 reps)
+#&gt; Resampling results:
+#&gt;
+#&gt;   Accuracy   Kappa
+#&gt;   0.9526648  0.9286194</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. Tune the bag size with <code>nbagg</code></h3>
+
+<div class="webr-container" data-block-title="Push nbagg to 100 trees">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Push nbagg to 100 trees</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(4)
+fit_big &lt;- train(mpg ~ ., data = mtcars,
+                 method = &quot;treebag&quot;,
+                 nbagg = 100)
+fit_big$finalModel$mtrees |&gt; length()
+#&gt; [1] 100</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>4. Honest 10-fold cross-validation and variable importance</h3>
+
+<div class="webr-container" data-block-title="10-fold CV with variable importance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">10-fold CV with variable importance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(5)
+ctrl &lt;- trainControl(method = &quot;cv&quot;, number = 10)
+fit_cv &lt;- train(mpg ~ ., data = mtcars,
+                method = &quot;treebag&quot;,
+                trControl = ctrl)
+
+fit_cv$results
+#&gt;   parameter     RMSE  Rsquared      MAE   RMSESD RsquaredSD     MAESD
+#&gt; 1      none 2.541889 0.8362195 2.142107 0.961043  0.1614422 0.7717519
+
+varImp(fit_cv)
+#&gt; treebag variable importance
+#&gt;
+#&gt;      Overall
+#&gt; wt    100.00
+#&gt; disp   86.42
+#&gt; hp     71.55
+#&gt; cyl    52.18
+#&gt; drat   18.04
+#&gt; qsec    9.67</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Match <code>nbagg</code> to your noise level, not your data size.</strong> Clean small data plateaus around 25 trees; noisy or imbalanced data keeps improving up to 100 or 200. Beyond that the marginal RMSE drop is usually smaller than the cross-validation standard error.</div></div>
+
+<h2>treebag vs other ensembles</h2>
+
+<p><strong>Pick the ensemble whose bias-variance trade matches the signal.</strong> All four below sit in caret with the same <code>train()</code> call shape, so swapping is a one-line edit.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>What it does</th>
+<th>Tuning surface</th>
+<th>Best when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>treebag</code></td>
+<td>Bagged unpruned CART trees</td>
+<td>None (just <code>nbagg</code>)</td>
+<td>Quick variance reduction over a single tree</td>
+</tr>
+<tr>
+<td><code>rf</code></td>
+<td>Bagged trees plus random feature subsets</td>
+<td><code>mtry</code></td>
+<td>Many correlated predictors</td>
+</tr>
+<tr>
+<td><code>gbm</code></td>
+<td>Sequential boosted shallow trees</td>
+<td><code>n.trees</code>, <code>interaction.depth</code>, <code>shrinkage</code></td>
+<td>Maximum predictive power on tabular data</td>
+</tr>
+<tr>
+<td><code>bagEarth</code></td>
+<td>Bagged MARS (piecewise linear)</td>
+<td><code>degree</code>, <code>nprune</code></td>
+<td>Smooth nonlinearities, not step functions</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule is short: start with <code>treebag</code> to baseline what bagging buys over a single tree, then move to <code>rf</code> if you have many predictors and <code>gbm</code> if you have time to tune.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three traps catch most first-time users.</strong> Each one shows up as a confusing error or a quietly worse score.</p>
+
+<div class="webr-container" data-block-title="Pitfall: tuneGrid does not apply">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: tuneGrid does not apply</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(6)
+try(train(mpg ~ ., data = mtcars,
+          method = &quot;treebag&quot;,
+          tuneGrid = data.frame(nbagg = c(25, 50, 100))))
+#&gt; Error: The tuning parameter grid should have columns parameter</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>treebag</code> is a no-tuning-grid model, so caret rejects the <code>tuneGrid</code>. To compare bag sizes you fit several models and compare resampling distributions with <code>resamples()</code>.</p>
+
+<div class="webr-container" data-block-title="Pitfall: forgetting to set the seed">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: forgetting to set the seed</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(NULL)
+a &lt;- train(mpg ~ ., data = mtcars, method = &quot;treebag&quot;)$results$RMSE
+b &lt;- train(mpg ~ ., data = mtcars, method = &quot;treebag&quot;)$results$RMSE
+c(a, b)
+#&gt; [1] 2.71 2.83</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each call resamples 25 fresh bootstraps and grows different trees, so RMSE shifts run to run. Wrap every fit in <code>set.seed()</code> if you compare numbers in a report.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Bagged trees do not extrapolate.</strong> A tree splits within the observed range of each predictor; the bag averages those splits but never predicts outside training-data extremes. If your test set has predictors well past the training range, expect predictions to flatten out, not to track the trend.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Train a bagged-tree classifier on <code>iris</code> with 60 bootstrap trees and 10-fold cross-validation. Save the fitted model to <code>ex_treebag</code> and print its accuracy from <code>ex_treebag$results</code>.</p>
+<div class="webr-container" data-block-title="Your turn: treebag on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: treebag on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Train treebag on iris with nbagg = 60 and 10-fold CV
+ex_treebag &lt;- # your code here
+
+ex_treebag$results
+#&gt; Expected: one row, Accuracy near 0.95</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_treebag &lt;- train(Species ~ ., data = iris,
+                    method = &quot;treebag&quot;,
+                    nbagg = 60,
+                    trControl = trainControl(method = &quot;cv&quot;, number = 10))
+ex_treebag$results
+#&gt;   parameter  Accuracy     Kappa AccuracySD   KappaSD
+#&gt; 1      none 0.9533333 0.9300000 0.05488484 0.0823273</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>method = &quot;treebag&quot;</code> plus <code>nbagg = 60</code> grows 60 bagged trees per resample; <code>trainControl(method = &quot;cv&quot;, number = 10)</code> swaps the default bootstrap for 10-fold CV so you get an honest accuracy estimate.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<ul>
+
+<li><code>train()</code> is the entry point for every caret model, including <code>treebag</code>. See the <code>train</code> deep-dive.</li>
+
+<li><code>trainControl()</code> builds the resampling plan you pass to <code>train()</code>.</li>
+
+<li><code>varImp()</code> extracts importance scores from the fitted bag.</li>
+
+<li><code>bagEarth()</code> is the same bagging idea applied to MARS rather than CART trees.</li>
+
+<li><code>predict.train()</code> returns bag-averaged predictions on new data.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between treebag and randomForest in caret?</strong> Both bag trees, but <code>randomForest</code> additionally samples a random subset of predictors at each split, which decorrelates the trees and usually improves accuracy on data with many correlated features. <code>treebag</code> keeps the full predictor set at every split, so its trees look more alike and the variance reduction plateaus sooner. Use <code>treebag</code> as a quick baseline and switch to <code>method = &quot;rf&quot;</code> when you have many predictors.</p>
+
+<p><strong>Can I tune the number of trees in treebag with tuneGrid?</strong> No. <code>modelLookup(&quot;treebag&quot;)</code> shows zero tunable hyperparameters, so caret blocks <code>tuneGrid</code> calls. To compare bag sizes, fit several models with different <code>nbagg</code> values, collect them with <code>caret::resamples()</code>, and compare the resampling distributions. The cost of growing more trees is linear, and most datasets stop improving past 100.</p>
+
+<p><strong>Does treebag handle <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> automatically?</strong> The underlying <code>rpart</code> trees can split on surrogate variables when a row has missing predictors, so a single tree tolerates <code>NA</code>s. <code>ipred::bagging()</code> passes data through unchanged, so the same surrogate behavior applies inside <code>treebag</code>. You still need to handle missing values in the outcome before calling <code>train()</code>, since caret drops those rows by default.</p>
+
+<p><strong>How do I extract feature importance from a treebag model?</strong> Call <code>varImp(fit)</code> on the fitted <code>train</code> object. caret averages the importance score across the bag of trees, where each tree contributes the sum of goodness-of-split improvements for every variable it used. The output is a data frame ranked 0 to 100, with the strongest predictor pinned at 100. Plot with <code>plot(varImp(fit))</code> for a quick bar chart.</p>
+
+<p><strong>Is treebag suitable for very large datasets?</strong> It depends on memory rather than runtime. Each bootstrap fits a full unpruned tree, so the in-memory size grows roughly linearly with <code>nbagg</code> and with the number of predictors. For tens of thousands of rows on a laptop, 25 to 50 trees is usually safe; beyond that, consider <code>ranger</code> (a faster random forest) or <code>xgboost</code> through caret, both of which scale better and tune more aggressively.</p>
