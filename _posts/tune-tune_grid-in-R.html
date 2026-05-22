@@ -1,0 +1,439 @@
+---
+title: "tune tune_grid() in R: Hyperparameter Search on Resamples"
+description: "Use tune tune_grid() in R to search hyperparameters across resamples. See syntax, grid types, metrics, parallel control, finalize_workflow, and common pitfalls."
+keywords: "tune tune_grid, tune_grid function R, tune tune_grid examples, R hyperparameter tuning tidymodels, tune_grid tidymodels, tune_grid workflow R, grid search R tidymodels"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "tune_grid()|tune tune_grid|tune::tune_grid()|grid search tuning|hyperparameter tuning grid"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>tune tune_grid() in R: Hyperparameter Search on Resamples</h1>
+
+<p class="lead">The tune tune_grid() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> fits a tidymodels workflow at every point of a hyperparameter grid against a resample set, returning a tibble of per-resample metrics you can rank with show_best() and feed into finalize_workflow().</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>tune_grid(wf, resamples = folds)<span class="qa-cmt">                       # default 10-point Latin hypercube</span>
+tune_grid(wf, resamples = folds, grid = 20)<span class="qa-cmt">            # 20-point space-filling grid</span>
+tune_grid(wf, resamples = folds, grid = my_grid)<span class="qa-cmt">       # user grid as a tibble</span>
+tune_grid(wf, resamples = folds, metrics = mset)<span class="qa-cmt">       # custom metric set</span>
+tune_grid(wf, resamples = folds, control = ctrl)<span class="qa-cmt">       # save predictions, parallel</span>
+tune_grid(model_spec, recipe, resamples = folds)<span class="qa-cmt">       # spec + recipe shortcut</span>
+tune_grid(wf, resamples = folds, param_info = params)<span class="qa-cmt">  # custom parameter ranges</span>
+tune_grid(wf, resamples = folds, eval_time = c(5, 10))<span class="qa-cmt"> # survival metrics at times</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is tune_grid() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">search a fixed grid of hyperparameters</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">tune_grid(wf, resamples = folds, grid = g)</text><text x="125" y="126" class="branch-label">search by Bayesian <a class="auto-link" href="Optimization-With-R.html" title="Optimization with R">optimization</a></text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">tune_bayes(wf, resamples = folds, iter = 25)</text><text x="125" y="182" class="branch-label">one-shot fit with no tuning</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">fit_resamples(wf, resamples = folds)</text><text x="125" y="238" class="branch-label">early-stop racing instead of full grid</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">finetune::tune_race_anova(wf, resamples = folds)</text><text x="125" y="294" class="branch-label">simulated annealing search</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">finetune::tune_sim_anneal(wf, resamples = folds)</text><text x="125" y="350" class="branch-label">final fit on the full train + test</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">last_fit(final_wf, split)</text><text x="125" y="406" class="branch-label">inspect tuning ranges only</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">extract_parameter_set_dials(wf)</text></svg></div>
+
+<h2>What tune_grid() does in one sentence</h2>
+
+<p><strong>tune_grid() fits a workflow once per candidate per resample.</strong> You hand it a workflow that contains at least one parameter marked with <code>tune()</code>, a resample object such as a <a class="auto-link" href="rsample-vfold_cv-in-R.html" title="rsample vfold_cv() in R: V-Fold Cross-Validation Splits">v-fold cross-validation</a> set, and either a grid size or a tibble of candidate values. The function loops every candidate across every fold, scores each fit with the chosen metric set, and returns a <code>tune_results</code> object that downstream helpers like <code>collect_metrics()</code>, <code>show_best()</code>, and <code>select_best()</code> know how to read.</p>
+
+<p>This is the workhorse of tidymodels hyperparameter search. It is deterministic given a seed, parallel-friendly, and decoupled from any specific model engine, so the same call shape works for elastic net, xgboost, random forest, kknn, or any spec that exposes tunable arguments.</p>
+
+<h2>Set up a tunable workflow</h2>
+
+<p><strong>You need three pieces before calling tune_grid().</strong> A model spec with <code>tune()</code> placeholders, a <a class="auto-link" href="recipes-recipe-in-R.html" title="recipes recipe() in R: Build a Preprocessing Blueprint">preprocessing recipe</a> or formula, and a resample object that splits the training data.</p>
+
+<div class="webr-container" data-block-title="Load tidymodels and prepare data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load tidymodels and prepare data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+data(ames, package = &quot;modeldata&quot;)
+ames &lt;- ames |&gt; mutate(Sale_Price = log10(Sale_Price))
+
+set.seed(42)
+split  &lt;- initial_split(ames, prop = 0.8, strata = Sale_Price)
+train  &lt;- training(split)
+folds  &lt;- vfold_cv(train, v = 5, strata = Sale_Price)
+folds
+#&gt; #  5-fold cross-validation using stratification
+#&gt; # A tibble: 5 x 2
+#&gt;   splits             id
+#&gt;   &lt;list&gt;             &lt;chr&gt;
+#&gt; 1 &lt;split [1873/469]&gt; Fold1
+#&gt; 2 &lt;split [1873/469]&gt; Fold2
+#&gt; 3 &lt;split [1873/469]&gt; Fold3
+#&gt; 4 &lt;split [1874/468]&gt; Fold4
+#&gt; 5 &lt;split [1874/469]&gt; Fold5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The recipe below scales numeric predictors and dummies the factors, which lets the same workflow drive a <a class="auto-link" href="Ridge-and-Lasso-Regression-in-R.html" title="Ridge and Lasso in R: How Penalised Regression Shrinks Coefficients and Selects Variables">regularized regression</a>. Two arguments, <code>penalty</code> and <code>mixture</code>, are flagged with <code>tune()</code> so tune_grid() knows which knobs to vary.</p>
+
+<div class="webr-container" data-block-title="Recipe, model, workflow with tune placeholders">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recipe, model, workflow with tune placeholders</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec &lt;- recipe(Sale_Price ~ Gr_Liv_Area + Year_Built + Bldg_Type + Neighborhood,
+              data = train) |&gt;
+  step_dummy(all_nominal_predictors()) |&gt;
+  step_normalize(all_numeric_predictors())
+
+glmnet_spec &lt;- linear_reg(penalty = tune(), mixture = tune()) |&gt;
+  set_engine(&quot;glmnet&quot;)
+
+wf &lt;- workflow() |&gt;
+  add_recipe(rec) |&gt;
+  add_model(glmnet_spec)
+wf
+#&gt; == Workflow ==================================================
+#&gt; Preprocessor: Recipe
+#&gt; Model: linear_reg()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>tune_grid() syntax and arguments</h2>
+
+<p><strong>The signature is small but the defaults matter.</strong></p>
+
+<div class="webr-container" data-block-title="tune_grid generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">tune_grid generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tune_grid(
+  object,                # workflow or model spec
+  preprocessor,          # recipe or formula (when object is a spec)
+  resamples,             # rset from rsample (vfold_cv, bootstraps, ...)
+  ...,
+  param_info = NULL,     # parameters() object with custom ranges
+  grid = 10,             # int (space-filling) or tibble of candidates
+  metrics  = NULL,       # metric_set() or NULL for defaults
+  eval_time = NULL,      # numeric vector for survival models
+  control  = control_grid()
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>object</code></td>
+<td>A workflow or a model spec. If a spec, pass <code>preprocessor</code> next.</td>
+</tr>
+<tr>
+<td><code>resamples</code></td>
+<td>An rset such as <code>vfold_cv()</code>, <code>bootstraps()</code>, or <code>validation_split()</code>.</td>
+</tr>
+<tr>
+<td><code>grid</code></td>
+<td>Integer = space-filling Latin hypercube of that size; tibble = explicit candidates.</td>
+</tr>
+<tr>
+<td><code>metrics</code></td>
+<td>A <code>metric_set()</code>; defaults are RMSE+R-squared (regression) or accuracy+ROC <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">AUC</a> (classification).</td>
+</tr>
+<tr>
+<td><code>param_info</code></td>
+<td>A <code>parameters()</code> object when defaults need updating, e.g. <code>penalty(range = c(-4, 0))</code>.</td>
+</tr>
+<tr>
+<td><code>control</code></td>
+<td>Returns of <code>control_grid()</code>. Toggles <code>save_pred</code>, <code>save_workflow</code>, <code>verbose</code>, parallel options.</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Grid is a smart argument.</strong> A scalar <code>grid = 25</code> builds a 25-row space-filling design from the parameter set. A tibble lets you script <code>grid_regular()</code>, <code>grid_random()</code>, or a hand-crafted set of candidates.</div></div>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Pass an integer first, then move to explicit grids as you learn the model.</strong> Two-knob regularized regression is the cleanest demo.</p>
+
+<div class="webr-container" data-block-title="Run tune_grid with a space-filling design">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run tune_grid with a space-filling design</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(123)
+res &lt;- tune_grid(
+  wf,
+  resamples = folds,
+  grid      = 15,
+  metrics   = metric_set(rmse, rsq, mae),
+  control   = control_grid(save_pred = TRUE, verbose = FALSE)
+)
+res
+#&gt; # Tuning results
+#&gt; # 5-fold cross-validation using stratification
+#&gt; # A tibble: 5 x 5
+#&gt;   splits             id    .metrics          .notes           .predictions
+#&gt;   &lt;list&gt;             &lt;chr&gt; &lt;list&gt;            &lt;list&gt;           &lt;list&gt;
+#&gt; 1 &lt;split [1873/469]&gt; Fold1 &lt;tibble [45 x 6]&gt; &lt;tibble [0 x 3]&gt; &lt;tibble [...]&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Once results are back, <code>collect_metrics()</code> averages across folds and <code>show_best()</code> ranks candidates by the chosen metric.</p>
+
+<div class="webr-container" data-block-title="Collect metrics and rank candidates">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Collect metrics and rank candidates</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">collect_metrics(res) |&gt;
+  filter(.metric == &quot;rmse&quot;) |&gt;
+  arrange(mean) |&gt;
+  head(3)
+#&gt; # A tibble: 3 x 8
+#&gt;   penalty mixture .metric .estimator   mean     n std_err .config
+#&gt;     &lt;dbl&gt;   &lt;dbl&gt; &lt;chr&gt;   &lt;chr&gt;       &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 0.00342   0.812 rmse    standard   0.0712     5 0.00121 Preprocessor1_Model02
+#&gt; 2 0.00518   0.347 rmse    standard   0.0719     5 0.00118 Preprocessor1_Model09
+#&gt; 3 0.0214    0.611 rmse    standard   0.0731     5 0.00134 Preprocessor1_Model13
+
+show_best(res, metric = &quot;rmse&quot;, n = 3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For a regular grid, build it explicitly so reviewers can see what was tried.</p>
+
+<div class="webr-container" data-block-title="Regular grid over named parameters">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Regular grid over named parameters</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">reg_grid &lt;- grid_regular(
+  penalty(range = c(-4, 0)),    # log10 scale: 1e-4 to 1
+  mixture(range = c(0, 1)),
+  levels = c(penalty = 5, mixture = 4)
+)
+nrow(reg_grid)
+#&gt; [1] 20
+
+res_reg &lt;- tune_grid(wf, resamples = folds, grid = reg_grid,
+                     metrics = metric_set(rmse))
+select_best(res_reg, metric = &quot;rmse&quot;)
+#&gt; # A tibble: 1 x 3
+#&gt;   penalty mixture .config
+#&gt;     &lt;dbl&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 0.00316   0.667 Preprocessor1_Model09</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Finalize the workflow with the winning row and fit on the full <a class="auto-link" href="rsample-training-in-R.html" title="rsample training() in R: Get the Training Set From a Split">training set</a>.</p>
+
+<div class="webr-container" data-block-title="Finalize workflow and last_fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Finalize workflow and last_fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">best &lt;- select_best(res_reg, metric = &quot;rmse&quot;)
+final_wf &lt;- finalize_workflow(wf, best)
+
+final_fit &lt;- last_fit(final_wf, split)
+collect_metrics(final_fit)
+#&gt; # A tibble: 2 x 4
+#&gt;   .metric .estimator .estimate .config
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 rmse    standard      0.0709 Preprocessor1_Model1
+#&gt; 2 rsq     standard      0.819  Preprocessor1_Model1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>tune_grid() versus tune_bayes() and fit_resamples()</h2>
+
+<p><strong>Pick by search style, not by sophistication.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>When to reach for it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tune_grid()</code></td>
+<td>A fixed candidate set: regular grid, Latin hypercube, or scripted tibble. Easiest to reason about, parallelizes perfectly.</td>
+</tr>
+<tr>
+<td><code>tune_bayes()</code></td>
+<td>Continuous parameters with expensive fits. Uses a Gaussian process surrogate to propose new candidates iteratively.</td>
+</tr>
+<tr>
+<td><code>fit_resamples()</code></td>
+<td>No tuning at all; just resample a fixed workflow to score it. Same return type as tune_grid(), so downstream code is identical.</td>
+</tr>
+<tr>
+<td><code>finetune::tune_race_anova()</code></td>
+<td>A grid run that drops losing candidates after a few folds. Useful when one fold takes minutes.</td>
+</tr>
+</tbody>
+</table>
+
+<p>The fastest workflow is usually: prototype with <code>tune_grid(grid = 10)</code>, then either refine the ranges and rerun, or switch to <code>tune_bayes()</code> once you trust the search space.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three errors account for most failed runs.</strong></p>
+
+<ol>
+
+<li><strong>No tune() placeholder.</strong> Calling tune_grid() on a workflow with no tunable arguments throws <code>! No tuning parameters have been detected</code>. Fix by adding <code>tune()</code> to at least one model argument.</li>
+
+<li><strong>Grid columns do not match parameter ids.</strong> A custom grid must use the names returned by <code>extract_parameter_set_dials(wf)</code>. If your spec uses <code>tune(&quot;lambda&quot;)</code>, the grid column has to be <code>lambda</code>, not <code>penalty</code>.</li>
+
+<li><strong>Metric direction confusion.</strong> <code>show_best()</code> sorts by the metric's default direction (lower for RMSE, higher for ROC AUC). Pass the metric name explicitly so the ranking matches what you intend.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Notes are not errors.</strong> <code>tune_results</code> carry per-resample notes. Always inspect <code>collect_notes(res)</code> after a run; engine warnings such as glmnet convergence messages live there and never raise.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Tune a kknn classifier on the iris data over a 5-point grid of <code>neighbors</code>. Use 5-fold cross-validation, score by accuracy, and identify the best k.</p>
+<div class="webr-container" data-block-title="Your turn: tune neighbors on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tune neighbors on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: tune neighbors on iris with kknn
+library(tidymodels)
+
+set.seed(7)
+ex_folds &lt;- vfold_cv(iris, v = 5, strata = Species)
+
+ex_spec &lt;- nearest_neighbor(neighbors = tune()) |&gt;
+  set_engine(&quot;kknn&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+ex_wf &lt;- workflow() |&gt;
+  add_formula(Species ~ .) |&gt;
+  add_model(ex_spec)
+
+ex_grid &lt;- # your code here
+
+ex_res &lt;- # your code here
+
+show_best(ex_res, metric = &quot;accuracy&quot;, n = 3)
+#&gt; Expected: a tibble of the top 3 k values ranked by mean accuracy</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_grid &lt;- tibble(neighbors = c(3, 5, 7, 9, 11))
+
+ex_res &lt;- tune_grid(
+  ex_wf,
+  resamples = ex_folds,
+  grid      = ex_grid,
+  metrics   = metric_set(accuracy)
+)
+
+show_best(ex_res, metric = &quot;accuracy&quot;, n = 3)
+#&gt; # A tibble: 3 x 7
+#&gt;   neighbors .metric  .estimator  mean     n std_err .config
+#&gt;       &lt;dbl&gt; &lt;chr&gt;    &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1         7 accuracy multiclass 0.967     5  0.0211 Preprocessor1_Model3
+#&gt; 2         9 accuracy multiclass 0.960     5  0.0249 Preprocessor1_Model4
+#&gt; 3         5 accuracy multiclass 0.953     5  0.0211 Preprocessor1_Model2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A scripted tibble with column name <code>neighbors</code> matches the <code>tune()</code> placeholder, so tune_grid() knows where each candidate goes. Five folds plus five candidates produce 25 fits, and show_best() ranks them by mean accuracy.</p>
+
+</details>
+</section>
+
+<h2>Related tidymodels functions</h2>
+
+<p><strong>Most tune_grid() calls live inside a short chain of helpers.</strong></p>
+
+<ul>
+
+<li><code>tune_bayes()</code> for surrogate-driven search when fits are expensive.</li>
+
+<li><code>fit_resamples()</code> to score a workflow that has no tunable arguments.</li>
+
+<li><code>last_fit()</code> to refit the finalized workflow on the full train and score the <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a>.</li>
+
+<li><code>finalize_workflow()</code> and <code>select_best()</code> to lock in the winning hyperparameters.</li>
+
+<li><code>grid_regular()</code>, <code>grid_random()</code>, <code>grid_space_filling()</code> for candidate construction.</li>
+
+<li><code>control_grid()</code> to toggle prediction saving, parallel backends, and progress output.</li>
+
+</ul>
+
+<p>External reference: the official tune package documentation at <a href="https://tune.tidymodels.org/reference/tune_grid.html">tune.tidymodels.org</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I make tune_grid() run in parallel?</strong></p>
+
+<p>Register a parallel backend before the call. With the <code>doFuture</code> package, <code>library(doFuture); plan(multisession, workers = 4)</code> is enough. Inside <code>control_grid()</code>, leave <code>parallel_over = &quot;resamples&quot;</code> for most workflows; switch to <code>&quot;everything&quot;</code> only when both folds and candidates are large. tune_grid() detects the backend automatically and prints <code>i Creating pre-processing data to finalize unknown parameter ranges</code> once before workers start.</p>
+
+<p><strong>What is the difference between grid as an integer and grid as a tibble?</strong></p>
+
+<p>An integer triggers <code>grid_space_filling()</code> (Latin hypercube on the parameter set), so coverage is good with few points. A tibble lets you control exactly which combinations get scored, which matters when you want a regular grid for plots or when only a few discrete settings are valid. Use an integer to prototype, a tibble once you know what to vary.</p>
+
+<p><strong>Why does select_best() pick a different model than show_best()?</strong></p>
+
+<p>It does not, but tie-breaking can look that way. <code>show_best()</code> sorts by the mean metric, ascending or descending by metric direction. <code>select_best()</code> returns the single top row by that same rule. When two candidates have nearly identical means, std_err and config name decide ordering, so always include <code>metric = &quot;...&quot;</code> explicitly to avoid surprises.</p>
+
+<p><strong>Can I tune a recipe step and a model argument at the same time?</strong></p>
+
+<p>Yes. Mark a recipe step argument with <code>tune()</code> (for example, <code>step_pca(num_comp = tune())</code>) and any model argument with <code>tune()</code> as usual. <code>extract_parameter_set_dials(wf)</code> shows the combined set, and <code>param_info</code> lets you update the recipe-side range. The grid then has columns for both, scored jointly per candidate.</p>
+
+<p><strong>How do I save predictions from every candidate?</strong></p>
+
+<p>Set <code>control = control_grid(save_pred = TRUE)</code>. The resulting <code>tune_results</code> object carries a <code>.predictions</code> list column; <code>collect_predictions(res)</code> flattens it into one tidy tibble with <code>.row</code>, <code>.pred</code>, truth, and the candidate identifier. Useful for residual diagnostics, calibration plots, and stacking via the stacks package.</p>
+
+{% endraw %}
