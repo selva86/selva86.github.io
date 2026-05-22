@@ -1,0 +1,336 @@
+---
+title: "glue trim() in R: Strip Indentation From Multiline Strings"
+description: "Use glue trim() in R to strip common leading indentation and empty edge lines from multiline strings. Five examples, comparison with trimws, three pitfalls."
+keywords: "glue trim, trim function R, glue trim examples, R strip indentation multiline, glue trim vs trimws, glue::trim, glue trim heredoc"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "glue::trim()|glue trim|glue trim function|strip indentation in glue|trim multiline string"
+auto_link_case_sensitive: true
+fr_parent: "stringr-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>glue trim() in R: Strip Indentation From Multiline Strings</h1>
+
+<p class="lead">glue trim() takes a multiline string and removes the leading whitespace shared across every line, plus any empty first or last line. It is the helper that lets you write heredoc-style templates in R source code without the indentation leaking into the rendered output.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>trim(&quot;\n  hello\n  world\n&quot;)<span class="qa-cmt">                # strip common indent</span>
+trim(glue(&quot;\n  a is {a}\n  b is {b}\n&quot;))<span class="qa-cmt">    # post-process a glue() result</span>
+glue::trim(string_var)<span class="qa-cmt">                       # explicit namespace call</span>
+glue(&quot;\n  multi\n  line\n&quot;, .trim = TRUE)<span class="qa-cmt">   # glue's built-in equivalent</span>
+trim(&quot;\nfoo\n  bar\n  baz\n&quot;)<span class="qa-cmt">                # drops empty first/last line</span>
+trim(readLines(&quot;template.txt&quot;))<span class="qa-cmt">              # multi-element vector input</span>
+as.character(trim(x))<span class="qa-cmt">                        # cast back to plain character</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is trim() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">clean up a heredoc-style multiline string</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">trim(x)</text><text x="125" y="126" class="branch-label">trim per-element whitespace from a vector</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">trimws(x)</text><text x="125" y="182" class="branch-label">strip leading or trailing whitespace from one string</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code"><a class="auto-link" href="stringr-in-R.html" title="stringr in R: 15 Functions That Handle Every String Task You'll Actually Encounter">stringr</a>::str_trim(x)</text><text x="125" y="238" class="branch-label">interpolate variables AND trim in one step</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">glue(&quot;...&quot;, .trim = TRUE)</text><text x="125" y="294" class="branch-label">remove all internal whitespace</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">gsub(&quot;\\s+&quot;, &quot;&quot;, x)</text><text x="125" y="350" class="branch-label">strip only a fixed number of leading spaces</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">sub(&quot;^ {4}&quot;, &quot;&quot;, x)</text></svg></div>
+
+<h2>What trim() does in one sentence</h2>
+
+<p><strong>trim() removes shared leading indentation and empty edge lines from a string so a multiline template in source code renders flush-left.</strong> You pass in a string that may have leading newlines, common indentation, or a trailing newline; you get back the same string with all three stripped.</p>
+
+<p>This is not whitespace squeezing. trim() does not touch spaces inside a line, only the indentation common to every non-empty line and any empty first or last line. The result is what a reader would expect from a Python triple-quoted dedent or a shell heredoc.</p>
+
+<div class="webr-container" data-block-title="Load glue and trim an indented string">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load glue and trim an indented string</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(glue)
+
+raw &lt;- &quot;
+  Hello
+  world
+&quot;
+trim(raw)
+#&gt; Hello
+#&gt; world</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two leading spaces shared by both lines disappear, the empty first and last lines disappear, and what remains is two flush-left lines.</p>
+
+<h2>Syntax</h2>
+
+<p><strong>trim(x) takes one character vector and returns its trimmed form as a glue object.</strong> There is only one argument and no separator, width, or last-line option. The function is pure string surgery on whatever you pass it.</p>
+
+<div class="webr-container" data-block-title="Function signature and behaviour">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Function signature and behaviour</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># trim(x)
+#
+# x : a character vector. Usually a single string with embedded
+#     newlines, though a multi-element vector works too (each
+#     element is treated as its own string and trimmed independently).</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The return value is a <code>glue</code> object, which prints without quotes and behaves like a character vector in most contexts. If you need a plain character vector for downstream code that type-checks strictly, wrap the call in <code>as.character()</code>.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for <code>.trim = TRUE</code> first.</strong> <a class="auto-link" href="glue-glue-in-R.html" title="glue glue() in R: Interpolate Variables Into Strings">glue()</a> already calls trim() on its result when you set <code>.trim = TRUE</code>, which is the default. Use the standalone trim() only when the input did not come from glue(), like a literal heredoc, a sprintf() result, or a chunk read from disk.</div></div>
+
+<h2>Common use cases</h2>
+
+<h3>1. Clean up an indented multiline literal</h3>
+
+<div class="webr-container" data-block-title="Strip indentation from a literal heredoc">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Strip indentation from a literal heredoc</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sql &lt;- &quot;
+  SELECT id, name
+  FROM users
+  WHERE active = 1
+&quot;
+trim(sql)
+#&gt; SELECT id, name
+#&gt; FROM users
+#&gt; WHERE active = 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the canonical pattern: write SQL or YAML or prose inline with comfortable indentation, then trim() before sending it anywhere. The two-space indent that made the source readable disappears from the output.</p>
+
+<h3>2. Trim the result of a non-glue function</h3>
+
+<div class="webr-container" data-block-title="Trim a string returned by sprintf">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Trim a string returned by sprintf</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">report &lt;- sprintf(&quot;
+  Total: %d
+  Mean:  %.2f
+&quot;, 42L, 3.14)
+trim(report)
+#&gt; Total: 42
+#&gt; Mean:  3.14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>sprintf() does not have a <code>.trim</code> option, so the leading newline and shared indent survive. trim() rescues the output and produces a clean two-line report ready for cat() or writeLines().</p>
+
+<h3>3. Compose a multi-step pipeline with the pipe</h3>
+
+<div class="webr-container" data-block-title="Pipe into trim after glue">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pipe into trim after glue</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">name &lt;- &quot;Selva&quot;
+count &lt;- 7
+msg &lt;- glue(&quot;
+  Hi {name},
+  You have {count} messages.
+&quot;, .trim = FALSE) |&gt; trim()
+msg
+#&gt; Hi Selva,
+#&gt; You have 7 messages.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here we deliberately turn off glue's internal trim with <code>.trim = FALSE</code>, then re-apply it via the <a class="auto-link" href="R-Pipe-Operator.html" title="The Pipe Operator in R: %>% vs |> — Master the Most Important Concept">native pipe</a>. The end result is the same as <code>.trim = TRUE</code>, but the two-step form is clearer when the post-glue side also does other string transforms.</p>
+
+<h3>4. Build a template once, trim everywhere</h3>
+
+<div class="webr-container" data-block-title="Trim a stored template before reuse">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Trim a stored template before reuse</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tpl &lt;- &quot;
+  | row | value |
+  |-----|-------|
+  | 1   | a     |
+  | 2   | b     |
+&quot;
+cat(trim(tpl))
+#&gt; | row | value |
+#&gt; |-----|-------|
+#&gt; | 1   | a     |
+#&gt; | 2   | b     |</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Storing the template in a variable separates the layout from the rendering. trim() runs at the point of use, so the same template can be passed to cat(), writeLines(), or knitr without each call having to re-handle the leading indent.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Indentation must be uniform.</strong> trim() strips only the indentation common to every non-empty line. If one line has two spaces of indent and another has four, trim() removes the two-space prefix and leaves the extra spaces on the second line intact.</div></div>
+
+<h2>trim() vs trimws() and str_trim()</h2>
+
+<p><strong>The three trim functions cover three different jobs, and mixing them up is the most common mistake.</strong> trim() handles indentation across a whole multiline block. trimws() handles leading and trailing whitespace per element. str_trim() is the stringr equivalent of trimws() with the same per-element semantics.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Package</th>
+<th>Scope</th>
+<th>Removes shared indent?</th>
+<th>Removes empty edge lines?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>glue::trim(x)</code></td>
+<td>glue</td>
+<td>The whole multiline block</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>trimws(x)</code></td>
+<td>base</td>
+<td>Each element of x</td>
+<td>No</td>
+<td>Only if no other content</td>
+</tr>
+<tr>
+<td><code>stringr::str_trim(x)</code></td>
+<td>stringr</td>
+<td>Each element of x</td>
+<td>No</td>
+<td>Only if no other content</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule: use trim() when the input is one string with embedded newlines and you want flush-left output. Use trimws() or str_trim() when the input is a character vector and you want each element cleaned independently.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>trim() thinks in blocks, trimws() thinks in rows.</strong> Picture the input as a rectangle of text. trim() shaves the empty top and bottom rows and the shared left margin off the whole rectangle. trimws() processes each row in isolation and never looks at the others. Pick the function that matches the shape of your problem.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<ol>
+
+<li><strong>Calling trim() on a vector of independent words.</strong> trim() treats each vector element as its own string and looks for embedded newlines. If you pass <code>c(&quot; a&quot;, &quot; b &quot;, &quot; c&quot;)</code>, you get the same vector back with no per-element trimming, because no element has a leading newline or common indentation across lines. For that, use trimws().</li>
+
+</ol>
+
+<ol>
+
+<li><strong>Forgetting glue() already trims.</strong> glue() runs trim() internally when <code>.trim = TRUE</code>, which is the default. Calling trim() on the result of a default glue() is harmless but redundant. Only reach for the standalone helper when the input did not pass through glue() with default options.</li>
+
+</ol>
+
+<ol>
+
+<li><strong>Mixing tabs and spaces.</strong> trim() compares prefixes literally. A line indented with one tab and a sibling indented with four spaces share no common prefix, so trim() leaves both alone. Normalise the indentation in your editor (or run a regex) before relying on trim() to clean things up.</li>
+
+</ol>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use trim() to clean up the indented <code>ex_letter</code> template below. Save the result to <code>ex_clean</code> and confirm it has two lines starting flush-left.</p>
+<div class="webr-container" data-block-title="Your turn: trim an indented multiline string">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: trim an indented multiline string</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: strip the shared indent
+ex_letter &lt;- &quot;
+  Dear reader,
+  Thanks for reading.
+&quot;
+ex_clean &lt;- # your code here
+
+ex_clean
+#&gt; Expected: Dear reader,
+#&gt;           Thanks for reading.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_clean &lt;- trim(ex_letter)
+ex_clean
+#&gt; Dear reader,
+#&gt; Thanks for reading.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> trim() drops the empty first and last lines and strips the two-space leading indent shared by both content lines. The result is two flush-left lines ready for cat() or any downstream consumer.</p>
+
+</details>
+</section>
+
+<h2>Related glue functions</h2>
+
+<ul>
+
+<li><code>glue()</code> interpolates <code>{expressions}</code> into a template, and it calls trim() internally by default; reach for it first whenever the input has variables to substitute.</li>
+
+<li><code>glue_data()</code> is the data-frame counterpart of glue() and inherits the same <code>.trim</code> argument for per-row templates.</li>
+
+<li><code>glue_collapse()</code> joins a character vector into one string; combine it with trim() when the joined result has surrounding whitespace.</li>
+
+<li><code>glue_sql()</code> and <code>glue_safe()</code> are specialised interpolators that also accept <code>.trim</code> for safe quoting and signature-checked substitution.</li>
+
+<li>See the <a href="https://glue.tidyverse.org/reference/trim.html">glue::trim reference</a> for the source and edge-case behaviour.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between glue trim() and base R trimws()?</strong></p>
+
+<p>trim() operates on the whole string as one multiline block: it strips the indentation shared across every line and drops empty first or last lines. trimws() operates per element of a character vector and strips leading and trailing whitespace from each element independently. Use trim() for cleaning heredoc-style templates and use trimws() for cleaning user input or column values one element at a time.</p>
+
+<p><strong>Does trim() remove internal whitespace?</strong></p>
+
+<p>No. trim() only touches the indentation common to all lines and the first or last line if they are empty. Spaces inside a line, blank lines in the middle of a block, and tabs inside content are all preserved. If you need to squeeze internal whitespace, use <code>gsub(&quot;\\s+&quot;, &quot; &quot;, x)</code> or a stringr regex such as <code>str_squish()</code>.</p>
+
+<p><strong>Why does my glue() output not need trim()?</strong></p>
+
+<p>Because glue() already calls trim() internally when <code>.trim = TRUE</code>, which is the default. The standalone trim() exists for inputs that did not go through glue() with defaults: literal strings, sprintf() output, file reads, or glue() calls where you set <code>.trim = FALSE</code> to defer the cleaning step.</p>
+
+<p><strong>Can trim() handle mixed tab and space indentation?</strong></p>
+
+<p>Only if the indentation is identical on every line. trim() finds the longest prefix shared by all non-empty lines; if some lines start with a tab and others with spaces, the shared prefix is empty and trim() leaves the indentation in place. Normalise the indentation before calling trim().</p>
+
+<p><strong>What does trim() return when the input is empty?</strong></p>
+
+<p>trim() on a zero-length character vector returns a zero-length glue object. trim() on a single empty string <code>&quot;&quot;</code> returns the same empty string. Neither case throws an error, which makes it safe to call on the output of filter pipelines that may legitimately produce no rows.</p>
