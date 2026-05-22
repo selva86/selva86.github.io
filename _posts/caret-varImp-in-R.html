@@ -1,0 +1,358 @@
+---
+title: "caret varImp() in R: Rank Predictor Importance Scores"
+description: "caret varImp() in R ranks predictor importance from any train object. Scaled scores, model-specific methods, plot/ggplot examples, and common pitfalls."
+keywords: "caret varImp, varImp function R, caret varImp examples, R variable importance caret, caret feature importance, caret varImp plot, varImp randomForest caret"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "varImp()|caret varImp|caret::varImp()|variable importance in caret|caret feature importance"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret varImp() in R: Rank Predictor Importance Scores</h1>
+
+<p class="lead">The <code>varImp()</code> function in caret extracts a ranked importance score for every predictor inside a fitted train object, scaling the result to 0 to 100 so models that use different raw scales become comparable. It dispatches to the model-specific importance method when available and falls back to a filter-based score otherwise.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>varImp(fit)<span class="qa-cmt">                                  # scaled 0 to 100 importance</span>
+varImp(fit, scale = FALSE)<span class="qa-cmt">                   # raw model-specific score</span>
+varImp(fit, useModel = FALSE)<span class="qa-cmt">                # filter-based fallback score</span>
+varImp(fit)$importance<span class="qa-cmt">                       # tidy data frame of scores</span>
+plot(varImp(fit))<span class="qa-cmt">                            # lattice dot plot</span>
+ggplot(varImp(fit)) + theme_minimal()<span class="qa-cmt">        # ggplot variant</span>
+varImp(fit_glm, scale = FALSE)<span class="qa-cmt">               # raw t-statistic magnitudes</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is varImp() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">rank predictors inside a fitted train object</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">varImp(fit)</text><text x="125" y="126" class="branch-label">fit and tune the model first</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">train(y ~ ., data = df, method = &quot;rf&quot;)</text><text x="125" y="182" class="branch-label">score a held-out set, not rank predictors</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">predict(fit, newdata = test)</text><text x="125" y="238" class="branch-label">compare two trained models on matched folds</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">resamples(list(a = fit1, b = fit2))</text><text x="125" y="294" class="branch-label">need a model-agnostic permutation score</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">vip::vi(fit, method = &quot;permute&quot;)</text><text x="125" y="350" class="branch-label">want a stand-alone importance plot library</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">vip::vip(fit)</text></svg></div>
+
+<h2>What varImp() does in one sentence</h2>
+
+<p><strong><code>varImp()</code> is caret's universal <a class="auto-link" href="Variable-Selection-and-Importance-With-R.html" title="Feature Selection and Variable Importance">variable importance</a> extractor.</strong> You pass it a fitted <code>train</code> object and it returns a ranked, scaled importance score for every predictor that fed the model. The same call works whether the underlying method is a <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a>, a random forest, a boosted tree, or a regularized model, because caret dispatches to the method's own importance routine when one exists.</p>
+
+<p>The function returns a list with two slots: <code>importance</code> (the data frame of scores) and <code>model</code> (the method name caret used). Calling <code>print()</code>, <code>plot()</code>, or <code>ggplot()</code> on the result formats the scores for inspection.</p>
+
+<h2>varImp() syntax and arguments</h2>
+
+<p><strong>The signature is short, and almost every call uses two of the four arguments.</strong></p>
+
+<div class="webr-container" data-block-title="Load caret and fit a baseline model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and fit a baseline model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(1)
+fit_lm &lt;- train(mpg ~ hp + wt + cyl + disp + qsec,
+                data = mtcars, method = &quot;lm&quot;)
+varImp(fit_lm)
+#&gt; lm variable importance
+#&gt;
+#&gt;      Overall
+#&gt; wt   100.000
+#&gt; cyl   59.122
+#&gt; hp    27.181
+#&gt; disp  18.412
+#&gt; qsec   0.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signature is:</p>
+
+<pre><code>varImp(object, useModel = TRUE, nonpara = TRUE, scale = TRUE, ...)</code></pre>
+
+<ul>
+
+<li><code>object</code>: a fitted model. Most commonly a <code>train</code> object, but <code>varImp()</code> also has methods for <code>randomForest</code>, <code>gbm</code>, <code>glmnet</code>, <code>rpart</code>, <code>earth</code>, and <code>mvr</code> objects directly.</li>
+
+<li><code>useModel = TRUE</code>: dispatch to the model's own importance method (random forest's <code>MeanDecreaseGini</code>, glmnet's absolute coefficients, etc.). Set to <code>FALSE</code> to force a model-agnostic filter score instead.</li>
+
+<li><code>nonpara = TRUE</code>: when the filter fallback runs and the outcome is numeric, fit a <code>loess</code> smoother per predictor; with <code>FALSE</code>, fit a linear regression per predictor.</li>
+
+<li><code>scale = TRUE</code>: rescale all scores so the maximum is 100. Set to <code>FALSE</code> to keep the model's raw numbers (useful for cross-model comparison plots that need a real magnitude).</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>useModel = TRUE</code> is the only sensible default for most workflows.</strong> <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a>-based importance ignores the trained model entirely and ranks predictors with a univariate test (loess or <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">AUC</a>). It is useful for screening before training but does not reflect what the fitted model actually used.</div></div>
+
+<h2>varImp() examples by use case</h2>
+
+<h3>1. Importance from a random forest</h3>
+
+<p>The random forest classifier reports <code>MeanDecreaseGini</code> (classification) or <code>IncNodePurity</code> (regression) for every predictor. caret rescales these to 0 to 100 by default.</p>
+
+<div class="webr-container" data-block-title="varImp on a random forest classifier">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">varImp on a random forest classifier</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data(iris)
+set.seed(1)
+fit_rf &lt;- train(Species ~ ., data = iris, method = &quot;rf&quot;,
+                trControl = trainControl(method = &quot;none&quot;))
+varImp(fit_rf)
+#&gt; rf variable importance
+#&gt;
+#&gt;              Overall
+#&gt; Petal.Width  100.000
+#&gt; Petal.Length  92.476
+#&gt; Sepal.Length  21.358
+#&gt; Sepal.Width    0.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>Petal.Width</code> lands at 100 because it is the most discriminative feature for separating the three iris species. <code>Sepal.Width</code> at zero means the forest never split on it usefully.</p>
+
+<h3>2. Raw scores with scale = FALSE</h3>
+
+<p>For cross-model comparisons or when you want to plot real magnitudes, drop the rescaling step.</p>
+
+<div class="webr-container" data-block-title="Raw randomForest importance scores">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Raw randomForest importance scores</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">varImp(fit_rf, scale = FALSE)
+#&gt; rf variable importance
+#&gt;
+#&gt;              Overall
+#&gt; Petal.Width   42.371
+#&gt; Petal.Length  39.198
+#&gt; Sepal.Length  10.250
+#&gt; Sepal.Width    1.118</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The relative ranking is identical; only the units changed. Use <code>scale = FALSE</code> when you want to combine two <code>varImp()</code> outputs on one plot and need the original axis.</p>
+
+<h3>3. Importance from a linear model</h3>
+
+<p>For <code>lm</code> and <code>glm</code>, caret reports the absolute value of the <code>t</code> statistic per coefficient (or the absolute <code>z</code> for logistic). Predictors with smaller <code>p</code> values rank higher.</p>
+
+<div class="webr-container" data-block-title="Importance from a fitted glm classifier">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Importance from a fitted glm classifier</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+fit_glm &lt;- train(Species ~ ., data = subset(iris, Species != &quot;setosa&quot;),
+                 method = &quot;glm&quot;, family = &quot;binomial&quot;)
+varImp(fit_glm)
+#&gt; glm variable importance
+#&gt;
+#&gt;              Overall
+#&gt; Petal.Length 100.000
+#&gt; Sepal.Width   31.840
+#&gt; Petal.Width    8.142
+#&gt; Sepal.Length   0.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is conceptually the same as reading <code>summary(fit_glm$finalModel)</code> and ranking by <code>|t|</code>. The benefit of <code>varImp()</code> is the consistent interface; you can swap <code>method = &quot;glm&quot;</code> for <code>method = &quot;rf&quot;</code> without changing downstream code.</p>
+
+<h3>4. Plot the scores</h3>
+
+<p>The returned object has <code>plot()</code> and <code>ggplot()</code> methods so you do not have to extract <code>$importance</code> manually.</p>
+
+<div class="webr-container" data-block-title="Plot varImp with ggplot">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plot varImp with ggplot</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+ggplot(varImp(fit_rf)) +
+  labs(title = &quot;Variable importance from random forest&quot;,
+       x = &quot;Predictor&quot;, y = &quot;Importance (0 to 100)&quot;) +
+  theme_minimal()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>plot(varImp(fit_rf))</code> produces the equivalent lattice dot plot in one line. Both honor the <code>top</code> argument: <code>plot(varImp(fit), top = 10)</code> shows only the strongest ten predictors when you have a wide design matrix.</p>
+
+<h3>5. Filter-based importance (useModel = FALSE)</h3>
+
+<p>When the underlying model has no built-in importance routine, or when you want a model-independent baseline, set <code>useModel = FALSE</code>. caret then runs a per-predictor filter: AUC for classification, loess R-squared for regression.</p>
+
+<div class="webr-container" data-block-title="Filter-based importance ignores the fitted model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Filter-based importance ignores the fitted model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">varImp(fit_glm, useModel = FALSE)
+#&gt; ROC curve variable importance
+#&gt;
+#&gt;              versicolor virginica
+#&gt; Petal.Length    100.000   100.000
+#&gt; Petal.Width      96.296    96.296
+#&gt; Sepal.Length     93.519    93.519
+#&gt; Sepal.Width      11.111    11.111</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The <code>useModel</code> toggle separates "what the model learned" from "what the data alone says".</strong> With <code>useModel = TRUE</code>, you see the importance caret read out of the trained object. With <code>FALSE</code>, you see a univariate filter that does not know the model existed. The two ranks often disagree and the disagreement is informative.</div></div>
+
+<h2>varImp() vs vip and model-specific functions</h2>
+
+<p><strong><code>varImp()</code> is the caret-native API; <code>vip</code> is the modern stand-alone package; model-specific functions give the raw numbers.</strong> Each has a place.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Best for</th>
+<th>Permutation importance</th>
+<th>Active development</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>varImp()</code> (caret)</td>
+<td>One-line ranking from any caret train object</td>
+<td>No</td>
+<td>Maintenance mode</td>
+</tr>
+<tr>
+<td><code>vip::vi()</code> / <code>vip::vip()</code></td>
+<td>Cross-model importance with ggplot output; permutation, SHAP, and model-specific methods</td>
+<td>Yes, via <code>method = &quot;permute&quot;</code></td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>randomForest::importance()</code></td>
+<td>Raw forest scores with both Gini and accuracy measures</td>
+<td>No (use <code>permimp</code> or <code>vip</code>)</td>
+<td>Stable</td>
+</tr>
+<tr>
+<td><code>xgboost::xgb.importance()</code></td>
+<td>Booster-native gain, cover, and frequency</td>
+<td>No directly</td>
+<td>Yes</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for <code>varImp()</code> when you have a caret workflow and want a single interface across methods. Reach for <code>vip</code> when you need permutation importance, partial dependence plots alongside importance, or a pipe-friendly API. See the caret reference at <a href="https://topepo.github.io/caret/variable-importance.html">topepo.github.io/caret/variable-importance.html</a> for the full list of supported methods.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: comparing scaled scores across models.</strong> With <code>scale = TRUE</code>, every model's top predictor is 100 by definition, so a glmnet importance of 90 and a random forest importance of 90 carry no shared meaning. For cross-model plots, set <code>scale = FALSE</code> and use the raw numbers.</p>
+
+<p><strong>Pitfall 2: assuming high importance implies a causal driver.</strong> <code>varImp()</code> reports how much the model used a predictor, not whether the relationship is causal. Two correlated predictors will often split the importance between them, and dropping one can move the other up sharply.</p>
+
+<p><strong>Pitfall 3: confusing dummy variables for the original factor.</strong> When caret one-hot encodes a factor with five levels, you get four dummy columns in the importance table, not one row for the factor. To rank the original factor as a whole, sum the dummy rows or fit a tree-based method that handles factors natively.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>varImp()</code> returns NA for predictors the model never saw.</strong> If a column was dropped during preprocessing (zero variance, perfect collinearity), it will not appear in the output at all. Always cross-check the row count of <code>varImp(fit)$importance</code> against the original predictor count.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a random forest on <code>iris</code> predicting <code>Species</code>, then extract the raw (unscaled) variable importance and save it to <code>ex_imp</code>. Print the top row.</p>
+<div class="webr-container" data-block-title="Your turn: raw rf importance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: raw rf importance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: extract unscaled importance
+ex_imp &lt;- # your code here
+
+head(ex_imp$importance, 1)
+#&gt; Expected: a single row for the most important predictor</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+ex_fit &lt;- train(Species ~ ., data = iris, method = &quot;rf&quot;,
+                trControl = trainControl(method = &quot;none&quot;))
+ex_imp &lt;- varImp(ex_fit, scale = FALSE)
+head(ex_imp$importance, 1)
+#&gt;             Overall
+#&gt; Petal.Width 42.371</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>scale = FALSE</code> returns the raw MeanDecreaseGini from the underlying randomForest object, preserving the magnitude needed for cross-model comparisons.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p>These caret functions complete a typical variable-importance workflow:</p>
+
+<ul>
+
+<li><code>train()</code>: fits and tunes the model whose importance <code>varImp()</code> reads</li>
+
+<li><code>predict.train()</code>: scores new data using the same fitted object</li>
+
+<li><code>filterVarImp()</code>: model-free filter scores (what <code>useModel = FALSE</code> calls internally)</li>
+
+<li><code>rfe()</code>: recursive feature elimination, which uses <code>varImp()</code> to rank predictors at each step</li>
+
+<li><code>sbf()</code>: selection by filtering, a univariate alternative to <code>rfe()</code></li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between varImp() and importance() from the <a class="auto-link" href="Random-Forest-Exercises-in-R.html" title="Random Forest Exercises in R: 20 Practice Problems">randomForest package</a>?</strong></p>
+
+<p><code>importance()</code> is the raw routine inside the randomForest package; <code>varImp()</code> is caret's wrapper that calls it (or its equivalent in gbm, glmnet, etc.) and rescales the output to 0 to 100. If you want the raw MeanDecreaseGini and MeanDecreaseAccuracy columns for a forest, call <code>randomForest::importance(fit$finalModel)</code>; if you want the same number that works for any caret model, call <code>varImp(fit)</code>.</p>
+
+<p><strong>How does caret varImp() handle classification with more than two classes?</strong></p>
+
+<p>For <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">binary classification</a>, <code>varImp()</code> returns one <code>Overall</code> column. For multi-class problems, the default filter score (<code>useModel = FALSE</code>) returns one column per class, ranking predictors by their pairwise AUC. With <code>useModel = TRUE</code>, the behaviour depends on the model: random forest reports a single Gini-based score per predictor across all classes, while glmnet returns one column per class because the coefficients are class-specific.</p>
+
+<p><strong>Why are some of my varImp() scores exactly zero?</strong></p>
+
+<p>A zero score with <code>scale = TRUE</code> means the predictor was the worst in the model (it gets rescaled to zero by definition). A zero score with <code>scale = FALSE</code> means the model never used the predictor at all: it was never selected for a split (tree-based) or its coefficient was driven to zero (glmnet at high lambda). The two cases look identical in the output, so check <code>scale</code> before drawing conclusions.</p>
+
+<p><strong>Does varImp() support permutation importance?</strong></p>
+
+<p>Not directly. caret's <code>varImp()</code> uses model-internal scores (Gini, t-statistic, coefficient magnitude) rather than permuting features. For permutation importance with a caret-fit model, use the vip package: <code>vip::vi(fit, method = &quot;permute&quot;, target = &quot;Species&quot;, metric = &quot;accuracy&quot;, pred_wrapper = predict)</code>.</p>
+
+<p><strong>Can I use varImp() on a model not trained with <a class="auto-link" href="caret-train-in-R.html" title="caret train() in R: Fit and Tune ML Models">caret::train()</a>?</strong></p>
+
+<p>Yes, for a handful of model classes. caret provides direct methods for <code>randomForest</code>, <code>gbm</code>, <code>glmnet</code>, <code>rpart</code>, <code>earth</code>, and <code>mvr</code> objects, so <code>varImp(fit_rf)</code> works on the output of <code>randomForest::randomForest()</code> without going through <code>train()</code>. For other models, wrap the fit in <code>train(..., trControl = trainControl(method = &quot;none&quot;))</code> to get a train object, then call <code>varImp()</code> on it.</p>
