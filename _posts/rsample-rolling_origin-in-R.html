@@ -1,0 +1,366 @@
+---
+title: "rsample rolling_origin() in R: Time-Series Resampling"
+description: "Build time-ordered resamples with rsample rolling_origin() in R. Covers initial, assess, skip, cumulative, and lag for expanding and sliding window backtesting."
+keywords: "rsample rolling_origin, rolling_origin function R, rsample rolling_origin examples, R time series cross validation, rolling_origin tidymodels, expanding window R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "rolling_origin()|rsample rolling_origin|rsample::rolling_origin()|time series cross-validation|rolling-origin resampling"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>rsample rolling_origin() in R: Time-Series Resampling</h1>
+
+<p class="lead">The rsample rolling_origin() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> builds time-ordered resamples for <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a>, so each held-out window comes strictly after its training window in time and your backtest never leaks future information into the model.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>rolling_origin(df, initial = 100)<span class="qa-cmt">                          # default expanding window</span>
+rolling_origin(df, initial = 100, assess = 10)<span class="qa-cmt">             # 10-row forecast horizon</span>
+rolling_origin(df, initial = 100, assess = 10, skip = 9)<span class="qa-cmt">   # non-overlapping origins</span>
+rolling_origin(df, initial = 100, cumulative = FALSE)<span class="qa-cmt">      # sliding window</span>
+rolling_origin(df, initial = 100, lag = 5)<span class="qa-cmt">                 # gap between train and test</span>
+analysis(splits$splits[[1]])<span class="qa-cmt">                               # training rows of split 1</span>
+assessment(splits$splits[[1]])<span class="qa-cmt">                             # held-out rows of split 1</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is rolling_origin() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">time-ordered resamples for forecasting</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">rolling_origin(df, initial = 100)</text><text x="125" y="126" class="branch-label">standard <a class="auto-link" href="rsample-vfold_cv-in-R.html" title="rsample vfold_cv() in R: V-Fold Cross-Validation Splits">k-fold cross-validation</a></text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">vfold_cv(df, v = 10)</text><text x="125" y="182" class="branch-label">single train/test split</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">initial_split(df, prop = 0.8)</text><text x="125" y="238" class="branch-label"><a class="auto-link" href="broom-bootstrap-in-R.html" title="broom Bootstrap in R: Tidy Resampled Estimates">bootstrap resamples</a> with replacement</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">bootstraps(df, times = 25)</text><text x="125" y="294" class="branch-label">random monte carlo splits</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">mc_cv(df, prop = 0.8, times = 25)</text><text x="125" y="350" class="branch-label">leave-one-out resamples</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">loo_cv(df)</text><text x="125" y="406" class="branch-label">group-aware folds (panel data)</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">group_vfold_cv(df, group_var)</text></svg></div>
+
+<h2>What rolling_origin() does</h2>
+
+<p><strong>rolling_origin() resamples a time-ordered data frame into a sequence of train and test windows.</strong> It belongs to the rsample package, the resampling engine of the tidymodels ecosystem. Unlike <code>vfold_cv()</code>, which shuffles rows before partitioning, <code>rolling_origin()</code> preserves row order. Each split's assessment rows sit immediately after its analysis rows in the original data, mimicking how a real forecast is produced one step at a time.</p>
+
+<p>The function returns a tibble of <code>rsplit</code> objects in a <code>splits</code> list-column. The first split trains on rows 1 through <code>initial</code>, then assesses on the next <code>assess</code> rows. The next split extends or slides the training window by <code>skip + 1</code> rows, and so on until the data runs out. This pattern is the backtesting workflow for any forecasting model: ARIMA, prophet, exponential smoothing, or an ML model with lagged features.</p>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>The signature has one required argument and five tuning knobs that control window shape.</strong></p>
+
+<div class="webr-container" data-block-title="rolling_origin function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">rolling_origin function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rolling_origin(
+  data,             # time-ordered data frame
+  initial = 5,      # rows in the first analysis window
+  assess = 1,       # rows in each assessment window
+  cumulative = TRUE,# TRUE = expanding window, FALSE = sliding window
+  skip = 0,         # rows skipped between consecutive splits
+  lag = 0           # gap rows between analysis and assessment
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments that matter in practice:</p>
+
+<ul>
+
+<li><strong>data</strong>: a tibble or data frame sorted chronologically. The function does not check ordering, so sort before calling.</li>
+
+<li><strong>initial</strong>: the size of the first training window. Pick large enough to fit your model reliably.</li>
+
+<li><strong>assess</strong>: the forecast horizon in rows. 1 for one-step-ahead, 7 for a week of daily data, 12 for a year of monthly data.</li>
+
+<li><strong>cumulative</strong>: <code>TRUE</code> (default) grows the training window each split; <code>FALSE</code> slides a fixed-size window forward.</li>
+
+<li><strong>skip</strong>: rows skipped between origins. Use <code>skip = assess - 1</code> to get non-overlapping assessment windows.</li>
+
+<li><strong>lag</strong>: rows held out between train and test. Set to your longest feature lag to prevent leakage.</li>
+
+</ul>
+
+<h2>rolling_origin() examples</h2>
+
+<h3>Basic expanding window backtest</h3>
+
+<p><strong>Call rolling_origin() on a time-ordered data frame and the result is a tibble of splits.</strong> The default <code>cumulative = TRUE</code> grows the training window by one row each split.</p>
+
+<div class="webr-container" data-block-title="Create default expanding window splits">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create default expanding window splits</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rsample)
+
+ts_df &lt;- data.frame(t = 1:30, y = cumsum(rnorm(30)))
+splits &lt;- rolling_origin(ts_df, initial = 20, assess = 5)
+splits
+#&gt; # Rolling origin forecast resampling 
+#&gt; # A tibble: 6 x 2
+#&gt;   splits         id    
+#&gt;   &lt;list&gt;         &lt;chr&gt; 
+#&gt; 1 &lt;split [20/5]&gt; Slice1
+#&gt; 2 &lt;split [21/5]&gt; Slice2
+#&gt; 3 &lt;split [22/5]&gt; Slice3
+#&gt; 4 &lt;split [23/5]&gt; Slice4
+#&gt; 5 &lt;split [24/5]&gt; Slice5
+#&gt; 6 &lt;split [25/5]&gt; Slice6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each <code>&lt;split [n/5]&gt;</code> grows the training portion by one row as the origin advances. The assessment window stays at 5 rows.</p>
+
+<h3>Extract analysis and assessment sets</h3>
+
+<p><strong>Use analysis() and assessment() to materialize one split.</strong> Both return ordinary data frames you can feed to any modeling function.</p>
+
+<div class="webr-container" data-block-title="Pull one split&#x27;s data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pull one split&#x27;s data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">slice1 &lt;- splits$splits[[1]]
+
+train_set &lt;- analysis(slice1)
+test_set  &lt;- assessment(slice1)
+
+range(train_set$t)
+#&gt; [1]  1 20
+range(test_set$t)
+#&gt; [1] 21 25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The training rows stop at <code>t = 20</code> and the assessment rows pick up at <code>t = 21</code>. Chronology is preserved.</p>
+
+<h3>Sliding window instead of expanding</h3>
+
+<p><strong>Set cumulative = FALSE to slide a fixed-size training window forward.</strong> Useful when older data is no longer representative, such as after a regime change.</p>
+
+<div class="webr-container" data-block-title="Use a sliding window">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use a sliding window</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">slide_splits &lt;- rolling_origin(
+  ts_df,
+  initial = 20,
+  assess = 5,
+  cumulative = FALSE
+)
+sapply(slide_splits$splits, function(s) nrow(analysis(s)))
+#&gt; [1] 20 20 20 20 20 20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every training window holds exactly 20 rows. With <code>cumulative = TRUE</code> the same call would produce windows of 20, 21, 22, and so on.</p>
+
+<h3>Non-overlapping assessment windows with skip</h3>
+
+<p><strong>Use skip = assess - 1 to make assessment windows non-overlapping.</strong> This is the standard setup when reporting one metric per disjoint forecast horizon.</p>
+
+<div class="webr-container" data-block-title="Non-overlapping 5-step horizons">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Non-overlapping 5-step horizons</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">disjoint &lt;- rolling_origin(
+  ts_df,
+  initial = 20,
+  assess = 5,
+  skip = 4
+)
+sapply(disjoint$splits, function(s) range(assessment(s)$t))
+#&gt;      [,1] [,2]
+#&gt; [1,]   21   26
+#&gt; [2,]   25   30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two assessment windows cover <code>t = 21:25</code> and <code>t = 26:30</code> with no overlap, exactly what backtesting protocols recommend.</p>
+
+<h2>rolling_origin() vs other resampling functions</h2>
+
+<p><strong>rolling_origin() preserves time order; every other rsample resample shuffles or replaces.</strong> Choose based on whether the data has a meaningful sequence.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Produces</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rolling_origin()</code></td>
+<td>Time-ordered analysis/assessment splits</td>
+<td>Forecasting, backtesting, sequential data</td>
+</tr>
+<tr>
+<td><code>vfold_cv()</code></td>
+<td>v shuffled folds, every row held out once</td>
+<td>Cross-sectional data, hyperparameter tuning</td>
+</tr>
+<tr>
+<td><code>initial_split()</code></td>
+<td>One train/test split</td>
+<td>Final hold-out, not iterative backtest</td>
+</tr>
+<tr>
+<td><code>bootstraps()</code></td>
+<td>Resamples with replacement</td>
+<td>Small data, variance estimates</td>
+</tr>
+<tr>
+<td><code>mc_cv()</code></td>
+<td>Random train/test splits</td>
+<td>Many resamples without v-fold structure</td>
+</tr>
+<tr>
+<td><code>sliding_period()</code></td>
+<td>Calendar-aware sliding windows</td>
+<td>Splits keyed to dates, not row counts</td>
+</tr>
+</tbody>
+</table>
+
+<p>A typical time-series tidymodels workflow combines <code>rolling_origin()</code> with <code>fit_resamples()</code> to produce a backtest report across many horizons. For a final hold-out, take the latest <code>assess</code> rows out with <code>initial_time_split()</code>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>rolling_origin() counts rows, not time.</strong> The function indexes by position, not by the date column. If your time stamps are irregular (missing days, mixed daily and weekly), <code>initial = 30</code> does not mean 30 days of history. Pre-aggregate or use <code>sliding_period()</code> from the slider package when the calendar matters.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most rolling_origin() bugs.</strong></p>
+
+<ul>
+
+<li><strong>Forgetting to sort by time.</strong> <code>rolling_origin()</code> trusts the data's row order. If rows arrive ungrouped or scrambled, the analysis window mixes past and future and the backtest is meaningless. Always <code>arrange(date)</code> before calling the function.</li>
+
+<li><strong>Setting assess too small relative to the model's forecast goal.</strong> A model that will forecast 12 months ahead in production should be assessed on 12-row windows, not 1-row windows. The metric you publish should match the horizon you serve.</li>
+
+<li><strong>Ignoring the lag argument when features include lags.</strong> A model that uses <code>lag_7</code> of the target leaks the future if the <a class="auto-link" href="rsample-training-in-R.html" title="rsample training() in R: Get the Training Set From a Split">training set</a> ends at row 100 and the <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a> starts at row 101. Set <code>lag = 7</code> to insert a 7-row buffer that mirrors the operational delay between training cutoff and prediction.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>rsample renamed and updated rolling_origin() in version 1.2.0 (2023).</strong> Older tutorials may reference deprecated arguments or the original signature. The current canonical signature has <code>initial</code>, <code>assess</code>, <code>cumulative</code>, <code>skip</code>, and <code>lag</code>. A newer companion function <code>sliding_period()</code> from slider plus rsample handles calendar-aware splits and is recommended for daily, weekly, or monthly data with irregular gaps.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a rolling-origin resample of <code>AirPassengers</code> (the classic monthly <a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">time series</a>) with a 60-row initial training window, a 12-row forecast horizon, non-overlapping assessment windows, and an expanding training window. Save it to <code>ex_splits</code>.</p>
+<div class="webr-container" data-block-title="Your turn: monthly forecast backtest">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: monthly forecast backtest</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rsample)
+
+ap_df &lt;- data.frame(
+  month = seq.Date(as.Date(&quot;1949-01-01&quot;), by = &quot;month&quot;, length.out = 144),
+  y     = as.numeric(AirPassengers)
+)
+
+# Try it: rolling-origin backtest
+ex_splits &lt;- # your code here
+
+nrow(ex_splits)
+#&gt; Expected: 7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rsample)
+
+ap_df &lt;- data.frame(
+  month = seq.Date(as.Date(&quot;1949-01-01&quot;), by = &quot;month&quot;, length.out = 144),
+  y     = as.numeric(AirPassengers)
+)
+
+ex_splits &lt;- rolling_origin(
+  ap_df,
+  initial    = 60,
+  assess     = 12,
+  skip       = 11,
+  cumulative = TRUE
+)
+nrow(ex_splits)
+#&gt; [1] 7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>initial = 60</code> reserves 5 years of monthly history for the first training window. <code>assess = 12</code> evaluates a one-year forecast. <code>skip = 11</code> makes the next origin start 12 rows later, so the seven assessment windows tile the remaining data without overlap.</p>
+
+</details>
+</section>
+
+<h2>Related rsample functions</h2>
+
+<p><strong>rolling_origin() is the time-series workhorse; these functions extend it.</strong></p>
+
+<ul>
+
+<li><code>analysis()</code> and <code>assessment()</code>: extract the two data frames from a split object.</li>
+
+<li><code>initial_time_split()</code>: carve off the most recent rows as a final hold-out before backtesting.</li>
+
+<li><code>sliding_period()</code>: calendar-aware splits keyed to dates (days, weeks, months) instead of row counts.</li>
+
+<li><code>group_vfold_cv()</code>: <a class="auto-link" href="dplyr-full_join-in-R.html" title="dplyr full_join() in R: Keep All Rows From Both Tables">keep all rows</a> of a group together; useful for panel forecasting.</li>
+
+<li><code>int_pctl()</code>: build percentile <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a> from resampled metrics.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from scikit-learn?</strong> <code>rolling_origin(df, initial = n, assess = m, cumulative = TRUE)</code> is the tidymodels equivalent of <code>TimeSeriesSplit(n_splits=k)</code>. The <code>cumulative = FALSE</code> setting matches the <code>max_train_size</code> argument; <code>lag</code> matches the <code>gap</code> parameter.</div></div>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between rolling_origin() and vfold_cv()?</strong></p>
+
+<p><code>vfold_cv()</code> shuffles rows before partitioning, which destroys time order. Every row appears in the held-out set once across the folds, but the training and test rows are randomly mixed. <code>rolling_origin()</code> keeps rows in their original order so the assessment rows of each split come strictly after the analysis rows. Use <code>vfold_cv()</code> for cross-sectional data and <code>rolling_origin()</code> for any series with a meaningful temporal ordering.</p>
+
+<p><strong>Does rolling_origin() handle multiple time series?</strong></p>
+
+<p>Not directly. The function treats the data frame as one ordered sequence and does not segment by group. For panel data with several series in long format, group the data first with <code>nest()</code> and apply <code>rolling_origin()</code> within each group, or use <code>sliding_period()</code> from slider with a <code>group_by()</code> upstream. For tidymodels-compatible panel resamples, <code>group_vfold_cv()</code> is the simpler alternative when strict time order is not required within group.</p>
+
+<p><strong>How do I make rolling_origin() reproducible?</strong></p>
+
+<p><code>rolling_origin()</code> is deterministic. It does not shuffle, so the same data and arguments always produce the same splits and no <code>set.seed()</code> call is needed. The only randomness in a backtest workflow comes from the model itself (random forests, neural networks) or from companion resamples like <code>bootstraps()</code>. Set seeds before those steps, not before <code>rolling_origin()</code>.</p>
+
+<p><strong>What value should I choose for initial?</strong></p>
+
+<p>Pick the smallest training window where your model fits stably and produces sensible coefficients. For ARIMA and exponential smoothing models on daily data, 60 to 90 rows is a common floor. For ML models with engineered features, you need enough rows to cover at least one full seasonal cycle plus <a class="auto-link" href="MCMC-in-R.html" title="Build MCMC From Scratch in R: The 50-Line Algorithm Behind brms and Stan">burn-in</a> for lagged features. If <code>initial</code> is too small the first few backtest scores will be unreliable; if too large you waste data that could have been assessed.</p>
+
+<p><strong>Can rolling_origin() produce overlapping assessment windows?</strong></p>
+
+<p>Yes, the default <code>skip = 0</code> does exactly that. Each origin advances by one row, so consecutive assessment windows overlap by <code>assess - 1</code> rows. Overlap is fine when averaging metrics across many origins. For one independent score per horizon, set <code>skip = assess - 1</code> so the assessment windows tile the data without overlap.</p>
+
+{% endraw %}
