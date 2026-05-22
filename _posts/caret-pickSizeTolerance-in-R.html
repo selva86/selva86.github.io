@@ -1,0 +1,364 @@
+---
+title: "caret pickSizeTolerance() in R: Parsimonious RFE Picks"
+description: "caret pickSizeTolerance() in R picks the smallest rfe subset within tol percent of the best metric. Covers signature, tol tuning, pickSizeBest comparison."
+keywords: "caret pickSizeTolerance, pickSizeTolerance function R, caret pickSizeTolerance examples, R parsimonious model selection, caret rfe tolerance, smallest model within tolerance, pickSizeTolerance argument"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "pickSizeTolerance()|caret pickSizeTolerance|caret::pickSizeTolerance()|parsimonious model selection|tolerance selector"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret pickSizeTolerance() in R: Parsimonious RFE Picks</h1>
+
+<p class="lead">The <code>caret pickSizeTolerance()</code> function returns the smallest recursive feature elimination subset size whose resampled metric is within a stated percentage of the best size. Use it when a slightly worse but much smaller model beats the absolute top score on interpretability or deployment cost.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>pickSizeTolerance(x, metric, tol = 1.5, maximize)<span class="qa-cmt">         # default 1.5 percent slack</span>
+pickSizeTolerance(x, &quot;RMSE&quot;, tol = 2, maximize = FALSE)<span class="qa-cmt">   # regression, tighter parsimony</span>
+pickSizeTolerance(x, &quot;ROC&quot;, tol = 1, maximize = TRUE)<span class="qa-cmt">     # classification, strict</span>
+pickSizeTolerance(rfe_fit$results, &quot;Accuracy&quot;, 3, TRUE)<span class="qa-cmt">   # call on a fitted rfe object</span>
+rfeControl(functions = list(selectSize = pickSizeTolerance))<span class="qa-cmt">  # wire as size selector</span>
+identical(rfFuncs$selectSize, pickSizeBest)<span class="qa-cmt">               # TRUE; default is pickSizeBest, not tolerance</span>
+caret::pickSizeTolerance<span class="qa-cmt">                                  # inspect source code</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is <a class="auto-link" href="caret-pickSizeBest-in-R.html" title="caret pickSizeBest() in R: Pick the Top RFE Subset Size">pickSizeTolerance()</a> the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">prefer smallest subset within tol of best score</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">pickSizeTolerance(x, metric, tol, maximize)</text><text x="125" y="126" class="branch-label">absolute top score, no parsimony bias</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">pickSizeBest(x, metric, maximize)</text><text x="125" y="182" class="branch-label">run the recursive feature elimination loop</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">rfe(x, y, sizes, rfeControl)</text><text x="125" y="238" class="branch-label">configure rfe resampling and helpers</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">rfeControl(functions = rfFuncs, method = &quot;cv&quot;)</text><text x="125" y="294" class="branch-label">tune-parameter tolerance for <a class="auto-link" href="caret-train-in-R.html" title="caret train() in R: Fit and Tune ML Models">train()</a></text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">tolerance(x, metric, tol, maximize)</text><text x="125" y="350" class="branch-label">rank predictors without elimination</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">varImp(fit)</text></svg></div>
+
+<h2>What pickSizeTolerance() does in one sentence</h2>
+
+<p><strong>pickSizeTolerance() scans an rfe results table and returns the smallest subset size whose resampled metric is within <code>tol</code> percent of the best.</strong> It is a stateless integer-returning helper, not a model. You hand it the <code>results</code> data frame from a recursive feature elimination run, name the metric column, set a tolerance percentage, and tell it whether higher scores are better. It returns one integer: the chosen number of predictors.</p>
+
+<p>The parsimony bias is the whole point. Two subsets that score 0.918 and 0.915 ROC are statistically indistinguishable, but the smaller one trains faster, ships smaller, and is easier to explain. <code>pickSizeTolerance()</code> formalizes that judgment.</p>
+
+<h2>pickSizeTolerance() syntax and arguments</h2>
+
+<p><strong>The signature has four arguments and a tolerance default of 1.5 percent.</strong></p>
+
+<div class="webr-container" data-block-title="Load caret and call pickSizeTolerance on a toy table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and call pickSizeTolerance on a toy table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+results &lt;- data.frame(
+  Variables = c(2, 4, 6, 8, 10),
+  RMSE      = c(3.21, 2.85, 2.47, 2.41, 2.39),
+  Rsquared  = c(0.42, 0.55, 0.66, 0.68, 0.69)
+)
+
+pickSizeTolerance(results, metric = &quot;RMSE&quot;, tol = 5, maximize = FALSE)
+#&gt; [1] 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signature is:</p>
+
+<div class="webr-container" data-block-title="Function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pickSizeTolerance(x, metric, tol = 1.5, maximize)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Arguments:</p>
+
+<ul>
+
+<li><code>x</code>: a data frame of resampled results. Must contain a column named <code>Variables</code> (the subset size tried) and a column whose name matches <code>metric</code>.</li>
+
+<li><code>metric</code>: character string. Column name to optimize. Regression: <code>&quot;RMSE&quot;</code>, <code>&quot;MAE&quot;</code>, <code>&quot;Rsquared&quot;</code>. Classification: <code>&quot;Accuracy&quot;</code>, <code>&quot;Kappa&quot;</code>, <code>&quot;ROC&quot;</code>, <code>&quot;Sens&quot;</code>, <code>&quot;Spec&quot;</code>.</li>
+
+<li><code>tol</code>: numeric percentage of slack from the best score. Default is <code>1.5</code> (1.5 percent). Larger values pick smaller subsets.</li>
+
+<li><code>maximize</code>: logical. <code>TRUE</code> when higher is better (Accuracy, ROC, Rsquared). <code>FALSE</code> when lower is better (RMSE, MAE, logLoss).</li>
+
+</ul>
+
+<p>The return value is one integer: the <code>Variables</code> value of the smallest qualifying row. Internally caret computes the percent loss per size, filters to rows with loss less than or equal to <code>tol</code>, and picks the row with the fewest variables. Ties on size are broken by the smaller index, which already corresponds to the smaller subset.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The default <code>tol = 1.5</code> matches caret's built-in <code>rfFuncs$selectSize</code> recipe.</strong> If you swap <code>pickSizeTolerance</code> into <code>rfeControl</code>, the same 1.5 percent slack applies unless you pass a custom wrapper that fixes a different <code>tol</code>.</div></div>
+
+<h2>pickSizeTolerance() examples by use case</h2>
+
+<p><strong>The function takes one resampled table; the four examples below vary the metric, the tol, and the call context.</strong></p>
+
+<h3>Example 1: regression with default tolerance</h3>
+
+<p><strong>Default <code>tol = 1.5</code> covers the most common regression workflow.</strong> Use it when RMSE is the headline metric and you want a sensible parsimony floor without thinking about the number.</p>
+
+<div class="webr-container" data-block-title="Default 1.5 percent slack for RMSE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Default 1.5 percent slack for RMSE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">results_reg &lt;- data.frame(
+  Variables = c(1, 2, 4, 8, 16),
+  RMSE      = c(4.10, 3.05, 2.62, 2.50, 2.48)
+)
+
+pickSizeTolerance(results_reg, &quot;RMSE&quot;, tol = 1.5, maximize = FALSE)
+#&gt; [1] 8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Best RMSE is 2.48 at 16 variables. The 1.5 percent slack threshold is <code>2.48 * 1.015 = 2.517</code>. Size 8 (RMSE 2.50) qualifies, size 4 (RMSE 2.62) does not, so 8 wins. You traded a 0.02 RMSE bump for half the predictors.</p>
+
+<h3>Example 2: classification with strict tolerance</h3>
+
+<p><strong>Tighten <code>tol</code> to 1 when small ROC differences matter for downstream decisions.</strong> Clinical scoring, fraud screening, and credit risk often cannot afford the 1.5 percent default give-up.</p>
+
+<div class="webr-container" data-block-title="ROC with 1 percent tolerance for tighter selection">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">ROC with 1 percent tolerance for tighter selection</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">results_clf &lt;- data.frame(
+  Variables = c(2, 4, 8, 12, 20),
+  ROC       = c(0.78, 0.84, 0.89, 0.91, 0.915)
+)
+
+pickSizeTolerance(results_clf, &quot;ROC&quot;, tol = 1, maximize = TRUE)
+#&gt; [1] 12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Best ROC is 0.915 at 20 variables. The 1 percent slack floor is <code>0.915 * 0.99 = 0.906</code>. Sizes 12 and 20 clear the bar; the smaller (12) wins. Drop <code>tol</code> to 0.5 and only size 20 qualifies.</p>
+
+<h3>Example 3: wired into rfe() through rfeControl()</h3>
+
+<p><strong>Swap <code>pickSizeTolerance</code> into the <code>selectSize</code> slot of <code>rfFuncs</code> to change rfe behavior end-to-end.</strong> The change applies to <code>optsize</code>, <code>optVariables</code>, and any plot drawn from the fitted <code>rfe</code> object.</p>
+
+<div class="webr-container" data-block-title="Use pickSizeTolerance as the rfe size selector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use pickSizeTolerance as the rfe size selector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data(mtcars)
+funs &lt;- rfFuncs
+funs$selectSize &lt;- pickSizeTolerance
+
+ctrl &lt;- rfeControl(functions = funs, method = &quot;cv&quot;, number = 5)
+
+set.seed(42)
+rfe_fit &lt;- rfe(
+  x          = mtcars[, -1],
+  y          = mtcars$mpg,
+  sizes      = c(2, 4, 6, 8, 10),
+  rfeControl = ctrl,
+  metric     = &quot;RMSE&quot;
+)
+
+rfe_fit$optsize
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>By copying <code>rfFuncs</code> and overriding only its <code>selectSize</code> slot, <code>rfe()</code> calls <code>pickSizeTolerance()</code> instead of the default <code>pickSizeBest()</code> when picking <code>optsize</code>. The resulting fit reports the parsimonious size in <code>rfe_fit$optsize</code> and stores the chosen variables in <code>rfe_fit$optVariables</code>.</p>
+
+<h3>Example 4: scan multiple tol values to see the trade-off</h3>
+
+<p><strong>Sweep <code>tol</code> across a small grid before committing to one value.</strong> The output exposes the parsimony curve and gives you something concrete to defend in code review.</p>
+
+<div class="webr-container" data-block-title="Sweep tol values to inspect parsimony curve">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sweep tol values to inspect parsimony curve</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">results_sweep &lt;- data.frame(
+  Variables = c(2, 4, 8, 16, 32),
+  Accuracy  = c(0.71, 0.79, 0.84, 0.86, 0.865)
+)
+
+sapply(c(0.5, 1, 3, 10), function(t) {
+  pickSizeTolerance(results_sweep, &quot;Accuracy&quot;, tol = t, maximize = TRUE)
+})
+#&gt; [1] 32 16  8  4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A <code>tol</code> sweep is the fastest way to pick a defensible value. The output maps tolerance to chosen size, so you can argue "1 percent slack still costs us 16 features; 3 percent halves it again" instead of guessing.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always pair the sweep with the metric column to show what you gave up.</strong> Print <code>results_sweep[results_sweep$Variables %in% chosen_sizes, ]</code> so the trade is visible, not hidden inside a single integer.</div></div>
+
+<h2>pickSizeTolerance() vs pickSizeBest() and custom selectors</h2>
+
+<p><strong>The two built-in selectors optimize different objectives; custom selectors handle anything else.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Selector</th>
+<th>Returns</th>
+<th>Bias</th>
+<th>Default <code>tol</code></th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pickSizeBest()</code></td>
+<td>Size with absolute best metric</td>
+<td>Performance only</td>
+<td>n/a</td>
+<td>Maximum accuracy matters, model size does not</td>
+</tr>
+<tr>
+<td><code>pickSizeTolerance()</code></td>
+<td>Smallest size within <code>tol</code> percent of best</td>
+<td>Parsimony with floor</td>
+<td>1.5</td>
+<td>Interpretability or deployment cost matters</td>
+</tr>
+<tr>
+<td>Custom <code>selectSize</code></td>
+<td>Whatever you write</td>
+<td>Anything</td>
+<td>Anything</td>
+<td>Combine size, score variance, and stability</td>
+</tr>
+</tbody>
+</table>
+
+<p><code>pickSizeBest()</code> ignores the gap between sizes; a one-feature difference and a hundred-feature difference look identical if scores are equal. <code>pickSizeTolerance()</code> always prefers the smaller of two near-tied sizes. Custom selectors get the full <code>results</code> frame plus the metric and maximize flag, so you can rank by <code>mean - sd</code>, penalize sizes above a budget, or apply business rules.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Tolerance turns the size selector into a parsimony lever you tune, not a fixed rule.</strong> Move <code>tol</code> from 0 (= pickSizeBest) to 5 and you slide along the bias-variance trade-off without rewriting any model code.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>The two failure modes are wrong-direction maximize and tol values on the wrong scale.</strong></p>
+
+<div class="webr-container" data-block-title="Pitfall: setting maximize incorrectly for RMSE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: setting maximize incorrectly for RMSE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">results_bad &lt;- data.frame(Variables = c(2, 4, 8), RMSE = c(3.5, 2.8, 2.5))
+
+pickSizeTolerance(results_bad, &quot;RMSE&quot;, tol = 1.5, maximize = TRUE)
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With <code>maximize = TRUE</code> the function treats 3.5 as the "best" RMSE and picks the size with the highest error. Always set <code>maximize = FALSE</code> for RMSE, MAE, logLoss, and <code>maximize = TRUE</code> for Accuracy, ROC, Rsquared. Read the metric direction once and write it down at the top of the script.</p>
+
+<p>The second pitfall is <code>tol</code> scaling. <code>tol</code> is a percentage (1.5 means 1.5 percent), not a raw metric unit. Passing <code>tol = 0.015</code> thinking it means "1.5 percent" gives you near-zero slack and reduces the call to <code>pickSizeBest()</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Custom <code>rfFuncs$selectSize &lt;- pickSizeTolerance</code> assignments persist for the R session.</strong> Reset with <code>data(rfFuncs)</code> or restart R; otherwise downstream <code>rfe()</code> calls quietly use tolerance selection when you expected best.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Given the resampled accuracy table below, pick the smallest subset size within 2 percent of the best ROC. Save the chosen size to <code>ex_size</code>.</p>
+<div class="webr-container" data-block-title="Your turn: tolerance pick on a custom table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tolerance pick on a custom table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_results &lt;- data.frame(
+  Variables = c(3, 6, 9, 12, 15),
+  ROC       = c(0.81, 0.86, 0.892, 0.905, 0.91)
+)
+
+# Try it: parsimonious ROC pick at tol = 2
+ex_size &lt;- # your code here
+
+ex_size
+#&gt; Expected: 9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_size &lt;- pickSizeTolerance(ex_results, metric = &quot;ROC&quot;, tol = 2, maximize = TRUE)
+ex_size
+#&gt; [1] 9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Best ROC is 0.91 at size 15. The percent loss for size 9 is <code>(0.91 - 0.892)/0.91 * 100 = 1.98</code>, which is within <code>tol = 2</code>. Sizes 9, 12 and 15 all qualify, so the smallest (9) wins.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p>For the rest of the rfe workflow, reach for these companions:</p>
+
+<ul>
+
+<li><code>pickSizeBest()</code>: pick the size with the absolute best resampled metric, no parsimony bias.</li>
+
+<li><code>pickVars()</code>: return the list of variables held across resamples at the chosen size.</li>
+
+<li><code>rfe()</code>: run the recursive feature elimination loop itself.</li>
+
+<li><code>rfeControl()</code>: configure resampling, helper functions, and the size selector.</li>
+
+<li><code>tolerance()</code>: the analogue of <code>pickSizeTolerance()</code> for <code>train()</code> tuning grids.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does <code>tol = 1.5</code> actually mean in <code>pickSizeTolerance()</code>?</strong></p>
+
+<p><code>tol = 1.5</code> means a 1.5 percent slack from the best resampled metric. If best accuracy is 0.90, the function accepts any size with accuracy at least <code>0.90 * (1 - 0.015) = 0.8865</code>. For RMSE, the threshold flips: with best RMSE 2.00 and tol 1.5, any size with RMSE at most <code>2.00 * 1.015 = 2.03</code> qualifies. The smallest qualifying size wins.</p>
+
+<p><strong>When should I use <code>pickSizeTolerance()</code> instead of <code>pickSizeBest()</code>?</strong></p>
+
+<p>Pick tolerance when model size has downstream cost: scoring latency on a serving path, interpretability for stakeholders, or a feature-engineering budget. <code>pickSizeBest()</code> returns the score-maximizing size regardless of how many extra features it dragged in. <code>pickSizeTolerance()</code> formalizes the "I'd rather have a slightly worse, much smaller model" trade as a single percentage.</p>
+
+<p><strong>How do I wire <code>pickSizeTolerance()</code> into an <code>rfe()</code> call?</strong></p>
+
+<p>Pass a custom <code>functions</code> list to <code>rfeControl()</code> with <code>selectSize = pickSizeTolerance</code>. The simplest form is <code>rfeControl(functions = c(rfFuncs, list(selectSize = pickSizeTolerance)))</code>, which inherits everything from <code>rfFuncs</code> and overrides only the size selector. The <code>tol</code> value defaults to 1.5; set a different default by wrapping the function: <code>selectSize = function(...) pickSizeTolerance(..., tol = 3)</code>.</p>
+
+<p><strong>Does <code>pickSizeTolerance()</code> work with custom metrics?</strong></p>
+
+<p>Yes, as long as the <code>results</code> data frame has a column named exactly what you pass to <code>metric</code>. If your <code>rfeControl(functions$summary)</code> returns columns <code>MeanAUC</code> and <code>MeanLogLoss</code>, call <code>pickSizeTolerance(x, &quot;MeanAUC&quot;, tol = 2, maximize = TRUE)</code>. The function never inspects metric meaning; it only reads the column you name and applies the percent-loss rule.</p>
