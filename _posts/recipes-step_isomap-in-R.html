@@ -1,0 +1,325 @@
+---
+title: "recipes step_isomap() in R: Nonlinear Manifold Step"
+description: "The recipes step_isomap() function in R adds Isomap manifold embedding inside a preprocessing pipeline. Runnable prep and bake examples on mtcars and iris."
+keywords: "recipes step_isomap, step_isomap function R, recipes step_isomap example, Isomap recipes R, step_isomap tidymodels, nonlinear dimensionality reduction R, step_isomap num_terms"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "step_isomap()|recipes step_isomap|recipes::step_isomap()|Isomap embedding|step_isomap"
+auto_link_case_sensitive: true
+fr_parent: "caret-preProcess-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>recipes step_isomap() in R: Nonlinear Manifold Step</h1>
+
+<p class="lead">The recipes <code>step_isomap()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> adds Isomap manifold embedding to a preprocessing pipeline, replacing numeric predictors with components that follow the curved low-dimensional surface the data lies on rather than its straight-line directions.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>step_isomap(rec, all_numeric_predictors())<span class="qa-cmt">                                # default 5 comps, 50 neighbors</span>
+step_isomap(rec, all_numeric_predictors(), num_terms = 3)<span class="qa-cmt">                 # keep 3 components</span>
+step_isomap(rec, x, y, z)<span class="qa-cmt">                                                 # named columns only</span>
+step_isomap(rec, all_numeric_predictors(), neighbors = 10)<span class="qa-cmt">                # smaller k for the graph</span>
+step_isomap(rec, all_numeric_predictors(), prefix = &quot;iso_&quot;)<span class="qa-cmt">               # rename Isomap1 to iso_1</span>
+prep(rec); bake(rec, new_data = NULL)<span class="qa-cmt">                                     # train, then apply</span>
+tidy(prep(rec), number = 1)<span class="qa-cmt">                                               # list transformed columns</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is step_isomap() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">data lies on a curved manifold</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">step_isomap(rec, all_numeric_predictors())</text><text x="125" y="126" class="branch-label">structure is linear and correlated</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">step_pca(rec, all_numeric_predictors())</text><text x="125" y="182" class="branch-label">want nonlinear PCA via a kernel</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">step_kpca(rec, all_numeric_predictors())</text><text x="125" y="238" class="branch-label">want a 2D map for <a class="auto-link" href="Clustering-with-R.html" title="Clustering with R">clustering</a> or plots</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">step_umap(rec, all_numeric_predictors())</text><text x="125" y="294" class="branch-label">want independent signals not distance</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">step_ica(rec, all_numeric_predictors())</text><text x="125" y="350" class="branch-label">reduce predictors using the outcome</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">step_pls(rec, all_numeric_predictors(), outcome = vars(y))</text></svg></div>
+
+<h2>What step_isomap() does</h2>
+
+<p><strong>step_isomap() runs Isomap manifold embedding as a recipe step.</strong> Linear PCA flattens predictors onto straight axes through the variance, which works when the data sits roughly inside a hyperplane. Isomap handles the harder case where rows trace a curved surface, like points wrapped around a Swiss roll. It first builds a k-nearest-neighbor graph on the training rows, measures shortest path distances along that graph, then runs classical <a class="auto-link" href="Multi-Dimensional-Scaling-With-R.html" title="Multi Dimensional Scaling with R">multidimensional scaling</a> on those geodesic distances to keep the manifold's true shape in a low-dimensional embedding.</p>
+
+<p>Like every recipes step, <code>step_isomap()</code> works in two stages. During <code>prep()</code> it builds the k-NN graph, computes geodesic distances, and stores the learned embedding. <code>bake()</code> then projects training data, or new data, onto the same low-dimensional space. The output columns are named <code>Isomap1</code>, <code>Isomap2</code>, and so on, and the original predictors are dropped.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Isomap preserves walking distance along the manifold, not straight-line distance through space.</strong> Two rows on opposite ends of a curled-up sheet may be Euclidean neighbors but geodesic strangers. Replacing Euclidean distances with shortest paths over the neighbor graph captures intrinsic geometry that linear PCA and even kernel PCA can miss.</div></div>
+
+<h2>step_isomap() syntax and arguments</h2>
+
+<p><strong>step_isomap() is a transformation step controlled mainly by the component count and the neighborhood size.</strong> You <a class="auto-link" href="dplyr-pick-in-R.html" title="dplyr pick() in R: Select Columns Inside dplyr Verbs">pick columns</a> directly or, more often, with the tidyselect helper <code>all_numeric_predictors()</code>, since Isomap is defined only for numeric data.</p>
+
+<div class="webr-container" data-block-title="step_isomap signature and arguments">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">step_isomap signature and arguments</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">step_isomap(
+  recipe,
+  ...,                       # columns to transform
+  role = &quot;predictor&quot;,
+  trained = FALSE,
+  num_terms = 5,             # how many embedding dimensions to keep
+  neighbors = 50,            # k in the k-NN graph
+  options = list(.mute = c(&quot;message&quot;, &quot;output&quot;)),
+  res = NULL,                # stores the fitted embedding after prep()
+  columns = NULL,
+  prefix = &quot;Isomap&quot;,         # component column name prefix
+  keep_original_cols = FALSE,
+  skip = FALSE,
+  id = rand_id(&quot;isomap&quot;)
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>num_terms</code> argument sets how many embedding dimensions survive in the baked output, and <code>neighbors</code> sets the k that builds the graph. The <code>neighbors</code> value must be smaller than the number of training rows, so it is the argument you tune first on small frames. Full argument detail lives in the <a href="https://recipes.tidymodels.org/reference/step_isomap.html">recipes step_isomap reference</a>.</p>
+
+<h2>step_isomap() examples</h2>
+
+<p><strong>Every example follows the prep-then-bake rhythm.</strong> The first builds a recipe on <code>mtcars</code>, normalizes the ten numeric predictors, and compresses them to three Isomap components. Normalizing first is essential and is covered in the pitfalls below.</p>
+
+<div class="webr-container" data-block-title="Isomap as a recipe step on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Isomap as a recipe step on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+
+iso_rec &lt;- recipe(mpg ~ ., data = mtcars) |&gt;
+  step_normalize(all_numeric_predictors()) |&gt;
+  step_isomap(all_numeric_predictors(), num_terms = 3, neighbors = 5) |&gt;
+  prep()
+
+baked &lt;- bake(iso_rec, new_data = NULL)
+dim(baked)
+#&gt; [1] 32  4
+grep(&quot;^Isomap&quot;, names(baked), value = TRUE)
+#&gt; [1] &quot;Isomap1&quot; &quot;Isomap2&quot; &quot;Isomap3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The ten predictors collapse into <code>Isomap1</code>, <code>Isomap2</code>, and <code>Isomap3</code>, while the outcome <code>mpg</code> passes through untouched. With only 32 rows in <code>mtcars</code> the default <code>neighbors = 50</code> cannot build the graph, so we set it to 5. Calling <code>bake(iso_rec, new_data = test_df)</code> on any frame with the same input columns reuses the stored embedding, so train and test land in the same Isomap space.</p>
+
+<div class="webr-container" data-block-title="num_terms sets how many components survive">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">num_terms sets how many components survive</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">recipe(mpg ~ ., data = mtcars) |&gt;
+  step_normalize(all_numeric_predictors()) |&gt;
+  step_isomap(all_numeric_predictors(), num_terms = 2, neighbors = 5) |&gt;
+  prep() |&gt;
+  bake(new_data = NULL) |&gt;
+  ncol()
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With <code>num_terms = 2</code> the baked frame has three columns: two Isomap components and the outcome. Unlike linear PCA, Isomap does not decompose variance, so you select the dimension count by intent or by tuning rather than by a percent-variance budget.</p>
+
+<div class="webr-container" data-block-title="Tune the neighborhood size on a larger frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tune the neighborhood size on a larger frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">iris_rec &lt;- recipe(Species ~ ., data = iris) |&gt;
+  step_normalize(all_numeric_predictors()) |&gt;
+  step_isomap(all_numeric_predictors(), num_terms = 2, neighbors = 8) |&gt;
+  prep()
+
+baked_iris &lt;- bake(iris_rec, new_data = NULL)
+head(baked_iris, 3)
+#&gt; # A tibble: 3 x 3
+#&gt;   Species Isomap1 Isomap2
+#&gt;   &lt;fct&gt;     &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 setosa    -2.31   0.123
+#&gt; 2 setosa    -2.18  -0.105
+#&gt; 3 setosa    -2.04   0.087</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Eight neighbors on 150 iris rows keeps the graph dense enough to connect all three species without short-circuiting setosa to virginica. The two Isomap columns can then feed a downstream classifier or be plotted for visual inspection.</p>
+
+<div class="webr-container" data-block-title="tidy() lists the transformed columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">tidy() lists the transformed columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(iso_rec, number = 2)
+#&gt; # A tibble: 10 x 2
+#&gt;    terms id
+#&gt;    &lt;chr&gt; &lt;chr&gt;
+#&gt;  1 cyl   isomap_xY3kQ
+#&gt;  2 disp  isomap_xY3kQ
+#&gt;  3 hp    isomap_xY3kQ
+#&gt;  4 drat  isomap_xY3kQ
+#&gt;  5 wt    isomap_xY3kQ
+#&gt;  6 qsec  isomap_xY3kQ
+#&gt;  7 vs    isomap_xY3kQ
+#&gt;  8 am    isomap_xY3kQ
+#&gt;  9 gear  isomap_xY3kQ
+#&gt; 10 carb  isomap_xY3kQ</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>number = 2</code> argument points at the second step in the recipe, <code>step_isomap()</code>. The <code>tidy()</code> table lists the predictors that fed the step rather than a variance breakdown, because manifold components do not decompose variance the way linear ones do.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python scikit-learn?</strong> The <a class="auto-link" href="dplyr-join_by-in-R.html" title="dplyr join_by() in R: Modern Key Specification for Joins">closest match</a> is <code>sklearn.manifold.Isomap</code> inside a <code>Pipeline</code>. The recipes equivalent of <code>Isomap(n_components=3, n_neighbors=5)</code> is <code>step_isomap(num_terms = 3, neighbors = 5)</code>.</div></div>
+
+<h2>step_isomap() vs other reduction steps</h2>
+
+<p><strong>step_isomap() is one of several recipes steps that shrink a wide predictor set, and they leave different geometries behind.</strong> Choosing wrong either discards curved structure or pays an interpretability cost you did not need.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Step</th>
+<th>Transformation</th>
+<th>Output columns</th>
+<th>Best when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>step_isomap()</code></td>
+<td>Geodesic distance MDS</td>
+<td><code>Isomap1</code>, ...</td>
+<td>Data lies on a curved low-dimensional manifold</td>
+</tr>
+<tr>
+<td><code>step_pca()</code></td>
+<td>Linear orthogonal components</td>
+<td><code>PC1</code>, ...</td>
+<td>Predictors are linearly correlated</td>
+</tr>
+<tr>
+<td><code>step_kpca()</code></td>
+<td>Kernel (nonlinear) PCA</td>
+<td><code>kPC1</code>, ...</td>
+<td>Structure is nonlinear but not manifold-shaped</td>
+</tr>
+<tr>
+<td><code>step_umap()</code></td>
+<td>Topology-preserving embedding</td>
+<td><code>UMAP1</code>, ...</td>
+<td>Visualization or downstream clustering</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for <code>step_isomap()</code> when the predictors clearly trace a curved surface, such as pose data, sensor trajectories, or any geometry where geodesic distance matters. Stay with <code>step_pca()</code> when the predictors are merely correlated, since it is faster, reproducible, and easier to explain. Choose <code>step_kpca()</code> when the structure is nonlinear but not laid out as a manifold.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Tune <code>neighbors</code> before you tune <code>num_terms</code>.</strong> Too few neighbors disconnects the k-NN graph and produces NaN embeddings; too many flatten the manifold by short-circuiting between distant points. A practical starting range is 5 to 15 for small data and 20 to 50 for larger frames.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most step_isomap() confusion.</strong></p>
+
+<ol>
+
+<li><strong>Leaving <code>neighbors</code> at the default 50.</strong> On small training frames the k-NN graph cannot even be built. Set <code>neighbors</code> smaller than the row count and small enough to keep neighborhoods local.</li>
+
+<li><strong>Skipping normalization.</strong> Isomap measures distances on the predictors, so a column on a large scale dominates the graph. Place <code>step_normalize()</code> before <code>step_isomap()</code> so every predictor contributes evenly.</li>
+
+<li><strong>Applying Isomap to truly linear data.</strong> When the predictors are simply correlated in a straight-line sense, Isomap adds cost without improving structure. The k-NN graph plus geodesic MDS solve a problem the data does not have.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>step_isomap() embeddings cannot be inverted to original columns.</strong> Unlike <a class="auto-link" href="Interpreting-PCA-Results-in-R.html" title="Read PCA Output in R: What Loadings, Scores, and Variance Explained Actually Tell You">PCA loadings</a>, manifold components have no interpretable weights on the inputs. If a stakeholder needs to know which predictor drives a component, choose <code>step_pca()</code> or <code>step_pls()</code> instead.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a recipe on the built-in <code>USArrests</code> dataset, normalize the numeric predictors, and reduce them to two Isomap components with <code>neighbors = 8</code>. Save the baked training data to <code>ex_iso</code>.</p>
+<div class="webr-container" data-block-title="Your turn: Isomap on USArrests">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Isomap on USArrests</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: normalize then Isomap to 2 components
+ex_rec &lt;- recipe(~ ., data = USArrests) |&gt;
+  # add step_normalize and step_isomap here
+  prep()
+
+ex_iso &lt;- # your code here
+ncol(ex_iso)
+#&gt; Expected: 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec &lt;- recipe(~ ., data = USArrests) |&gt;
+  step_normalize(all_numeric_predictors()) |&gt;
+  step_isomap(all_numeric_predictors(), num_terms = 2, neighbors = 8) |&gt;
+  prep()
+
+ex_iso &lt;- bake(ex_rec, new_data = NULL)
+ncol(ex_iso)
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>USArrests</code> has four numeric columns and no outcome. <code>step_normalize()</code> puts them on a common scale, then <code>step_isomap()</code> with <code>num_terms = 2</code> and <code>neighbors = 8</code> projects them onto two manifold components, leaving a two-column frame.</p>
+
+</details>
+</section>
+
+<h2>Related recipes functions</h2>
+
+<p><strong>step_isomap() rarely appears alone in a recipe.</strong> These steps commonly sit alongside it:</p>
+
+<ul>
+
+<li><code>step_normalize()</code> centers and scales predictors, the required step before <code>step_isomap()</code>.</li>
+
+<li><code>step_pca()</code> runs linear PCA, the faster choice when structure is linear.</li>
+
+<li><code>step_kpca()</code> runs kernel PCA, the alternative when structure is nonlinear but not manifold-shaped.</li>
+
+<li><code>step_umap()</code> from the <code>embed</code> package produces topology-preserving embeddings tuned for visualization.</li>
+
+<li><code>step_impute_mean()</code> fills <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>, since Isomap cannot handle <code>NA</code> inputs.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does step_isomap() do in R?</strong></p>
+
+<p><code>step_isomap()</code> is a recipes step that performs Isomap manifold embedding as part of a preprocessing pipeline. During <code>prep()</code> it builds a k-nearest-neighbor graph on the selected numeric predictors, computes geodesic shortest path distances, and runs classical multidimensional scaling on those distances to learn a low-dimensional embedding. During <code>bake()</code> it projects data onto that embedding, producing columns named <code>Isomap1</code>, <code>Isomap2</code>, and so on, while dropping the original predictors.</p>
+
+<p><strong>When should I use step_isomap() instead of step_pca()?</strong></p>
+
+<p>Use <code>step_isomap()</code> when the predictors trace a curved low-dimensional manifold that linear PCA would flatten incorrectly. A classic case is data whose true structure is one-dimensional but wraps through several columns, such as poses, trajectories, or sensor readings along a moving system. If the predictors are merely correlated in a straight-line sense, stay with <code>step_pca()</code>: it is faster, deterministic, and produces interpretable loadings.</p>
+
+<p><strong>How do I choose the neighbors argument in step_isomap()?</strong></p>
+
+<p>The <code>neighbors</code> value sets the k in the k-NN graph that defines the manifold. Too small a value disconnects the graph and yields NaN embeddings; too large a value short-circuits the geodesic distances and collapses the manifold to a straight-line approximation. A practical starting range is 5 to 15 on small frames and 20 to 50 on larger ones. Tune it through <code>tune()</code> if Isomap sits inside a workflow.</p>
+
+<p><strong>Do I need to normalize before step_isomap()?</strong></p>
+
+<p>Yes. Isomap measures <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">Euclidean distance</a> between rows to build its k-NN graph, so a predictor with a large numeric range will dominate that distance and pull the graph toward its own scale. Place <code>step_normalize()</code> before <code>step_isomap()</code> so every predictor contributes evenly. Without it, the components mostly reflect measurement units rather than genuine manifold structure.</p>
