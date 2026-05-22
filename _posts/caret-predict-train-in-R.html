@@ -1,0 +1,347 @@
+---
+title: "caret predict.train() in R: Score New Data From Models"
+description: "Score new data with caret predict() on a train object. Covers type=raw vs type=prob, factor level handling, NA behavior, and predict.train versus predict()."
+keywords: "caret predict train, predict.train R, caret predict function, caret predict examples, predict caret model, caret predict probability, R caret predictions"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "predict.train()|caret predict|caret::predict()|predict() on train|predict train caret"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>caret predict.train() in R: Score New Data From Models</h1>
+
+<p class="lead">The caret predict() method scores new data from a model fitted by <code>train()</code>. It dispatches to <code>predict.train()</code>, applies any preprocessing recorded during training, and returns either class labels or class probabilities depending on the <code>type</code> argument.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>predict(fit, newdata = test_df)<span class="qa-cmt">                          # default, raw output</span>
+predict(fit, newdata = test_df, type = &quot;raw&quot;)<span class="qa-cmt">            # explicit class or value</span>
+predict(fit, newdata = test_df, type = &quot;prob&quot;)<span class="qa-cmt">           # class probabilities</span>
+predict(fit, newdata = test_df, na.action = na.pass)<span class="qa-cmt">     # keep NA rows aligned</span>
+predict(fit, newdata = test_df[, predictors(fit)])<span class="qa-cmt">       # only required columns</span>
+predict(list(rf = fit1, gbm = fit2), newdata = test_df)<span class="qa-cmt">  # list of train objects</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is predict.train() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">score new data from a <a class="auto-link" href="caret-train-in-R.html" title="caret train() in R: Fit and Tune ML Models">caret train</a> object</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">predict(fit, newdata = test_df)</text><text x="125" y="126" class="branch-label">get class probabilities</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">predict(fit, newdata = test_df, type = &quot;prob&quot;)</text><text x="125" y="182" class="branch-label">evaluate against a held-out test set</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">confusionMatrix(predict(fit, test_df), test_df$y)</text><text x="125" y="238" class="branch-label">score with a different threshold</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">ifelse(predict(fit, test_df, type=&quot;prob&quot;)$yes &gt; 0.3, &quot;yes&quot;, &quot;no&quot;)</text><text x="125" y="294" class="branch-label">predict from a raw model object, not caret</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">predict(model, newdata = test_df)</text><text x="125" y="350" class="branch-label">compare resampled performance, not new data</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">resamples(list(a = fit1, b = fit2))</text></svg></div>
+
+<h2>What predict.train() does in one sentence</h2>
+
+<p><strong>predict.train() is the <a class="auto-link" href="S3-Classes-in-R.html" title="S3 Classes in R: Create, Inherit & Write Methods — Complete Tutorial">S3 method</a> invoked when you call predict() on a caret train object.</strong> It takes the fitted model, validates the new data against the recorded predictors, applies the same preprocessing (centering, scaling, dummy variables, imputation) used during training, and returns predictions in the format you request through <code>type</code>.</p>
+
+<p>You almost never type <code>predict.train</code> directly. You call <code>predict(fit, newdata = ...)</code> and R dispatches the right method based on <code>class(fit)</code>, which is <code>&quot;train&quot;</code> for caret models. The method matters because it transparently runs the preprocessing pipeline, so the new data does not need to be transformed by hand before scoring.</p>
+
+<h2>predict.train() syntax and arguments</h2>
+
+<p><strong>The signature is small but every argument matters.</strong> Most users only set <code>newdata</code> and <code>type</code>, but the rest control how <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> and out-of-set factor levels are handled.</p>
+
+<div class="webr-container" data-block-title="predict.train signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">predict.train signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># predict.train(object, newdata = NULL, type = &quot;raw&quot;, na.action = na.omit, ...)
+#
+# object    : a fitted train object from train()
+# newdata   : data frame of new observations; same column names as training
+# type      : &quot;raw&quot; (default) -&gt; class labels or numeric predictions
+#             &quot;prob&quot;          -&gt; data frame of class probabilities (classification only)
+# na.action : how to handle rows containing NA in predictors
+# ...       : passed to the underlying model's predict method</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>If <code>newdata</code> is <code>NULL</code>, the method returns predictions on the training data, which is rarely what you want for evaluation. The <code>type = &quot;prob&quot;</code> option only works for classification models that the underlying engine supports for probability output.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Default</th>
+<th>When to change it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>newdata</code></td>
+<td><code>NULL</code> (training data)</td>
+<td>Always pass a held-out frame for honest scoring</td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td><code>&quot;raw&quot;</code></td>
+<td>Set to <code>&quot;prob&quot;</code> for ROC, lift, or custom thresholds</td>
+</tr>
+<tr>
+<td><code>na.action</code></td>
+<td><code>na.omit</code></td>
+<td>Use <code>na.pass</code> to keep row alignment with newdata</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>(engine-specific)</td>
+<td>Forward arguments like <code>n.trees</code> to the fitted model</td>
+</tr>
+</tbody>
+</table>
+
+<h2>predict.train() examples by use case</h2>
+
+<h3>1. Score a regression model on a held-out test set</h3>
+
+<p><strong>Splitting first, then scoring, gives an honest estimate of new-data error.</strong></p>
+
+<div class="webr-container" data-block-title="Train, predict, then compute RMSE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Train, predict, then compute RMSE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(42)
+idx &lt;- createDataPartition(mtcars$mpg, p = 0.7, list = FALSE)
+train_df &lt;- mtcars[idx, ]
+test_df  &lt;- mtcars[-idx, ]
+
+fit_lm &lt;- train(mpg ~ ., data = train_df, method = &quot;lm&quot;,
+                trControl = trainControl(method = &quot;none&quot;))
+
+pred &lt;- predict(fit_lm, newdata = test_df)
+rmse &lt;- sqrt(mean((pred - test_df$mpg)^2))
+round(rmse, 2)
+#&gt; [1] 3.06</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>predict()</code> call uses no extra preprocessing here because the formula is simple. With centering or dummy variables, caret would apply them inside <code>predict()</code> without you touching the test frame.</p>
+
+<h3>2. Get class probabilities for a classification model</h3>
+
+<p><strong>Class probabilities are what you need for ROC curves, lift charts, and custom thresholds.</strong></p>
+
+<div class="webr-container" data-block-title="Classification with probabilities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Classification with probabilities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data(GermanCredit, package = &quot;caret&quot;)
+gc &lt;- GermanCredit[, c(&quot;Class&quot;, &quot;Duration&quot;, &quot;Amount&quot;, &quot;Age&quot;,
+                       &quot;InstallmentRatePercentage&quot;)]
+
+set.seed(7)
+idx &lt;- createDataPartition(gc$Class, p = 0.7, list = FALSE)
+fit_rf &lt;- train(Class ~ ., data = gc[idx, ], method = &quot;rf&quot;,
+                trControl = trainControl(classProbs = TRUE), tuneLength = 1)
+
+prob &lt;- predict(fit_rf, newdata = gc[-idx, ], type = &quot;prob&quot;)
+head(prob, 3)
+#&gt;     Bad  Good
+#&gt; 1 0.142 0.858
+#&gt; 2 0.318 0.682
+#&gt; 3 0.094 0.906</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>type = "prob" requires classProbs = TRUE in trainControl.</strong> If you forget, the model trains fine but <code>predict()</code> with <code>type = &quot;prob&quot;</code> errors out. Set it once at the start and you can always fall back to raw labels.</div></div>
+
+<h3>3. Apply a custom probability threshold</h3>
+
+<p><strong>Default classification uses a 0.5 cutoff, which is rarely optimal for imbalanced classes.</strong></p>
+
+<div class="webr-container" data-block-title="Threshold the positive class probability">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Threshold the positive class probability</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prob_good &lt;- predict(fit_rf, newdata = gc[-idx, ], type = &quot;prob&quot;)$Good
+custom &lt;- factor(ifelse(prob_good &gt; 0.7, &quot;Good&quot;, &quot;Bad&quot;),
+                 levels = levels(gc$Class))
+
+table(custom, gc[-idx, &quot;Class&quot;])
+#&gt;        
+#&gt; custom  Bad Good
+#&gt;   Bad    77   58
+#&gt;   Good   13  152</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Raise the threshold to be conservative on the positive class; lower it to catch more positives at the cost of false alarms. Pick the threshold from a validation set, not the test set.</p>
+
+<h3>4. Predict only on the columns the model needs</h3>
+
+<p><strong>predictors() returns the columns the train object actually uses, so you can pass a wider frame and let caret subset.</strong></p>
+
+<div class="webr-container" data-block-title="Use predictors() to subset newdata">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use predictors() to subset newdata</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">needed &lt;- predictors(fit_rf)
+needed
+#&gt; [1] &quot;Duration&quot; &quot;Amount&quot; &quot;Age&quot; &quot;InstallmentRatePercentage&quot;
+
+pred &lt;- predict(fit_rf, newdata = gc[-idx, needed])
+length(pred)
+#&gt; [1] 299</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is handy when the production frame carries id columns, timestamps, or auxiliary fields that were not used during training.</p>
+
+<h2>predict.train() vs predict() on the raw model</h2>
+
+<p><strong>predict.train() preserves the <a class="auto-link" href="recipes-recipe-in-R.html" title="recipes recipe() in R: Build a Preprocessing Blueprint">preprocessing recipe</a>; predict() on the unwrapped model does not.</strong> When you call <code>predict(fit, ...)</code> on a caret train object, caret runs the same <code>preProcess</code> and dummy-variable steps it ran during training. If you extract <code>fit$finalModel</code> and call <code>predict()</code> on that, those steps disappear and the predictions silently misalign with what the model expects.</p>
+
+<div class="webr-container" data-block-title="Why finalModel predict is risky">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Why finalModel predict is risky</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># WRONG - bypasses caret preprocessing
+preds_bad &lt;- predict(fit_rf$finalModel, newdata = gc[-idx, ])
+
+# RIGHT - caret applies the recorded transformations
+preds_good &lt;- predict(fit_rf, newdata = gc[-idx, ])</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Use the train-object method as the default. Reach into <code>finalModel</code> only when you need engine-specific arguments that caret does not expose.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most predict.train() failures in practice.</strong></p>
+
+<ul>
+
+<li><strong>Factor levels missing from newdata.</strong> If your test frame has a factor with fewer levels than the training frame, <code>predict()</code> errors with "factor has new levels" or returns NA. Cast test factors to the training levels: <code>test_df$x &lt;- factor(test_df$x, levels = levels(train_df$x))</code>.</li>
+
+<li><strong>type = "prob" without classProbs = TRUE.</strong> Set <code>classProbs = TRUE</code> in <code>trainControl()</code> before you train if you ever need probabilities.</li>
+
+<li><strong>Dropped rows from na.action = na.omit.</strong> The default silently removes rows containing NA, so your prediction vector is shorter than your test frame. Use <code>na.action = na.pass</code> and impute upstream, or wrap with <code>preProcess(method = &quot;medianImpute&quot;)</code>.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Class probability columns are named after the factor levels, not "yes" and "no".</strong> Always reference <code>prob$&lt;level&gt;</code> or <code>prob[, &quot;&lt;level&gt;&quot;]</code> instead of positional indexing; level order changes if your training set is re-randomised.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a knn classification model on the iris dataset, predict class probabilities for a 30% held-out test split, and compute the accuracy at a 0.5 threshold on the dominant class.</p>
+<div class="webr-container" data-block-title="Your turn: predict iris with caret knn">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: predict iris with caret knn</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(99)
+ex_idx &lt;- createDataPartition(iris$Species, p = 0.7, list = FALSE)
+ex_train &lt;- iris[ex_idx, ]
+ex_test  &lt;- iris[-ex_idx, ]
+
+# Your code here: train a knn model and predict on ex_test
+ex_fit  &lt;- # ...
+ex_pred &lt;- # ...
+
+mean(ex_pred == ex_test$Species)
+#&gt; Expected: &gt; 0.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- train(Species ~ ., data = ex_train, method = &quot;knn&quot;,
+                trControl = trainControl(method = &quot;cv&quot;, number = 5))
+ex_pred &lt;- predict(ex_fit, newdata = ex_test)
+mean(ex_pred == ex_test$Species)
+#&gt; [1] 0.9555556</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>train()</code> cross-validates the knn neighbours hyperparameter, then <code>predict(ex_fit, ex_test)</code> dispatches to predict.train() which applies the chosen k and returns class labels. Accuracy on the held-out third of iris is typically above 0.94.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p><strong>predict.train() pairs with these caret helpers.</strong></p>
+
+<ul>
+
+<li><a href="caret-train-in-R.html">train()</a>: fits the model whose train object predict() consumes.</li>
+
+<li><a href="caret-trainControl-in-R.html">trainControl()</a>: set <code>classProbs = TRUE</code> here so <code>type = &quot;prob&quot;</code> works.</li>
+
+<li><a href="caret-confusionMatrix-in-R.html">confusionMatrix()</a>: compare predicted labels to true labels and get accuracy, sensitivity, kappa.</li>
+
+<li><a href="caret-createDataPartition-in-R.html">createDataPartition()</a>: split data before training so predict() has a test set to score.</li>
+
+<li><a href="caret-varImp-in-R.html">varImp()</a>: rank features the trained model relies on; complements probability inspection.</li>
+
+</ul>
+
+<p>For the formal reference, see the <a href="https://topepo.github.io/caret/">caret model documentation</a> maintained by Max Kuhn.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between predict() and predict.train()?</strong></p>
+
+<p><code>predict()</code> is a generic R function. When you call it on a caret train object, R dispatches to <code>predict.train()</code>, which is the method registered for the <code>train</code> class. You almost never write <code>predict.train()</code> directly; calling <code>predict(fit, ...)</code> is idiomatic and forwards to the right method. The benefit of going through the generic is that caret applies any preprocessing recorded in <code>trainControl()</code> before scoring.</p>
+
+<p><strong>Why does predict() return NA for some rows?</strong></p>
+
+<p>The default <code>na.action = na.omit</code> drops rows containing NA in any predictor, then returns predictions only for the surviving rows. If your output vector is shorter than your input frame, that is why. Pass <code>na.action = na.pass</code> to keep NAs in place, or impute first using <code>preProcess(method = &quot;medianImpute&quot;)</code> inside <code>train()</code>.</p>
+
+<p><strong>How do I get a probability for the positive class only?</strong></p>
+
+<p>Use <code>predict(fit, newdata, type = &quot;prob&quot;)[, &quot;&lt;positive_level&gt;&quot;]</code> where <code>&lt;positive_level&gt;</code> is the name of the class you treat as positive. Avoid positional indexing like <code>[, 2]</code>; if you re-train with a different random seed or factor ordering, position 2 may no longer be the class you expect.</p>
+
+<p><strong>Can I predict from a list of train objects at once?</strong></p>
+
+<p>Yes. Pass a list of train objects to <code>predict()</code> and you get a matrix or data frame of predictions, one column per model. This is the basis for simple model averaging or for building a stacking layer downstream.</p>
+
+<p><strong>Does predict.train() apply the same preprocessing used during train()?</strong></p>
+
+<p>Yes, and that is the main reason to prefer it over <code>predict(fit$finalModel, ...)</code>. Centering, scaling, dummy encoding, and median imputation specified in <code>preProcess</code> are re-applied to <code>newdata</code> so the model sees inputs in the same form it was trained on.</p>
+
+{% endraw %}
