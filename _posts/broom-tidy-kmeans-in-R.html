@@ -1,0 +1,339 @@
+---
+title: "broom tidy() for kmeans in R: Cluster Centers and Sizes"
+description: "Tidy kmeans clustering output in R with broom::tidy(). Get a clean data frame of cluster centers, sizes, and within-cluster sums of squares in one call."
+keywords: "broom tidy kmeans, tidy kmeans R, broom kmeans clusters, tidy clustering output, kmeans cluster centers, tidy.kmeans, broom cluster analysis"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "broom::tidy()|broom tidy|tidy kmeans|kmeans clusters|tidy clustering output"
+auto_link_case_sensitive: true
+fr_parent: "Cluster-Analysis-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>broom tidy() for kmeans in R: Cluster Centers and Sizes</h1>
+
+<p class="lead">The <code>broom::tidy()</code> function turns a <code>kmeans</code> object into a one-row-per-cluster data frame holding the cluster means for every input variable, the cluster size, and the within-cluster sum of squares. It is the fastest way to pipe clustering output into <code>dplyr</code>, <code>ggplot2</code>, or a report.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>tidy(km)<span class="qa-cmt">                                        # one row per cluster, all centers</span>
+tidy(km, col.names = c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;,&quot;d&quot;))<span class="qa-cmt">        # rename center columns</span>
+glance(km)<span class="qa-cmt">                                      # one-row model summary</span>
+augment(km, data = iris[, 1:4])<span class="qa-cmt">                 # append .cluster to data</span>
+tidy(km) |&gt; arrange(desc(size))<span class="qa-cmt">                 # largest cluster first</span>
+tidy(km) |&gt; arrange(withinss)<span class="qa-cmt">                   # tightest cluster first</span>
+purrr::map_dfr(2:8, ~glance(kmeans(x, .x)))<span class="qa-cmt">     # elbow-plot source</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is <a class="auto-link" href="parsnip-tidy-fit-in-R.html" title="parsnip tidy() in R: Tidy Model Coefficients">tidy()</a> the right tool for a kmeans fit?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">one row per cluster with centers + size + withinss</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">tidy(km)</text><text x="125" y="126" class="branch-label">one-row model summary (totss, betweenss, iter)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">glance(km)</text><text x="125" y="182" class="branch-label">attach .cluster to the original observations</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">augment(km, data = df)</text><text x="125" y="238" class="branch-label">pick the optimal k from many fits</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code"><a class="auto-link" href="PCA-in-R.html" title="PCA in R: Reduce Dimensions, Visualise Structure, and Understand What prcomp() Returns">factoextra</a>::fviz_nbclust(df, kmeans)</text><text x="125" y="294" class="branch-label">silhouette score per observation</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">cluster::silhouette(km$cluster, dist(df))</text><text x="125" y="350" class="branch-label">non-spherical or noisy clusters</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">dbscan::dbscan(df, eps, minPts)</text><text x="125" y="406" class="branch-label">final cluster table for a report</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code"><a class="auto-link" href="Regression-Tables-in-R.html" title="Regression Tables in R: modelsummary vs stargazer vs gtsummary, Which to Use">gtsummary</a>::tbl_summary(augmented, by = .cluster)</text></svg></div>
+
+<h2>What tidy() does for kmeans in one sentence</h2>
+
+<p><strong>The tidier reshapes the cluster output into a tibble with one row per cluster.</strong> A fitted kmeans object is an S3 list with separate components for centers, sizes, and within-cluster sums of squares. The tidier joins those pieces into a rectangular data frame keyed by cluster id, so downstream dplyr verbs and ggplot geoms work without manual extraction.</p>
+
+<p>For a three-cluster fit on a four-variable dataset, the result has three rows and seven columns: four center columns (one per input variable), size, withinss, and cluster. Reading the tibble end-to-end gives you the full cluster profile at a glance.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>tidy()</code> is an S3 generic; broom dispatches on the <code>kmeans</code> class automatically.</strong> The function takes the fitted object as the only required argument; an optional <code>col.names</code> argument relabels the center columns when the originals are inconvenient.</p>
+
+<div class="webr-container" data-block-title="Load packages and fit kmeans on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load packages and fit kmeans on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(broom)
+library(dplyr)
+library(ggplot2)
+library(purrr)
+
+set.seed(42)
+iris_x &lt;- iris[, 1:4]
+km &lt;- kmeans(iris_x, centers = 3, nstart = 25)
+class(km)
+#&gt; [1] &quot;kmeans&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two arguments worth knowing are:</p>
+
+<ul>
+
+<li><code>x</code>: the fitted <code>kmeans</code> object (required)</li>
+
+<li><code>col.names</code>: a character vector of names for the center columns; default uses the column names from the data passed to <code>kmeans()</code></li>
+
+</ul>
+
+<p>Both <code>glance()</code> and <code>augment()</code> follow the same dispatch pattern and round out the broom interface for clustering.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always pass <code>nstart = 25</code> or higher to <code>kmeans()</code> before tidying.</strong> A single random start often lands on a local minimum that produces unstable cluster centers. With <code>nstart = 25</code>, R runs 25 random initializations and keeps the best, so <code>tidy(km)</code> returns a reproducible profile.</div></div>
+
+<h2>Common patterns</h2>
+
+<h3>1. Cluster centers and sizes</h3>
+
+<div class="webr-container" data-block-title="Tidy a kmeans fit to inspect centers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tidy a kmeans fit to inspect centers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(km)
+#&gt; # A tibble: 3 x 7
+#&gt;   Sepal.Length Sepal.Width Petal.Length Petal.Width  size withinss cluster
+#&gt;          &lt;dbl&gt;       &lt;dbl&gt;        &lt;dbl&gt;       &lt;dbl&gt; &lt;int&gt;    &lt;dbl&gt; &lt;fct&gt;
+#&gt; 1         5.01        3.43         1.46       0.246    50     15.2 1
+#&gt; 2         5.90        2.75         4.39       1.43     62     39.8 2
+#&gt; 3         6.85        3.07         5.74       2.07     38     23.9 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one cluster. The first four columns hold the mean of each input variable inside that cluster. <code>size</code> is the row count and <code>withinss</code> is the sum of squared distances from each member to its cluster center. Lower <code>withinss</code> relative to <code>size</code> means a tighter cluster.</p>
+
+<p>Reading the centers gives an immediate cluster profile. Cluster 1 has the smallest petals (length 1.46, width 0.25) and the highest sepal width; that is the <code>setosa</code> species in disguise. Cluster 3 has the largest petals across both dimensions, matching <code>virginica</code>. Cluster 2 sits in between and aligns with <code>versicolor</code>. The whole interpretation comes from the tibble; no extra extraction is needed.</p>
+
+<h3>2. One-row model summary with glance()</h3>
+
+<div class="webr-container" data-block-title="Glance for totss, betweenss, and iterations">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Glance for totss, betweenss, and iterations</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">glance(km)
+#&gt; # A tibble: 1 x 4
+#&gt;   totss tot.withinss betweenss  iter
+#&gt;   &lt;dbl&gt;        &lt;dbl&gt;     &lt;dbl&gt; &lt;int&gt;
+#&gt; 1  681.         78.9      603.     2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>glance()</code> returns the model-level diagnostics: total sum of squares (<code>totss</code>), total within-cluster SS (<code>tot.withinss</code>), between-cluster SS (<code>betweenss</code>), and the number of iterations to converge. The ratio <code>betweenss / totss</code> is the standard "<a class="auto-link" href="Interpreting-PCA-Results-in-R.html" title="Read PCA Output in R: What Loadings, Scores, and Variance Explained Actually Tell You">variance explained</a>" metric for kmeans; here, about 89 percent. Anything above 80 percent on well-scaled data is usually good; below 60 percent suggests too few clusters or non-spherical structure.</p>
+
+<h3>3. Attach cluster labels with augment()</h3>
+
+<div class="webr-container" data-block-title="Augment to add .cluster to the data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Augment to add .cluster to the data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aug &lt;- augment(km, data = iris_x)
+head(aug, 4)
+#&gt; # A tibble: 4 x 5
+#&gt;   Sepal.Length Sepal.Width Petal.Length Petal.Width .cluster
+#&gt;          &lt;dbl&gt;       &lt;dbl&gt;        &lt;dbl&gt;       &lt;dbl&gt; &lt;fct&gt;
+#&gt; 1          5.1         3.5          1.4         0.2 1
+#&gt; 2          4.9         3            1.4         0.2 1
+#&gt; 3          4.7         3.2          1.3         0.2 1
+#&gt; 4          4.6         3.1          1.5         0.2 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>augment()</code> returns the original rows with a <code>.cluster</code> factor column appended. This is the join key for any downstream summary, plot, or report. Pass the same data you used for <code>kmeans()</code>; broom does not store the design matrix on the fit. From here, profiling is a one-liner: bind <code>iris$Species</code> to <code>aug</code> and call <code>count(.cluster, Species)</code> to see actual versus assigned labels.</p>
+
+<h3>4. Elbow plot from many fits</h3>
+
+<div class="webr-container" data-block-title="Build an elbow plot with glance across k">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build an elbow plot with glance across k</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">elbow &lt;- purrr::map_dfr(
+  1:8,
+  ~ glance(kmeans(iris_x, centers = .x, nstart = 25)),
+  .id = &quot;k&quot;
+)
+elbow |&gt; select(k, tot.withinss)
+#&gt; # A tibble: 8 x 2
+#&gt;   k     tot.withinss
+#&gt;   &lt;chr&gt;        &lt;dbl&gt;
+#&gt; 1 1           681.
+#&gt; 2 2           152.
+#&gt; 3 3            78.9
+#&gt; 4 4            57.3
+#&gt; 5 5            46.5
+#&gt; 6 6            39.1
+#&gt; 7 7            34.3
+#&gt; 8 8            30.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Plot <code>tot.withinss</code> against <code>k</code> and look for the kink; here, the drop from k = 2 to k = 3 is the last steep one, suggesting three clusters fit <code>iris</code> well. The <code>purrr::map_dfr()</code> + <code>glance()</code> pattern scales the same way for any other clustering hyperparameter.</p>
+
+<p>The same trick generalizes beyond kmeans. Swap the inner call for <code>cluster::pam()</code> or <code>mclust::Mclust()</code> and the rest of the pipeline still works.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> frame is the bridge between clustering and tidyverse tooling.</strong> Once <code>tidy()</code> returns a tibble of cluster profiles, every dplyr verb, every ggplot geom, and every <code>gt</code>/<code>flextable</code> layout works without any custom shim. That is why broom is bundled with tidymodels even when you only fit one clustering model.</div></div>
+
+<h2>tidy() vs print(km) and factoextra</h2>
+
+<p><strong>Three tools cover the same job from different angles.</strong> Pick by what you do next with the output.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Output type</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>print(km)</code></td>
+<td>printed text + nested list</td>
+<td>Quick console check</td>
+</tr>
+<tr>
+<td><code>broom::tidy(km)</code></td>
+<td>tibble (data frame)</td>
+<td>dplyr piping, ggplot, custom tables</td>
+</tr>
+<tr>
+<td><code>factoextra::fviz_cluster(km, data)</code></td>
+<td>ggplot object</td>
+<td>Final 2D cluster plot for a report</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>tidy()</code> whenever the next step is code: filtering clusters by size, joining centers back to raw rows, drawing a custom bar chart of profiles. Use <code>factoextra</code> for the final figure; it handles PCA projection and color palettes for you, but it does not return a tibble.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: passing the raw data, not the fit.</strong> <code>tidy(iris_x)</code> does not run kmeans for you; it returns a tibble describing the data frame. Fit the model first, then tidy the model.</p>
+
+<div class="webr-container" data-block-title="Wrong: tidying the data instead of the fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrong: tidying the data instead of the fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(iris_x) |&gt; head(2)
+#&gt; # A tibble: 2 x 4
+#&gt;   column         n  mean    sd
+#&gt;   &lt;chr&gt;      &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Sepal.Length 150  5.84 0.828
+#&gt; 2 Sepal.Width  150  3.06 0.436</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is <code>broom::tidy.data.frame</code>, a summary of each column, not cluster centers.</p>
+
+<p><strong>Pitfall 2: forgetting <code>nstart</code>.</strong> Without <code>nstart</code>, you may get different cluster ids on each run, and <code>tidy(km)</code> will return permuted rows. Cluster identity in kmeans is arbitrary; pin the seed AND raise <code>nstart</code> for stable downstream code.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The <code>.cluster</code> column from <code>augment()</code> is a factor, not an integer.</strong> If you join augmented output back to a numeric-keyed table, cast with <code>as.integer(as.character(.cluster))</code>. A direct <code>as.integer(.cluster)</code> returns factor levels in encounter order, which silently differs from the printed label for clusters with non-default level ordering.</div></div>
+
+<p><strong>Pitfall 3: mixing tidy.kmeans with tidy.Mclust output.</strong> Both <code>kmeans</code> and <code>Mclust</code> are clustering fits, but their tidy outputs differ. <code>tidy.Mclust</code> returns mixing proportions and probabilistic memberships, not hard centers. Code that assumes <code>size</code> and <code>withinss</code> will break when handed a <code>Mclust</code> fit.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit kmeans with <code>k = 4</code> on the four numeric columns of <code>iris</code>, then use <code>tidy()</code> to get cluster centers and sizes. <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> the result to only clusters with at least 30 members. Save the filtered tibble to <code>ex_clusters</code>.</p>
+<div class="webr-container" data-block-title="Your turn: tidy and filter clusters">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tidy and filter clusters</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: tidy a 4-cluster fit, keep clusters with size &gt;= 30
+ex_clusters &lt;- # your code here
+
+ex_clusters
+#&gt; Expected: at most 4 rows; each row has size &gt;= 30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_km &lt;- kmeans(iris[, 1:4], centers = 4, nstart = 25)
+ex_clusters &lt;- tidy(ex_km) |&gt; filter(size &gt;= 30)
+ex_clusters
+#&gt; # A tibble: 3 x 7
+#&gt;   Sepal.Length Sepal.Width Petal.Length Petal.Width  size withinss cluster
+#&gt;          &lt;dbl&gt;       &lt;dbl&gt;        &lt;dbl&gt;       &lt;dbl&gt; &lt;int&gt;    &lt;dbl&gt; &lt;fct&gt;
+#&gt; 1         5.01        3.43         1.46       0.246    50     15.2 1
+#&gt; 2         5.53        2.62         3.97       1.23     32     10.4 2
+#&gt; 3         6.53        3.06         5.51       2.16     45     27.5 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>tidy(ex_km)</code> returns one row per cluster with the centers, size, and within-cluster SS. The <code>filter(size &gt;= 30)</code> step keeps only clusters with enough members to be worth profiling, which is a common screen before reporting.</p>
+
+</details>
+</section>
+
+<h2>Related broom functions for clustering</h2>
+
+<p>After mastering <code>tidy()</code> for kmeans, look at:</p>
+
+<ul>
+
+<li><code>glance()</code>: one-row model summary with <code>totss</code>, <code>tot.withinss</code>, <code>betweenss</code>, and <code>iter</code></li>
+
+<li><code>augment()</code>: original data with a <code>.cluster</code> factor appended</li>
+
+<li><code>tidy.Mclust()</code>: same idea for <a class="auto-link" href="Gaussian-Mixture-Models-in-R.html" title="Gaussian Mixture Models in R: mclust Package & Model-Based Clustering">Gaussian mixture models</a> from the mclust package</li>
+
+<li><code>factoextra::fviz_cluster()</code>: ggplot-based cluster visualization built on broom output</li>
+
+</ul>
+
+<p>For a quick cluster-profile bar chart, pivot the tidy output to long form and pipe into <code>ggplot2::geom_col()</code>. For a model-selection plot, combine <code>purrr::map_dfr()</code> with <code>glance()</code> as shown above.</p>
+
+<p>See the official <a href="https://broom.tidymodels.org/reference/kmeans_tidiers.html">broom documentation for kmeans methods</a> for the complete column reference per tidier.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I get cluster centers from a kmeans object?</strong></p>
+
+<p>Call <code>tidy(km)</code>. Each row is one cluster, and the first columns are the cluster means for every variable you passed to <code>kmeans()</code>. This replaces the older pattern of pulling <code>km$centers</code> and binding <code>km$size</code> and <code>km$withinss</code> by hand. The tidy output is a tibble, so you can pipe it into <code>dplyr::arrange()</code> or <code>ggplot2::ggplot()</code> without further reshaping.</p>
+
+<p><strong>Does broom tidy work with kmeans from base R?</strong></p>
+
+<p>Yes. <code>broom::tidy()</code> ships with an <a class="auto-link" href="S3-Classes-in-R.html" title="S3 Classes in R: Create, Inherit & Write Methods — Complete Tutorial">S3 method</a> for the base <code>stats::kmeans</code> class, so any fit produced by <code>kmeans()</code> is supported with no extra package. For other clustering algorithms, broom provides <code>tidy.Mclust</code> (mclust package) and partial support for <code>hclust</code> via <code>tidy.hclust</code>.</p>
+
+<p><strong>What is the difference between tidy(), <a class="auto-link" href="parsnip-glance-fit-in-R.html" title="parsnip glance() in R: One-Row Model Summary">glance()</a>, and augment() for kmeans?</strong></p>
+
+<p><code>tidy(km)</code> returns one row per cluster with centers, size, and withinss. <code>glance(km)</code> returns one row summarizing the whole fit: total SS, between-cluster SS, total within-cluster SS, and iterations. <code>augment(km, data)</code> returns the original observations with a <code>.cluster</code> column appended. Use <code>tidy()</code> for cluster profiles, <code>glance()</code> for model diagnostics, <code>augment()</code> for downstream joins.</p>
+
+<p><strong>Can tidy() pick the right number of clusters for me?</strong></p>
+
+<p>No. <code>tidy()</code> only describes the fit you pass. To choose <code>k</code>, combine <code>purrr::map_dfr()</code> with <code>glance()</code> across a range of values and inspect <code>tot.withinss</code> for an elbow, or use <code>factoextra::fviz_nbclust()</code> for a silhouette or gap-statistic plot. Both approaches consume tidy or glance output downstream.</p>
+
+<p><strong>Why does cluster id 1 differ between two kmeans runs?</strong></p>
+
+<p>Cluster ids in kmeans are arbitrary labels assigned in random-start order. Two runs on the same data with different seeds can swap label numbers even when the actual partition is identical. Fix the seed with <code>set.seed()</code> and raise <code>nstart</code> to 25 or higher for stable, reproducible labels in your tidy output.</p>
