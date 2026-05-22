@@ -1,0 +1,339 @@
+---
+title: "broom Bootstrap in R: Tidy Resampled Estimates"
+description: "Run bootstrap resampling in R and tidy the output with broom. Get tidy data frames of resampled coefficients ready for confidence intervals and ggplot."
+keywords: "broom bootstrap, broom bootstrap R, tidy bootstrap results, broom rsample bootstrap, broom bootstrap confidence interval, tidy resample estimates R, broom map_df bootstrap"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "broom::bootstrap()|broom bootstrap|tidy bootstrap|tidy resamples|bootstrap resamples"
+auto_link_case_sensitive: true
+fr_parent: "Linear-Regression.html"
+---
+<!-- md2html:generated -->
+
+<h1>broom Bootstrap in R: Tidy Resampled Estimates</h1>
+
+<p class="lead">A broom bootstrap workflow combines <code>rsample::bootstraps()</code> (or a manual <code>map_dfr()</code> loop) with <code>broom::tidy()</code> so every resample produces a one-row-per-term tibble. Stack those tibbles and you get bootstrap distributions for every coefficient, ready for confidence intervals, density plots, or report tables.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>map_dfr(1:B, ~tidy(lm(y ~ x, data = slice_sample(df, prop = 1, replace = TRUE))))<span class="qa-cmt">   # manual loop</span>
+bootstraps(df, times = 1000)<span class="qa-cmt">                                                       # rsample resamples</span>
+map_dfr(boots$splits, ~tidy(lm(y ~ x, data = analysis(.x))), .id = &quot;id&quot;)<span class="qa-cmt">           # tidy each fit</span>
+boot_estimates |&gt; group_by(term) |&gt; summarise(lo = quantile(estimate, 0.025))<span class="qa-cmt">     # percentile CI</span>
+boot_estimates |&gt; ggplot(aes(estimate)) + geom_histogram() + facet_wrap(~term)<span class="qa-cmt">    # bootstrap density</span>
+int_pctl(boot_results, results)<span class="qa-cmt">                                                    # rsample percentile CI</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is broom the right tool for bootstrap output?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">per-term tibbles you can stack and <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a></text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">broom::tidy(model_fit)</text><text x="125" y="126" class="branch-label">one-row model summary per resample (r.squared, sigma)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">broom::glance(model_fit)</text><text x="125" y="182" class="branch-label">per-observation predictions per resample</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code"><a class="auto-link" href="broom-Exercises-in-R.html" title="broom Exercises in R: 15 Practice Problems">broom::augment</a>(model_fit)</text><text x="125" y="238" class="branch-label">create the resamples themselves</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">rsample::bootstraps(df, times = 1000)</text><text x="125" y="294" class="branch-label">BCa or studentized intervals from boot output</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">boot::boot.ci(boot_obj)</text><text x="125" y="350" class="branch-label">bootstrap a non-model statistic (median, ratio)</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">boot::boot(df, stat_fn, R = 1000)</text><text x="125" y="406" class="branch-label">nested resamples for cross-validated bootstrap</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">rsample::nested_cv(df)</text></svg></div>
+
+<h2>What broom does for bootstrap output in one sentence</h2>
+
+<p><strong>broom turns each resampled model fit into a tidy tibble that you can row-bind across resamples.</strong> A bootstrap routine produces hundreds or thousands of model fits, one per resample. Without tidying, every fit is an S3 list with coefficients, standard errors, fit statistics, and residuals buried in nested slots.</p>
+
+<p><code>broom::tidy()</code> rectangularises one fit into a per-term data frame. Loop the tidier across all resamples and <code>bind_rows()</code> (or <code>map_dfr()</code>) gives you a long table keyed by <code>term</code> and resample id. That table is the input to every downstream task: percentile intervals, bias estimates, distribution plots, and side-by-side comparisons.</p>
+
+<h2>Syntax</h2>
+
+<p><strong>The pattern is loop, tidy, stack.</strong> You generate bootstrap resamples, fit a model to each, tidy each fit, and combine the tibbles. The looping primitive can be <code>purrr::map_dfr()</code>, <code>replicate()</code> plus <code>do.call(rbind, ...)</code>, or <code>rsample::bootstraps()</code> paired with <code>map_dfr()</code>.</p>
+
+<div class="webr-container" data-block-title="Load packages and inspect mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load packages and inspect mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(broom)
+library(dplyr)
+library(ggplot2)
+library(purrr)
+library(tidyr)
+
+set.seed(42)
+df &lt;- mtcars |&gt; select(mpg, wt, hp)
+head(df, 3)
+#&gt;                    mpg    wt  hp
+#&gt; Mazda RX4         21.0 2.620 110
+#&gt; Mazda RX4 Wag     21.0 2.875 110
+#&gt; Datsun 710        22.8 2.320  93</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three arguments that matter when wiring broom into a bootstrap loop are:</p>
+
+<ul>
+
+<li>the resample generator (manual <code>slice_sample(replace = TRUE)</code>, <code>rsample::bootstraps()</code>, or <code>modelr::bootstrap()</code>)</li>
+
+<li>the model formula (passed once to <code>lm()</code>, <code>glm()</code>, <code>nls()</code>, etc.)</li>
+
+<li>the tidier (<code>tidy()</code> for coefficients, <code>glance()</code> for fit stats, <code>augment()</code> for predictions)</li>
+
+</ul>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Set a seed before the bootstrap loop, not inside it.</strong> A seed inside the loop reuses the same draw every iteration, which collapses the <a class="auto-link" href="Bootstrap-Confidence-Intervals-in-R.html" title="Bootstrap CIs in R: Distribution-Free Confidence Intervals for Any Statistic">bootstrap distribution</a> to one point. Set <code>set.seed()</code> once before <code>map_dfr()</code> or <code>bootstraps()</code> and you get reproducible yet varied resamples.</div></div>
+
+<h2>Common patterns</h2>
+
+<h3>1. Manual bootstrap with map_dfr and tidy</h3>
+
+<div class="webr-container" data-block-title="Bootstrap lm coefficients with map dfr">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bootstrap lm coefficients with map dfr</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">B &lt;- 500
+boot_fits &lt;- map_dfr(1:B, function(i) {
+  resample &lt;- slice_sample(df, prop = 1, replace = TRUE)
+  fit &lt;- lm(mpg ~ wt + hp, data = resample)
+  tidy(fit) |&gt; mutate(boot_id = i)
+})
+head(boot_fits, 4)
+#&gt; # A tibble: 4 x 6
+#&gt;   term        estimate std.error statistic  p.value boot_id
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;   &lt;int&gt;
+#&gt; 1 (Intercept) 38.0       1.78        21.4  1.46e-18       1
+#&gt; 2 wt          -3.97      0.870       -4.56 9.16e- 5       1
+#&gt; 3 hp          -0.0290    0.0125      -2.32 2.79e- 2       1
+#&gt; 4 (Intercept) 36.4       1.96        18.6  9.42e-17       2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one term from one resample. <code>boot_id</code> keeps the resamples separate so you can group later. With <code>B = 500</code> and three terms (intercept, <code>wt</code>, <code>hp</code>) the result has 1500 rows.</p>
+
+<h3>2. Percentile confidence intervals from the bootstrap table</h3>
+
+<div class="webr-container" data-block-title="Percentile CIs by term">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Percentile CIs by term</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">boot_ci &lt;- boot_fits |&gt;
+  group_by(term) |&gt;
+  summarise(
+    mean_est = mean(estimate),
+    lo = quantile(estimate, 0.025),
+    hi = quantile(estimate, 0.975),
+    .groups = &quot;drop&quot;
+  )
+boot_ci
+#&gt; # A tibble: 3 x 4
+#&gt;   term        mean_est      lo       hi
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;   &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 (Intercept) 37.4     32.4    42.5
+#&gt; 2 hp          -0.0317  -0.0574 -0.0086
+#&gt; 3 wt          -3.85    -5.38   -2.31</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 2.5% and 97.5% quantiles of the bootstrap distribution are the percentile <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">95% confidence interval</a>. Compare these limits with the parametric intervals from <code>confint(lm(mpg ~ wt + hp, data = df))</code> to see how much the normal-theory assumption matters for your data.</p>
+
+<h3>3. Bootstrap with rsample::bootstraps()</h3>
+
+<div class="webr-container" data-block-title="rsample bootstraps then tidy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">rsample bootstraps then tidy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rsample)
+
+boots &lt;- bootstraps(df, times = 500)
+boot_results &lt;- boots |&gt;
+  mutate(
+    fit = map(splits, ~lm(mpg ~ wt + hp, data = analysis(.x))),
+    coefs = map(fit, tidy)
+  ) |&gt;
+  select(id, coefs) |&gt;
+  unnest(coefs)
+head(boot_results, 3)
+#&gt; # A tibble: 3 x 6
+#&gt;   id            term        estimate std.error statistic  p.value
+#&gt;   &lt;chr&gt;         &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 Bootstrap001  (Intercept) 38.1       2.04        18.7  2.13e-16
+#&gt; 2 Bootstrap001  wt          -3.79      0.939       -4.04 4.18e- 4
+#&gt; 3 Bootstrap001  hp          -0.0345    0.0117      -2.94 6.91e- 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>bootstraps()</code> returns a tibble of <code>rsplit</code> objects. <code>analysis()</code> extracts the resampled data frame from each split; <code>tidy()</code> runs once per fit. The unnested result is the same long table as the manual version, but <code>rsample</code> keeps the split objects available for paired holdout analysis.</p>
+
+<h3>4. Bootstrap density plot per term</h3>
+
+<div class="webr-container" data-block-title="Density of bootstrap estimates">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Density of bootstrap estimates</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(boot_fits, aes(estimate)) +
+  geom_histogram(bins = 30, fill = &quot;steelblue&quot;, colour = &quot;white&quot;) +
+  facet_wrap(~term, scales = &quot;free&quot;) +
+  labs(title = &quot;Bootstrap distribution of lm coefficients&quot;,
+       x = &quot;Estimate&quot;, y = &quot;Frequency&quot;) +
+  theme_minimal()
+#&gt; (histogram with one panel per term)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Faceting by <code>term</code> is only possible because <code>tidy()</code> puts every coefficient on its own row. Heavy tails or visible skew flag terms whose normal-theory standard errors are misleading.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Tidying is what makes bootstrap output composable.</strong> Once every fit is a row-major tibble, downstream code stops caring whether the original model was <code>lm()</code>, <code>glm()</code>, or <code>nls()</code>. The same <code>group_by(term) |&gt; summarise()</code> pipeline produces intervals for all of them.</div></div>
+
+<h2>Compare with alternatives</h2>
+
+<p><strong>Four routes generate bootstrap resamples; broom tidies whichever you pick.</strong> The choice between manual, <code>rsample</code>, <code>modelr</code>, and <code>boot</code> is about resample bookkeeping and interval type, not about whether broom plays nicely.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Strength</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>map_dfr()</code> + <code>slice_sample()</code> + <code>tidy()</code></td>
+<td>No extra dependency; transparent loop</td>
+<td>Quick exploratory bootstrap, teaching</td>
+</tr>
+<tr>
+<td><code>rsample::bootstraps()</code> + <code>tidy()</code></td>
+<td>Holds splits as objects; integrates with tidymodels</td>
+<td>Production workflows, paired holdout</td>
+</tr>
+<tr>
+<td><code>modelr::bootstrap()</code> + <code>tidy()</code></td>
+<td>Compact list-column workflow</td>
+<td>Modeling chapters in R for Data Science style</td>
+</tr>
+<tr>
+<td><code>boot::boot()</code> + <code>boot::boot.ci()</code></td>
+<td>BCa and studentized intervals out of the box</td>
+<td>Inference where percentile intervals are insufficient</td>
+</tr>
+</tbody>
+</table>
+
+<p>The <code>boot</code> package is the rigorous choice when you need BCa or studentized intervals. Everything else (manual, <code>rsample</code>, <code>modelr</code>) wraps the same resample-then-fit pattern; broom is what makes their output drillable.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Bootstrap output that ignores the intercept term.</strong> A naive <code>summarise(mean(estimate))</code> without <code>group_by(term)</code> averages intercepts with slopes and the answer is meaningless. Always group by <code>term</code> before summarising; broom guarantees the column exists for every model class it supports.</p>
+
+<p><strong>Resampling rows of a paired or time-series dataset.</strong> Standard bootstrap assumes exchangeable observations. For <a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">time series</a>, use <code>rsample::sliding_period()</code> or a block bootstrap; for paired data, resample pairs (not individuals). Otherwise the resamples violate the dependence structure and the intervals shrink.</p>
+
+<p><strong>Treating bootstrap p-values as gospel.</strong> Bootstrap percentile intervals are valid; bootstrap p-values from <code>boot_fits$p.value</code> are per-resample test statistics, not corrected inferential p-values. Compute p-values from the bootstrap distribution of the estimate itself, not from the per-resample fits.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Do not use the deprecated <code>broom::bootstrap()</code> function.</strong> Older broom releases shipped a <code>bootstrap()</code> helper that worked with <code>dplyr::do()</code>. It was removed when <code>do()</code> was retired. Use <code>rsample::bootstraps()</code> or a manual <code>map_dfr()</code> loop instead; both are demonstrated above.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Bootstrap 200 linear fits of <code>mpg ~ wt</code> on <code>mtcars</code> and report the 95% percentile confidence interval for the <code>wt</code> coefficient. Save the interval to <code>ex_wt_ci</code>.</p>
+<div class="webr-container" data-block-title="Your turn: bootstrap wt CI">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: bootstrap wt CI</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+# Try it: bootstrap the wt slope
+ex_wt_ci &lt;- # your code here
+
+ex_wt_ci
+#&gt; Expected: a tibble with one row and columns lo, hi (both negative)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_wt_ci &lt;- map_dfr(1:200, ~{
+  resample &lt;- slice_sample(mtcars, prop = 1, replace = TRUE)
+  tidy(lm(mpg ~ wt, data = resample))
+}) |&gt;
+  filter(term == &quot;wt&quot;) |&gt;
+  summarise(lo = quantile(estimate, 0.025),
+            hi = quantile(estimate, 0.975))
+ex_wt_ci
+#&gt; # A tibble: 1 x 2
+#&gt;      lo    hi
+#&gt;   &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 -6.78 -4.16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The loop fits <code>lm(mpg ~ wt)</code> to 200 row-resamples of mtcars, tidies each fit, filters to the <code>wt</code> term, and takes the empirical 2.5% and 97.5% quantiles. Both bounds are negative, matching the well-known negative association between weight and mileage.</p>
+
+</details>
+</section>
+
+<h2>Related broom functions</h2>
+
+<ul>
+
+<li><code>broom::tidy()</code> for per-term coefficient tibbles, the workhorse of every bootstrap loop</li>
+
+<li><code>broom::glance()</code> for one-row model summaries (<code>r.squared</code>, <code>sigma</code>, <code>AIC</code>) per resample</li>
+
+<li><code>broom::augment()</code> for per-observation predictions when bootstrapping prediction intervals</li>
+
+<li><code>broom.mixed::tidy()</code> for mixed models inside the resample loop</li>
+
+<li><code>rsample::int_pctl()</code> for percentile intervals computed directly from an rsample object</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>Does broom have a bootstrap function?</strong></p>
+
+<p>Older broom releases shipped <code>broom::bootstrap()</code> for use with <code>dplyr::do()</code>, but it was deprecated and removed. Modern workflows replace it with <code>rsample::bootstraps()</code> for the resample generation step and reserve broom for tidying the fits. Reaching for <code>broom::bootstrap()</code> in current code triggers a "<a class="auto-link" href="R-Common-Errors.html" title="50 Most Common R Error Messages: What They Mean & How to Fix Them">could not find function</a>" error; substitute <code>rsample::bootstraps()</code> and the rest of the pipeline is identical.</p>
+
+<p><strong>How many bootstrap resamples should I use with broom::<a class="auto-link" href="parsnip-tidy-fit-in-R.html" title="parsnip tidy() in R: Tidy Model Coefficients">tidy()</a>?</strong></p>
+
+<p>For point estimates and 95% percentile intervals, 1,000 resamples is the conventional minimum and 2,000 to 5,000 is safer for tails. Each resample is cheap because broom only tidies the fit once it converges, so the bottleneck is <code>lm()</code> or <code>glm()</code>, not <code>tidy()</code>. For 99% intervals or BCa intervals from the <code>boot</code> package, push to 10,000 resamples; the tidier handles the extra rows without code changes.</p>
+
+<p><strong>Can I bootstrap glm or nls with the same workflow?</strong></p>
+
+<p>Yes. <code>broom::tidy()</code> dispatches on model class, so swap <code>lm()</code> for <code>glm()</code>, <code>nls()</code>, <code>survival::survreg()</code>, or <code>lme4::lmer()</code> and the surrounding <code>map_dfr()</code> plus <code>summarise()</code> pipeline is unchanged. For mixed models, load <code>broom.mixed</code> first so its <code>tidy.merMod()</code> method is registered. The output columns (<code>term</code>, <code>estimate</code>, <code>std.error</code>, <code>statistic</code>) are stable across classes, which is the entire point of using broom.</p>
+
+<p><strong>Why use rsample::bootstraps() instead of manual resampling?</strong></p>
+
+<p><code>bootstraps()</code> returns split objects that hold both the analysis (resampled) and assessment (out-of-bag) rows. That separation matters for the .632 bootstrap, oob error estimates, and any nested cross-validation. A manual <code>slice_sample()</code> loop is shorter but throws away the oob rows. If you only need percentile intervals on coefficients, manual is fine; for predictive performance, use <code>rsample</code>.</p>
+
+<p><strong>How do I compute BCa or studentized confidence intervals?</strong></p>
+
+<p>Use the <code>boot</code> package: <code>boot::boot(df, function(d, i) coef(lm(y ~ x, data = d[i, ])), R = 2000)</code> produces a <code>boot</code> object, and <code>boot::boot.ci(out, type = c(&quot;bca&quot;, &quot;stud&quot;))</code> returns the BCa and studentized intervals. broom does not implement BCa directly because the correction requires the Jacobian of the influence function. Stack <code>boot</code> (for the interval math) with broom (for the per-fit summary) when you need both.</p>
+
+<p>Authoritative reference: the <a href="https://broom.tidymodels.org/articles/available-methods.html">broom tidiers index</a> and the <a href="https://rsample.tidymodels.org/articles/Working_with_rsets.html">rsample bootstrap article</a> cover every supported class and split type.</p>
