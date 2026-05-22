@@ -1,0 +1,479 @@
+---
+title: "yardstick roc_auc() in R: Score Classifier Ranking Quality"
+description: "Score classifier ranking with yardstick roc_auc() in R. See syntax, binary and multiclass examples, hand_till averaging, sklearn mapping, and pitfalls."
+keywords: "yardstick roc_auc, roc_auc function R, yardstick roc_auc examples, R AUC tidymodels, ROC AUC R yardstick, binary classifier AUC R, roc_auc tidymodels"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "yardstick roc_auc|yardstick::roc_auc()|ROC AUC in R|AUC metric|roc_auc yardstick"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>yardstick roc_auc() in R: Score Classifier Ranking Quality</h1>
+
+<p class="lead">The yardstick roc_auc() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> scores how well a classifier ranks positive cases above negative ones, accepting a tibble of truth labels and predicted probabilities and returning a tidy one-row summary you can group, average across classes, or combine with other metrics in a metric set.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>roc_auc(df, truth, .pred_class1)<span class="qa-cmt">                            # basic two-class call</span>
+roc_auc(df, truth = obs, .pred_class1)<span class="qa-cmt">                      # named truth column</span>
+roc_auc(df, class, .pred_yes, event_level = &quot;second&quot;)<span class="qa-cmt">       # flip positive class</span>
+df |&gt; group_by(fold) |&gt; roc_auc(class, .pred_yes)<span class="qa-cmt">           # by resample</span>
+roc_auc(df, class, .pred_a, .pred_b, .pred_c)<span class="qa-cmt">               # multiclass, all prob cols</span>
+roc_auc(df, class, .pred_a:.pred_c, estimator = &quot;hand_till&quot;)<span class="qa-cmt"> # hand_till averaging</span>
+roc_auc_vec(truth_vec, prob_vec)<span class="qa-cmt">                            # vector interface</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is roc_auc() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">score threshold-free ranking on probabilities</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">roc_auc(df, truth, .pred_class1)</text><text x="125" y="126" class="branch-label">score precision-recall ranking on imbalance</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">pr_auc(df, truth, .pred_class1)</text><text x="125" y="182" class="branch-label">score class labels, not probabilities</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">accuracy(df, truth, estimate)</text><text x="125" y="238" class="branch-label">score calibrated probabilities</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">brier_class(df, truth, .pred_class1)</text><text x="125" y="294" class="branch-label">plot the <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">ROC curve</a> points</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">roc_curve(df, truth, .pred_class1)</text><text x="125" y="350" class="branch-label">score the share of true positives caught</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">recall(df, truth, estimate)</text></svg></div>
+
+<h2>What roc_auc() measures</h2>
+
+<p><strong>roc_auc() answers one question: how well does the model rank positives above negatives across every threshold?</strong> You pass a data frame with the truth column and one or more predicted-probability columns, and the function returns a one-row tibble with <code>.metric</code>, <code>.estimator</code>, and <code>.estimate</code>. The estimate equals the probability that a random positive scores higher than a random negative.</p>
+
+<p>A score of 1.0 means perfect ranking, 0.5 means random guessing, and below 0.5 means the model is inverted. Because AUC sweeps every threshold, it sidesteps the cutoff debate, which is why leaderboards on imbalanced data lean on it even though it ignores calibration.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>AUC measures ranking, not probability quality.</strong> A model that predicts 0.999 for every positive and 0.998 for every negative scores AUC 1.0 yet outputs nearly identical numbers. Pair <code>roc_auc()</code> with <code>brier_class()</code> if calibration matters.</div></div>
+
+<h2>roc_auc() syntax and arguments</h2>
+
+<p><strong>The signature follows the yardstick probability-metric family.</strong> Argument shape changes slightly between two-class and multiclass because multiclass needs one column per level.</p>
+
+<div class="webr-container" data-block-title="roc_auc generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">roc_auc generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">roc_auc(data, truth, ..., estimator = NULL, na_rm = TRUE,
+        event_level = &quot;first&quot;, case_weights = NULL, options = list())</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data</code></td>
+<td>A data frame with truth and probability columns.</td>
+</tr>
+<tr>
+<td><code>truth</code></td>
+<td>Unquoted column name of the observed class labels (a factor).</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Unquoted column names of the predicted probabilities. One column for binary; one per class for multiclass.</td>
+</tr>
+<tr>
+<td><code>estimator</code></td>
+<td>Averaging mode for multiclass: <code>&quot;hand_till&quot;</code> (default), <code>&quot;macro&quot;</code>, or <code>&quot;macro_weighted&quot;</code>. Ignored for binary.</td>
+</tr>
+<tr>
+<td><code>na_rm</code></td>
+<td>If <code>TRUE</code>, drop rows where any column is missing before scoring.</td>
+</tr>
+<tr>
+<td><code>event_level</code></td>
+<td><code>&quot;first&quot;</code> or <code>&quot;second&quot;</code>; for binary, names the positive class.</td>
+</tr>
+<tr>
+<td><code>case_weights</code></td>
+<td>Optional unquoted column for weighted scoring.</td>
+</tr>
+</tbody>
+</table>
+
+<p>For binary problems, pass the probability column for the positive class as the third argument. For multiclass, pass every class probability column with <code>tidyselect</code> syntax. The truth column must be a factor whose levels match the probability column names after <code>.pred_</code>.</p>
+
+<h2>Score classifiers: four worked examples</h2>
+
+<p><strong>The examples below build a two-class tibble so you can run roc_auc() end to end.</strong> Start with a small frame that mimics a churn-prediction problem.</p>
+
+<div class="webr-container" data-block-title="Two-class predictions with probabilities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-class predictions with probabilities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+library(dplyr)
+
+set.seed(404)
+churn &lt;- tibble(
+  truth = factor(sample(c(&quot;churn&quot;, &quot;stay&quot;), 200, replace = TRUE,
+                        prob = c(0.30, 0.70)),
+                 levels = c(&quot;churn&quot;, &quot;stay&quot;)),
+  .pred_churn = runif(200, 0, 1)
+) |&gt;
+  mutate(.pred_churn = ifelse(truth == &quot;churn&quot;,
+                              pmin(1, .pred_churn + 0.25),
+                              .pred_churn))
+head(churn, 4)
+#&gt; # A tibble: 4 x 2
+#&gt;   truth .pred_churn
+#&gt;   &lt;fct&gt;       &lt;dbl&gt;
+#&gt; 1 stay        0.770
+#&gt; 2 stay        0.882
+#&gt; 3 stay        0.249
+#&gt; 4 churn       0.952</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 1 calls roc_auc() with the positive-class probability column.</strong> Because <code>&quot;churn&quot;</code> is the first factor level, yardstick treats it as the positive class.</p>
+
+<div class="webr-container" data-block-title="Two-class AUC score">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-class AUC score</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">roc_auc(churn, truth, .pred_churn)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 roc_auc binary         0.682</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A 0.682 AUC means a random churner scores higher than a random non-churner 68 percent of the time, the headline number for ranking-based decision systems.</p>
+
+<p><strong>Example 2 flips the positive class with <code>event_level</code>.</strong> Setting <code>event_level = &quot;second&quot;</code> makes <code>&quot;stay&quot;</code> the positive class, so yardstick uses <code>1 - .pred_churn</code> internally.</p>
+
+<div class="webr-container" data-block-title="Flip the positive class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Flip the positive class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">roc_auc(churn, truth, .pred_churn, event_level = &quot;second&quot;)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 roc_auc binary         0.318</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The flipped estimate is the mirror score on the other class. Always state which class is positive in any AUC report; ambiguity here is the most common review comment.</p>
+
+<p><strong>Example 3 scores per resample fold.</strong> Cross-validated predictions pair with <code>group_by()</code> to give one AUC per fold without a loop.</p>
+
+<div class="webr-container" data-block-title="Per-fold AUC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-fold AUC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">folded &lt;- churn |&gt;
+  mutate(fold = rep(paste0(&quot;fold&quot;, 1:5), each = 40))
+
+folded |&gt;
+  group_by(fold) |&gt;
+  roc_auc(truth, .pred_churn)
+#&gt; # A tibble: 5 x 4
+#&gt;   fold  .metric .estimator .estimate
+#&gt;   &lt;chr&gt; &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 fold1 roc_auc binary         0.665
+#&gt; 2 fold2 roc_auc binary         0.716
+#&gt; 3 fold3 roc_auc binary         0.654
+#&gt; 4 fold4 roc_auc binary         0.704
+#&gt; 5 fold5 roc_auc binary         0.671</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 4 uses the vector interface for ad-hoc checks.</strong> <code>roc_auc_vec()</code> accepts a truth factor and a probability vector and returns a plain numeric scalar.</p>
+
+<div class="webr-container" data-block-title="Vector interface for quick checks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vector interface for quick checks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">roc_auc_vec(churn$truth, churn$.pred_churn)
+#&gt; [1] 0.6824</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Bundle roc_auc with mn_log_loss and brier_class.</strong> <code>metric_set(roc_auc, mn_log_loss, brier_class)</code> builds a reusable function to score ranking and calibration together, the minimum honest report for probabilistic classifiers.</div></div>
+
+<h2>Multiclass averaging: hand_till, macro, and weighted</h2>
+
+<p><strong>roc_auc() handles multiclass data, but the default averaging differs from <code>recall()</code>.</strong> Yardstick defaults to <code>hand_till</code>, the Hand-and-Till extension that averages AUC over every ordered class pair.</p>
+
+<div class="webr-container" data-block-title="Multiclass predictions tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multiclass predictions tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(303)
+n &lt;- 180
+multi &lt;- tibble(
+  truth = factor(sample(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), n, replace = TRUE,
+                        prob = c(0.5, 0.3, 0.2)),
+                 levels = c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;)),
+  .pred_a = runif(n, 0, 1),
+  .pred_b = runif(n, 0, 1),
+  .pred_c = runif(n, 0, 1)
+) |&gt;
+  mutate(s = .pred_a + .pred_b + .pred_c,
+         .pred_a = .pred_a / s,
+         .pred_b = .pred_b / s,
+         .pred_c = .pred_c / s) |&gt;
+  select(-s)
+
+roc_auc(multi, truth, .pred_a, .pred_b, .pred_c)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 roc_auc hand_till      0.514</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Scoring under each averaging mode highlights the choice:</p>
+
+<div class="webr-container" data-block-title="Compare averaging modes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare averaging modes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">modes &lt;- c(&quot;hand_till&quot;, &quot;macro&quot;, &quot;macro_weighted&quot;)
+lapply(modes, \(m)
+  roc_auc(multi, truth, .pred_a, .pred_b, .pred_c, estimator = m)) |&gt;
+  bind_rows()
+#&gt; # A tibble: 3 x 3
+#&gt;   .metric .estimator     .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;              &lt;dbl&gt;
+#&gt; 1 roc_auc hand_till          0.514
+#&gt; 2 roc_auc macro              0.509
+#&gt; 3 roc_auc macro_weighted     0.511</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Estimator</th>
+<th>What it does</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hand_till</code></td>
+<td>Average AUC over every ordered class pair</td>
+<td>Default; insensitive to class prevalence</td>
+</tr>
+<tr>
+<td><code>macro</code></td>
+<td>One-vs-rest AUC per class, unweighted mean</td>
+<td>Treat every class as equally important</td>
+</tr>
+<tr>
+<td><code>macro_weighted</code></td>
+<td>One-vs-rest AUC per class, weighted by prevalence</td>
+<td>Reflect production traffic mix</td>
+</tr>
+</tbody>
+</table>
+
+<p><code>hand_till</code> is the academic default because it does not depend on class frequencies. Production teams often prefer <code>macro_weighted</code> so the score tracks real traffic mix.</p>
+
+<h2>roc_auc vs pr_auc vs accuracy</h2>
+
+<p><strong>Three metrics show up around the AUC column.</strong> The table sorts out the overlap.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>What it scores</th>
+<th>When to prefer it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>roc_auc()</code></td>
+<td>Probability that positive outranks negative</td>
+<td>Balanced data, ranking systems, threshold-free reports</td>
+</tr>
+<tr>
+<td><code>pr_auc()</code></td>
+<td>Area under the precision-recall curve</td>
+<td>Severe class imbalance; positives are rare</td>
+</tr>
+<tr>
+<td><code>accuracy()</code></td>
+<td>Share of labels correct at one threshold</td>
+<td>Reporting a deployed cutoff, sanity checks</td>
+</tr>
+<tr>
+<td><code>mn_log_loss()</code></td>
+<td>Mean <a class="auto-link" href="Maximum-Likelihood-Estimation-in-R.html" title="Maximum Likelihood Estimation in R: Build Genuine Intuition, Then Fit Real Models">negative log-likelihood</a></td>
+<td>Calibration penalty for confident wrong predictions</td>
+</tr>
+<tr>
+<td><code>brier_class()</code></td>
+<td><a class="auto-link" href="Point-Estimation-in-R.html" title="Point Estimation in R: What Makes an Estimator Good? Bias, Variance, and MSE">Mean squared error</a> between probability and truth</td>
+<td>Calibration metric, lower is better</td>
+</tr>
+</tbody>
+</table>
+
+<p><code>roc_auc()</code> reads optimistic on imbalanced data because the negative class dominates the false-positive denominator. On a 1:99 fraud problem, AUC can hit 0.95 while precision at the chosen cutoff stays below 0.20. Pair it with <code>pr_auc()</code> whenever positives are scarce.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from scikit-learn?</strong> <code>yardstick::roc_auc()</code> is the equivalent of <code>sklearn.metrics.roc_auc_score()</code>. The <code>estimator</code> argument maps onto scikit-learn's <code>multi_class</code> and <code>average</code> parameters; <code>hand_till</code> aligns with <code>multi_class=&quot;ovo&quot;</code>, <code>macro</code> with <code>multi_class=&quot;ovr&quot;, average=&quot;macro&quot;</code>, and <code>macro_weighted</code> with <code>multi_class=&quot;ovr&quot;, average=&quot;weighted&quot;</code>.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three small mistakes account for most roc_auc() errors.</strong></p>
+
+<p>The first is feeding class labels instead of probabilities. <code>roc_auc()</code> needs the probability of the positive class, not the predicted label. A common slip is passing <code>.pred_class</code> from <code>parsnip::augment()</code> when you meant <code>.pred_yes</code>.</p>
+
+<p>The second is forgetting that <code>event_level</code> and column order interact. The probability column name does not pin the positive class; the factor level order in <code>truth</code> does. If <code>levels(df$truth)</code> reads <code>c(&quot;no&quot;, &quot;yes&quot;)</code>, then <code>&quot;no&quot;</code> is positive by default and you should pass <code>.pred_no</code>, not <code>.pred_yes</code>.</p>
+
+<div class="webr-container" data-block-title="Fix: pin levels and pass the matching probability column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fix: pin levels and pass the matching probability column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">preds &lt;- tibble(
+  truth   = factor(c(&quot;yes&quot;,&quot;yes&quot;,&quot;no&quot;,&quot;no&quot;,&quot;yes&quot;), levels = c(&quot;yes&quot;,&quot;no&quot;)),
+  .pred_yes = c(0.85, 0.40, 0.10, 0.30, 0.70)
+)
+levels(preds$truth)
+#&gt; [1] &quot;yes&quot; &quot;no&quot;
+roc_auc(preds, truth, .pred_yes)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 roc_auc binary         0.833</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The third pitfall is reporting AUC at face value on severely imbalanced data. A high AUC can hide a useless operating point because the false-positive denominator is dominated by negatives. Switch to <code>pr_auc()</code> whenever the minority class is under 10 percent.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>roc_auc() does not validate that probability columns sum to 1.</strong> Multiclass probabilities are normalized only if your model produces calibrated output; if you stack three uncalibrated columns the AUC still computes but the comparison loses its probabilistic meaning. Always normalize before scoring multiclass.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the built-in <code>two_class_example</code> data from yardstick. The truth column is <code>truth</code>, and the probability column for the positive class (<code>Class1</code>) is <code>Class1</code>. Compute the ROC AUC, then compute it again with the positive class flipped via <code>event_level = &quot;second&quot;</code>. Save the second result to <code>ex_auc_alt</code>.</p>
+<div class="webr-container" data-block-title="Your turn: flip the positive class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: flip the positive class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+data(&quot;two_class_example&quot;)
+
+# Try it: roc_auc with flipped event level
+ex_auc_alt &lt;- # your code here
+
+ex_auc_alt
+#&gt; Expected: one row, .estimator binary, .estimate near 0.061</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+ex_auc_alt &lt;- two_class_example |&gt;
+  roc_auc(truth = truth, Class1, event_level = &quot;second&quot;)
+ex_auc_alt
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 roc_auc binary        0.0611</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>event_level = &quot;second&quot;</code> flips <code>Class2</code> to be the positive class while still scoring against the <code>Class1</code> probability column. The result equals <code>1 - default_AUC</code>, the mirror score; the default direction is the one you usually want.</p>
+
+</details>
+</section>
+
+<h2>Related yardstick metrics</h2>
+
+<p><strong>roc_auc() is one entry in the yardstick probability-metric family.</strong> Reach for these when AUC alone is not enough:</p>
+
+<ul>
+
+<li><code>pr_auc()</code> for area under the precision-recall curve, better on rare positives</li>
+
+<li><code>mn_log_loss()</code> for log-likelihood penalty on confident wrong predictions</li>
+
+<li><code>brier_class()</code> for calibration error of binary probabilities</li>
+
+<li><code>roc_curve()</code> to extract threshold points for plotting</li>
+
+<li><code>accuracy()</code>, <code>recall()</code>, and <code>precision()</code> for one-threshold label scoring</li>
+
+</ul>
+
+<p>For the full set, see the <a href="https://yardstick.tidymodels.org/reference/index.html">yardstick reference index</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Does roc_auc() need probabilities or class labels?</strong></p>
+
+<p>It needs probabilities. The function scores how well your model ranks positives above negatives across every threshold, which requires a continuous score, not a label. Pass the column holding the predicted probability of the positive class, usually <code>.pred_&lt;positive_class&gt;</code> from <code>parsnip::augment()</code>. Feeding <code>.pred_class</code> runs but produces a meaningless number.</p>
+
+<p><strong>What is a good ROC AUC score in R?</strong></p>
+
+<p>AUC ranges from 0 to 1, with 0.5 meaning random guessing. Rough conventions: 0.70 to 0.80 is acceptable for social-science classifiers, 0.80 to 0.90 is good for marketing and medical work, and above 0.90 is excellent but worth checking for leakage. Below 0.50 means the model is inverted; usually flip <code>event_level</code> rather than retrain.</p>
+
+<p><strong>Why does yardstick default to hand_till for multiclass AUC?</strong></p>
+
+<p>The Hand-and-Till estimator averages AUC over every ordered class pair, making the score independent of class prevalence. Macro and macro-weighted alternatives are available via <code>estimator</code> when you want one-vs-rest readings or want to reflect production traffic mix.</p>
+
+<p><strong>How is roc_auc different from accuracy?</strong></p>
+
+<p><code>accuracy()</code> scores correct labels at one chosen threshold. <code>roc_auc()</code> integrates performance across every threshold and never needs a cutoff. A model that always predicts the majority class hits high accuracy but scores 0.5 AUC because it cannot rank anything. Report both when the positive class is rare.</p>
