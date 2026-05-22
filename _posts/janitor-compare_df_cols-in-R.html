@@ -1,0 +1,408 @@
+---
+title: "janitor compare_df_cols() in R: Compare Column Schemas"
+description: "Use janitor::compare_df_cols() to compare column names, types, and classes across two or more data frames in R. Examples, options, and common pitfalls."
+keywords: "janitor compare_df_cols, compare_df_cols function R, janitor compare_df_cols examples, R compare data frame columns, compare data frame schemas R, janitor::compare_df_cols, check column types across data frames"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "compare_df_cols()|janitor compare_df_cols|janitor::compare_df_cols()|compare data frame columns|compare_df_cols_same()"
+auto_link_case_sensitive: true
+fr_parent: "janitor-Package-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>janitor compare_df_cols() in R: Compare Column Schemas</h1>
+
+<p class="lead">The <code>compare_df_cols()</code> function in janitor lines up the column names, classes, and types of two or more data frames side by side, so you can see schema mismatches before a <code>bind_rows()</code> or <code>rbind()</code> blows up. It is the fastest way to diagnose why two tables that "look the same" will not stack.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>compare_df_cols(df1, df2)<span class="qa-cmt">                                # side-by-side schema</span>
+compare_df_cols(df1, df2, return = &quot;mismatch&quot;)<span class="qa-cmt">           # only mismatched columns</span>
+compare_df_cols(df1, df2, return = &quot;match&quot;)<span class="qa-cmt">              # only matched columns</span>
+compare_df_cols(df1, df2, bind_method = &quot;rbind&quot;)<span class="qa-cmt">         # use rbind type rules</span>
+compare_df_cols(jan = df1, feb = df2)<span class="qa-cmt">                    # custom column labels</span>
+compare_df_cols_same(df1, df2)<span class="qa-cmt">                           # TRUE if safe to bind_rows</span>
+compare_df_cols(df1, df2, strict_description = TRUE)<span class="qa-cmt">     # compare full type description</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is compare_df_cols() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">diagnose why bind_rows fails on two frames</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">compare_df_cols(df1, df2, return = &quot;mismatch&quot;)</text><text x="125" y="126" class="branch-label">check if frames are bindable, return TRUE/FALSE</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">compare_df_cols_same(df1, df2)</text><text x="125" y="182" class="branch-label">peek at one data frame's structure</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">dplyr::glimpse(df)</text><text x="125" y="238" class="branch-label">list classes of every column</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">sapply(df, class)</text><text x="125" y="294" class="branch-label">spot duplicate rows after binding</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">janitor::get_dupes(combined, key)</text><text x="125" y="350" class="branch-label">clean column names before comparing</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">janitor::clean_names(df)</text><text x="125" y="406" class="branch-label">compare full data, not just schema</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">dplyr::all_equal(df1, df2)</text></svg></div>
+
+<h2>What compare_df_cols() does in one sentence</h2>
+
+<p><strong><code>compare_df_cols()</code> takes two or more data frames and returns a tibble with one row per unique column name and one extra column per input frame, showing the class of that column in each frame.</strong> Columns that are absent in a given frame appear as <code>NA</code>, which makes structural gaps obvious at a glance.</p>
+
+<p>Use it whenever you are about to stack frames row-wise (<code>dplyr::bind_rows()</code> or <code>rbind()</code>) and want to confirm the schemas match. The function is part of the janitor package, so it works on any data frame, tibble, or data.table.</p>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>The function accepts any number of named or unnamed data frames followed by a few options that control what gets returned.</strong> The full signature is:</p>
+
+<div class="webr-container" data-block-title="Function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">compare_df_cols(
+  ...,
+  return = c(&quot;all&quot;, &quot;match&quot;, &quot;mismatch&quot;),
+  bind_method = c(&quot;bind_rows&quot;, &quot;rbind&quot;),
+  strict_description = FALSE,
+  strict_class = FALSE
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>...</code></td>
+<td>Two or more data frames. Pass them as named arguments (<code>jan = df1, feb = df2</code>) to label the result columns.</td>
+</tr>
+<tr>
+<td><code>return</code></td>
+<td><code>&quot;all&quot;</code> shows every column (default). <code>&quot;match&quot;</code> keeps only columns whose classes agree across frames. <code>&quot;mismatch&quot;</code> keeps only the troublemakers.</td>
+</tr>
+<tr>
+<td><code>bind_method</code></td>
+<td><code>&quot;bind_rows&quot;</code> (default) uses the dplyr type-coercion rules. <code>&quot;rbind&quot;</code> uses base R's stricter rules.</td>
+</tr>
+<tr>
+<td><code>strict_description</code></td>
+<td>If <code>TRUE</code>, compares the full type description (e.g., distinguishes <code>ordered</code> from <code>factor</code>).</td>
+</tr>
+<tr>
+<td><code>strict_class</code></td>
+<td>If <code>TRUE</code>, requires the full class vector to match, not just the first class.</td>
+</tr>
+</tbody>
+</table>
+
+<p>The output is always a tibble with <code>column_name</code> as the first column, followed by one column per input frame.</p>
+
+<h2>Examples</h2>
+
+<h3>Example 1: side-by-side schema for two frames</h3>
+
+<p><strong>Pass two data frames and you get a tibble with one row per column.</strong> Same-named columns line up; missing columns show <code>NA</code>.</p>
+
+<div class="webr-container" data-block-title="Compare two monthly sales frames">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare two monthly sales frames</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+library(dplyr)
+
+jan_sales &lt;- data.frame(
+  order_id = 1:3,
+  customer = c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;),
+  amount   = c(10.0, 22.5, 7.8),
+  region   = c(&quot;N&quot;, &quot;S&quot;, &quot;N&quot;)
+)
+
+feb_sales &lt;- data.frame(
+  order_id = 1:3,
+  customer = c(&quot;d&quot;, &quot;e&quot;, &quot;f&quot;),
+  amount   = c(15L, 18L, 9L),
+  channel  = c(&quot;web&quot;, &quot;store&quot;, &quot;web&quot;)
+)
+
+compare_df_cols(jan_sales, feb_sales)
+#&gt;   column_name jan_sales feb_sales
+#&gt; 1      amount   numeric   integer
+#&gt; 2     channel      &lt;NA&gt; character
+#&gt; 3    customer character character
+#&gt; 4    order_id   integer   integer
+#&gt; 5      region character      &lt;NA&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two issues jump out: <code>amount</code> is <code>numeric</code> in January but <code>integer</code> in February (still bindable, but worth knowing), and each frame has a column the other lacks. <code>bind_rows()</code> would fill the gaps with <code>NA</code>, which may not be what you want.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Name your inputs to label the result.</strong> Pass frames as <code>compare_df_cols(jan = jan_sales, feb = feb_sales)</code> and the output columns will be labelled <code>jan</code> and <code>feb</code> instead of the variable names. Helpful when comparing more than two frames or when variable names are long.</div></div>
+
+<h3>Example 2: return only the mismatches</h3>
+
+<p><strong>Setting <code>return = &quot;mismatch&quot;</code> filters the output to columns that differ across the inputs.</strong> This is the most useful mode for diagnosing a failing bind.</p>
+
+<div class="webr-container" data-block-title="Show only the problem columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Show only the problem columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">compare_df_cols(jan_sales, feb_sales, return = &quot;mismatch&quot;)
+#&gt;   column_name jan_sales feb_sales
+#&gt; 1      amount   numeric   integer
+#&gt; 2     channel      &lt;NA&gt; character
+#&gt; 3      region character      &lt;NA&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>order_id</code> and <code>customer</code> agree across both frames, so they drop out. What remains is exactly what you need to investigate.</p>
+
+<h3>Example 3: check if frames are safe to bind</h3>
+
+<p><strong><code>compare_df_cols_same()</code> returns a single <code>TRUE</code> or <code>FALSE</code>.</strong> It is the boolean wrapper around <code>compare_df_cols()</code> you reach for in tests or scripts.</p>
+
+<div class="webr-container" data-block-title="Safe-to-bind boolean check">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Safe-to-bind boolean check</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">compare_df_cols_same(jan_sales, feb_sales)
+#&gt; Columns not in a common position or with mismatched classes:
+#&gt;   column_name jan_sales feb_sales
+#&gt; 1      amount   numeric   integer
+#&gt; 2     channel      &lt;NA&gt; character
+#&gt; 3      region character      &lt;NA&gt;
+#&gt; [1] FALSE
+
+# After harmonizing the schemas, the check passes
+jan_fixed &lt;- jan_sales |&gt; select(order_id, customer, amount) |&gt; mutate(amount = as.integer(amount))
+feb_fixed &lt;- feb_sales |&gt; select(order_id, customer, amount)
+
+compare_df_cols_same(jan_fixed, feb_fixed)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The function prints the mismatches on its way to returning <code>FALSE</code>, so you get both the boolean and the diagnostic in one call. Wrap it in <code>stopifnot()</code> to gate a pipeline.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Think of <code>compare_df_cols()</code> as a <code>git diff</code> for data frame schemas.</strong> It does not compare row values; it compares the shape. Use it before any vertical stack to catch the schema drift that bind operations silently coerce or noisily reject.</div></div>
+
+<h3>Example 4: stricter class checks</h3>
+
+<p><strong>By default, only the first class of each column is compared.</strong> That means a <code>Date</code> column counts as the same as a <code>POSIXct</code> column under loose checks. Tighten the comparison with <code>strict_class</code> or <code>strict_description</code>.</p>
+
+<div class="webr-container" data-block-title="Strict class comparison catches subtle differences">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Strict class comparison catches subtle differences</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df_date &lt;- data.frame(d = as.Date(&quot;2026-01-01&quot;))
+df_time &lt;- data.frame(d = as.POSIXct(&quot;2026-01-01&quot;))
+
+compare_df_cols(df_date, df_time)
+#&gt;   column_name df_date  df_time
+#&gt; 1           d    Date POSIXct,POSIXt
+
+compare_df_cols(df_date, df_time, return = &quot;mismatch&quot;)
+#&gt;   column_name df_date  df_time
+#&gt; 1           d    Date POSIXct,POSIXt
+
+# Without strict_class, the first class IS already different here, so it shows up.
+# But factor vs ordered factor is hidden by default:
+df_f &lt;- data.frame(g = factor(c(&quot;a&quot;, &quot;b&quot;)))
+df_o &lt;- data.frame(g = ordered(c(&quot;a&quot;, &quot;b&quot;)))
+
+compare_df_cols(df_f, df_o)
+#&gt;   column_name df_f df_o
+#&gt; 1           g   factor ordered,factor
+
+compare_df_cols(df_f, df_o, strict_class = TRUE, return = &quot;mismatch&quot;)
+#&gt;   column_name df_f          df_o
+#&gt; 1           g factor ordered,factor</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Use <code>strict_class = TRUE</code> when <a class="auto-link" href="R-Factors.html" title="R Factors: The Data Type That Trips Up Almost Every R Beginner">ordered factors</a>, dates with timezones, or <a class="auto-link" href="S4-Classes-in-R.html" title="S4 Classes in R: setClass(), setGeneric() & Formal OOP">S4 classes</a> need to round-trip exactly. Use <code>strict_description = TRUE</code> to compare the output of <code>vctrs::vec_ptype_full()</code> rather than <code>class()</code>, which is even tighter.</p>
+
+<h2>How compare_df_cols() compares with alternatives</h2>
+
+<p><strong><code>compare_df_cols()</code> is purpose-built for the pre-bind schema check; the alternatives below do related but different jobs.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>What it answers</th>
+<th>When to use it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>compare_df_cols()</code></td>
+<td>"Which columns differ in name or class across frames?"</td>
+<td>Before any <code>bind_rows()</code>, <code>rbind()</code>, or vertical stack</td>
+</tr>
+<tr>
+<td><code>dplyr::glimpse(df)</code></td>
+<td>"What does this one frame look like?"</td>
+<td>Inspect a single frame, not a comparison</td>
+</tr>
+<tr>
+<td><code>sapply(df, class)</code></td>
+<td>"What is the class of each column in this frame?"</td>
+<td>Quick class audit when janitor is not loaded</td>
+</tr>
+<tr>
+<td><code>all.equal(df1, df2)</code></td>
+<td>"Are these two frames the same data?"</td>
+<td>Compare values and structure together; verbose output</td>
+</tr>
+<tr>
+<td><code>dplyr::bind_rows(df1, df2)</code></td>
+<td>(<a class="auto-link" href="R-Type-Coercion.html" title="R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters">silent coercion</a>)</td>
+<td>Will run with mismatches and coerce; check first to avoid surprises</td>
+</tr>
+<tr>
+<td><code>rbind(df1, df2)</code></td>
+<td>(errors on mismatch)</td>
+<td>Use after a successful <code>compare_df_cols_same()</code> check</td>
+</tr>
+</tbody>
+</table>
+
+<p>For programmatic checks, <code>compare_df_cols_same()</code> is the clearest choice. For exploratory inspection, the printed tibble from <code>compare_df_cols()</code> is easier to read than <code>str()</code> output.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The closest equivalents are <code>df.dtypes</code> plus a manual diff, or <code>pd.concat([df1, df2]).dtypes</code>. There is no single-call equivalent.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong><code>compare_df_cols()</code> itself is forgiving, but three things trip people up.</strong></p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Column order does not matter; column names do.</strong> <code>compare_df_cols()</code> matches by name, so two frames with the same columns in different orders look identical. If your downstream code uses <code>rbind()</code> (which matches by position), a clean comparison can still hide a positional bug. Prefer <code>bind_rows()</code> or <a class="auto-link" href="dplyr-relocate-in-R.html" title="dplyr relocate() in R: Reorder Columns Easily">reorder columns</a> first.</div></div>
+
+<ol>
+
+<li><strong>Whitespace or case differences look like missing columns.</strong> A column called <code>Amount</code> in one frame and <code>amount</code> in another shows up as two rows. Run <code>janitor::clean_names()</code> on every frame first.</li>
+
+</ol>
+
+<ol>
+
+<li><strong>List-columns confuse the class check.</strong> Two columns of class <code>list</code> compare equal even when contents differ wildly. <code>compare_df_cols()</code> only sees the outer class, not the contents.</li>
+
+</ol>
+
+<ol>
+
+<li><strong>Factor levels are not checked, only the factor class.</strong> Two <code>factor</code> columns with different level sets compare equal. After binding, expect unexpected <code>NA</code>s for missing levels. Use <code>strict_description = TRUE</code> if level identity matters.</li>
+
+</ol>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> You have three monthly sales frames and need to confirm they are safe to stack before binding. Use compare_df_cols() to find the mismatched columns, then write the boolean check.</p>
+<div class="webr-container" data-block-title="Your turn: audit three frames">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: audit three frames</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: find mismatched columns across three sales frames
+ex_jan &lt;- data.frame(id = 1:2, amt = c(10, 20), region = c(&quot;N&quot;, &quot;S&quot;))
+ex_feb &lt;- data.frame(id = 3:4, amt = c(15L, 25L), region = c(&quot;E&quot;, &quot;W&quot;))
+ex_mar &lt;- data.frame(id = 5:6, amt = c(12.5, 18.0), channel = c(&quot;web&quot;, &quot;store&quot;))
+
+ex_mismatches &lt;- # your code here
+ex_safe       &lt;- # your code here: TRUE or FALSE
+
+ex_mismatches
+#&gt; Expected: a tibble showing amt (numeric vs integer vs numeric) and the channel/region difference
+ex_safe
+#&gt; Expected: FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mismatches &lt;- compare_df_cols(ex_jan, ex_feb, ex_mar, return = &quot;mismatch&quot;)
+ex_safe       &lt;- compare_df_cols_same(ex_jan, ex_feb, ex_mar)
+
+ex_mismatches
+#&gt;   column_name  ex_jan    ex_feb  ex_mar
+#&gt; 1         amt numeric   integer numeric
+#&gt; 2     channel    &lt;NA&gt;      &lt;NA&gt; character
+#&gt; 3      region character character    &lt;NA&gt;
+
+ex_safe
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>compare_df_cols()</code> accepts any number of frames via <code>...</code>, so all three drop in together. <code>compare_df_cols_same()</code> returns <code>FALSE</code> because of both the type mismatch on <code>amt</code> and the missing columns.</p>
+
+</details>
+</section>
+
+<h2>Related janitor functions</h2>
+
+<p>These functions pair well with <code>compare_df_cols()</code> in a typical data-cleaning pipeline:</p>
+
+<ul>
+
+<li><a href="janitor-clean_names-in-R.html">janitor::clean_names()</a> standardizes column names before comparison, so case and punctuation differences do not masquerade as missing columns.</li>
+
+<li><a href="janitor-get_dupes-in-R.html">janitor::get_dupes()</a> finds duplicate rows after binding frames, a common follow-up check.</li>
+
+<li><a href="janitor-remove_empty-in-R.html">janitor::remove_empty()</a> drops fully empty rows or columns that can confuse schema comparison.</li>
+
+<li><a href="janitor-remove_constant-in-R.html">janitor::remove_constant()</a> drops columns with a single unique value, useful before binding wide tables.</li>
+
+<li><a href="janitor-tabyl-in-R.html">janitor::tabyl()</a> cross-tabulates frequencies once frames are safely combined.</li>
+
+</ul>
+
+<p>For the full janitor reference, see the <a href="https://cran.r-project.org/package=janitor">janitor package CRAN page</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does compare_df_cols() return?</strong></p>
+
+<p>It returns a tibble with <code>column_name</code> as the first column and one column per input data frame. Each cell holds the class of that column in that frame, or <code>NA</code> when the column is absent. The output is sorted alphabetically by column name, which makes it easy to scan even when inputs have hundreds of columns.</p>
+
+<p><strong>Can I compare more than two data frames at once?</strong></p>
+
+<p>Yes. <code>compare_df_cols()</code> accepts any number of data frames through <code>...</code>. Pass them as named arguments to control the output column labels, for example <code>compare_df_cols(jan = df1, feb = df2, mar = df3)</code>. The result will have four columns: <code>column_name</code>, <code>jan</code>, <code>feb</code>, and <code>mar</code>. This is the recommended pattern when auditing many partitioned tables before a bulk bind.</p>
+
+<p><strong>What is the difference between compare_df_cols() and compare_df_cols_same()?</strong></p>
+
+<p><code>compare_df_cols()</code> returns the diagnostic tibble showing every column's class in every frame. <code>compare_df_cols_same()</code> returns a single <code>TRUE</code> or <code>FALSE</code> telling you whether the frames are safely bindable, and prints the mismatch tibble as a side effect when it returns <code>FALSE</code>. Use the boolean wrapper in tests; use the full function for interactive exploration.</p>
+
+<p><strong>Does compare_df_cols() check row values?</strong></p>
+
+<p>No. It only inspects the schema, meaning column names and their classes. Two frames with identical schemas but completely different row values will report as a perfect match. For value-level comparison, use <code>dplyr::all_equal()</code>, <code>waldo::compare()</code>, or <code>all.equal()</code> instead.</p>
+
+<p><strong>Why does compare_df_cols() show different output from str()?</strong></p>
+
+<p><code>str()</code> prints a recursive description of one object, including dimensions, class, and a preview of values. <code>compare_df_cols()</code> produces a side-by-side schema diff of multiple frames, designed to be read as a table. For multi-frame audits, <code>compare_df_cols()</code> is far easier to scan; for a single-frame inspection, stick with <code>str()</code> or <code>dplyr::glimpse()</code>.</p>
