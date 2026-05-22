@@ -1,0 +1,372 @@
+---
+title: "caret modelLookup() in R: Find Tuning Parameters"
+description: "Use caret modelLookup() in R to find the tuning parameters, model type, and probability support for any of caret's 230+ models. Examples with output included."
+keywords: "caret modelLookup, modelLookup function R, caret modelLookup examples, R caret model tuning parameters, caret list model parameters, modelLookup caret package, caret tuning grid parameters"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "modelLookup()|caret modelLookup|caret::modelLookup()|modelLookup function in caret|look up caret models"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret modelLookup() in R: Find Tuning Parameters</h1>
+
+<p class="lead">The <code>modelLookup()</code> function in caret returns a small data frame describing any model's tuning parameters, whether it handles regression or classification, and whether it produces class probabilities. Call it before <code>train()</code> to know exactly which hyperparameters caret will tune.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>modelLookup(&quot;rf&quot;)<span class="qa-cmt">                          # one model</span>
+modelLookup(&quot;glmnet&quot;)<span class="qa-cmt">                      # model with two tuning params</span>
+modelLookup()<span class="qa-cmt">                              # every available method</span>
+nrow(modelLookup())<span class="qa-cmt">                        # count parameters across all models</span>
+unique(modelLookup()$model)<span class="qa-cmt">                # list of model names</span>
+subset(modelLookup(), forClass &amp; probModel)<span class="qa-cmt">  # classifiers with probabilities</span>
+subset(modelLookup(), forReg &amp; parameter != &quot;parameter&quot;)<span class="qa-cmt">  # regression models with tuning</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is modelLookup() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">list tuning parameters for one method</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">modelLookup(&quot;xgbTree&quot;)</text><text x="125" y="126" class="branch-label">get the full caret model registry</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">names(getModelInfo())</text><text x="125" y="182" class="branch-label">fetch the underlying fit/predict code</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">getModelInfo(&quot;rf&quot;, regex = FALSE)</text><text x="125" y="238" class="branch-label">fit and tune a model with those parameters</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">train(y ~ ., data = df, method = &quot;rf&quot;)</text><text x="125" y="294" class="branch-label">build an explicit tuning grid</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">expand.grid(mtry = c(2, 4, 6))</text><text x="125" y="350" class="branch-label">choose a resampling scheme</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">trainControl(method = &quot;cv&quot;, number = 10)</text></svg></div>
+
+<h2>What modelLookup() does in one sentence</h2>
+
+<p><strong><code>modelLookup()</code> is caret's model registry index.</strong> You pass a method string and it returns a data frame with one row per tuning parameter, plus flags showing whether the model supports regression (<code>forReg</code>), classification (<code>forClass</code>), and class probabilities (<code>probModel</code>). Call it without arguments and you get the same data for every method caret knows.</p>
+
+<p>The point of <code>modelLookup()</code> is reconnaissance. Before you write <code>train(..., method = &quot;gbm&quot;, tuneGrid = ...)</code>, you need to know which columns the <code>tuneGrid</code> data frame must contain. <code>modelLookup(&quot;gbm&quot;)</code> tells you in one line.</p>
+
+<h2>modelLookup() syntax and arguments</h2>
+
+<p><strong>The signature has one required argument and two switches.</strong> Most calls use only the first.</p>
+
+<div class="webr-container" data-block-title="Load caret and check the function">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and check the function</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+args(modelLookup)
+#&gt; function (model = NULL)
+#&gt; NULL</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>modelLookup()</code> accepts a single argument:</p>
+
+<ul>
+
+<li><code>model</code>: a character string naming a caret method (<code>&quot;rf&quot;</code>, <code>&quot;glmnet&quot;</code>, <code>&quot;xgbTree&quot;</code>, etc.). Default <code>NULL</code> returns the registry for every model caret ships.</li>
+
+</ul>
+
+<p>The returned data frame has six columns:</p>
+
+<ul>
+
+<li><code>model</code>: the method string you pass to <code>train(method = ...)</code>.</li>
+
+<li><code>parameter</code>: the tuning parameter name. Use these as <code>tuneGrid</code> columns.</li>
+
+<li><code>label</code>: a human-readable description of the parameter.</li>
+
+<li><code>forReg</code>: <code>TRUE</code> if the model supports regression.</li>
+
+<li><code>forClass</code>: <code>TRUE</code> if the model supports classification.</li>
+
+<li><code>probModel</code>: <code>TRUE</code> if the model can return class probabilities via <code>predict(type = &quot;prob&quot;)</code>.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>modelLookup()</code> only reads metadata, it does not fit a model.</strong> Calls are cheap and have no side effects. You can run it repeatedly inside a loop or a Shiny app without performance concerns.</div></div>
+
+<h2>modelLookup() examples by use case</h2>
+
+<h3>1. Look up one model</h3>
+
+<p>The most common call: pass a method string and read the tuning parameters.</p>
+
+<div class="webr-container" data-block-title="Inspect random forest tuning parameters">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect random forest tuning parameters</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">modelLookup(&quot;rf&quot;)
+#&gt;   model parameter                         label forReg forClass probModel
+#&gt; 1    rf      mtry #Randomly Selected Predictors   TRUE     TRUE      TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Random forest tunes a single parameter, <code>mtry</code>. So <code>tuneGrid</code> must be a data frame with one column named <code>mtry</code>. The <code>forReg</code> and <code>forClass</code> flags say the same model code handles both tasks.</p>
+
+<div class="webr-container" data-block-title="Inspect glmnet, which tunes two parameters">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect glmnet, which tunes two parameters</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">modelLookup(&quot;glmnet&quot;)
+#&gt;    model parameter                    label forReg forClass probModel
+#&gt; 1 glmnet     alpha        Mixing Percentage   TRUE     TRUE      TRUE
+#&gt; 2 glmnet    lambda Regularization Parameter   TRUE     TRUE      TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>glmnet returns two rows because it tunes <code>alpha</code> (elastic-net mixing) and <code>lambda</code> (regularization strength). The <code>tuneGrid</code> data frame needs both columns.</p>
+
+<h3>2. List every available method</h3>
+
+<p>Call with no arguments to get the whole registry.</p>
+
+<div class="webr-container" data-block-title="Browse the caret model catalog">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Browse the caret model catalog</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">all_models &lt;- modelLookup()
+dim(all_models)
+#&gt; [1] 460   6
+
+head(all_models, 3)
+#&gt;   model parameter                    label forReg forClass probModel
+#&gt; 1  ada      iter                #Trees    FALSE     TRUE      TRUE
+#&gt; 2  ada  maxdepth         Max Tree Depth    FALSE     TRUE      TRUE
+#&gt; 3  ada        nu      Learning Rate         FALSE     TRUE      TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one tuning parameter, not one model. To count unique models, deduplicate on <code>model</code>.</p>
+
+<div class="webr-container" data-block-title="How many caret models exist">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">How many caret models exist</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">length(unique(all_models$model))
+#&gt; [1] 238</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. Filter to models that match a task</h3>
+
+<p>Subset the registry by the <code>forReg</code>, <code>forClass</code>, and <code>probModel</code> flags to find models for a specific job.</p>
+
+<div class="webr-container" data-block-title="Find classifiers that return probabilities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find classifiers that return probabilities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prob_classifiers &lt;- subset(all_models,
+                           forClass == TRUE &amp; probModel == TRUE)
+length(unique(prob_classifiers$model))
+#&gt; [1] 196
+
+head(unique(prob_classifiers$model), 8)
+#&gt; [1] &quot;ada&quot;      &quot;AdaBag&quot;   &quot;AdaBoost.M1&quot; &quot;amdai&quot;
+#&gt; [5] &quot;avNNet&quot;   &quot;awnb&quot;     &quot;awtan&quot;       &quot;bag&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Useful when your downstream code needs <code>predict(type = &quot;prob&quot;)</code> for ROC curves or calibration plots. Models without <code>probModel = TRUE</code> can still classify, but only return hard class labels.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Combine <code>modelLookup()</code> with <code>getModelInfo()</code> for a full picture.</strong> <code>modelLookup()</code> returns the parameter names; <code>getModelInfo(&quot;rf&quot;)</code> returns the parameter ranges, default values, and the actual fit and predict functions. The two functions are complementary.</div></div>
+
+<h3>4. Build a tuneGrid from modelLookup() output</h3>
+
+<p>The cleanest workflow uses <code>modelLookup()</code> to fetch the parameter names, then constructs <code>tuneGrid</code> programmatically.</p>
+
+<div class="webr-container" data-block-title="Drive tuneGrid from the registry">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drive tuneGrid from the registry</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+params &lt;- modelLookup(&quot;knn&quot;)$parameter
+params
+#&gt; [1] &quot;k&quot;
+
+grid &lt;- expand.grid(k = c(3, 5, 7, 9))
+fit_knn &lt;- train(Species ~ ., data = iris,
+                 method = &quot;knn&quot;,
+                 tuneGrid = grid)
+fit_knn$bestTune
+#&gt;   k
+#&gt; 2 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This pattern is robust to model swaps. If you change <code>method = &quot;knn&quot;</code> to <code>method = &quot;kknn&quot;</code>, <code>modelLookup()</code> returns three parameters instead of one, and your grid builder adapts without code edits.</p>
+
+<h2>modelLookup() vs getModelInfo()</h2>
+
+<p><strong>Both functions index caret's model registry, but they answer different questions.</strong> Pick by what you need.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Aspect</th>
+<th><code>modelLookup()</code></th>
+<th><code>getModelInfo()</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Return type</td>
+<td>Data frame</td>
+<td>List of model definitions</td>
+</tr>
+<tr>
+<td>Information</td>
+<td>Parameter names, task flags</td>
+<td>Fit, predict, grid, sort logic</td>
+</tr>
+<tr>
+<td>Common use</td>
+<td>Pre-train reconnaissance</td>
+<td>Custom model construction</td>
+</tr>
+<tr>
+<td>Cost</td>
+<td>Negligible</td>
+<td>Negligible for inspection</td>
+</tr>
+<tr>
+<td>Regex on model name</td>
+<td>No</td>
+<td>Yes, via <code>regex = TRUE</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>modelLookup()</code> when you want a quick table of tuning parameters. Use <code>getModelInfo(&quot;rf&quot;, regex = FALSE)$rf</code> when you need to read or modify the underlying fit and predict code.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong><code>modelLookup()</code> returns one row per parameter, not per model.</strong> If you write <code>nrow(modelLookup())</code>, you get parameter count (460+), not model count (~238). Always deduplicate on the <code>model</code> column before counting models.</p>
+
+<p><strong>Models with no tuning parameter still appear with a placeholder row.</strong> <code>modelLookup(&quot;lm&quot;)</code> returns one row with <code>parameter = &quot;parameter&quot;</code> and <code>label = &quot;parameter&quot;</code>. That single literal row is caret's signal that the model has nothing to tune; do not pass it as a real <code>tuneGrid</code> column.</p>
+
+<div class="webr-container" data-block-title="Linear model has a placeholder row">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Linear model has a placeholder row</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">modelLookup(&quot;lm&quot;)
+#&gt;   model parameter     label forReg forClass probModel
+#&gt; 1    lm parameter parameter   TRUE    FALSE     FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A method string typo silently returns zero rows.</strong> <code>modelLookup(&quot;randomForest&quot;)</code> returns an empty data frame because the caret method is <code>&quot;rf&quot;</code>, not <code>&quot;randomForest&quot;</code>. Always sanity-check with <code>nrow(modelLookup(&quot;yourmethod&quot;)) &gt; 0</code> before piping into <code>train()</code>.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>modelLookup()</code> to list every model that supports both regression and classification probabilities. Save the unique model names to <code>ex_dual_models</code> and print how many there are.</p>
+<div class="webr-container" data-block-title="Your turn: find dual-task probability models">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find dual-task probability models</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: filter the registry
+ex_dual_models &lt;- # your code here
+
+length(ex_dual_models)
+#&gt; Expected: around 130</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">reg &lt;- modelLookup()
+dual &lt;- subset(reg, forReg &amp; forClass &amp; probModel)
+ex_dual_models &lt;- unique(dual$model)
+length(ex_dual_models)
+#&gt; [1] 132</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Combine the three logical flag columns with <code>&amp;</code>, subset the registry, then deduplicate on <code>model</code>. The result is the set of methods you can drop into <code>train()</code> for either task and still call <code>predict(type = &quot;prob&quot;)</code>.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<ul>
+
+<li>[<code>train()</code>](caret-train-in-R.html) consumes the parameter names that <code>modelLookup()</code> returns.</li>
+
+<li>[<code>trainControl()</code>](caret-trainControl-in-R.html) defines the resampling strategy passed alongside <code>tuneGrid</code>.</li>
+
+<li><code>getModelInfo()</code> returns the full model definition list when you need fit and predict internals.</li>
+
+<li>[<code>varImp()</code>](caret-varImp-in-R.html) reports <a class="auto-link" href="Variable-Selection-and-Importance-With-R.html" title="Feature Selection and Variable Importance">variable importance</a> from any model <code>train()</code> produced.</li>
+
+<li>[<code>confusionMatrix()</code>](caret-confusionMatrix-in-R.html) evaluates classification predictions from those models.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I find all models caret supports?</strong></p>
+
+<p>Call <code>modelLookup()</code> with no arguments and pull the unique values from the <code>model</code> column: <code>unique(modelLookup()$model)</code>. As of caret 6.0-94, the registry holds about 238 methods. The official list at <code>topepo.github.io/caret/available-models.html</code> mirrors this output and adds the source package for each method.</p>
+
+<p><strong>What does <code>forReg</code> mean in modelLookup output?</strong></p>
+
+<p><code>forReg = TRUE</code> says the same method string handles regression. Some methods support only one task: <code>glm</code> with <code>family = &quot;binomial&quot;</code> is classification-only, while <code>lm</code> is regression-only. Models like <code>&quot;rf&quot;</code>, <code>&quot;glmnet&quot;</code>, and <code>&quot;xgbTree&quot;</code> flip both flags to <code>TRUE</code> and switch behavior based on the outcome variable's type.</p>
+
+<p><strong>Why does modelLookup("lm") return a row with parameter = "parameter"?</strong></p>
+
+<p>That single literal row is caret's placeholder for models with no tunable hyperparameters. <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">Linear regression</a> has no grid to search, so caret manufactures a stub row to keep the schema consistent. Do not pass that literal <code>&quot;parameter&quot;</code> column to <code>tuneGrid</code>; instead, omit <code>tuneGrid</code> entirely or use <code>tuneLength = 1</code>.</p>
+
+<p><strong>What is the difference between modelLookup and getModelInfo?</strong></p>
+
+<p><code>modelLookup()</code> returns a <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> frame describing tuning parameters and task support. <code>getModelInfo()</code> returns a list with the same metadata plus the actual <code>fit</code>, <code>predict</code>, <code>prob</code>, and <code>grid</code> functions caret uses to drive training. Use <code>modelLookup()</code> for inspection; use <code>getModelInfo()</code> when you build a custom method or debug caret's internals.</p>
+
+<p><strong>Can I use modelLookup with custom models?</strong></p>
+
+<p>Yes. If you register a custom model with <code>train(method = my_model_list, ...)</code>, <code>modelLookup()</code> will read the <code>parameters</code> element from the list and include it in the output. The list must have <code>parameters</code> as a data frame with columns <code>parameter</code>, <code>class</code>, and <code>label</code>. See <code>?caret::models</code> or <code>getModelInfo(&quot;rf&quot;, regex = FALSE)$rf$parameters</code> for the expected structure.</p>
