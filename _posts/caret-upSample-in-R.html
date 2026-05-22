@@ -1,0 +1,368 @@
+---
+title: "caret upSample() in R: Oversample Minority Class for Balance"
+description: "caret upSample() in R oversamples the minority class with replacement to balance binary or multiclass training data. Syntax, examples, pitfalls, full FAQ."
+keywords: "caret upSample, upSample function R, caret upSample examples, R upsample minority class, caret oversampling, caret upSample classification, R class imbalance upsampling"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "upSample()|caret upSample|caret::upSample()|random oversampling|caret oversampling"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret upSample() in R: Oversample Minority Class for Balance</h1>
+
+<p class="lead">The <code>upSample()</code> function in caret balances a classification dataset by sampling rows from minority classes with replacement until every class matches the majority count. It returns one combined data frame containing the predictors plus a renamed outcome column, and it works for binary or multiclass factor targets out of the box.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>upSample(x = predictors, y = labels)<span class="qa-cmt">                  # default, balances all classes</span>
+upSample(x, y, yname = &quot;Outcome&quot;)<span class="qa-cmt">                     # rename the outcome column</span>
+upSample(x, y, list = TRUE)<span class="qa-cmt">                           # list with $x and $y separately</span>
+upSample(train[, -1], train$Class)<span class="qa-cmt">                    # typical training-only call</span>
+upSample(iris[, 1:4], iris$Species)<span class="qa-cmt">                   # no-op when already balanced</span>
+table(upSample(x, y)$Class)<span class="qa-cmt">                           # confirm equal class counts</span>
+set.seed(1); upSample(x, y)<span class="qa-cmt">                           # reproducible draws</span>
+nrow(upSample(x, y))<span class="qa-cmt">                                  # majority count times n classes</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is upSample() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">random oversampling for a classifier</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">upSample(x, y)</text><text x="125" y="126" class="branch-label">random undersampling of the majority</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">downSample(x, y)</text><text x="125" y="182" class="branch-label">synthetic minority samples (SMOTE)</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">themis::step_smote() in a recipe</text><text x="125" y="238" class="branch-label">weighted classes instead of resampling</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">train(weights = case_weights, ...)</text><text x="125" y="294" class="branch-label">resampling driven inside <a class="auto-link" href="caret-train-in-R.html" title="caret train() in R: Fit and Tune ML Models">train()</a></text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">trainControl(sampling = &quot;up&quot;)</text><text x="125" y="350" class="branch-label">stratified train/test split before any sampling</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">createDataPartition(y, p = 0.7)</text><text x="125" y="406" class="branch-label">numeric target (regression)</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">upSample() does not apply, use a different approach</text></svg></div>
+
+<h2>What upSample() does in one sentence</h2>
+
+<p><strong><code>upSample()</code> is caret's random oversampler for classification.</strong> You give it a predictor matrix and a factor outcome, and it draws rows from each minority class with replacement until every class has the same count as the largest one, returning a single data frame with the predictors plus a <code>Class</code> column.</p>
+
+<p>The function exists because most classifiers minimise overall error, and an imbalanced training set lets a model hit high accuracy by predicting the majority for everything. A fraud-detection model trained on 99% legitimate transactions and 1% fraud can score 99% accuracy by predicting "legitimate" for every row, while catching zero fraud. Random oversampling on the training set lifts the minority signal so the <a class="auto-link" href="Decision-Theory-in-R.html" title="Decision Theory in R: Loss Functions, Risk, Bayes Risk & Admissibility">loss function</a> pays equal attention to each class. <code>upSample()</code> is the right starting point before reaching for SMOTE or cost-sensitive learning, and the baseline against which more sophisticated balancing strategies should be measured.</p>
+
+<h2>upSample() syntax and arguments</h2>
+
+<p><strong><code>upSample()</code> takes the predictors and the outcome separately, not a formula or a single data frame.</strong> Four arguments cover every option the function exposes.</p>
+
+<div class="webr-container" data-block-title="Load caret and build an imbalanced dataset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and build an imbalanced dataset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(42)
+df &lt;- data.frame(
+  x1 = c(rnorm(200, 0, 1), rnorm(30, 1.5, 1)),
+  x2 = c(rnorm(200, 0, 1), rnorm(30, 1.5, 1)),
+  Class = factor(c(rep(&quot;neg&quot;, 200), rep(&quot;pos&quot;, 30)))
+)
+table(df$Class)
+#&gt; 
+#&gt; neg pos 
+#&gt; 200  30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The signature is short:</p>
+
+<div class="webr-container" data-block-title="upSample signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">upSample signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">upSample(x, y, list = FALSE, yname = &quot;Class&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<ul>
+
+<li><code>x</code>: predictor data frame or matrix. Do not include the outcome column here.</li>
+
+<li><code>y</code>: factor outcome vector. The class with the largest count sets the target size for every other class.</li>
+
+<li><code>list</code>: if <code>FALSE</code> (the default), return a single data frame. Set to <code>TRUE</code> for a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> with <code>$x</code> and <code>$y</code> separately.</li>
+
+<li><code>yname</code>: name for the outcome column when <code>list = FALSE</code>. Defaults to <code>&quot;Class&quot;</code>.</li>
+
+</ul>
+
+<p>The returned object has one row per class times the majority count, so a 200/30 binary problem becomes 400 rows. For multiclass, every minority class is independently sampled up to the majority size, so a 100/60/20 split produces 300 rows. The added rows are exact duplicates of existing minority observations.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python imbalanced-learn?</strong> The closest equivalent is <code>RandomOverSampler().fit_resample(X, y)</code> from <code>imblearn.over_sampling</code>. Both draw minority rows with replacement until classes balance; <code>upSample()</code> returns one combined data frame while <code>imblearn</code> returns X and y as separate arrays.</div></div>
+
+<h2>upSample() examples by use case</h2>
+
+<p><strong>Most oversampling workflows split first, then upsample only the training partition.</strong> The examples below build from the basic call up to a pipeline with <code>caret::train()</code> and a held-out test set.</p>
+
+<p>A single binary oversampling call on the toy data:</p>
+
+<div class="webr-container" data-block-title="Balance a binary classification frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Balance a binary classification frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+balanced &lt;- upSample(x = df[, c(&quot;x1&quot;, &quot;x2&quot;)], y = df$Class)
+table(balanced$Class)
+#&gt; 
+#&gt; neg pos 
+#&gt; 200 200
+nrow(balanced)
+#&gt; [1] 400</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The minority class jumped from 30 rows to 200, matching the majority. The 170 added rows are bootstrap copies of the original 30 minority observations, so the predictor space is unchanged but each minority point now appears about 6.7 times on average.</p>
+
+<p>The same call with <code>list = TRUE</code> keeps predictors and labels separate:</p>
+
+<div class="webr-container" data-block-title="List output for matrix workflows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">List output for matrix workflows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+balanced_list &lt;- upSample(x = df[, c(&quot;x1&quot;, &quot;x2&quot;)], y = df$Class, list = TRUE)
+names(balanced_list)
+#&gt; [1] &quot;x&quot; &quot;y&quot;
+dim(balanced_list$x)
+#&gt; [1] 400   2
+length(balanced_list$y)
+#&gt; [1] 400</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Use <code>list = TRUE</code> when downstream code expects X and y as separate arguments, for example <code>glmnet()</code> or <code>xgboost::xgb.DMatrix()</code>.</p>
+
+<p>A train/test split before oversampling, then balanced training:</p>
+
+<div class="webr-container" data-block-title="Split first, upsample only the train half">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Split first, upsample only the train half</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+train_idx &lt;- createDataPartition(df$Class, p = 0.7, list = FALSE)
+train &lt;- df[train_idx, ]
+test  &lt;- df[-train_idx, ]
+
+set.seed(7)
+train_bal &lt;- upSample(x = train[, c(&quot;x1&quot;, &quot;x2&quot;)], y = train$Class)
+table(train_bal$Class)
+#&gt; 
+#&gt; neg pos 
+#&gt; 140 140
+table(test$Class)
+#&gt; 
+#&gt; neg pos 
+#&gt;  60   9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The training set is balanced 140/140 while the test set keeps the natural imbalance. Evaluating on the imbalanced test set is what makes the metrics honest; balancing the test set hides the real deployment distribution.</p>
+
+<p>Multiclass oversampling works the same way:</p>
+
+<div class="webr-container" data-block-title="Multiclass upSample on a 3-level factor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multiclass upSample on a 3-level factor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(3)
+multi &lt;- data.frame(
+  x1 = rnorm(180),
+  Class = factor(c(rep(&quot;A&quot;, 100), rep(&quot;B&quot;, 60), rep(&quot;C&quot;, 20)))
+)
+multi_bal &lt;- upSample(x = multi[, &quot;x1&quot;, drop = FALSE], y = multi$Class)
+table(multi_bal$Class)
+#&gt; 
+#&gt;   A   B   C 
+#&gt; 100 100 100</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every non-majority class is sampled with replacement up to the majority size. A 3-class problem with counts 100/60/20 becomes 300 rows after the call.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Let <code>train()</code> do it for you when tuning.</strong> Pass <code>trainControl(sampling = &quot;up&quot;)</code> to caret's <code>train()</code> and the oversampling runs inside each resample, not on the full training set. This gives an honest performance estimate because the upsampling is recomputed per fold instead of leaking duplicated rows across the cross-validation splits.</div></div>
+
+<h2>upSample() vs downSample() and other balancing tools</h2>
+
+<p><strong><code>upSample()</code> adds minority copies; <code>downSample()</code> drops majority rows; SMOTE creates synthetic minority points.</strong> Pick by what you can afford to lose and how much variance you tolerate.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>Sample size</th>
+<th>Risk</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>upSample(x, y)</code></td>
+<td><code>n_classes * majority_count</code></td>
+<td>overfits to repeated minority rows</td>
+<td>small datasets where dropping majority hurts</td>
+</tr>
+<tr>
+<td><code>downSample(x, y)</code></td>
+<td><code>n_classes * minority_count</code></td>
+<td>throws away majority information</td>
+<td>very large datasets, fast training</td>
+</tr>
+<tr>
+<td><code>themis::step_smote()</code></td>
+<td>synthetic interpolations</td>
+<td>distorts feature manifold</td>
+<td>continuous features, large enough minority to interpolate</td>
+</tr>
+<tr>
+<td><code>trainControl(sampling = &quot;up&quot;)</code></td>
+<td>resamples inside CV</td>
+<td>none above resample noise</td>
+<td>hyperparameter tuning with caret</td>
+</tr>
+<tr>
+<td><code>weights</code> in <code>train()</code></td>
+<td>unchanged</td>
+<td>weights only, no resampling</td>
+<td>log-loss or weighted likelihood models</td>
+</tr>
+</tbody>
+</table>
+
+<p>For most first attempts, oversample with <code>upSample()</code>, tune with <code>trainControl(sampling = &quot;up&quot;)</code>, then compare against <code>downSample()</code> on the same folds. The choice often comes down to dataset size: with 10,000 majority and 200 minority rows, downsampling drops the training frame to 400 and the majority signal collapses, while upsampling keeps the majority intact and inflates the minority to 10,000.</p>
+
+<p>Class weights are a third lever. Passing a per-row weight vector to <code>train()</code> tells the loss function to penalise minority errors more heavily without changing the row count. Weights are usually cheaper than oversampling, but only work when the model exposes a <code>weights</code> argument.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes cause most upsampling bugs.</strong></p>
+
+<p>The first is oversampling before the train/test split. If you call <code>upSample()</code> on the full data and then split, identical minority copies appear on both sides of the split, leaking labels into evaluation. The test metric will look excellent and collapse in production. Always split first.</p>
+
+<p>The second is reading test metrics on a balanced test set. After <code>upSample()</code>, accuracy on the balanced sample is meaningless because the <a class="auto-link" href="Bayesian-Statistics-in-R.html" title="Bayesian Statistics in R: Build Genuine Intuition Before Opening Stan or brms">prior distribution</a> has been rewritten. Score on the natural-prevalence test partition and report precision, recall, F1, and AUPRC, not accuracy.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Random oversampling exaggerates noise in tiny minorities.</strong> A 30-row positive class oversampled to 200 rows is still only 30 distinct points. If the minority is below 50 to 100 rows, prefer SMOTE or collect more data.</div></div>
+
+<p>The third is forgetting to set a seed. <code>upSample()</code> draws random row indexes, so two calls produce different oversampled frames. Seed once before <code>upSample()</code> and the same balanced training frame is rebuilt every run.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Take the built-in <code>iris</code> dataset, drop 40 rows from the <code>virginica</code> class to create imbalance, then use <code>upSample()</code> to rebalance and confirm all three species reach 50 rows.</p>
+<div class="webr-container" data-block-title="Your turn: rebalance virginica">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rebalance virginica</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(11)
+ex_iris &lt;- iris[-sample(which(iris$Species == &quot;virginica&quot;), 40), ]
+table(ex_iris$Species)
+
+set.seed(11)
+ex_bal &lt;- # your code here
+
+table(ex_bal$Class)
+#&gt; Expected: setosa 50, versicolor 50, virginica 50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(11)
+ex_iris &lt;- iris[-sample(which(iris$Species == &quot;virginica&quot;), 40), ]
+table(ex_iris$Species)
+#&gt; 
+#&gt;     setosa versicolor  virginica 
+#&gt;         50         50         10
+
+set.seed(11)
+ex_bal &lt;- upSample(x = ex_iris[, 1:4], y = ex_iris$Species)
+
+table(ex_bal$Class)
+#&gt; 
+#&gt;     setosa versicolor  virginica 
+#&gt;         50         50         50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>setosa</code> and <code>versicolor</code> already have 50 rows so they are passed through untouched. <code>virginica</code> jumps from 10 to 50 via sampling with replacement, leaving the balanced frame with 150 rows and a uniform class distribution.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p><code>upSample()</code> is one piece of caret's class-balancing toolkit.</p>
+
+<ul>
+
+<li><code>downSample(x, y)</code>: random undersampling of the majority class to match the minority size.</li>
+
+<li><code>createDataPartition(y, p = 0.7)</code>: stratified train/test split, runs before any sampling.</li>
+
+<li><code>trainControl(sampling = &quot;up&quot;)</code>: runs <code>upSample()</code> inside each resample during <code>train()</code>.</li>
+
+<li><code>train(method, weights = w)</code>: class-weighted fitting without resampling.</li>
+
+<li><code>confusionMatrix(predicted, actual)</code>: scores a classifier on the natural-prevalence test set.</li>
+
+</ul>
+
+<p>See the <a href="https://topepo.github.io/caret/subsampling-for-class-imbalances.html">caret documentation on subsampling for class imbalance</a> for the authoritative reference.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Why does upSample() rename my outcome column to Class?</strong></p>
+
+<p>The default <code>yname = &quot;Class&quot;</code> makes the returned frame work with caret's formula interface, where <code>train(Class ~ ., data = balanced)</code> finds the outcome by name. Pass <code>yname = &quot;Species&quot;</code> to keep the original name. Renaming is purely cosmetic; values are identical to the input factor.</p>
+
+<p><strong>Should I oversample the validation set too?</strong></p>
+
+<p>No. Oversample only the training partition. The validation and test sets should reflect the real-world class prior so metrics generalise to production. Scoring on a balanced validation set inflates accuracy and obscures the precision-recall trade-off at deployment.</p>
+
+<p><strong>How does upSample() compare with SMOTE?</strong></p>
+
+<p><code>upSample()</code> duplicates existing minority rows, so the model sees the same points many times. SMOTE generates synthetic rows by interpolating between minority neighbours, expanding the predictor space in a way that can hurt high-cardinality categorical features. Start with <code>upSample()</code> for a baseline; switch to SMOTE only when interpolation is plausible.</p>
+
+<p><strong>Can I combine upSample() with cross-validation?</strong></p>
+
+<p>Yes, by passing <code>trainControl(sampling = &quot;up&quot;)</code> to <code>train()</code>. caret then upsamples inside each CV fold so the resample estimates are honest. Calling <code>upSample()</code> on the full training set before <code>train()</code> leaks duplicated rows across folds.</p>
