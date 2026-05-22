@@ -1,0 +1,361 @@
+---
+title: "yardstick pr_curve() in R: Precision-Recall Curve Points"
+description: "Compute precision-recall curves in R with yardstick pr_curve(). See syntax, binary and multiclass examples, autoplot, and pitfalls for imbalanced data."
+keywords: "yardstick pr_curve, pr_curve function R, yardstick pr_curve examples, R precision recall curve, tidymodels pr_curve, pr_curve autoplot, plot precision recall R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "yardstick pr_curve|yardstick::pr_curve()|pr_curve in R|precision recall curve in R|pr_curve yardstick"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>yardstick pr_curve() in R: Precision-Recall Curve Points</h1>
+
+<p class="lead">The yardstick pr_curve() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> sweeps every probability cutoff your classifier produced and returns a tidy tibble of precision and recall pairs, which is the chart Google calls a PR curve and the diagnostic of choice when the positive class is rare.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>pr_curve(df, truth, .pred_class1)<span class="qa-cmt">                       # basic two-class call</span>
+pr_curve(df, truth = obs, .pred_class1)<span class="qa-cmt">                 # named truth column</span>
+pr_curve(df, class, .pred_yes, event_level = &quot;second&quot;)<span class="qa-cmt">  # flip positive class</span>
+df |&gt; group_by(fold) |&gt; pr_curve(class, .pred_yes)<span class="qa-cmt">      # by resample</span>
+pr_curve(df, class, .pred_a, .pred_b, .pred_c)<span class="qa-cmt">          # multiclass one-vs-all</span>
+autoplot(pr_curve(df, class, .pred_yes))<span class="qa-cmt">                # quick ggplot</span>
+pr_curve(df, class, .pred_yes) |&gt; ggplot(aes(recall, precision)) + geom_path()</pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is pr_curve() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">get precision and recall across all thresholds</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">pr_curve(df, truth, .pred_class1)</text><text x="125" y="126" class="branch-label">get one ranking score for the PR curve</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">pr_auc(df, truth, .pred_class1)</text><text x="125" y="182" class="branch-label">get <a class="auto-link" href="Bayes-Theorem-in-R.html" title="Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why">sensitivity and specificity</a> instead</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">roc_curve(df, truth, .pred_class1)</text><text x="125" y="238" class="branch-label">get gain or lift curve points</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">gain_curve(df, truth, .pred_class1)</text><text x="125" y="294" class="branch-label">get the <a class="auto-link" href="Logistic-Regression-Exercises-in-R.html" title="Logistic Regression Exercises in R: 10 Classification Practice Problems, Solved Step-by-Step">confusion matrix</a> at one cutoff</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">conf_mat(df, truth, estimate)</text><text x="125" y="350" class="branch-label">compare PR shapes across resamples</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code"><a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">group_by</a>(df, fold) |&gt; pr_curve(...) |&gt; autoplot()</text></svg></div>
+
+<h2>What pr_curve() returns</h2>
+
+<p><strong>pr_curve() converts probabilities into a precision-recall trade-off, not a single score.</strong> You give it a data frame with a factor truth column and one or more probability columns, and you get back a tibble with <code>.threshold</code>, <code>recall</code>, and <code>precision</code>, one row per unique cutoff. Each row reads as "if you label every observation above this probability as positive, here is the precision you keep and the recall you reach."</p>
+
+<p>That tibble is the raw material for any PR chart. Pipe it into autoplot() when you want a ready-made plot, or hand it to <a class="auto-link" href="ggplot2-Tutorial-With-R.html" title="ggplot2 Short Tutorial">ggplot2</a> when you want full styling. Because the output is tidy, it slots into <code>group_by()</code>, <code>facet_wrap()</code>, and dplyr verbs without reshaping.</p>
+
+<h2>pr_curve() syntax and arguments</h2>
+
+<p><strong>The signature is identical to roc_curve(), with the same binary versus multiclass split.</strong> Binary problems take one probability column, multiclass problems take one column per class level.</p>
+
+<div class="webr-container" data-block-title="pr_curve generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">pr_curve generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pr_curve(data, truth, ..., na_rm = TRUE,
+         event_level = &quot;first&quot;, case_weights = NULL,
+         options = list())</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data</code></td>
+<td>Data frame with the truth column and probability columns.</td>
+</tr>
+<tr>
+<td><code>truth</code></td>
+<td>Unquoted column name of the observed labels (must be a factor).</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Unquoted probability columns. One for binary, one per class for multiclass.</td>
+</tr>
+<tr>
+<td><code>na_rm</code></td>
+<td>If <code>TRUE</code>, drop rows where any column is missing before computing.</td>
+</tr>
+<tr>
+<td><code>event_level</code></td>
+<td><code>&quot;first&quot;</code> or <code>&quot;second&quot;</code>; names which factor level counts as positive.</td>
+</tr>
+<tr>
+<td><code>case_weights</code></td>
+<td>Optional unquoted column for weighted curve points.</td>
+</tr>
+</tbody>
+</table>
+
+<p>The truth factor levels must align with the probability column names after the <code>.pred_</code> prefix. For binary cases, the third argument is the probability column for the positive class, controlled by <code>event_level</code>.</p>
+
+<h2>Four worked examples on rare-event data</h2>
+
+<p><strong>These examples use an imbalanced fraud frame so the PR curve actually has work to do.</strong> When the positive rate is below 10 percent, accuracy and ROC AUC look optimistic; the PR curve is the chart that shows you the truth.</p>
+
+<div class="webr-container" data-block-title="Imbalanced fraud predictions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Imbalanced fraud predictions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+library(dplyr)
+library(ggplot2)
+
+set.seed(2026)
+n &lt;- 500
+fraud &lt;- tibble(
+  truth = factor(sample(c(&quot;fraud&quot;, &quot;ok&quot;), n, replace = TRUE, prob = c(0.08, 0.92))),
+  .pred_fraud = pmax(0, pmin(1,
+    ifelse(truth == &quot;fraud&quot;, rbeta(n, 6, 3), rbeta(n, 2, 6))
+  ))
+)
+fraud |&gt; count(truth)
+#&gt; # A tibble: 2 x 2
+#&gt;   truth     n
+#&gt;   &lt;fct&gt; &lt;int&gt;
+#&gt; 1 fraud    35
+#&gt; 2 ok      465</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Call pr_curve() to get the threshold sweep. Each row gives you the precision the model keeps at that cutoff and the recall it has reached so far.</p>
+
+<div class="webr-container" data-block-title="Basic two class pr_curve call">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Basic two class pr_curve call</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pr_pts &lt;- pr_curve(fraud, truth, .pred_fraud)
+head(pr_pts, 4)
+#&gt; # A tibble: 4 x 3
+#&gt;   .threshold  recall precision
+#&gt;        &lt;dbl&gt;   &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 -Inf       1          0.0700
+#&gt; 2    0.0345  1          0.0701
+#&gt; 3    0.0445  1          0.0702
+#&gt; 4    0.0517  1          0.0703
+tail(pr_pts, 2)
+#&gt; # A tibble: 2 x 3
+#&gt;   .threshold recall precision
+#&gt;        &lt;dbl&gt;  &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1      0.967 0.0286         1
+#&gt; 2      0.984 0           NaN</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first row sits at the lowest cutoff: recall is 1 and precision matches the 7 percent base rate. The last row sits at the top, where only the most confident prediction stays positive.</p>
+
+<p>Pipe the result into autoplot() for a styled ggplot.</p>
+
+<div class="webr-container" data-block-title="autoplot the precision recall curve">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">autoplot the precision recall curve</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">autoplot(pr_pts)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>autoplot() returns a ggplot object you can keep editing.</strong> Add <code>+ labs(title = &quot;Fraud classifier&quot;)</code> or <code>+ scale_x_continuous(labels = scales::percent)</code> to brand the chart without rebuilding it from the curve tibble.</div></div>
+
+<p>For full styling control, plot the raw points with ggplot. The PR curve uses recall on x and precision on y, the opposite axis convention from the <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">ROC curve</a>.</p>
+
+<div class="webr-container" data-block-title="Custom ggplot PR chart">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Custom ggplot PR chart</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(pr_pts, aes(x = recall, y = precision)) +
+  geom_hline(yintercept = 0.07, lty = 3, color = &quot;grey60&quot;) +
+  geom_path(linewidth = 0.9, color = &quot;#c0392b&quot;) +
+  coord_equal(xlim = c(0, 1), ylim = c(0, 1)) +
+  labs(x = &quot;Recall&quot;, y = &quot;Precision&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The dashed line at 0.07 marks the base rate, the precision a random classifier reaches. A curve that hugs that line is no better than guessing.</p>
+
+<p>Group by a resample column to overlay one curve per fold.</p>
+
+<div class="webr-container" data-block-title="One curve per cross validation fold">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One curve per cross validation fold</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">folded &lt;- fraud |&gt;
+  mutate(fold = sample(paste0(&quot;fold&quot;, 1:5), n, replace = TRUE))
+
+folded |&gt;
+  group_by(fold) |&gt;
+  pr_curve(truth, .pred_fraud) |&gt;
+  autoplot()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>PR curves are sensitive to class balance, ROC curves are not.</strong> ROC AUC barely moves when you flip the positive rate from 50 percent to 5 percent, because both axes rescale. PR AUC drops, because the baseline drops with the positive rate. On imbalanced problems, PR is the harder, more honest test.</div></div>
+
+<h2>pr_curve() vs neighbouring metrics</h2>
+
+<p><strong>Pick the function that matches the question you are asking.</strong> The table below contrasts pr_curve() with the closest yardstick siblings.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pr_curve()</code></td>
+<td>Tibble of thresholds with precision and recall</td>
+<td>Plot or pick a cutoff on imbalanced data</td>
+</tr>
+<tr>
+<td><code>pr_auc()</code></td>
+<td>One row with average precision</td>
+<td>Single ranking score for rare-event models</td>
+</tr>
+<tr>
+<td><code>roc_curve()</code></td>
+<td>Tibble of sensitivity and specificity points</td>
+<td>Plot or pick a cutoff on balanced data</td>
+</tr>
+<tr>
+<td><code>f_meas()</code></td>
+<td>Single <a class="auto-link" href="yardstick-f_meas-in-R.html" title="yardstick f_meas() in R: Score the F-Measure of Classifiers">F1 score</a> at one cutoff</td>
+<td>You already chose a threshold</td>
+</tr>
+<tr>
+<td><code>precision()</code> and <code>recall()</code></td>
+<td>One row each at one cutoff</td>
+<td>Report headline numbers after picking a threshold</td>
+</tr>
+</tbody>
+</table>
+
+<p>If the positive class is below 20 percent of your data, prefer pr_curve() and pr_auc() over the ROC pair. The ROC chart still works, but it tends to look better than the model performs.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three issues show up in nearly every pr_curve() bug report.</strong></p>
+
+<p>First, passing <code>event_level = &quot;first&quot;</code> when the rare class is the second factor level produces a curve at the baseline. Always check <code>levels(df$truth)</code> and match it against the probability column name. yardstick treats the level the column refers to as the positive class, not whichever class is rarer.</p>
+
+<p>Second, the last row often shows <code>precision = NaN</code> and recall just above zero. That is the highest threshold, where no observation is labelled positive; precision is <code>0 / 0</code>. autoplot() handles it gracefully, but a custom ggplot that uses <code>geom_smooth()</code> or fits a curve will throw warnings. Drop the row with <code>slice(-n())</code> or filter out <code>is.nan(precision)</code> before custom plotting.</p>
+
+<p>Third, multiclass calls require one probability column per level. Passing only the positive-class column on a three-level factor triggers <code>Error: A multiclass problem requires probability columns for all levels</code>. Use tidyselect, for example <code>.pred_a:.pred_c</code> or <code>starts_with(&quot;.pred_&quot;)</code>, when classes share a prefix.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build the PR curve for the <code>fraud</code> tibble above and find the threshold that keeps precision at or above 0.5 with the highest possible recall. Save that threshold to <code>ex_thr</code>.</p>
+<div class="webr-container" data-block-title="Your turn: find the 0.5 precision cutoff">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: find the 0.5 precision cutoff</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: pick the threshold where precision &gt;= 0.5 with max recall
+ex_thr &lt;- # your code here
+
+ex_thr
+#&gt; Expected: a number near 0.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_thr &lt;- fraud |&gt;
+  pr_curve(truth, .pred_fraud) |&gt;
+  filter(precision &gt;= 0.5) |&gt;
+  slice_max(recall, n = 1) |&gt;
+  pull(.threshold)
+ex_thr
+#&gt; [1] 0.5193</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> pr_curve() lists every threshold the classifier produced, so picking a cutoff is a dplyr operation. <code>filter(precision &gt;= 0.5)</code> keeps only rows where the precision floor is met, then <code>slice_max(recall)</code> picks the row that still recovers the most positives.</p>
+
+</details>
+</section>
+
+<h2>Related yardstick functions</h2>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from scikit-learn?</strong> <code>sklearn.metrics.precision_recall_curve(y_true, y_score)</code> returns three arrays plus the threshold array; yardstick returns one tidy tibble with named columns instead, which removes the off-by-one length quirk you may have hit in Python.</div></div>
+
+<ul>
+
+<li><code>pr_auc()</code> for the single-number average precision the curve summarises.</li>
+
+<li><code>roc_curve()</code> and <code>roc_auc()</code> for the sensitivity-specificity variant on balanced data.</li>
+
+<li><code>gain_curve()</code> and <code>lift_curve()</code> for marketing-style cumulative charts.</li>
+
+<li><code>f_meas()</code>, <code>precision()</code>, and <code>recall()</code> once you have committed to a threshold.</li>
+
+<li><code>metric_set()</code> to bundle pr_auc() with calibration metrics like <code>brier_class()</code> in a <code>last_fit()</code> workflow.</li>
+
+</ul>
+
+<p>See the <a href="https://yardstick.tidymodels.org/reference/pr_curve.html">yardstick reference for pr_curve()</a> on tidymodels.org for the full argument list.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between pr_curve() and pr_auc() in yardstick?</strong></p>
+
+<p>pr_curve() returns a tibble of thresholds, precision, and recall, which is the data you plot. pr_auc() reduces that curve to a single average precision number. Both consume the same inputs, a truth factor and a probability column, so you typically call them side by side: one for the chart, one for the leaderboard score on imbalanced problems.</p>
+
+<p><strong>When should I use pr_curve() instead of roc_curve()?</strong></p>
+
+<p>Use pr_curve() when the positive class is rare, typically below 20 percent of the data. ROC curves rescale both axes by class size, so they stay optimistic on imbalanced data. PR curves anchor precision against the base rate, so a curve that hugs the bottom is honest about a weak model. For balanced binary problems, either chart works.</p>
+
+<p><strong>How do I plot a precision-recall curve from yardstick output?</strong></p>
+
+<p>Call autoplot() on the pr_curve() result for a ready-made ggplot. For custom styling, map <code>recall</code> to x and <code>precision</code> to y in ggplot2, then add <code>geom_path()</code>. Add a dashed horizontal reference line at the positive class rate so readers see the random-guess baseline; a useful chart compares the curve to that line, not to the top of the plot.</p>
+
+<p><strong>Does pr_curve() handle multiclass problems?</strong></p>
+
+<p>Yes. Pass one probability column per class using tidyselect, for example <code>.pred_setosa:.pred_virginica</code>. yardstick computes a one-vs-all PR curve per level and returns a tibble with a <code>.level</code> column. Pipe it to autoplot() for one panel per class, or filter the <code>.level</code> column to focus on a single class.</p>
+
+<p><strong>Why does my PR curve sit close to the bottom of the chart?</strong></p>
+
+<p>Either the model has no signal beyond the base rate, or <code>event_level</code> points to the wrong factor level. Check <code>levels(df$truth)</code> and confirm the <code>.pred_*</code> column refers to the rare class. A curve that sits at the positive class rate horizontally is a coin flip; a curve that climbs toward 1 on the precision axis at low recall is a model worth tuning.</p>
+
+{% endraw %}
