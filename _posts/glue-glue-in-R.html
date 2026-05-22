@@ -1,0 +1,450 @@
+---
+title: "glue glue() in R: Interpolate Variables Into Strings"
+description: "Use glue glue() in R to interpolate variables and expressions into strings with {braces}. Five examples, a paste comparison, and common pitfalls explained."
+keywords: "glue glue, glue function R, glue glue examples, R glue interpolation, glue vs paste, glue package R, string interpolation R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "glue()|glue::glue()|glue package|glue function|glue glue"
+auto_link_case_sensitive: true
+fr_parent: "stringr-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>glue glue() in R: Interpolate Variables Into Strings</h1>
+
+<p class="lead">glue glue() builds a string by interpolation: you write the finished sentence as a template and mark each variable slot with <code>{braces}</code>. Every expression inside the braces is evaluated as real R code and its result is inserted in place. It is the readable alternative to stacking many paste() or sprintf() arguments.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>glue(&quot;Hi {x}&quot;, x = &quot;Ada&quot;)<span class="qa-cmt">              # &quot;Hi Ada&quot; interpolate a value</span>
+glue(&quot;2 + 2 = {2 + 2}&quot;)<span class="qa-cmt">                # &quot;2 + 2 = 4&quot; evaluate an expression</span>
+glue(&quot;Upper: {toupper('ada')}&quot;)<span class="qa-cmt">        # &quot;Upper: ADA&quot; call a function</span>
+glue(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;)<span class="qa-cmt">                    # &quot;abc&quot; join plain strings</span>
+glue(&quot;Show {{x}} literally&quot;)<span class="qa-cmt">           # &quot;Show {x} literally&quot; escape braces</span>
+glue(&quot;user_{1:3}&quot;)<span class="qa-cmt">                     # length-3 glue vector, vectorised</span>
+glue(&quot;{a} of {b}&quot;, a = 3, b = 10)<span class="qa-cmt">      # &quot;3 of 10&quot; multiple named values</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is glue() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">insert values into a template</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">glue(&quot;Hi {name}&quot;)</text><text x="125" y="126" class="branch-label">interpolate from a data frame</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">glue_data(df, &quot;{col}&quot;)</text><text x="125" y="182" class="branch-label">join a few fixed pieces</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">paste0(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;)</text><text x="125" y="238" class="branch-label">C-style numeric formatting</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">sprintf(&quot;%.2f&quot;, x)</text><text x="125" y="294" class="branch-label">collapse a vector to one string</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">glue_collapse(x, &quot;, &quot;)</text><text x="125" y="350" class="branch-label">write a SQL statement safely</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">glue_sql(&quot;SELECT * FROM {t}&quot;, t = &quot;users&quot;, .con = con)</text></svg></div>
+
+<h2>What glue() does in one sentence</h2>
+
+<p><strong>glue() evaluates R expressions wrapped in {braces} and inserts the results into a template string.</strong> You write the sentence exactly as it should read, leave a brace-marked hole wherever a value belongs, and glue() fills each hole by running the code inside it.</p>
+
+<p>This is string interpolation: the template and the output have the same shape, so what you write is what you get. It is the readable counterpart to paste(), which joins separate pieces rather than filling a template.</p>
+
+<div class="webr-container" data-block-title="Load glue and interpolate a value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load glue and interpolate a value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(glue)
+
+name &lt;- &quot;Ada&quot;
+glue(&quot;Hello, {name}!&quot;)
+#&gt; Hello, Ada!</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>{name}</code> slot is replaced with the value of <code>name</code>, producing one finished sentence.</p>
+
+<h2>Syntax</h2>
+
+<p><strong>glue(..., .sep = "", .envir = <a class="auto-link" href="R-Execution-Stack.html" title="R Execution Stack: sys.call(), parent.frame() & Call Stack Internals">parent.frame()</a>, .open = "{", .close = "}") builds a string from templates and values.</strong> The <code>...</code> arguments are the template strings, <code>.sep</code> joins them when you pass more than one, <code>.envir</code> is the environment where each <code>{expr}</code> is evaluated, and <code>.open</code> / <code>.close</code> change the delimiter pair.</p>
+
+<div class="webr-container" data-block-title="Function signature and defaults">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Function signature and defaults</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># glue(..., .sep = &quot;&quot;, .envir = parent.frame(),
+#      .open = &quot;{&quot;, .close = &quot;}&quot;, .na = &quot;NA&quot;, .null = character())
+#
+# ...     : template strings; {expr} is evaluated and inserted
+# .sep    : separator placed between the ... arguments
+# .envir  : environment where each {expr} is evaluated
+# .open   : opening delimiter, default &quot;{&quot;
+# .close  : closing delimiter, default &quot;}&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Anything inside <code>{}</code> is treated as R code, not just a variable name. That means you can call functions and run arithmetic directly in the template.</p>
+
+<div class="webr-container" data-block-title="Interpolate an expression, not just a variable">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interpolate an expression, not just a variable</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- 5
+glue(&quot;{x} squared is {x^2}&quot;)
+#&gt; 5 squared is 25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both <code>{x}</code> and <code>{x^2}</code> are evaluated, so the second slot computes <code>25</code> on the fly.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>glue() is the core function of the glue package.</strong> Tidyverse packages re-export it under different names: stringr exposes it as str_glue(), and glue_sql() wraps it for safe SQL. They share the same brace syntax and arguments, so anything you learn here transfers to every variant.</div></div>
+
+<h2>Five common glue() scenarios</h2>
+
+<p><strong>Five scenarios cover almost every real use of glue().</strong> Each block stands alone, so you can paste it straight into the live console.</p>
+
+<h3>Interpolate variables into a sentence</h3>
+
+<p><strong>The core job of glue() is dropping variables into a readable sentence.</strong> Each <code>{}</code> slot names the variable that belongs there.</p>
+
+<div class="webr-container" data-block-title="Build a sentence from variables">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a sentence from variables</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">product &lt;- &quot;keyboard&quot;
+price   &lt;- 49
+glue(&quot;The {product} costs ${price}.&quot;)
+#&gt; The keyboard costs $49.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>$</code> is a literal character; only the <code>{price}</code> slot is interpolated.</p>
+
+<h3>Evaluate expressions inside braces</h3>
+
+<p><strong>Braces hold any R expression, not just bare names.</strong> You can call functions and the result is inserted directly.</p>
+
+<div class="webr-container" data-block-title="Run code inside the braces">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run code inside the braces</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">values &lt;- c(3, 7, 11)
+glue(&quot;Mean is {mean(values)}, max is {max(values)}.&quot;)
+#&gt; Mean is 7, max is 11.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>mean(values)</code> and <code>max(values)</code> both run before the string is assembled.</p>
+
+<h3>Interpolate a vector to get many strings</h3>
+
+<p><strong>When a brace holds a vector, glue() returns one string per element.</strong> The template is recycled across every value.</p>
+
+<div class="webr-container" data-block-title="Vectorised interpolation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vectorised interpolation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ids &lt;- 1:3
+glue(&quot;user_{ids}&quot;)
+#&gt; user_1
+#&gt; user_2
+#&gt; user_3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The single template produces a length-three result, one string for each id.</p>
+
+<h3>Pass values as named arguments</h3>
+
+<p><strong>Named arguments become variables for the template.</strong> This keeps a value local to the call instead of relying on the surrounding environment.</p>
+
+<div class="webr-container" data-block-title="Supply values as named arguments">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Supply values as named arguments</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">glue(&quot;{city} is in {country}.&quot;, city = &quot;Tokyo&quot;, country = &quot;Japan&quot;)
+#&gt; Tokyo is in Japan.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>city</code> and <code>country</code> exist only inside this glue() call.</p>
+
+<h3>Use glue inside a mutate pipeline</h3>
+
+<p><strong>Most interpolation in real code happens inside a tidyverse pipeline.</strong> Pass columns to glue() inside <code>mutate()</code> to build a label column.</p>
+
+<div class="webr-container" data-block-title="Build a label column with mutate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a label column with mutate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+df &lt;- tibble(name = c(&quot;Ada&quot;, &quot;Alan&quot;), score = c(91, 88))
+df |&gt; mutate(label = glue(&quot;{name}: {score} pts&quot;))
+#&gt; # A tibble: 2 x 3
+#&gt;   name  score label
+#&gt;   &lt;chr&gt; &lt;dbl&gt; &lt;glue&gt;
+#&gt; 1 Ada      91 Ada: 91 pts
+#&gt; 2 Alan     88 Alan: 88 pts</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>glue() is vectorised, so it fills the template once per row.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>glue() reads in the same order you write the sentence.</strong> A nested paste() call forces the reader to mentally interleave literal pieces and variables. With glue(), the template is the final sentence with holes in it, so the code looks like the output. That left-to-right readability is the entire reason the function exists.</div></div>
+
+<h2>glue() vs paste() vs sprintf()</h2>
+
+<p><strong>Three functions assemble strings from values, and they differ in template style.</strong> The choice comes down to how much formatting control you need.</p>
+
+<div class="webr-container" data-block-title="Compare glue, paste0, and sprintf">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare glue, paste0, and sprintf</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">n &lt;- 42
+glue(&quot;Count: {n}&quot;)
+#&gt; Count: 42
+paste0(&quot;Count: &quot;, n)
+#&gt; [1] &quot;Count: 42&quot;
+sprintf(&quot;Count: %d&quot;, n)
+#&gt; [1] &quot;Count: 42&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All three produce the same text. glue() keeps the value inline with the words, <a class="auto-link" href="base-paste-in-R.html" title="paste() and paste0() in R: Concatenate Strings">paste0()</a> alternates literal and variable pieces, and sprintf() uses <code>%</code> placeholder codes.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Template style</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>glue()</code></td>
+<td><code>{expr}</code> inline</td>
+<td>readable sentences with variables</td>
+</tr>
+<tr>
+<td><code>paste0()</code></td>
+<td>alternating pieces</td>
+<td>quick joins of a few values</td>
+</tr>
+<tr>
+<td><code>sprintf()</code></td>
+<td><code>%d</code>, <code>%.2f</code> codes</td>
+<td>precise numeric formatting</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for glue() when the output is a sentence a human reads, and sprintf() when a number needs an exact width or decimal count.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Format numbers before they enter the template.</strong> glue() inserts a number exactly as R prints it, so <code>{1/3}</code> becomes a long decimal. To control decimal places, format inside the braces with <code>{round(x, 2)}</code> or <code>{format(x, nsmall = 2)}</code>. For strict numeric formatting, switch to <code>sprintf(&quot;%.2f&quot;, x)</code> and wrap that result in the glue template if needed.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three pitfalls cause most glue() surprises.</strong> Each has a one-line fix.</p>
+
+<h3>A missing variable raises an error</h3>
+
+<p><strong>Any name inside braces must exist, or glue() stops.</strong> Because the braces hold real code, an undefined name is the same "<a class="auto-link" href="R-Common-Errors.html" title="50 Most Common R Error Messages: What They Mean & How to Fix Them">object not found</a>" error you see anywhere else.</p>
+
+<div class="webr-container" data-block-title="An undefined name errors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">An undefined name errors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">glue(&quot;Hello, {first_name}!&quot;)
+#&gt; Error in `glue()`:
+#&gt; ! object 'first_name' not found</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Define the variable first, or pass it as a named argument to the call.</p>
+
+<div class="webr-container" data-block-title="Pass the value as a named argument">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pass the value as a named argument</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">glue(&quot;Hello, {first_name}!&quot;, first_name = &quot;Sam&quot;)
+#&gt; Hello, Sam!</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the name resolves inside the call and the template fills cleanly.</p>
+
+<h3>Literal braces need doubling</h3>
+
+<p><strong>A single brace is always treated as code, never as text.</strong> To print a real <code>{</code> or <code>}</code>, double it.</p>
+
+<div class="webr-container" data-block-title="Double the braces to print them">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Double the braces to print them</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">glue(&quot;A set is written {{1, 2, 3}}&quot;)
+#&gt; A set is written {1, 2, 3}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>{{</code> collapses to one literal <code>{</code>, and <code>}}</code> to one literal <code>}</code>, so the braces survive into the output. If your template already uses braces (for example in LaTeX), switch the delimiters with <code>.open = &quot;&lt;&lt;&quot;</code> and <code>.close = &quot;&gt;&gt;&quot;</code>.</p>
+
+<h3>glue returns a glue object, not a plain string</h3>
+
+<p><strong>glue() returns an object of class glue, not a bare character vector.</strong> Most code treats it like a string, but strict type checks can trip on the extra class.</p>
+
+<div class="webr-container" data-block-title="Check and convert the result type">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Check and convert the result type</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">result &lt;- glue(&quot;value: {1 + 1}&quot;)
+class(result)
+#&gt; [1] &quot;glue&quot;      &quot;character&quot;
+as.character(result)
+#&gt; [1] &quot;value: 2&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Wrap the result in <code>as.character()</code> whenever a function or test demands a plain character vector.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A glue object is not identical to a character vector.</strong> <code>identical(glue(&quot;ab&quot;), &quot;ab&quot;)</code> returns FALSE because the <a class="auto-link" href="R-Attributes.html" title="R Attributes: The Hidden Metadata That Makes R Objects Behave Differently">class attribute</a> differs, even though the text matches. When a comparison or unit test fails unexpectedly, convert with <code>as.character()</code> before checking equality.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use glue() to build the sentence "Tokyo has 14 wards." from the variables <code>city</code> and <code>wards</code>. Save the result to <code>ex_sentence</code>.</p>
+<div class="webr-container" data-block-title="Your turn: interpolate two variables">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: interpolate two variables</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">city  &lt;- &quot;Tokyo&quot;
+wards &lt;- 14
+# Try it: build the sentence with glue
+ex_sentence &lt;- # your code here
+
+ex_sentence
+#&gt; Expected: Tokyo has 14 wards.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">city  &lt;- &quot;Tokyo&quot;
+wards &lt;- 14
+ex_sentence &lt;- glue(&quot;{city} has {wards} wards.&quot;)
+ex_sentence
+#&gt; Tokyo has 14 wards.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> glue() evaluates each <code>{}</code> expression against the current environment, so <code>{city}</code> becomes <code>&quot;Tokyo&quot;</code> and <code>{wards}</code> becomes <code>14</code>. Both results are inserted into the template in the order they appear.</p>
+
+</details>
+</section>
+
+<h2>Related glue functions</h2>
+
+<p>When glue() is not quite what you need, these are the next stops:</p>
+
+<ul>
+
+<li><a href="glue-glue_data-in-R.html">glue_data()</a> interpolates from a data frame or list, which is cleaner inside a pipeline.</li>
+
+<li><a href="glue-glue_collapse-in-R.html">glue_collapse()</a> collapses a vector into a single string with a separator.</li>
+
+<li><a href="glue-glue_sql-in-R.html">glue_sql()</a> quotes values safely for SQL statements sent through <a class="auto-link" href="DBI-in-R.html" title="Connect R to Any Database: DBI + RSQLite, RPostgres, and RMySQL">DBI</a>.</li>
+
+<li><a href="stringr-str_c-in-R.html">str_c()</a> joins fixed pieces element-wise when there is no template to fill.</li>
+
+<li><a href="stringr-str_glue-in-R.html">str_glue()</a> is the stringr re-export of glue() with the same syntax.</li>
+
+<li>The full <a href="https://glue.tidyverse.org/reference/glue.html">glue package reference</a> documents glue() and its arguments.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between glue() and paste() in R?</strong></p>
+
+<p>They differ in template style. <code>paste()</code> alternates literal strings and variables as separate arguments, while glue() takes one template string with <code>{}</code> slots where values belong. <code>glue(&quot;Hi {name}&quot;)</code> reads like the finished sentence, whereas <code>paste0(&quot;Hi &quot;, name)</code> splits it into pieces. glue() also evaluates real R code inside the braces, so <code>{x^2}</code> or <code>{toupper(x)}</code> works directly in the template, and the result is vectorised across any vector you reference.</p>
+
+<p><strong>How do I use a variable inside glue()?</strong></p>
+
+<p>Wrap the variable name in curly braces inside the template: <code>glue(&quot;Hello, {name}&quot;)</code> inserts the value of <code>name</code>. The variable must exist in the calling environment, or you can supply it as a named argument, such as <code>glue(&quot;Hello, {name}&quot;, name = &quot;Sam&quot;)</code>. Anything inside the braces is run as R code, so you can also call functions, like <code>glue(&quot;{toupper(name)}&quot;)</code>.</p>
+
+<p><strong>How do I print literal curly braces with glue()?</strong></p>
+
+<p>Double the brace. <code>{{</code> produces one literal <code>{</code> and <code>}}</code> produces one literal <code>}</code> in the output. For example, <code>glue(&quot;A set {{1, 2}}&quot;)</code> returns <code>A set {1, 2}</code>. For templates with many braces (LaTeX, JSON), switch delimiters with <code>.open = &quot;&lt;&lt;&quot;</code> and <code>.close = &quot;&gt;&gt;&quot;</code>.</p>
+
+<p><strong>Is glue() the same as str_glue()?</strong></p>
+
+<p>Almost. <code>str_glue()</code> is a thin wrapper around <code>glue()</code> re-exported by stringr. The arguments and brace syntax are identical, and both return a glue object. Pick whichever package is already loaded.</p>
+
+<p><strong>Can glue() interpolate <a class="auto-link" href="R-Data-Frames.html" title="R Data Frames: Every Operation You'll Need, With 10 Real Examples">data frame columns</a>?</strong></p>
+
+<p>Yes, but <code>glue_data()</code> is the cleaner choice for that job. It takes a data frame or list as its first argument and evaluates <code>{}</code> slots against its columns, so <code>glue_data(df, &quot;{name}: {score}&quot;)</code> reads each column by name. Inside a <code>mutate()</code> call, plain glue() also works because the column names are already in scope as vectors.</p>
+
+{% endraw %}
