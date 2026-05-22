@@ -1,0 +1,368 @@
+---
+title: "broom tidy() for lme4 in R: Tidy Mixed-Effects Models"
+description: "Tidy lme4 lmer and glmer fits with broom.mixed::tidy(). Extract fixed effects, random-effect SDs, group deviations, and confidence intervals in one call."
+keywords: "broom tidy lme4, tidy merMod, broom.mixed lme4, tidy lmer, tidy glmer, lme4 coefficients tidy, mixed model tidy R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "tidy.merMod|broom.mixed tidy|tidy lmer|tidy glmer|tidy lme4"
+auto_link_case_sensitive: true
+fr_parent: "Linear-Regression.html"
+---
+<!-- md2html:generated -->
+
+<h1>broom tidy() for lme4 in R: Tidy Mixed-Effects Models</h1>
+
+<p class="lead">The <code>broom.mixed::tidy()</code> function turns lme4 mixed-effects model objects into one-row-per-term data frames you can pipe straight into <code>dplyr</code>, <code>ggplot2</code>, or a report. It works on <code>lmer</code>, <code>glmer</code>, and <code>nlmer</code> fits and returns fixed-effect estimates, random-effect standard deviations, and <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a> in a single call.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>tidy(fit)<span class="qa-cmt">                                          # fixed-effect estimates</span>
+tidy(fit, conf.int = TRUE)<span class="qa-cmt">                         # add 95% Wald CIs</span>
+tidy(fit, conf.int = TRUE, conf.method = &quot;profile&quot;)<span class="qa-cmt"> # likelihood profile CIs</span>
+tidy(fit, effects = &quot;ran_pars&quot;)<span class="qa-cmt">                    # random-effect SDs/variances</span>
+tidy(fit, effects = &quot;ran_vals&quot;, conf.int = TRUE)<span class="qa-cmt">   # group-level deviations</span>
+tidy(fit, effects = c(&quot;fixed&quot;, &quot;ran_pars&quot;))<span class="qa-cmt">        # both blocks in one tibble</span>
+tidy(glmer_fit, exponentiate = TRUE)<span class="qa-cmt">               # odds ratios for logistic glmer</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is <a class="auto-link" href="parsnip-tidy-fit-in-R.html" title="parsnip tidy() in R: Tidy Model Coefficients">tidy()</a> the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">coefficient table with confidence intervals</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">tidy(fit, conf.int = TRUE)</text><text x="125" y="126" class="branch-label">one-row model summary (sigma, <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a>, BIC, logLik)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">glance(fit)</text><text x="125" y="182" class="branch-label">per-observation fitted values or residuals</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">augment(fit, data = df)</text><text x="125" y="238" class="branch-label">p-values for lmer fixed effects</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">load lmerTest, then summary(fit)</text><text x="125" y="294" class="branch-label">random-effect variance <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">covariance matrix</a></text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">VarCorr(fit)</text><text x="125" y="350" class="branch-label">forest plot of fixed effects</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">ggplot(tidy(fit, conf.int = TRUE), aes(...))</text></svg></div>
+
+<h2>What tidy() does for lme4 models in one sentence</h2>
+
+<p><strong><code>tidy()</code> reshapes mixed-effects model objects into rectangular data frames.</strong> A fitted <code>lmer</code> object is an S4 object of class <code>lmerMod</code> (or <code>glmerMod</code> for <code>glmer</code>) that stores fixed-effect coefficients, random-effect covariance components, the model frame, and optimisation diagnostics. <code>broom.mixed::tidy()</code> extracts the parts you usually need for reporting (term, estimate, standard error, statistic, and optional confidence bounds) and returns a tibble with one row per term.</p>
+
+<p>For a hierarchical fit like <code>lmer(y ~ x + (1 | group))</code>, <code>tidy()</code> can also return random-effect standard deviations or the group-level conditional modes depending on the <code>effects</code> argument. This is much faster than digging into <code>summary(fit)$coefficients</code> and <code>VarCorr(fit)</code> by hand.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>tidy()</code> is an S3 generic dispatched on the <code>merMod</code> superclass.</strong> The method lives in <code>broom.mixed</code>, not in <code>broom</code> itself, so make sure to load broom.mixed for lme4 fits even if broom is already attached.</p>
+
+<div class="webr-container" data-block-title="Load packages and fit a mixed model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load packages and fit a mixed model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(lme4)
+library(broom.mixed)
+library(dplyr)
+
+fit &lt;- lmer(Reaction ~ Days + (Days | Subject), data = sleepstudy)
+class(fit)
+#&gt; [1] &quot;lmerMod&quot;
+#&gt; attr(,&quot;package&quot;)
+#&gt; [1] &quot;lme4&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The most useful arguments are:</p>
+
+<ul>
+
+<li><code>conf.int</code>: <code>TRUE</code> adds <code>conf.low</code> and <code>conf.high</code> columns; default <code>FALSE</code></li>
+
+<li><code>conf.level</code>: nominal coverage of the interval; default <code>0.95</code></li>
+
+<li><code>conf.method</code>: <code>&quot;Wald&quot;</code> (fast, default), <code>&quot;profile&quot;</code> (likelihood profile, slower but better for <a class="auto-link" href="Multilevel-Models-in-R.html" title="Multilevel Models in R With brms: When Group Differences Beat Group Averages">variance components</a>), or <code>&quot;boot&quot;</code> (parametric bootstrap)</li>
+
+<li><code>effects</code>: <code>&quot;fixed&quot;</code> (default), <code>&quot;ran_pars&quot;</code> (random-effect SDs and correlations), <code>&quot;ran_vals&quot;</code> (conditional modes per group), or <code>&quot;ran_modes&quot;</code> (synonym)</li>
+
+<li><code>exponentiate</code>: <code>TRUE</code> exponentiates estimates and intervals, useful for logistic or Poisson <code>glmer</code> fits</li>
+
+<li><code>ddf</code>: denominator degrees of freedom method for p-values when <code>lmerTest</code> is attached</li>
+
+</ul>
+
+<p>These cover almost every reporting use case.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>conf.method = &quot;profile&quot;</code> for variance components.</strong> Wald intervals on a random-effect SD can dip below zero, which is meaningless. The likelihood profile interval respects the natural boundary at 0 and gives a defensible range for <code>ran_pars</code> rows.</div></div>
+
+<h2>Common patterns</h2>
+
+<h3>1. Fixed-effect table with Wald intervals</h3>
+
+<div class="webr-container" data-block-title="Tidy an lmer fit with default Wald CIs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tidy an lmer fit with default Wald CIs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(fit, effects = &quot;fixed&quot;, conf.int = TRUE)
+#&gt; # A tibble: 2 x 7
+#&gt;   effect term        estimate std.error statistic conf.low conf.high
+#&gt;   &lt;chr&gt;  &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 fixed  (Intercept)   251.       6.82      36.8    238.      265.
+#&gt; 2 fixed  Days           10.5      1.55       6.77     7.42     13.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one fixed-effect term. <code>estimate</code> is the REML coefficient, <code>std.error</code> is its standard error from the Hessian, and <code>statistic</code> is the t-ratio. The <code>Days</code> slope of 10.5 ms per day, with a Wald interval well clear of zero, says reaction time grows reliably with sleep deprivation in the <code>sleepstudy</code> cohort.</p>
+
+<h3>2. Random-effect variances and correlations</h3>
+
+<div class="webr-container" data-block-title="Tidy random-effect parameters">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tidy random-effect parameters</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(fit, effects = &quot;ran_pars&quot;)
+#&gt; # A tibble: 4 x 5
+#&gt;   effect   group    term                       estimate std.error
+#&gt;   &lt;chr&gt;    &lt;chr&gt;    &lt;chr&gt;                         &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 ran_pars Subject  sd__(Intercept)              24.7        NA
+#&gt; 2 ran_pars Subject  cor__(Intercept).Days         0.0656     NA
+#&gt; 3 ran_pars Subject  sd__Days                      5.92       NA
+#&gt; 4 ran_pars Residual sd__Observation              25.6        NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>effects = &quot;ran_pars&quot;</code> returns one row per variance or correlation component. Here the between-subject SD on the intercept (24.7 ms) is similar in magnitude to the residual SD (25.6 ms), so subjects differ on baseline reaction time about as much as observations differ within a subject. The intercept-slope correlation near zero says subjects with slower baselines do not systematically deteriorate faster.</p>
+
+<h3>3. Group-level conditional modes with ran_vals</h3>
+
+<div class="webr-container" data-block-title="Per-subject random intercepts and slopes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-subject random intercepts and slopes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ran_vals &lt;- tidy(fit, effects = &quot;ran_vals&quot;, conf.int = TRUE)
+head(ran_vals, 4)
+#&gt; # A tibble: 4 x 8
+#&gt;   effect   group   level term         estimate std.error conf.low conf.high
+#&gt;   &lt;chr&gt;    &lt;chr&gt;   &lt;chr&gt; &lt;chr&gt;           &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 ran_vals Subject 308   (Intercept)     2.26      13.0    -23.2     27.7
+#&gt; 2 ran_vals Subject 308   Days            9.20       2.74     3.83    14.6
+#&gt; 3 ran_vals Subject 309   (Intercept)   -40.4       13.0    -65.9    -14.9
+#&gt; 4 ran_vals Subject 309   Days           -8.62       2.74   -14.0     -3.26</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each pair of rows is one subject's deviation from the population intercept and slope. Subject 308 has a slope 9.2 ms/day above the average, Subject 309 has a slope 8.6 ms/day below. The confidence interval is conditional on the estimated variance components, so treat it as descriptive rather than fully calibrated.</p>
+
+<h3>4. Combining fixed and random effects</h3>
+
+<div class="webr-container" data-block-title="Stack fixed and ran_pars into one tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stack fixed and ran_pars into one tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(fit, effects = c(&quot;fixed&quot;, &quot;ran_pars&quot;), conf.int = TRUE)
+#&gt; # A tibble: 6 x 8
+#&gt;   effect   group    term                  estimate std.error statistic conf.low conf.high
+#&gt;   &lt;chr&gt;    &lt;chr&gt;    &lt;chr&gt;                    &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 fixed    NA       (Intercept)            251.        6.82      36.8    238.      265.
+#&gt; 2 fixed    NA       Days                    10.5       1.55       6.77     7.42     13.5
+#&gt; 3 ran_pars Subject  sd__(Intercept)         24.7      NA         NA       14.4      37.7
+#&gt; 4 ran_pars Subject  cor__(Intercept).Days    0.0656   NA         NA       -0.482     0.685
+#&gt; 5 ran_pars Subject  sd__Days                 5.92     NA         NA        3.81      8.75
+#&gt; 6 ran_pars Residual sd__Observation         25.6      NA         NA       22.9      28.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Passing a vector to <code>effects</code> puts both blocks in one frame, ready for a <code>gt::gt()</code> table or a single forest plot grouped by <code>effect</code>. The <code>ran_pars</code> confidence bounds here are Wald, which <code>broom.mixed</code> warns about for variances; switch <code>conf.method = &quot;profile&quot;</code> for a publication-grade interval.</p>
+
+<h3>5. Odds ratios from a logistic glmer</h3>
+
+<div class="webr-container" data-block-title="Tidy a binomial glmer with exponentiate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tidy a binomial glmer with exponentiate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cbpp$prop &lt;- cbpp$incidence / cbpp$size
+glmer_fit &lt;- glmer(cbind(incidence, size - incidence) ~ period + (1 | herd),
+                   data = cbpp, family = binomial())
+
+tidy(glmer_fit, effects = &quot;fixed&quot;, conf.int = TRUE, exponentiate = TRUE)
+#&gt; # A tibble: 4 x 7
+#&gt;   effect term        estimate std.error statistic conf.low conf.high
+#&gt;   &lt;chr&gt;  &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 fixed  (Intercept)    0.235     0.232    -6.25     0.149     0.371
+#&gt; 2 fixed  period2        0.371     0.302    -3.28     0.205     0.671
+#&gt; 3 fixed  period3        0.323     0.323    -3.50     0.171     0.609
+#&gt; 4 fixed  period4        0.197     0.422    -3.85     0.0862    0.451</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With <code>exponentiate = TRUE</code>, <code>estimate</code> is the <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">odds ratio</a> for each period relative to baseline. Every period sits below 1 with a confidence interval clear of 1, so the odds of contagious bovine pleuropneumonia drop after the first observation period in every herd.</p>
+
+<h2>tidy() vs summary(fit) and parameters::model_parameters</h2>
+
+<p><strong>Three tools cover the same job from different angles.</strong> Pick by what you do next with the output.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Output type</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>summary(fit)</code></td>
+<td>printed text with coefficients + VarCorr</td>
+<td>Quick console check</td>
+</tr>
+<tr>
+<td><code>broom.mixed::tidy(fit)</code></td>
+<td>tibble (data frame)</td>
+<td>dplyr piping, ggplot, custom tables</td>
+</tr>
+<tr>
+<td><code>parameters::model_parameters(fit)</code></td>
+<td>data frame with <a class="auto-link" href="Bootstrap-Confidence-Intervals-in-R.html" title="Bootstrap CIs in R: Distribution-Free Confidence Intervals for Any Statistic">bootstrap CIs</a> and p-values</td>
+<td>Reporting with degrees-of-freedom logic baked in</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>tidy()</code> whenever the next step is code: filtering terms, joining several models, drawing a forest plot, or writing to CSV. Use <code>parameters::model_parameters()</code> when you need Satterthwaite or Kenward-Roger denominator df without attaching <code>lmerTest</code> and re-fitting.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> frame is the bridge between lme4 and the tidyverse.</strong> Once <code>tidy()</code> returns a tibble, every dplyr verb, every ggplot geom, and every <code>gt</code>/<code>flextable</code> layout works without custom shims. This is why <code>broom.mixed</code> is the recommended reporting interface for <code>merMod</code> objects even when you stay frequentist throughout the modelling.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: loading broom instead of broom.mixed.</strong> The <code>tidy.merMod</code> method lives in broom.mixed. If only broom is attached, <code>tidy(fit)</code> may dispatch to a stale fallback that returns just the fixed effects without the <code>effect</code> column, or warn about missing methods. Always <code>library(broom.mixed)</code> for lme4 fits.</p>
+
+<div class="webr-container" data-block-title="Missing broom.mixed: incomplete output">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Missing broom.mixed: incomplete output</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(broom)
+detach(&quot;package:broom.mixed&quot;, unload = TRUE)
+tidy(fit)
+#&gt; Warning: Tidiers for objects of class lmerMod are not maintained by the broom team...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Pitfall 2: expecting p-values in the default output.</strong> Base <code>lme4</code> deliberately omits p-values for fixed effects because the reference distribution is unclear for unbalanced designs. <code>tidy()</code> mirrors this: you get <code>statistic</code> (the t-ratio) but no <code>p.value</code> column. Attach <code>lmerTest</code> before fitting to get Satterthwaite-approximated p-values via <code>summary(fit)</code>, or compute them with <code>parameters::model_parameters(fit)</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Wald confidence intervals on variance components can be misleading.</strong> They are symmetric and can extend below zero for small samples, which is impossible. For any <code>ran_pars</code> row you plan to report, use <code>conf.method = &quot;profile&quot;</code> or <code>&quot;boot&quot;</code>. Profile intervals are slower but respect the boundary at 0.</div></div>
+
+<p><strong>Pitfall 3: forgetting <code>effects = &quot;ran_pars&quot;</code> for hierarchical fits.</strong> The default <code>effects = &quot;fixed&quot;</code> only returns population-level coefficients. For <code>lmer</code> and <code>glmer</code> fits, variance components and group-level deviations require explicit <code>effects</code> arguments. Calling <code>tidy(fit)</code> alone silently omits the random-effect SDs that motivated the hierarchical model in the first place.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a random-intercept model on <code>sleepstudy</code> with <code>Reaction</code> as the outcome, <code>Days</code> as a fixed effect, and <code>Subject</code> as the grouping variable. Use <code>tidy()</code> to produce a combined fixed + ran_pars table with 95% profile confidence intervals. Save it to <code>ex_mixed_table</code>.</p>
+<div class="webr-container" data-block-title="Your turn: build a mixed-model coefficient table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build a mixed-model coefficient table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: tidy an lmer fit with profile CIs
+ex_fit &lt;- # your code here
+
+ex_mixed_table &lt;- # your code here
+
+ex_mixed_table
+#&gt; Expected: 4 rows; one each for (Intercept), Days, sd__(Intercept), sd__Observation</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- lmer(Reaction ~ Days + (1 | Subject), data = sleepstudy)
+ex_mixed_table &lt;- tidy(ex_fit,
+                       effects = c(&quot;fixed&quot;, &quot;ran_pars&quot;),
+                       conf.int = TRUE,
+                       conf.method = &quot;profile&quot;)
+ex_mixed_table
+#&gt; # A tibble: 4 x 8
+#&gt;   effect   group    term            estimate std.error statistic conf.low conf.high
+#&gt;   &lt;chr&gt;    &lt;chr&gt;    &lt;chr&gt;              &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 fixed    NA       (Intercept)      251.       9.75     25.8     232.      271.
+#&gt; 2 fixed    NA       Days              10.5      0.804    13.0       8.89     12.1
+#&gt; 3 ran_pars Subject  sd__(Intercept)   37.1     NA        NA        24.7      54.4
+#&gt; 4 ran_pars Residual sd__Observation   30.99    NA        NA        28.4      33.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Passing <code>effects = c(&quot;fixed&quot;, &quot;ran_pars&quot;)</code> stacks both blocks; <code>conf.method = &quot;profile&quot;</code> swaps the Wald default for a likelihood-profile interval, which is the right choice for variance components.</p>
+
+</details>
+</section>
+
+<h2>Related broom.mixed functions for lme4</h2>
+
+<p>After mastering <code>tidy()</code>, look at:</p>
+
+<ul>
+
+<li><code>glance()</code>: one-row model summary with <code>sigma</code>, <code>logLik</code>, <code>AIC</code>, <code>BIC</code>, <code>deviance</code>, and <code>df.residual</code></li>
+
+<li><code>augment()</code>: per-observation fitted values, residuals, and conditional modes</li>
+
+<li><code>lme4::VarCorr()</code>: the raw variance-covariance matrix of the random effects</li>
+
+<li><code>parameters::model_parameters()</code>: similar coefficient table with degrees-of-freedom-aware p-values</li>
+
+<li><code>performance::check_model()</code>: diagnostic plots for <code>merMod</code> fits</li>
+
+</ul>
+
+<p>For a coefficient forest plot, pipe <code>tidy(fit, conf.int = TRUE)</code> into <code>ggplot2::geom_pointrange()</code> with <code>x = estimate, xmin = conf.low, xmax = conf.high, y = term</code> and add a <code>geom_vline(xintercept = 0)</code> reference line.</p>
+
+<p>See the official <a href="https://cran.r-project.org/package=broom.mixed">broom.mixed reference for lme4 methods</a> for the full argument list and additional <code>effects</code> options.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I get p-values from broom tidy on an lme4 model?</strong></p>
+
+<p>Attach <code>lmerTest</code> before fitting, then call <code>tidy(fit, effects = &quot;fixed&quot;)</code>. lmerTest re-classes the fit so the Satterthwaite degrees-of-freedom and corresponding p-values flow through to the tibble's <code>p.value</code> column. For a glmer fit, p-values come from the Wald z-test by default and appear without any extra package.</p>
+
+<p><strong>What is the difference between effects = "ran_pars" and effects = "ran_vals"?</strong></p>
+
+<p><code>ran_pars</code> returns one row per random-effect parameter (standard deviations and correlations of the covariance matrix), so the size depends on the random-effect structure, not the data. <code>ran_vals</code> returns one row per group per random term (the conditional modes, also called BLUPs), so it grows with the number of groups. Use <code>ran_pars</code> to report variance components, <code>ran_vals</code> to plot per-group deviations.</p>
+
+<p><strong>Can broom.mixed tidy return profile confidence intervals?</strong></p>
+
+<p>Yes. Set <code>conf.method = &quot;profile&quot;</code> and <code>tidy()</code> calls <code>confint(fit, method = &quot;profile&quot;)</code> under the hood, returning likelihood profile bounds for both fixed effects and variance components. The call is several times slower than the Wald default but produces intervals that respect the natural boundary at zero for SDs.</p>
+
+<p><strong>Why does tidy(fit) show different standard errors than summary(fit)?</strong></p>
+
+<p>They should match exactly for fixed effects under <code>conf.method = &quot;Wald&quot;</code>. If the numbers differ, you have probably loaded <code>lmerTest</code> after fitting, which can change the <code>summary()</code> standard errors when Kenward-Roger adjustments kick in. Refit the model after attaching lmerTest, or call <code>tidy()</code> on the lmerTest-classed object to bring the two into agreement.</p>
+
+<p><strong>Does tidy() work with nlme::lme objects?</strong></p>
+
+<p>No. <code>tidy.merMod</code> only dispatches on lme4's <a class="auto-link" href="S4-Classes-in-R.html" title="S4 Classes in R: setClass(), setGeneric() & Formal OOP">S4 classes</a>. For <code>nlme::lme</code> fits, broom.mixed provides a separate <code>tidy.lme</code> method that takes similar arguments but lives in the same package. Both share the column conventions (<code>effect</code>, <code>group</code>, <code>term</code>, <code>estimate</code>, <code>std.error</code>, <code>conf.low</code>, <code>conf.high</code>) so downstream code can stay model-agnostic.</p>
