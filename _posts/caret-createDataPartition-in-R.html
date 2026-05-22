@@ -1,0 +1,323 @@
+---
+title: "caret createDataPartition() in R: Stratified Train Splits"
+description: "caret createDataPartition() in R creates stratified train/test splits for machine learning models. Syntax, arguments, examples, pitfalls, and FAQ covered."
+keywords: "caret createDataPartition, createDataPartition function R, caret createDataPartition examples, R createDataPartition stratified split, createDataPartition train test split, caret partition data, R createDataPartition example"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "createDataPartition()|caret createDataPartition|caret::createDataPartition()|stratified data partition|stratified train test split"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret createDataPartition() in R: Stratified Train Splits</h1>
+
+<p class="lead">The <code>createDataPartition()</code> function in caret builds a stratified train/test split, picking row indices so the outcome distribution in the training set mirrors the full data. It works on both factor and numeric outcomes and returns indices you slice into your data frame.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>createDataPartition(y, p = 0.7)<span class="qa-cmt">                       # 70/30 stratified split (list)</span>
+createDataPartition(y, p = 0.8, list = FALSE)<span class="qa-cmt">         # matrix output (1 column)</span>
+createDataPartition(y, p = 0.7, times = 5)<span class="qa-cmt">            # five resamples</span>
+createDataPartition(iris$Species, p = 0.75)<span class="qa-cmt">           # stratify by factor levels</span>
+createDataPartition(mtcars$mpg, p = 0.7, groups = 4)<span class="qa-cmt">  # numeric outcome, 4 strata</span>
+df[createDataPartition(y, p = 0.7, list = FALSE), ]<span class="qa-cmt">   # training rows</span>
+df[-createDataPartition(y, p = 0.7, list = FALSE), ]<span class="qa-cmt">  # holdout rows</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is createDataPartition() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">stratified train/test split</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">createDataPartition(y, p = 0.7)</text><text x="125" y="126" class="branch-label">k-fold CV indices</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">createFolds(y, k = 10)</text><text x="125" y="182" class="branch-label"><a class="auto-link" href="broom-bootstrap-in-R.html" title="broom Bootstrap in R: Tidy Resampled Estimates">bootstrap resamples</a></text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">createResample(y, times = 25)</text><text x="125" y="238" class="branch-label">time-series rolling windows</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">createTimeSlices(y, initialWindow, horizon)</text><text x="125" y="294" class="branch-label">repeated k-fold CV</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">createMultiFolds(y, k = 5, times = 3)</text><text x="125" y="350" class="branch-label">rebalance class imbalance</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">upSample(x, y) or downSample(x, y)</text><text x="125" y="406" class="branch-label">unstratified random split</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">sample.int(n, size = floor(0.7 * n))</text></svg></div>
+
+<h2>What createDataPartition() does in one sentence</h2>
+
+<p><strong><code>createDataPartition()</code> is caret's stratified splitter for the training set.</strong> You hand it an outcome vector and a target proportion, and it returns the row positions that should belong to the training partition. The remaining rows become your holdout.</p>
+
+<p>The point of stratification is to keep the outcome distribution stable across splits. If your data has 30 percent positives and 70 percent negatives, a plain random split can produce a training set with 35 percent positives and a test set with 22 percent, which biases every metric you compute downstream. <code>createDataPartition()</code> avoids this by sampling within each class (for factors) or within each quantile bin (for numeric outcomes), so the training and test sets carry roughly the same outcome shape as the original.</p>
+
+<h2>createDataPartition() syntax and arguments</h2>
+
+<p><strong><code>createDataPartition()</code> needs only an outcome vector and a split proportion.</strong> Every other argument changes the output shape or the strategy used to bin numeric outcomes.</p>
+
+<div class="webr-container" data-block-title="Load caret and inspect iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and inspect iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(1)
+str(iris$Species)
+#&gt;  Factor w/ 3 levels &quot;setosa&quot;,&quot;versicolor&quot;,..: 1 1 1 1 1 1 1 1 1 1 ...
+table(iris$Species)
+#&gt; 
+#&gt;     setosa versicolor  virginica 
+#&gt;         50         50         50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The signature is short:</p>
+
+<div class="webr-container" data-block-title="createDataPartition signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">createDataPartition signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">createDataPartition(y, times = 1, p = 0.5, list = TRUE, groups = min(5, length(y)))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<ul>
+
+<li><code>y</code>: the outcome vector. A factor triggers per-class stratification; a numeric vector is binned first.</li>
+
+<li><code>times</code>: how many resamples to generate. Default is 1; raise it for repeated holdout.</li>
+
+<li><code>p</code>: the proportion that goes to the training set. Common values are 0.7, 0.75, or 0.8.</li>
+
+<li><code>list</code>: if <code>TRUE</code> (the default), return a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> of <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">integer vectors</a>. Set to <code>FALSE</code> for a single integer matrix, which is easier to index with.</li>
+
+<li><code>groups</code>: only used when <code>y</code> is numeric. caret cuts <code>y</code> into this many <a class="auto-link" href="dplyr-ntile-in-R.html" title="dplyr ntile() in R: Bin Values into N Equal-Count Groups">quantile bins</a> before sampling, then strata are applied within bins.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python scikit-learn?</strong> The closest equivalent is <code>train_test_split(X, y, stratify = y)</code>. Both stratify on the outcome, but <code>createDataPartition()</code> returns indices rather than slicing the data, which keeps the function decoupled from your data frame.</div></div>
+
+<h2>createDataPartition() examples by use case</h2>
+
+<p><strong>Most splits are one-off and use <code>list = FALSE</code> for clean indexing.</strong> The examples below build up from the basic case to repeated and numeric-outcome variants.</p>
+
+<p>A 70/30 stratified split on the iris species column:</p>
+
+<div class="webr-container" data-block-title="Stratified split on a factor outcome">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stratified split on a factor outcome</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+idx   &lt;- createDataPartition(iris$Species, p = 0.7, list = FALSE)
+train &lt;- iris[idx, ]
+test  &lt;- iris[-idx, ]
+
+prop.table(table(train$Species))
+#&gt; 
+#&gt;     setosa versicolor  virginica 
+#&gt;  0.3333333  0.3333333  0.3333333
+prop.table(table(test$Species))
+#&gt; 
+#&gt;     setosa versicolor  virginica 
+#&gt;  0.3333333  0.3333333  0.3333333</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both partitions hold the same 1/3 share for each class because caret sampled inside each level of <code>Species</code>.</p>
+
+<p>A 70/30 split on a numeric outcome, using quantile groups:</p>
+
+<div class="webr-container" data-block-title="Stratified split on a numeric outcome">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stratified split on a numeric outcome</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+idx   &lt;- createDataPartition(mtcars$mpg, p = 0.7, groups = 4, list = FALSE)
+train &lt;- mtcars[idx, ]
+test  &lt;- mtcars[-idx, ]
+
+c(nrow(train), nrow(test))
+#&gt; [1] 24  8
+summary(train$mpg); summary(test$mpg)
+#&gt;    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#&gt;   10.40   15.50   19.20   20.27   22.80   33.90 
+#&gt;    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#&gt;   13.30   17.80   19.20   19.61   21.05   30.40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The summaries are close because each quartile of <code>mpg</code> contributed proportionally to both partitions.</p>
+
+<p>Five repeated 80/20 splits for repeated-holdout validation:</p>
+
+<div class="webr-container" data-block-title="Multiple resamples in one call">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multiple resamples in one call</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+idx_list &lt;- createDataPartition(iris$Species, p = 0.8, times = 5)
+names(idx_list)
+#&gt; [1] &quot;Resample1&quot; &quot;Resample2&quot; &quot;Resample3&quot; &quot;Resample4&quot; &quot;Resample5&quot;
+sapply(idx_list, length)
+#&gt; Resample1 Resample2 Resample3 Resample4 Resample5 
+#&gt;       120       120       120       120       120</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each element is one training set of 120 rows. Loop over <code>idx_list</code> to fit and score a model on every resample.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Set a seed before every call.</strong> <code>createDataPartition()</code> uses the active RNG state; calling it without <code>set.seed()</code> produces a different split on every run, which makes results irreproducible. A seed of <code>42</code> or <code>1</code> is enough; the value does not matter, the consistency does.</div></div>
+
+<h2>createDataPartition() vs sample() and rsample::initial_split()</h2>
+
+<p><strong><code>createDataPartition()</code> is the stratified default; base <code>sample()</code> is not stratified, and tidymodels uses <code>rsample::initial_split()</code>.</strong> Pick by ecosystem and by whether you need stratification.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Package</th>
+<th>Stratified?</th>
+<th>Returns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>createDataPartition()</code></td>
+<td>caret</td>
+<td>Yes (default)</td>
+<td>indices</td>
+</tr>
+<tr>
+<td><code>sample()</code> / <code>sample.int()</code></td>
+<td>base R</td>
+<td>No</td>
+<td>indices</td>
+</tr>
+<tr>
+<td><code>initial_split()</code></td>
+<td>rsample</td>
+<td>Optional via <code>strata =</code></td>
+<td>split object</td>
+</tr>
+<tr>
+<td><code>vfold_cv()</code></td>
+<td>rsample</td>
+<td>Optional</td>
+<td>resample set</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use base <code>sample()</code> only when class balance is irrelevant or when the dataset is huge and randomization is sufficient. Reach for <code>rsample::initial_split()</code> if the rest of your pipeline is tidymodels because it returns a <code>split</code> object that feeds straight into <code>training()</code> and <code>testing()</code>. Stick with <code>createDataPartition()</code> when you are already inside caret and want indices you can reuse across <code>train()</code>, <code>predict()</code>, and metric calls.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most broken splits.</strong> All are easy to spot once you know the symptom.</p>
+
+<p>The first is forgetting <code>list = FALSE</code>. The default returns a one-element named list, so <code>iris[idx, ]</code> errors because <code>idx</code> is a list, not an integer vector. Either set <code>list = FALSE</code> or extract with <code>idx[[1]]</code>.</p>
+
+<p>The second is passing the wrong column. If <code>y</code> is your feature matrix instead of the outcome, the function still runs but stratifies on nonsense. Always pass the outcome column directly, for example <code>createDataPartition(df$target, ...)</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Time-series data needs a different splitter.</strong> <code>createDataPartition()</code> shuffles rows, so it leaks future information into the training set when your data is ordered by time. Use <code>createTimeSlices()</code> or a manual time-based filter for any temporal outcome.</div></div>
+
+<p>The third is reusing the same split across model comparisons without seeding. Two <code>train()</code> calls in a row without <code>set.seed()</code> produce different folds, so any RMSE difference may be noise. Set the seed once before the first <code>createDataPartition()</code> and again before each <code>train()</code> call.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a stratified 75/25 split on <code>iris$Species</code> and confirm both partitions hold equal proportions of the three classes.</p>
+<div class="webr-container" data-block-title="Your turn: stratified split">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: stratified split</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_idx   &lt;- # your code here
+ex_train &lt;- iris[ex_idx, ]
+ex_test  &lt;- iris[-ex_idx, ]
+
+prop.table(table(ex_train$Species))
+#&gt; Expected: roughly 1/3 for each class</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_idx   &lt;- createDataPartition(iris$Species, p = 0.75, list = FALSE)
+ex_train &lt;- iris[ex_idx, ]
+ex_test  &lt;- iris[-ex_idx, ]
+
+prop.table(table(ex_train$Species))
+#&gt;     setosa versicolor  virginica 
+#&gt;  0.3362832  0.3362832  0.3274336</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Passing <code>iris$Species</code> as the outcome triggers per-class stratification. Setting <code>list = FALSE</code> returns an integer vector you can use to <a class="auto-link" href="dplyr-filter-in-R.html" title="dplyr filter() in R: Subset Rows by Condition">subset rows</a> directly. The slight imbalance (37/37/36) reflects rounding inside each class; the function preserves proportions as closely as the row count allows.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p>Caret ships several splitters and resamplers; <code>createDataPartition()</code> is the one for the initial train/test cut. The others handle the resampling that happens later in a modeling pipeline.</p>
+
+<ul>
+
+<li><code>createFolds(y, k = 10)</code>: k-fold cross-validation indices, used by <code>trainControl(method = &quot;cv&quot;)</code>.</li>
+
+<li><code>createMultiFolds(y, k = 5, times = 3)</code>: repeated k-fold indices for <code>method = &quot;repeatedcv&quot;</code>.</li>
+
+<li><code>createResample(y, times = 25)</code>: bootstrap resamples for <code>method = &quot;boot&quot;</code>.</li>
+
+<li><code>createTimeSlices(y, initialWindow, horizon)</code>: rolling-origin folds for time-series outcomes.</li>
+
+<li><code>upSample()</code> / <code>downSample()</code>: class-balance the training partition after splitting.</li>
+
+</ul>
+
+<p>A typical workflow chains these: split once with <code>createDataPartition()</code>, then resample the training partition inside <code>train()</code> using a <code>trainControl()</code> object.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Why does createDataPartition() return a list by default?</strong></p>
+
+<p>The list shape comes from the <code>times</code> argument. caret expected most users to ask for multiple resamples in one call, so it returns one named element per resample. With <code>times = 1</code> you still get a one-element list, which surprises new users. Pass <code>list = FALSE</code> for a single integer vector or a one-column matrix, which is simpler to slice your data frame with.</p>
+
+<p><strong>Is createDataPartition() different from sample() in base R?</strong></p>
+
+<p>Yes. <code>sample()</code> picks rows uniformly at random with no awareness of the outcome, so a rare class can be over or under-sampled by chance. <code>createDataPartition()</code> samples within each class (for factor outcomes) or within each quantile bin (for numeric outcomes), so both partitions keep the original outcome distribution. Use <code>sample()</code> only when class balance is irrelevant.</p>
+
+<p><strong>Can I use createDataPartition() with multi-label or multi-output targets?</strong></p>
+
+<p>Not directly. caret stratifies on a single vector. For a multi-label outcome, concatenate the label columns into a single factor key (for example, <code>paste(y1, y2, sep = &quot;_&quot;)</code>) and pass that key to <code>createDataPartition()</code>, then split your real data using the returned indices. For multi-output regression, pick the most important target as the strata column.</p>
+
+<p><strong>Does the seed matter and how should I set it?</strong></p>
+
+<p>Yes. <code>createDataPartition()</code> uses the active R RNG, so without <code>set.seed()</code> you get a different split every run and your results are not reproducible. Call <code>set.seed()</code> immediately before <code>createDataPartition()</code> and before every <code>train()</code> call that follows. Any integer works; the convention in the caret docs is <code>set.seed(998)</code>, but the value itself is arbitrary.</p>
+
+<p><strong>How does createDataPartition() stratify a numeric outcome?</strong></p>
+
+<p>caret cuts the numeric vector into quantile bins using the <code>groups</code> argument (default 5), then samples within each bin at proportion <code>p</code>. This keeps the distribution of <code>y</code> similar across train and test. With very small samples or <code>groups</code> set higher than <code>length(y)/2</code>, the binning becomes unstable and you can end up with empty bins, so cap <code>groups</code> at 4 or 5 unless you have thousands of rows.</p>
