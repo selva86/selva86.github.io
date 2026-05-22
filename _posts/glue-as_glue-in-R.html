@@ -1,0 +1,355 @@
+---
+title: "glue as_glue() in R: Promote Strings to a glue Object"
+description: "Use glue as_glue() in R to promote a plain character vector into a glue object so it prints each element on its own line without quotes. See five examples."
+keywords: "glue as_glue, as_glue function R, glue as_glue examples, R promote string to glue, as_glue character vector, glue class object, as.character glue"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "as_glue()|glue::as_glue()|glue as_glue|promote to glue|coerce to glue"
+auto_link_case_sensitive: true
+fr_parent: "stringr-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>glue as_glue() in R: Promote Strings to a glue Object</h1>
+
+<p class="lead">glue as_glue() takes a plain character vector and tags it with the <code>glue</code> S3 class, so it prints each element on its own line without surrounding quotes. The underlying string data is unchanged: only the <a class="auto-link" href="R-Attributes.html" title="R Attributes: The Hidden Metadata That Makes R Objects Behave Differently">class attribute</a> is added. Reach for it whenever you receive a character vector from <code>sprintf()</code>, <code>paste()</code>, or a database and want it to print and dispatch like the output of <code>glue()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>as_glue(&quot;Hello world&quot;)<span class="qa-cmt">                       # promote a single string</span>
+as_glue(c(&quot;line one&quot;, &quot;line two&quot;))<span class="qa-cmt">           # promote a multi-element vector</span>
+as_glue(sprintf(&quot;%.2f%%&quot;, x * 100))<span class="qa-cmt">          # tag sprintf output as glue</span>
+as_glue(as.character(glue(&quot;Hi {name}&quot;)))<span class="qa-cmt">     # restore glue class after coercion</span>
+inherits(as_glue(&quot;x&quot;), &quot;glue&quot;)<span class="qa-cmt">               # TRUE: class check</span>
+class(as_glue(&quot;x&quot;))<span class="qa-cmt">                          # &quot;glue&quot; &quot;character&quot;</span>
+identical(as.character(as_glue(&quot;a&quot;)), &quot;a&quot;)<span class="qa-cmt">   # TRUE: data is untouched</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is as_glue() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">promote an existing character vector to glue</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">as_glue(x)</text><text x="125" y="126" class="branch-label">build a new string with interpolation</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">glue(&quot;Hi {name}&quot;)</text><text x="125" y="182" class="branch-label">interpolate across data frame rows</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">glue_data(df, &quot;{a} - {b}&quot;)</text><text x="125" y="238" class="branch-label">collapse a vector into one string</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">glue_collapse(x, sep = &quot;, &quot;)</text><text x="125" y="294" class="branch-label">strip the glue class back to plain character</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">as.character(g)</text><text x="125" y="350" class="branch-label">check if something is already glue</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">inherits(x, &quot;glue&quot;)</text></svg></div>
+
+<h2>What as_glue() does in one sentence</h2>
+
+<p><strong>as_glue() adds the <code>glue</code> S3 class to a character vector so it gets glue's print method, format method, and combine method.</strong> The function does no interpolation, no parsing of braces, and no string manipulation. It is a pure coercion: input character, output the same character bytes wrapped in a <code>c(&quot;glue&quot;, &quot;character&quot;)</code> class attribute.</p>
+
+<p>The practical effect is visible only when you print. A plain character vector prints with quotes and a <code>[1]</code> index prefix. A glue object prints each element on its own line, no quotes, no index. This is the same display you get from <code>glue()</code> itself, which is helpful when a value will eventually flow into a glue pipeline or a report.</p>
+
+<div class="webr-container" data-block-title="Promote a string and see the print difference">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Promote a string and see the print difference</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(glue)
+
+plain &lt;- &quot;Hello world&quot;
+tagged &lt;- as_glue(&quot;Hello world&quot;)
+
+plain
+#&gt; [1] &quot;Hello world&quot;
+
+tagged
+#&gt; Hello world</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two values hold identical bytes; only the class differs, so the print method dispatches to <code>print.glue()</code> instead of <code>print.character()</code>.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>as_glue(x)</code> accepts any character vector (or anything coercible to character) and returns a glue object.</strong> There are no other arguments. The function is intentionally minimal: it exists to flip an S3 class, not to transform data.</p>
+
+<div class="webr-container" data-block-title="Function signature and return value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Function signature and return value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># as_glue(x)
+#
+# x : a character vector, or an object coercible via as.character()
+#
+# Returns: x with class set to c(&quot;glue&quot;, &quot;character&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>If <code>x</code> is not already character, glue calls <code>as.character()</code> on it first. Factors, numerics, and dates therefore work, but the conversion follows R's standard <code>as.character()</code> rules, which may not be what you expect (factors return levels, not codes). Convert explicitly when the semantics matter.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>as_glue() flips a class; it does not interpolate.</strong> If you pass <code>as_glue(&quot;Hi {name}&quot;)</code> hoping it will resolve <code>name</code>, you will get the literal string <code>Hi {name}</code>. Interpolation is a <code>glue()</code> job. Use <code>as_glue()</code> when you already have the finished text and only want glue's display and <a class="auto-link" href="S3-Classes-in-R.html" title="S3 Classes in R: Create, Inherit & Write Methods — Complete Tutorial">S3 dispatch</a>.</div></div>
+
+<h2>Common use cases</h2>
+
+<h3>1. Promote a plain string to print without quotes</h3>
+
+<div class="webr-container" data-block-title="Promote a single string">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Promote a single string</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">msg &lt;- as_glue(&quot;Run complete: 1,204 rows written&quot;)
+msg
+#&gt; Run complete: 1,204 rows written</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The same string passed to <code>print()</code> directly would show <code>[1] &quot;Run complete: 1,204 rows written&quot;</code>. Wrapping it in <code>as_glue()</code> is the lightest possible way to get the cleaner display in scripts, log files, and knitr output.</p>
+
+<h3>2. Tag sprintf or paste output as glue</h3>
+
+<div class="webr-container" data-block-title="Tag sprintf output as glue">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tag sprintf output as glue</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rates &lt;- c(0.12, 0.085, 0.041)
+labels &lt;- as_glue(sprintf(&quot;%.1f%%&quot;, rates * 100))
+labels
+#&gt; 12.0%
+#&gt; 8.5%
+#&gt; 4.1%</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>sprintf()</code> returns a plain character vector. Wrapping it in <code>as_glue()</code> keeps the numeric formatting but lets the vector flow into glue-aware code (a <code>glue_collapse()</code> call, a <code>cat()</code> in a knitr chunk, or a custom print path) as if it had been produced by <code>glue()</code> itself.</p>
+
+<h3>3. Restore the glue class after coercion strips it</h3>
+
+<div class="webr-container" data-block-title="Round-trip from character back to glue">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Round-trip from character back to glue</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">g &lt;- glue(&quot;Hi {name}&quot;, name = &quot;Ada&quot;)
+class(g)
+#&gt; [1] &quot;glue&quot;      &quot;character&quot;
+
+plain &lt;- as.character(g)
+class(plain)
+#&gt; [1] &quot;character&quot;
+
+restored &lt;- as_glue(plain)
+class(restored)
+#&gt; [1] &quot;glue&quot;      &quot;character&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Many base <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">R functions</a> silently drop S3 attributes. Stuffing a glue object into a data frame column, <a class="auto-link" href="base-paste-in-R.html" title="paste() and paste0() in R: Concatenate Strings">paste()</a>-ing it, or <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">unlist()</a>-ing a list of glue values all return plain character. <code>as_glue()</code> is the round-trip back, so downstream code that branches on <code>inherits(x, &quot;glue&quot;)</code> continues to work.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Coercing a factor returns levels, not codes.</strong> <code>as_glue(factor(c(&quot;a&quot;,&quot;b&quot;)))</code> calls <code>as.character()</code> on the factor, which returns the level strings. If you wanted the integer codes, run <code>as_glue(as.character(as.integer(f)))</code> instead. The trap is silent and only bites when the factor has a level order that differs from its appearance order.</div></div>
+
+<h3>4. Combine multiple glue values without losing the class</h3>
+
+<div class="webr-container" data-block-title="Concatenate glue values element-wise">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Concatenate glue values element-wise</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">greetings &lt;- as_glue(c(&quot;Hi Ada&quot;, &quot;Hi Bob&quot;, &quot;Hi Cee&quot;))
+roles &lt;- as_glue(c(&quot;editor&quot;, &quot;viewer&quot;, &quot;admin&quot;))
+
+combined &lt;- as_glue(paste(greetings, &quot;-&quot;, roles))
+combined
+#&gt; Hi Ada - editor
+#&gt; Hi Bob - viewer
+#&gt; Hi Cee - admin</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>paste()</code> is the standard element-wise combiner, but it drops the glue class. Wrapping the result in <code>as_glue()</code> keeps the printed form (one line per element, no quotes) for the rest of your pipeline.</p>
+
+<h3>5. Return glue from a custom helper</h3>
+
+<div class="webr-container" data-block-title="Helper that always returns glue">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Helper that always returns glue</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">format_money &lt;- function(x, currency = &quot;USD&quot;) {
+  txt &lt;- sprintf(&quot;%s %.2f&quot;, currency, x)
+  as_glue(txt)
+}
+
+format_money(c(12.5, 9.99, 0.5))
+#&gt; USD 12.50
+#&gt; USD 9.99
+#&gt; USD 0.50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Returning a glue object from a helper signals intent: callers can treat the value as text but also get glue's clean print, glue's <code>format()</code> method, and the ability to chain through <code>glue_collapse()</code>. This pattern keeps formatting helpers consistent across a package or analysis project.</p>
+
+<h2>as_glue() vs glue() and base R alternatives</h2>
+
+<p><strong>Pick as_glue() when you already have the finished string and only want glue's class behaviour.</strong> Use <code>glue()</code> when you still need to interpolate. Use plain character when downstream code does not care about S3 dispatch and you want maximum compatibility with base R idioms.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>What it does</th>
+<th>When to reach for it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>as_glue(x)</code></td>
+<td>Adds glue class to existing character vector</td>
+<td>Already-built strings from sprintf, paste, DB results</td>
+</tr>
+<tr>
+<td><code>glue(template)</code></td>
+<td>Parses <code>{}</code> and interpolates values</td>
+<td>Building a new string with R values inside</td>
+</tr>
+<tr>
+<td><code>glue_data(df, t)</code></td>
+<td>Interpolates across rows of a data frame</td>
+<td>Per-row labels from tabular input</td>
+</tr>
+<tr>
+<td><code>as.character(g)</code></td>
+<td>Strips glue class, returns plain character</td>
+<td>Sending into base R code that breaks on classes</td>
+</tr>
+<tr>
+<td><code>format(x)</code></td>
+<td>Calls the format method for x</td>
+<td>Custom display logic; pairs with as_glue for prints</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule: if you need brace interpolation, use <code>glue()</code>. If you already have the text and only want it to print like glue output, use <code>as_glue()</code>. The two are not substitutes; they handle adjacent steps in the same pipeline.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python f-strings?</strong> Python has no class-flipping equivalent because f-strings are evaluated eagerly and return plain <code>str</code>. The closest analogue is wrapping a result in a custom class to override <code>__repr__</code>. In R, S3 dispatch is the standard way to give an existing value a richer print method, and <code>as_glue()</code> is glue's purpose-built constructor for that move.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<ol>
+
+<li><strong>Expecting interpolation.</strong> <code>as_glue(&quot;Hi {name}&quot;)</code> returns the literal string with braces intact, because the function does no parsing. If you wanted interpolation, call <code>glue(&quot;Hi {name}&quot;)</code> first; <code>glue()</code> already returns a glue object.</li>
+
+</ol>
+
+<ol>
+
+<li><strong>Losing the class after <code>c()</code> or <code>paste()</code>.</strong> <code>paste(g, &quot;x&quot;)</code> always drops the glue class; <code>c()</code> may, depending on the glue and R version. Wrap the combined result in <code>as_glue()</code> again, or use <code>glue_collapse()</code> when collapsing to a single string.</li>
+
+</ol>
+
+<ol>
+
+<li><strong>Assuming the data has been validated.</strong> <code>as_glue()</code> accepts whatever character bytes you hand it. A literal <code>{</code> in the input stays as <code>{</code> in the output, which may confuse readers who assume the string passed through <code>glue()</code>.</li>
+
+</ol>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Take the vector <code>c(&quot;Alpha&quot;, &quot;Bravo&quot;, &quot;Charlie&quot;)</code>, promote it to glue with as_glue(), and confirm both that it prints one element per line without quotes and that <code>inherits(result, &quot;glue&quot;)</code> returns TRUE. Save the promoted vector to <code>ex_g</code>.</p>
+<div class="webr-container" data-block-title="Your turn: promote to glue and check class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: promote to glue and check class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: as_glue() on a multi-element vector
+ex_input &lt;- c(&quot;Alpha&quot;, &quot;Bravo&quot;, &quot;Charlie&quot;)
+ex_g &lt;- # your code here
+
+ex_g
+#&gt; Expected: Alpha / Bravo / Charlie on separate lines
+
+inherits(ex_g, &quot;glue&quot;)
+#&gt; Expected: [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_g &lt;- as_glue(ex_input)
+ex_g
+#&gt; Alpha
+#&gt; Bravo
+#&gt; Charlie
+
+inherits(ex_g, &quot;glue&quot;)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>as_glue()</code> adds the glue class while leaving the character data untouched. The print method then dispatches to <code>print.glue()</code>, which renders one element per line without quotes or index prefixes.</p>
+
+</details>
+</section>
+
+<h2>Related glue functions</h2>
+
+<ul>
+
+<li><code>glue()</code> builds a glue object from a template with <code>{expression}</code> interpolation. Use it when you need to evaluate R code inside the string, not just tag an existing string.</li>
+
+<li><code>glue_data()</code> interpolates a template across the rows of a data frame or list. Pass the result through <code>as_glue()</code> only if a step in between has stripped the class.</li>
+
+<li><code>glue_collapse()</code> flattens a multi-element glue or character vector into a single glue string with a separator. Pair it with <code>as_glue()</code> when collapsing pre-formatted <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">character vectors</a>.</li>
+
+<li><code>as.character()</code> is the inverse: it drops the glue class and returns plain character. Use it before handing a glue value to base R code that does not handle attributes well.</li>
+
+<li>See the <a href="https://glue.tidyverse.org/reference/as_glue.html">glue package reference for as_glue()</a> for the formal argument definition and version history.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between as_glue() and glue()?</strong></p>
+
+<p><code>glue()</code> parses braces and evaluates R expressions inside them, returning a glue object with the interpolated values filled in. <code>as_glue()</code> does no parsing or evaluation: it adds the <code>glue</code> S3 class to a character vector you already have. Use <code>glue()</code> to build a string; use <code>as_glue()</code> to retrofit the class onto something you built another way.</p>
+
+<p><strong>Does as_glue() change the underlying string?</strong></p>
+
+<p>No. The byte content is unchanged; only the class attribute is set to <code>c(&quot;glue&quot;, &quot;character&quot;)</code>. You can verify with <code>identical(as.character(as_glue(x)), x)</code>, which returns <code>TRUE</code> for any character input. The visible difference appears only when R picks a method based on class, such as during printing.</p>
+
+<p><strong>Why does my glue object print with quotes after a c() call?</strong></p>
+
+<p><code>c()</code> and several other base R combiners drop S3 attributes from the result. When the glue class is gone, the print method falls back to <code>print.character()</code> and adds quotes. Wrap the combined value in <code>as_glue()</code> again to restore the class.</p>
+
+<p><strong>Can as_glue() accept a numeric or factor input?</strong></p>
+
+<p>Yes, indirectly. as_glue() calls <code>as.character()</code> on non-character input, so numerics, factors, and dates are coerced first. Factors return their level strings, not their integer codes. Convert explicitly with <code>format()</code> or <code>sprintf()</code> when you need control over the display.</p>
