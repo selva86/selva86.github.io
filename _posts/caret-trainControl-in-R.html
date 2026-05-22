@@ -1,0 +1,414 @@
+---
+title: "caret trainControl() in R: Configure CV and Resampling"
+description: "Configure resampling in caret with trainControl(). Set cross-validation, bootstrap, classProbs, sampling, and parallel options. Examples in R included."
+keywords: "caret trainControl, trainControl function R, caret trainControl examples, R caret cross validation, trainControl k-fold, caret resampling, trainControl repeatedcv"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "trainControl()|caret trainControl|caret::trainControl()|trainControl function|caret resampling"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret trainControl() in R: Configure CV and Resampling</h1>
+
+<p class="lead">The <code>trainControl()</code> function in caret builds a configuration object that tells <code>train()</code> how to resample, score, and tune a model. One control object can drive every model in a benchmark so all fits share the same folds.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>trainControl(method = &quot;cv&quot;, number = 10)<span class="qa-cmt">                           # 10-fold CV</span>
+trainControl(method = &quot;repeatedcv&quot;, number = 5, repeats = 3)<span class="qa-cmt">       # repeated CV</span>
+trainControl(method = &quot;LOOCV&quot;)<span class="qa-cmt">                                     # leave-one-out</span>
+trainControl(method = &quot;boot&quot;, number = 100)<span class="qa-cmt">                        # bootstrap</span>
+trainControl(classProbs = TRUE, summaryFunction = twoClassSummary)<span class="qa-cmt"> # AUC</span>
+trainControl(sampling = &quot;up&quot;)<span class="qa-cmt">                                      # class imbalance</span>
+trainControl(allowParallel = TRUE, savePredictions = &quot;final&quot;)<span class="qa-cmt">      # speed + audit</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is trainControl() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">configure resampling for train()</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">trainControl(method = &quot;cv&quot;, number = 10)</text><text x="125" y="126" class="branch-label">configure rfe() instead</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">rfeControl(functions = rfFuncs, method = &quot;cv&quot;)</text><text x="125" y="182" class="branch-label">configure gafs() / safs() instead</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">gafsControl(), safsControl()</text><text x="125" y="238" class="branch-label">pre-split the data first</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">createDataPartition(y, p = 0.7, list = FALSE)</text><text x="125" y="294" class="branch-label">compare models after fitting</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">resamples(list(a = fit1, b = fit2))</text><text x="125" y="350" class="branch-label">score predictions after fitting</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">postResample(pred, obs)</text></svg></div>
+
+<h2>What trainControl() does in one sentence</h2>
+
+<p><strong><code>trainControl()</code> is the configuration object behind every <code>train()</code> call.</strong> You hand it a resampling method, a fold count, an optional summary function, and audit switches, and it returns a list that <code>train()</code> consumes to drive its resampling loop. The object is reusable, so a benchmark of five models on the same folds only writes the control once.</p>
+
+<p>Separating control from fitting matters because caret's <code>resamples()</code> requires every model to share resampling indices. If two fits use different <code>trControl</code> settings, their comparison is unmatched and the variance estimate is wrong.</p>
+
+<h2>trainControl() syntax and arguments</h2>
+
+<p><strong>The signature has 20+ arguments; the four that matter most are <code>method</code>, <code>number</code>, <code>repeats</code>, and <code>summaryFunction</code>.</strong> Everything else is a fine-grained switch you reach for once you know the basics.</p>
+
+<div class="webr-container" data-block-title="Load caret and inspect defaults">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and inspect defaults</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+defaults &lt;- trainControl()
+defaults$method
+#&gt; [1] &quot;boot&quot;
+defaults$number
+#&gt; [1] 25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The bare minimum is no argument at all; the defaults give you bootstrap with 25 reps.</p>
+
+<pre><code>trainControl(method, number, repeats, p, search, classProbs,
+             summaryFunction, sampling, savePredictions,
+             returnResamp, verboseIter, allowParallel, seeds,
+             index, indexOut)</code></pre>
+
+<ul>
+
+<li><code>method</code>: resampling scheme. <code>&quot;boot&quot;</code>, <code>&quot;boot632&quot;</code>, <code>&quot;cv&quot;</code>, <code>&quot;repeatedcv&quot;</code>, <code>&quot;LOOCV&quot;</code>, <code>&quot;LGOCV&quot;</code>, <code>&quot;timeslice&quot;</code>, <code>&quot;none&quot;</code>, or <code>&quot;oob&quot;</code>.</li>
+
+<li><code>number</code>: folds (CV) or resamples (bootstrap). Defaults to 10 for CV, 25 for boot.</li>
+
+<li><code>repeats</code>: repeats of <code>repeatedcv</code> (NA otherwise). Common values 3, 5, 10.</li>
+
+<li><code>p</code>: training fraction for <code>&quot;LGOCV&quot;</code>. Default 0.75.</li>
+
+<li><code>search</code>: <code>&quot;grid&quot;</code> or <code>&quot;random&quot;</code>; switches tuning strategy when <code>tuneLength</code> is supplied.</li>
+
+<li><code>classProbs</code>: <code>TRUE</code> to compute class probabilities. Required for ROC scoring.</li>
+
+<li><code>summaryFunction</code>: function returning a named metric vector. Built-ins: <code>defaultSummary</code>, <code>twoClassSummary</code>, <code>prSummary</code>, <code>multiClassSummary</code>, <code>mnLogLoss</code>.</li>
+
+<li><code>sampling</code>: balances class outcomes per fold. <code>&quot;up&quot;</code>, <code>&quot;down&quot;</code>, <code>&quot;smote&quot;</code>, <code>&quot;rose&quot;</code>, or <code>NULL</code>.</li>
+
+<li><code>savePredictions</code>: <code>&quot;all&quot;</code>, <code>&quot;final&quot;</code>, or <code>FALSE</code>. Keeps per-fold predictions.</li>
+
+<li><code>returnResamp</code>: <code>&quot;all&quot;</code>, <code>&quot;final&quot;</code>, or <code>&quot;none&quot;</code>. Keeps per-fold metrics.</li>
+
+<li><code>verboseIter</code>, <code>allowParallel</code>: progress printing and parallel-backend switch.</li>
+
+<li><code>seeds</code>, <code>index</code>, <code>indexOut</code>: custom seeds or hand-built fold indices.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Defaults are a quick first pass, not a final answer.</strong> Bootstrap with 25 reps gives a fast variance estimate; switch to <code>method = &quot;cv&quot;</code> with 5 or 10 folds before reporting numbers.</div></div>
+
+<h2>trainControl() examples by use case</h2>
+
+<h3>1. Plain 10-fold cross-validation</h3>
+
+<p>The most common configuration. Pass the control object into <code>train()</code> and every model in your script uses the same scheme.</p>
+
+<div class="webr-container" data-block-title="Configure 10-fold CV">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Configure 10-fold CV</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ctrl &lt;- trainControl(method = &quot;cv&quot;, number = 10)
+
+set.seed(1)
+fit &lt;- train(mpg ~ hp + wt + cyl, data = mtcars,
+             method = &quot;lm&quot;, trControl = ctrl)
+fit$results[, c(&quot;RMSE&quot;, &quot;Rsquared&quot;, &quot;MAE&quot;)]
+#&gt;     RMSE Rsquared      MAE
+#&gt; 1  2.612    0.864    2.103</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Ten folds is the modelling-literature default; five is acceptable on small data where each fold needs enough rows to estimate the metric stably.</p>
+
+<h3>2. Repeated cross-validation</h3>
+
+<p>Repeats stabilise the fold-to-fold variance estimate, which matters when the metric will go into a report or a paper. Five folds repeated three times costs you 15 model fits instead of 5.</p>
+
+<div class="webr-container" data-block-title="Configure repeated CV">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Configure repeated CV</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ctrl_r &lt;- trainControl(method = &quot;repeatedcv&quot;, number = 5, repeats = 3)
+
+set.seed(1)
+fit_r &lt;- train(mpg ~ hp + wt + cyl, data = mtcars,
+               method = &quot;lm&quot;, trControl = ctrl_r)
+nrow(fit_r$resample)
+#&gt; [1] 15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>resample</code> slot has one row per (fold, repeat) so a 5x3 design yields 15 entries.</p>
+
+<h3>3. AUC scoring for binary classification</h3>
+
+<p>ROC scoring needs two opt-ins: <code>classProbs = TRUE</code> so caret returns class probabilities, and <code>summaryFunction = twoClassSummary</code> so it actually computes <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">AUC</a>, Sensitivity, and Specificity.</p>
+
+<div class="webr-container" data-block-title="Configure AUC scoring">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Configure AUC scoring</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ctrl_auc &lt;- trainControl(method = &quot;cv&quot;, number = 5,
+                         classProbs = TRUE,
+                         summaryFunction = twoClassSummary)
+
+set.seed(1)
+iris_bin &lt;- subset(iris, Species != &quot;setosa&quot;)
+iris_bin$Species &lt;- factor(iris_bin$Species)
+
+fit_auc &lt;- train(Species ~ ., data = iris_bin,
+                 method = &quot;glm&quot;, family = &quot;binomial&quot;,
+                 trControl = ctrl_auc, metric = &quot;ROC&quot;)
+fit_auc$results[, c(&quot;ROC&quot;, &quot;Sens&quot;, &quot;Spec&quot;)]
+#&gt;     ROC  Sens  Spec
+#&gt; 1  0.99  0.96  0.96</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The metric name in <code>train()</code> must match what <code>summaryFunction</code> returns.</strong> <code>twoClassSummary</code> produces <code>ROC</code>, <code>Sens</code>, <code>Spec</code>; <code>prSummary</code> produces <code>AUC</code>, <code>Precision</code>, <code>Recall</code>, <code>F</code>. A typo silently falls back to the first column of the summary output.</div></div>
+
+<h3>4. Handle class imbalance with sampling</h3>
+
+<p>Up-sampling the minority class inside every fold prevents leakage that would happen if you balanced once before <code>train()</code>.</p>
+
+<div class="webr-container" data-block-title="Up-sample inside resampling">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Up-sample inside resampling</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+imb &lt;- data.frame(
+  x = rnorm(200),
+  y = factor(c(rep(&quot;yes&quot;, 20), rep(&quot;no&quot;, 180)))
+)
+
+ctrl_up &lt;- trainControl(method = &quot;cv&quot;, number = 5, sampling = &quot;up&quot;)
+fit_up &lt;- train(y ~ x, data = imb, method = &quot;glm&quot;,
+                family = &quot;binomial&quot;, trControl = ctrl_up)
+fit_up$results$Accuracy
+#&gt; [1] 0.65</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Swap <code>&quot;up&quot;</code> for <code>&quot;down&quot;</code> to remove majority rows, or <code>&quot;smote&quot;</code> (needs the <code>themis</code> or <code>DMwR</code> package) for synthetic interpolation.</p>
+
+<h3>5. Custom holdouts with index and indexOut</h3>
+
+<p>For time-ordered or grouped data, hand-build the fold indices so the same group is never split across train and test. <code>index</code> is the rows used to fit; <code>indexOut</code> is the held-out rows.</p>
+
+<div class="webr-container" data-block-title="Configure leave-one-group-out">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Configure leave-one-group-out</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+groups &lt;- rep(1:5, each = 30)
+df &lt;- data.frame(x = rnorm(150), y = rnorm(150), grp = groups)
+
+idx &lt;- lapply(1:5, function(g) which(df$grp != g))
+idx_out &lt;- lapply(1:5, function(g) which(df$grp == g))
+
+ctrl_lg &lt;- trainControl(method = &quot;cv&quot;, index = idx, indexOut = idx_out)
+fit_lg &lt;- train(y ~ x, data = df, method = &quot;lm&quot;, trControl = ctrl_lg)
+nrow(fit_lg$resample)
+#&gt; [1] 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This pattern handles panel data, clinical sites, or any setting where rows within a group are correlated.</p>
+
+<h3>6. Save predictions for downstream audit</h3>
+
+<p><code>savePredictions = &quot;final&quot;</code> keeps per-fold predictions for the winning tune only; <code>&quot;all&quot;</code> keeps them for every tune row (expensive on big grids).</p>
+
+<div class="webr-container" data-block-title="Persist out-of-fold predictions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Persist out-of-fold predictions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ctrl_keep &lt;- trainControl(method = &quot;cv&quot;, number = 5,
+                          savePredictions = &quot;final&quot;)
+set.seed(1)
+fit_keep &lt;- train(mpg ~ ., data = mtcars,
+                  method = &quot;lm&quot;, trControl = ctrl_keep)
+head(fit_keep$pred[, c(&quot;pred&quot;, &quot;obs&quot;, &quot;Resample&quot;)], 3)
+#&gt;      pred  obs Resample
+#&gt; 1   21.46 21.0    Fold1
+#&gt; 2   16.79 18.7    Fold1
+#&gt; 3   25.07 22.8    Fold1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>These rows feed calibration plots, residual diagnostics, and stacking models built on out-of-fold scores.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Set <code>allowParallel = TRUE</code> and register a backend before fitting expensive models.</strong> With <code>library(doParallel); registerDoParallel(cores = 4)</code>, the inner fold loop runs across CPU cores and 10-fold CV roughly quarters in wall time.</div></div>
+
+<h2>trainControl() vs other caret control objects</h2>
+
+<p><strong>caret has a separate control function for each high-level routine; <code>trainControl()</code> only configures <code>train()</code>.</strong> Use the matching control object for the routine you are running.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Control object</th>
+<th>Drives</th>
+<th>Key arguments unique to it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>trainControl()</code></td>
+<td><code>train()</code></td>
+<td><code>summaryFunction</code>, <code>sampling</code>, <code>tuneGrid</code> interplay</td>
+</tr>
+<tr>
+<td><code>rfeControl()</code></td>
+<td><code>rfe()</code> (recursive feature elimination)</td>
+<td><code>functions</code>, <code>rerank</code>, <code>returnResamp</code></td>
+</tr>
+<tr>
+<td><code>gafsControl()</code></td>
+<td><code>gafs()</code> (genetic algorithm <a class="auto-link" href="Variable-Selection-and-Importance-With-R.html" title="Feature Selection and Variable Importance">feature selection</a>)</td>
+<td><code>functions</code>, <code>holdout</code>, <code>genParallel</code></td>
+</tr>
+<tr>
+<td><code>safsControl()</code></td>
+<td><code>safs()</code> (simulated annealing feature selection)</td>
+<td><code>functions</code>, <code>improve</code>, <code>holdout</code></td>
+</tr>
+<tr>
+<td><code>sbfControl()</code></td>
+<td><code>sbf()</code> (selection by filtering)</td>
+<td><code>functions</code>, <code>multivariate</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Mixing them is a silent bug: <code>train(trControl = rfeControl(...))</code> accepts the object because R duck-types lists, but the resampling will not behave as you expect. Always pair <code>train()</code> with <code>trainControl()</code>. The full reference for every argument lives in <a href="https://topepo.github.io/caret/model-training-and-tuning.html">topepo.github.io/caret/model-training-and-tuning.html</a>.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting <code>classProbs = TRUE</code> before scoring with ROC.</strong> <code>twoClassSummary</code> reads class probabilities from the prediction frame; without <code>classProbs</code>, those columns do not exist and the summary returns <code>NA</code>. caret then picks the <a class="auto-link" href="dplyr-coalesce-in-R.html" title="dplyr coalesce() in R: First Non-NA Value Across Vectors">first non-NA</a> column as the optimisation target, which is usually Accuracy, and your "AUC tuning" silently optimises Accuracy.</p>
+
+<p><strong>Pitfall 2: rebuilding the control object inside every <code>train()</code> call.</strong> A fresh <code>trainControl()</code> generates new fold indices (unless you set <code>seeds</code>). Two models with separate control objects sit on different folds and cannot be compared with <code>resamples()</code>. Build the control once, then reuse it.</p>
+
+<p><strong>Pitfall 3: setting <code>sampling = &quot;up&quot;</code> outside <code>trainControl()</code>.</strong> Upsampling before you call <code>train()</code> leaks information into every fold because the same synthetic minority rows appear in train and test partitions. Keep the sampling inside the control so it runs per fold.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>trainControl()</code> returns a configuration, not a result.</strong> It does no resampling itself; the splits happen when <code>train()</code> consumes the object. Inspecting <code>ctrl$index</code> before passing it to <code>train()</code> returns <code>NULL</code> unless you handed in explicit indices.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Configure a 5-fold repeated CV (3 repeats) with class probabilities and ROC scoring, then fit a <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">logistic regression</a> on <code>iris_bin</code>. Save the control to <code>ex_ctrl</code> and the fit to <code>ex_fit</code>. Report the held-out ROC.</p>
+<div class="webr-container" data-block-title="Your turn: configure repeated CV with ROC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: configure repeated CV with ROC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: build repeated CV control with ROC
+ex_ctrl &lt;- # your code here
+ex_fit  &lt;- # your code here
+
+ex_fit$results$ROC
+#&gt; Expected: a single ROC value near 0.99</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">iris_bin &lt;- subset(iris, Species != &quot;setosa&quot;)
+iris_bin$Species &lt;- factor(iris_bin$Species)
+
+ex_ctrl &lt;- trainControl(method = &quot;repeatedcv&quot;, number = 5, repeats = 3,
+                        classProbs = TRUE,
+                        summaryFunction = twoClassSummary)
+
+set.seed(1)
+ex_fit &lt;- train(Species ~ ., data = iris_bin,
+                method = &quot;glm&quot;, family = &quot;binomial&quot;,
+                trControl = ex_ctrl, metric = &quot;ROC&quot;)
+ex_fit$results$ROC
+#&gt; [1] 0.992</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>repeatedcv</code> with <code>repeats = 3</code> runs the 5-fold split three times for a steadier estimate. <code>classProbs = TRUE</code> plus <code>summaryFunction = twoClassSummary</code> turns on ROC scoring; <code>metric = &quot;ROC&quot;</code> in <code>train()</code> selects it as the optimisation target.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p>These caret functions surround <code>trainControl()</code> in a typical pipeline:</p>
+
+<ul>
+
+<li><code>train()</code>: consumes the control object to fit and tune a model</li>
+
+<li><code>createDataPartition()</code>: stratified train/test split before resampling</li>
+
+<li><code>resamples()</code>: compares models on matched folds defined by the control</li>
+
+<li><code>twoClassSummary()</code>, <code>prSummary()</code>, <code>multiClassSummary()</code>: built-in summary functions</li>
+
+<li><code>rfeControl()</code>, <code>gafsControl()</code>, <code>safsControl()</code>: control objects for feature selection routines</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between trainControl() method "cv" and "repeatedcv"?</strong></p>
+
+<p><code>method = &quot;cv&quot;</code> runs k-fold cross-validation once; <code>method = &quot;repeatedcv&quot;</code> runs the whole k-fold scheme multiple times with different random partitions and averages across all the runs. Repeated CV gives a steadier metric estimate at the cost of <code>repeats x number</code> model fits instead of <code>number</code>. Use it when the headline metric will go into a report or paper, and use plain <code>&quot;cv&quot;</code> during model exploration.</p>
+
+<p><strong>How does trainControl() handle stratified sampling?</strong></p>
+
+<p>caret stratifies on the outcome variable automatically when it is a factor; numeric outcomes are split on <a class="auto-link" href="dplyr-ntile-in-R.html" title="dplyr ntile() in R: Bin Values into N Equal-Count Groups">quantile bins</a> so the fold distributions stay close to the population. You do not need a separate argument. If you need a custom stratification (for example, by a grouping variable that is not the outcome), build the fold indices yourself and pass them through <code>index</code> and <code>indexOut</code>.</p>
+
+<p><strong>Why does my caret model ignore summaryFunction?</strong></p>
+
+<p>The metric name in <code>train(metric = &quot;...&quot;)</code> must match a column the <code>summaryFunction</code> returns. <code>twoClassSummary</code> returns <code>ROC</code>, <code>Sens</code>, <code>Spec</code>; ask for <code>metric = &quot;AUC&quot;</code> and caret falls back to the first column. Inspect the summary output once with <code>summaryFunction(test_pred, lev = c(&quot;yes&quot;, &quot;no&quot;), model = &quot;glm&quot;)</code> before plugging it into <code>trainControl()</code>.</p>
+
+<p><strong>Can I use one trainControl() object across multiple train() calls?</strong></p>
+
+<p>Yes, and that is the recommended pattern. Build the object once, reuse it for every model in a benchmark, then feed the fitted models to <code>resamples()</code> for a paired comparison. The same fold indices apply to all models, so any difference in performance comes from the model rather than from a luckier split.</p>
+
+<p><strong>Does trainControl() set random seeds for me?</strong></p>
+
+<p>Not by default. Call <code>set.seed()</code> before each <code>train()</code> for reproducible resampling, or pass an explicit <code>seeds</code> list to <code>trainControl()</code> for deterministic parallel runs. The <code>seeds</code> argument is a list of length <code>number * repeats + 1</code> where each element is an integer vector of seeds, one per tune-grid row.</p>
