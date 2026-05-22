@@ -1,0 +1,385 @@
+---
+title: "yardstick huber_loss() in R: Robust Regression Loss"
+description: "Use yardstick huber_loss() in R for a quadratic-to-linear regression loss that smooths over outliers. See the delta argument, syntax, examples, and pitfalls."
+keywords: "yardstick huber_loss, huber_loss function R, yardstick huber_loss examples, huber loss R, tidymodels huber loss, robust regression loss, huber metric R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "huber_loss()|yardstick huber_loss|yardstick::huber_loss()|huber loss|huber loss metric"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>yardstick huber_loss() in R: Robust Regression Loss</h1>
+
+<p class="lead">The yardstick huber_loss() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> scores a regression model with a loss that is squared for small residuals and linear for large ones, giving you the gradient behaviour of RMSE near the centre and the <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a> tolerance of MAE in the tail.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>huber_loss(df, truth, estimate)<span class="qa-cmt">                       # default delta = 1</span>
+huber_loss(df, truth = obs, estimate = pred)<span class="qa-cmt">          # named arguments</span>
+huber_loss(df, solubility, prediction, delta = 0.5)<span class="qa-cmt">   # tighter quadratic zone</span>
+df |&gt; group_by(fold) |&gt; huber_loss(obs, pred)<span class="qa-cmt">         # by resample</span>
+huber_loss(df, obs, pred, na_rm = TRUE)<span class="qa-cmt">               # drop missing rows</span>
+huber_loss_vec(truth_vec, pred_vec, delta = 1)<span class="qa-cmt">        # vector interface</span>
+huber_loss(df, obs, pred, case_weights = w)<span class="qa-cmt">           # weighted Huber</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is huber_loss() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">robust quadratic-linear loss for scoring or training</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">huber_loss(df, truth, estimate)</text><text x="125" y="126" class="branch-label">pure squared error in outcome units</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">rmse(df, truth, estimate)</text><text x="125" y="182" class="branch-label">pure absolute error, fully outlier-robust</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">mae(df, truth, estimate)</text><text x="125" y="238" class="branch-label">smooth twice-differentiable variant for optimisation</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">huber_loss_pseudo(df, truth, estimate)</text><text x="125" y="294" class="branch-label">percentage error for stakeholder reports</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">mape(df, truth, estimate)</text><text x="125" y="350" class="branch-label">multi-metric report in one call</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">metrics(df, truth, estimate)</text><text x="125" y="406" class="branch-label">predicting classes, not numbers</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">accuracy(df, truth, estimate)</text></svg></div>
+
+<h2>What huber_loss() measures</h2>
+
+<p><strong>huber_loss() blends squared and absolute error using a single threshold delta.</strong> You pass a data frame with the observed numeric outcome, the predicted values, and an optional <code>delta</code> (default 1). For each row the function applies <code>0.5 * residual^2</code> when the absolute residual is below delta, and <code>delta * (abs(residual) , 0.5 * delta)</code> above it. The mean of those per-row losses lands in a one-row tibble with <code>.metric</code>, <code>.estimator</code>, and <code>.estimate</code>.</p>
+
+<p>The two pieces meet smoothly at the threshold, so the loss has a continuous first derivative, which is what gradient-based learners want. The linear tail means a single 50-unit outlier no longer dominates the score the way it does for RMSE. Tune <code>delta</code> to set how many outcome units count as "normal noise" before the linear penalty kicks in.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Huber loss is a hybrid, not a unit.</strong> Unlike <code>mae()</code> or <code>rmse()</code>, which report errors on the outcome scale, huber_loss returns a quantity whose interpretation depends on <code>delta</code>. Compare huber_loss values only across models scored with the same delta on the same target.</div></div>
+
+<h2>huber_loss() syntax and arguments</h2>
+
+<p><strong>The signature follows the yardstick numeric-metric convention with one extra parameter.</strong> Once you understand <code>delta</code>, the rest matches <code>rmse()</code>, <code>mae()</code>, and the related regression scorers.</p>
+
+<div class="webr-container" data-block-title="huber_loss generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">huber_loss generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">huber_loss(data, truth, estimate, delta = 1, na_rm = TRUE, case_weights = NULL, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data</code></td>
+<td>A data frame with the truth and estimate columns.</td>
+</tr>
+<tr>
+<td><code>truth</code></td>
+<td>Unquoted column name of the observed numeric outcome.</td>
+</tr>
+<tr>
+<td><code>estimate</code></td>
+<td>Unquoted column name of the predicted numeric values.</td>
+</tr>
+<tr>
+<td><code>delta</code></td>
+<td>Positive threshold where the loss switches from quadratic to linear. Default 1.</td>
+</tr>
+<tr>
+<td><code>na_rm</code></td>
+<td>If <code>TRUE</code>, drop rows with missing truth or estimate before scoring.</td>
+</tr>
+<tr>
+<td><code>case_weights</code></td>
+<td>Optional column of non-negative row weights for survey or importance-weighted data.</td>
+</tr>
+</tbody>
+</table>
+
+<p>Truth and estimate must both be numeric. Factor, character, or logical inputs error out. Use <code>accuracy()</code> or <code>roc_auc()</code> for classifiers.</p>
+
+<h2>Score regression models: four examples</h2>
+
+<p><strong>The examples below use yardstick's built-in solubility_test data.</strong> First, load the package and inspect a few rows of the prediction set.</p>
+
+<div class="webr-container" data-block-title="Load yardstick and inspect solubility data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load yardstick and inspect solubility data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+library(dplyr)
+
+data(&quot;solubility_test&quot;)
+head(solubility_test, 4)
+#&gt; # A tibble: 4 x 2
+#&gt;   solubility prediction
+#&gt;        &lt;dbl&gt;      &lt;dbl&gt;
+#&gt; 1      0.93       0.99
+#&gt; 2      0.85       0.71
+#&gt; 3      0.17       0.18
+#&gt; 4     -0.99      -0.57</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 1 calls huber_loss() with positional arguments and the default delta.</strong> Truth and estimate are picked up by position, and the tidy summary lands in three columns.</p>
+
+<div class="webr-container" data-block-title="Basic huber_loss on solubility predictions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Basic huber_loss on solubility predictions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">huber_loss(solubility_test, solubility, prediction)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric    .estimator .estimate
+#&gt;   &lt;chr&gt;      &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 huber_loss standard       0.221</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>.estimator</code> column reports <code>standard</code> because Huber has no multiclass variant. The estimate of 0.221 is in log-solubility-loss units at delta = 1.</p>
+
+<p><strong>Example 2 varies delta to see how the loss changes shape.</strong> Small delta acts like MAE; large delta acts like half the MSE.</p>
+
+<div class="webr-container" data-block-title="Compare huber_loss at three delta values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare huber_loss at three delta values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bind_rows(
+  huber_loss(solubility_test, solubility, prediction, delta = 0.25),
+  huber_loss(solubility_test, solubility, prediction, delta = 1.00),
+  huber_loss(solubility_test, solubility, prediction, delta = 4.00)
+) |&gt;
+  mutate(delta = c(0.25, 1.00, 4.00)) |&gt;
+  select(delta, .estimate)
+#&gt; # A tibble: 3 x 2
+#&gt;   delta .estimate
+#&gt;   &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1  0.25     0.117
+#&gt; 2  1        0.221
+#&gt; 3  4        0.261</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>As delta grows, the quadratic zone widens and the score rises toward <code>0.5 * mean(residual^2)</code>. As delta shrinks, fewer rows sit in the quadratic zone and the score approaches <code>delta * mean(abs(residual))</code>.</p>
+
+<p><strong>Example 3 groups scoring by resample fold.</strong> With cross-validation predictions in one tibble, <code>group_by()</code> plus huber_loss returns one score per fold.</p>
+
+<div class="webr-container" data-block-title="Per-fold huber_loss from a cross-validation tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-fold huber_loss from a cross-validation tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">folded &lt;- solubility_test |&gt;
+  mutate(fold = rep(paste0(&quot;fold&quot;, 1:5), length.out = n()))
+
+folded |&gt;
+  group_by(fold) |&gt;
+  huber_loss(truth = solubility, estimate = prediction)
+#&gt; # A tibble: 5 x 4
+#&gt;   fold  .metric    .estimator .estimate
+#&gt;   &lt;chr&gt; &lt;chr&gt;      &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 fold1 huber_loss standard       0.227
+#&gt; 2 fold2 huber_loss standard       0.217
+#&gt; 3 fold3 huber_loss standard       0.228
+#&gt; 4 fold4 huber_loss standard       0.215
+#&gt; 5 fold5 huber_loss standard       0.220</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 4 uses the vector interface for scalar output.</strong> Inside <code>map()</code> calls or unit tests, <code>huber_loss_vec()</code> skips the tibble wrapping.</p>
+
+<div class="webr-container" data-block-title="Vector interface returns a numeric scalar">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vector interface returns a numeric scalar</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">huber_loss_vec(solubility_test$solubility, solubility_test$prediction, delta = 1)
+#&gt; [1] 0.2210663</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Use the vector form for bare numbers; stay with the data-frame form to bind, group, or plot scores alongside the rest of the yardstick family.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pair huber_loss with rmse and mae in one call.</strong> <code>metrics(df, truth, estimate)</code> does not include huber_loss by default, but <code>metric_set(rmse, mae, huber_loss)</code> builds a custom scorer that returns all three in a tidy stack, ready for <code>ggplot()</code> or <code>gt()</code>.</div></div>
+
+<h2>huber_loss() compared with related losses</h2>
+
+<p><strong>Pick a partner from the table when huber_loss alone is not enough.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Metric</th>
+<th>Best use case</th>
+<th>Limitation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>huber_loss()</code></td>
+<td>Outlier-tolerant training or scoring with a single tunable threshold</td>
+<td>Score scale depends on delta, not directly the outcome unit</td>
+</tr>
+<tr>
+<td><code>rmse()</code></td>
+<td>Headline error in outcome units, large misses matter</td>
+<td>Heavily penalises outliers</td>
+</tr>
+<tr>
+<td><code>mae()</code></td>
+<td>Outlier-robust error in outcome units</td>
+<td>Treats a tiny miss and a small miss the same way</td>
+</tr>
+<tr>
+<td><code>huber_loss_pseudo()</code></td>
+<td>Twice-differentiable smooth approximation for gradient methods</td>
+<td>Slightly different value than huber_loss for the same data</td>
+</tr>
+<tr>
+<td><code>mape()</code></td>
+<td>Percentage error reporting</td>
+<td>Explodes when truth is near zero</td>
+</tr>
+<tr>
+<td><code>rsq()</code></td>
+<td>Unit-free goodness-of-fit</td>
+<td>Can mask large systematic bias</td>
+</tr>
+</tbody>
+</table>
+
+<p>A common pattern is to train on huber_loss for robustness, then report rmse and mae for interpretation.</p>
+
+<h2>Choosing delta</h2>
+
+<p><strong>Delta is the residual size at which the loss flips from quadratic to linear.</strong> Two rules cover most cases. The quantile rule sets delta to the 0.9 quantile of held-out absolute residuals, so roughly 90 percent of points stay quadratic. The noise-scale rule sets <code>delta = 1.345 * sigma</code>, matching Huber's M-estimator efficiency under a Gaussian contamination model. Either way, score and train with the same delta; mixing values gives nonsense numbers.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three small mistakes account for most huber_loss() failures.</strong> Each has a one-line fix.</p>
+
+<p>The first is comparing huber_loss values across different deltas. The loss scale shifts with delta, so a tighter delta produces a smaller number even when the model is unchanged. Lock delta before any comparison.</p>
+
+<p>The second is treating huber_loss as an error in outcome units. RMSE of 0.7 on log-solubility means typical residuals near 0.7; a huber_loss of 0.22 is a delta-dependent blend of squared and linear pieces. Always cite delta next to the score.</p>
+
+<p>The third is using a tiny positive delta like 1e-12. The loss collapses to almost zero and hides genuine error. Pick a delta near the typical residual magnitude.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Do not stack huber_loss scores trained on different targets.</strong> The loss is sensitive to the target's units and scale. A huber_loss of 0.22 on log-solubility is not comparable to 0.22 on raw price. Back-transform predictions before scoring, or score each target separately.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the built-in <code>solubility_test</code> data. Compute Huber loss at three deltas: 0.5, 1, and 2. Stack the three results into a tibble with columns <code>delta</code> and <code>.estimate</code>. Save the stacked table to <code>ex_huber_delta</code>.</p>
+<div class="webr-container" data-block-title="Your turn: Huber loss across deltas">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: Huber loss across deltas</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+library(dplyr)
+data(&quot;solubility_test&quot;)
+
+# Try it: huber_loss across three deltas
+ex_huber_delta &lt;- # your code here
+
+ex_huber_delta
+#&gt; Expected: 3 rows, one per delta</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_huber_delta &lt;- bind_rows(
+  huber_loss(solubility_test, solubility, prediction, delta = 0.5),
+  huber_loss(solubility_test, solubility, prediction, delta = 1.0),
+  huber_loss(solubility_test, solubility, prediction, delta = 2.0)
+) |&gt;
+  mutate(delta = c(0.5, 1.0, 2.0)) |&gt;
+  select(delta, .estimate)
+ex_huber_delta
+#&gt; # A tibble: 3 x 2
+#&gt;   delta .estimate
+#&gt;   &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1   0.5     0.181
+#&gt; 2   1       0.221
+#&gt; 3   2       0.249</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Each call to huber_loss() returns a one-row tibble, and <code>bind_rows()</code> stacks the three calls into a single table. The estimate rises monotonically with delta because more residuals fall into the quadratic zone, where the squared term carries a higher cost than the linear tail.</p>
+
+</details>
+</section>
+
+<h2>Related yardstick metrics</h2>
+
+<p><strong>huber_loss() sits among yardstick's regression scorers.</strong> Reach for these when huber_loss alone is not enough:</p>
+
+<ul>
+
+<li><code>huber_loss_pseudo()</code> for a smooth, twice-differentiable cousin</li>
+
+<li><code>rmse()</code> for headline squared error in outcome units</li>
+
+<li><code>mae()</code> for the fully outlier-robust absolute error</li>
+
+<li><code>mape()</code> for percentage error reporting</li>
+
+<li><code>rsq()</code> for unit-free goodness-of-fit</li>
+
+<li><code>metric_set()</code> to bundle huber_loss with rmse and mae</li>
+
+</ul>
+
+<p>For the full list, see the <a href="https://yardstick.tidymodels.org/reference/index.html">yardstick reference index</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is a good huber_loss value?</strong></p>
+
+<p>There is no universal threshold. The score depends on both delta and the spread of your target, so a "good" value is one that beats a baseline model scored with the same delta. Always report huber_loss next to rmse and mae, and pin delta in the report.</p>
+
+<p><strong>How is huber_loss() different from rmse() and <a class="auto-link" href="yardstick-mae-in-R.html" title="yardstick mae() in R: Outlier-Robust Regression Scoring">mae()</a>?</strong></p>
+
+<p>RMSE squares every residual, so one big miss can dominate the score. MAE takes absolute values, so a 100-unit residual contributes 100, not 10,000. Huber sits between the two: residuals below delta are squared, residuals above delta are linear, combining RMSE-like gradients near zero with MAE-like outlier resistance in the tail.</p>
+
+<p><strong>What is the difference between huber_loss() and huber_loss_pseudo()?</strong></p>
+
+<p><code>huber_loss()</code> is the piecewise function with a hard switch at delta. <code>huber_loss_pseudo()</code> uses <code>delta^2 * (sqrt(1 + (r / delta)^2) , 1)</code>, a smooth approximation that is twice differentiable everywhere. Pseudo-Huber is safer for gradient-based optimisers; the original Huber is fine for scoring.</p>
+
+<p><strong>Can I weight rows when computing huber_loss?</strong></p>
+
+<p>Yes. Pass a <code>case_weights</code> column to huber_loss() with non-negative row weights. Common uses are survey weights and importance weights from <code>parsnip::fit()</code>. The function returns the weighted mean of per-row Huber losses on the same delta-dependent scale.</p>
+
+<h2>Summary</h2>
+
+<p><strong>huber_loss() is the robust middle ground between rmse() and mae().</strong> Use it when you want squared-error gradients for typical points and absolute-error tolerance for outliers. Tune delta from the residual scale, and report it next to rmse and mae so readers can interpret the value in outcome units. Pair with <code>group_by()</code> for per-fold scoring and <code>metric_set()</code> to bundle it into a tidymodels workflow.</p>
+
+{% endraw %}
