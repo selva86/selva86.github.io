@@ -1,0 +1,394 @@
+---
+title: "yardstick smape() in R: Symmetric Percentage Error Metric"
+description: "Use yardstick smape() in R for a bounded, symmetric percentage error. See syntax, four worked examples, per-fold scoring, and how SMAPE differs from MAPE."
+keywords: "yardstick smape, smape function R, yardstick smape examples, symmetric mean absolute percentage error R, tidymodels smape, smape metric R, bounded regression error R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "smape()|yardstick smape|yardstick::smape()|symmetric mean absolute percentage error|smape metric"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>yardstick smape() in R: Symmetric Percentage Error Metric</h1>
+
+<p class="lead">The yardstick smape() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> returns the symmetric <a class="auto-link" href="yardstick-mape-in-R.html" title="yardstick mape() in R: Scale-Free Percentage Error">mean absolute percentage error</a> of a regression model, dividing each absolute residual by the average of the truth and estimate, so the result is bounded near 0 to 200 percent and stays stable when the outcome sits near zero.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>smape(df, truth, estimate)<span class="qa-cmt">                         # basic call</span>
+smape(df, truth = obs, estimate = pred)<span class="qa-cmt">            # named arguments</span>
+smape(df, sales, forecast)<span class="qa-cmt">                         # forecast columns</span>
+df |&gt; group_by(series) |&gt; smape(obs, pred)<span class="qa-cmt">         # by group or series</span>
+smape(df, obs, pred, na_rm = TRUE)<span class="qa-cmt">                 # drop missing rows</span>
+smape_vec(truth_vec, pred_vec)<span class="qa-cmt">                     # vector interface</span>
+smape(df, obs, pred, case_weights = w)<span class="qa-cmt">             # weighted SMAPE</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is smape() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">symmetric percent error that stays bounded</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">smape(df, truth, estimate)</text><text x="125" y="126" class="branch-label">simple percent-of-truth headline, truth far from zero</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">mape(df, truth, estimate)</text><text x="125" y="182" class="branch-label">error in raw outcome units, no scaling</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">mae(df, truth, estimate)</text><text x="125" y="238" class="branch-label">punish large misses harder than small ones</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">rmse(df, truth, estimate)</text><text x="125" y="294" class="branch-label">compare forecast quality across many series</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">mase(df, truth, estimate)</text><text x="125" y="350" class="branch-label">proportion of <a class="auto-link" href="Interpreting-PCA-Results-in-R.html" title="Read PCA Output in R: What Loadings, Scores, and Variance Explained Actually Tell You">variance explained</a></text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">rsq(df, truth, estimate)</text><text x="125" y="406" class="branch-label">multi-metric report in one call</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">metrics(df, truth, estimate)</text></svg></div>
+
+<h2>What smape() measures</h2>
+
+<p><strong>smape() averages the absolute residual scaled by the half-sum of truth and estimate.</strong> You pass a data frame with the observed numeric outcome and the predicted values, and the function returns a one-row tibble with <code>.metric</code>, <code>.estimator</code>, and <code>.estimate</code>. The estimate reads as a percent, and the value is bounded near 0 to 200 percent.</p>
+
+<p>The denominator is <code>(|truth| + |estimate|) / 2</code>, not truth alone. That swap makes SMAPE symmetric, and a model predicting zero against a small positive truth no longer produces an unbounded percentage. The trade is that the result is no longer "percent of truth", so the business reading drifts away from MAPE's.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>SMAPE replaces division by truth with division by the average magnitude.</strong> That single change bounds the metric, makes it symmetric to over and under-prediction, and stops near-zero truths from blowing up the headline. The trade is a less intuitive scale: 40 percent SMAPE does not mean predictions are off by 40 percent of the truth.</div></div>
+
+<h2>smape() syntax and arguments</h2>
+
+<p><strong>The signature matches the rest of yardstick's numeric metrics.</strong> Once you know the shape, the same call works for <code>mae()</code>, <code>rmse()</code>, <code>mape()</code>, and the rest of the regression family.</p>
+
+<div class="webr-container" data-block-title="smape generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">smape generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">smape(data, truth, estimate, na_rm = TRUE, case_weights = NULL, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data</code></td>
+<td>A data frame holding the truth and estimate columns.</td>
+</tr>
+<tr>
+<td><code>truth</code></td>
+<td>Unquoted column name of the observed numeric outcome.</td>
+</tr>
+<tr>
+<td><code>estimate</code></td>
+<td>Unquoted column name of the predicted numeric values.</td>
+</tr>
+<tr>
+<td><code>na_rm</code></td>
+<td>If <code>TRUE</code>, drop rows where either column is missing before scoring.</td>
+</tr>
+<tr>
+<td><code>case_weights</code></td>
+<td>Optional column of row weights for survey or importance-weighted data.</td>
+</tr>
+</tbody>
+</table>
+
+<p>Both columns must be numeric. Output is scaled as a percent (22.4 means 22.4 percent) and can exceed 100 when one side of the pair is much larger than the other.</p>
+
+<h2>SMAPE in action: four worked examples</h2>
+
+<p><strong>The examples fit a simple lm on mtcars and score in-sample predictions.</strong> Build the prediction frame first.</p>
+
+<div class="webr-container" data-block-title="Load yardstick and build prediction frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load yardstick and build prediction frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+library(dplyr)
+
+set.seed(42)
+fit &lt;- lm(mpg ~ wt + cyl, data = mtcars)
+preds &lt;- tibble(
+  actual = mtcars$mpg,
+  pred   = predict(fit, mtcars)
+)
+head(preds, 4)
+#&gt; # A tibble: 4 x 2
+#&gt;   actual  pred
+#&gt;    &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1   21    22.3
+#&gt; 2   21    21.5
+#&gt; 3   22.8  26.3
+#&gt; 4   21.4  20.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 1 calls smape() with positional arguments.</strong> The function locates truth and estimate by position and returns the tidy summary.</p>
+
+<div class="webr-container" data-block-title="Basic SMAPE on mtcars predictions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Basic SMAPE on mtcars predictions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">smape(preds, actual, pred)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 smape   standard        11.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>.estimator</code> is <code>standard</code> because SMAPE has no binary or multiclass variant. The 11.7 reads as 11.7 percent and sits close to MAPE on this dataset because truth values stay well away from zero, the regime where the two metrics agree.</p>
+
+<p><strong>Example 2 shows what happens when truth approaches zero.</strong> Adding a row where truth is 0.01 leaves SMAPE stable, where MAPE would spike.</p>
+
+<div class="webr-container" data-block-title="SMAPE stays stable when truth is near zero">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">SMAPE stays stable when truth is near zero</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">risky &lt;- bind_rows(
+  preds,
+  tibble(actual = 0.01, pred = 0.50)
+)
+smape(risky, actual, pred)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 smape   standard        17.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The headline moved from 11.7 to 17.4, not to 160 the way MAPE did on the same row. The bounded denominator absorbed the small truth instead of dividing by it.</p>
+
+<p><strong>Example 3 groups scoring across folds or product lines.</strong> When cross-validation predictions or per-segment forecasts live in one tibble, <code>group_by()</code> plus smape returns one percentage per group.</p>
+
+<div class="webr-container" data-block-title="Per-fold SMAPE from a single prediction tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-fold SMAPE from a single prediction tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">folded &lt;- preds |&gt;
+  mutate(fold = rep(paste0(&quot;fold&quot;, 1:4), length.out = n()))
+
+folded |&gt;
+  group_by(fold) |&gt;
+  smape(truth = actual, estimate = pred)
+#&gt; # A tibble: 4 x 4
+#&gt;   fold  .metric .estimator .estimate
+#&gt;   &lt;chr&gt; &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 fold1 smape   standard        11.0
+#&gt; 2 fold2 smape   standard        12.5
+#&gt; 3 fold3 smape   standard        11.2
+#&gt; 4 fold4 smape   standard        12.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 4 uses the vector interface for quick checks.</strong> Inside <code>map()</code> calls or unit tests, <code>smape_vec()</code> returns a plain scalar instead of a one-row tibble.</p>
+
+<div class="webr-container" data-block-title="Vector interface returns a numeric scalar">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vector interface returns a numeric scalar</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">smape_vec(preds$actual, preds$pred)
+#&gt; [1] 11.7204</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Use the vector form for scalar thresholds; otherwise stay with the data-frame form to bind, group, or plot.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Report SMAPE alongside MAE when truth crosses zero.</strong> SMAPE handles the small denominator gracefully, but MAE in outcome units anchors the magnitude. The pair gives reviewers a bounded percent and a unit-correct error in one glance.</div></div>
+
+<h2>When to pick smape() over its neighbors</h2>
+
+<p><strong>SMAPE is the metric for percent error when truths sit near zero.</strong> The table picks the right neighbor otherwise.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Metric</th>
+<th>Best use case</th>
+<th>Limitation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>smape()</code></td>
+<td>Bounded percent error stable near zero</td>
+<td>Less intuitive than MAPE; rewards equal-magnitude misses oddly</td>
+</tr>
+<tr>
+<td><code>mape()</code></td>
+<td>Plain percent-of-truth headline, truth far from zero</td>
+<td>Explodes near zero; asymmetric to under and over-prediction</td>
+</tr>
+<tr>
+<td><code>mae()</code></td>
+<td><a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">Outlier</a>-robust error in outcome units</td>
+<td>Not comparable across targets with different scales</td>
+</tr>
+<tr>
+<td><code>rmse()</code></td>
+<td>Punishes large misses harder than small ones</td>
+<td>Sensitive to outliers; not scale-free</td>
+</tr>
+<tr>
+<td><code>mase()</code></td>
+<td>Scale-free comparison across many <a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">time series</a></td>
+<td>Requires a naive baseline forecast</td>
+</tr>
+<tr>
+<td><code>rsq()</code></td>
+<td>Unit-free 0-to-1 goodness-of-fit</td>
+<td>Can mask large systematic bias</td>
+</tr>
+</tbody>
+</table>
+
+<p>A common pairing is SMAPE plus MAE: SMAPE for a bounded percent that survives small truths, MAE for raw error in the outcome's own units.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three SMAPE mistakes show up repeatedly in <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a> reports.</strong> Each has a one-line fix.</p>
+
+<p>The first is reading SMAPE as "percent of truth". It is not. A SMAPE of 40 percent does not mean predictions are 40 percent off the actual value, because the denominator is the average of truth and estimate. Report SMAPE next to MAE so readers anchor on unit-correct error.</p>
+
+<p>The second is treating SMAPE as fully symmetric. Swapping truth and estimate gives the same score, but constant under- and over-prediction of equal size still produce different scores when scale differs. Pair SMAPE with <code>mean(estimate - truth)</code> to expose direction bias.</p>
+
+<p>The third is comparing SMAPE across tools. Some textbooks divide by <code>(|truth| + |estimate|)</code> instead of half that sum, which halves the headline. yardstick uses the bounded-near-200 percent convention; confirm the formula before copying values across tools.</p>
+
+<div class="webr-container" data-block-title="Audit direction bias when reporting SMAPE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Audit direction bias when reporting SMAPE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bias &lt;- mean(preds$pred - preds$actual)
+smape_val &lt;- smape_vec(preds$actual, preds$pred)
+c(bias = bias, smape = smape_val)
+#&gt;    bias   smape 
+#&gt;  0.0000 11.7204</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>SMAPE can drift toward 200 percent when truth and estimate sign-flip.</strong> If the outcome can be negative and the model predicts a positive (or vice versa), <code>|truth| + |estimate|</code> shrinks the denominator relative to the residual and the metric inflates. Inspect sign agreement before trusting a high SMAPE reading.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the mtcars <code>lm</code> fit from above. Build a small forecast tibble with one row where <code>actual = 0.5</code> and <code>pred = 0.6</code>, append it to <code>preds</code>, and compute both SMAPE and MAPE. Save the comparison to <code>ex_smape_vs_mape</code>.</p>
+<div class="webr-container" data-block-title="Your turn: compare SMAPE and MAPE near zero">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compare SMAPE and MAPE near zero</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+library(dplyr)
+
+# Try it: compare SMAPE and MAPE after appending a small-truth row
+ex_smape_vs_mape &lt;- # your code here
+
+ex_smape_vs_mape
+#&gt; Expected: 2 rows, one per metric</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">risky &lt;- bind_rows(
+  preds,
+  tibble(actual = 0.5, pred = 0.6)
+)
+
+ex_smape_vs_mape &lt;- bind_rows(
+  smape(risky, actual, pred),
+  mape(risky, actual, pred)
+)
+ex_smape_vs_mape
+#&gt; # A tibble: 2 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 smape   standard       12.0 
+#&gt; 2 mape    standard       12.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> One small-truth row barely moves SMAPE (11.7 to 12.0) while MAPE rises faster because it divides by the small truth directly.</p>
+
+</details>
+</section>
+
+<h2>Related yardstick metrics</h2>
+
+<p><strong>smape() sits inside yardstick's regression family.</strong> Reach for these neighbors when SMAPE is not the right fit:</p>
+
+<ul>
+
+<li><code>mape()</code> for percent-of-truth when truths stay well away from zero</li>
+
+<li><code>mae()</code> for outlier-robust error in the outcome's units</li>
+
+<li><code>rmse()</code> to punish large misses harder than small ones</li>
+
+<li><code>mase()</code> for scale-free comparison across many series</li>
+
+<li><code>rsq()</code> for a unit-free 0-to-1 goodness-of-fit score</li>
+
+<li><code>metrics()</code> to compute several scores in one call</li>
+
+</ul>
+
+<p>For the full set, see the <a href="https://yardstick.tidymodels.org/reference/index.html">yardstick reference index</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is a good SMAPE value?</strong></p>
+
+<p>Bands are looser than for MAPE because SMAPE is bounded near 200 percent. Roughly: below 10 percent is excellent, 10 to 30 percent is good for noisy targets, 30 to 80 percent is workable, and above 100 percent usually signals sign-flips or scale misses. Anchor SMAPE with MAE for unit-correct context.</p>
+
+<p><strong>How is smape() different from mape()?</strong></p>
+
+<p>MAPE divides each absolute residual by truth, so a small truth blows up the headline and over-prediction stays unbounded. SMAPE divides by the average of <code>|truth|</code> and <code>|estimate|</code>, which bounds the metric and keeps it stable when truth approaches zero. Use SMAPE when truths cross or sit near zero; use MAPE for a cleaner percent-of-truth reading when truths stay well away from zero.</p>
+
+<p><strong>Does yardstick scale smape() to 0 to 100 or 0 to 200?</strong></p>
+
+<p>yardstick divides by the half-sum of <code>|truth|</code> and <code>|estimate|</code>, putting the upper bound near 200 percent. Some textbooks divide by the full sum and report half that value, so confirm the formula before comparing across tools.</p>
+
+<p><strong>Can smape() be used with negative truth values?</strong></p>
+
+<p>It runs, and the absolute values in the denominator avoid dividing by a signed near-zero quantity. But when truth and estimate sit on opposite sides of zero, SMAPE inflates quickly because the residual grows while the denominator stays small. For sign-flipping series, prefer <code>mae()</code> for error in raw units.</p>
+
+<h2>Summary</h2>
+
+<p><strong>smape() is the bounded, symmetric percentage scorecard in yardstick's regression family.</strong> Reach for it when truths sit near or cross zero, pair it with <code>mae()</code> to anchor magnitude, and remember the reading is not "percent of truth" but a stability-friendly cousin. With <code>group_by()</code> it gives per-segment percentages; with <code>metrics()</code> it slots into a multi-metric report.</p>
+
+{% endraw %}
