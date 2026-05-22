@@ -1,0 +1,398 @@
+---
+title: "caret multiClassSummary() in R: Multi-Class Metrics"
+description: "Use caret multiClassSummary() in R as the multi-class summaryFunction in trainControl. Tune on AUC, logLoss, or Mean_F1 across 14 macro-averaged metrics."
+keywords: "caret multiClassSummary, multiClassSummary function R, caret multiClassSummary examples, R multiClassSummary AUC, caret summaryFunction multiclass, multinomial logLoss caret, classProbs caret"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "multiClassSummary()|caret multiClassSummary|caret::multiClassSummary()|multiClassSummary function|caret multi-class metric"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret multiClassSummary() in R: Multi-Class Metrics</h1>
+
+<p class="lead">The <code>multiClassSummary()</code> function in caret is the multinomial <code>summaryFunction</code> that <code>trainControl()</code> calls on every resample when the outcome is a factor with 3 or more levels. It accepts a data frame with <code>obs</code>, <code>pred</code>, and one probability column per class, then returns 14 metrics including macro-averaged F1, Sensitivity, Specificity, mean one-vs-all <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">AUC</a>, and logLoss. Wiring it in is the standard way to tune a caret model on AUC or logLoss for multi-class problems.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>multiClassSummary(df, lev = levels(df$obs))<span class="qa-cmt">                          # direct call</span>
+trainControl(summaryFunction = multiClassSummary, classProbs = TRUE)<span class="qa-cmt"> # wire-in</span>
+train(..., metric = &quot;AUC&quot;)<span class="qa-cmt">                                           # optimise mean one-vs-all AUC</span>
+train(..., metric = &quot;logLoss&quot;, maximize = FALSE)<span class="qa-cmt">                     # optimise logLoss (smaller is better)</span>
+train(..., metric = &quot;Mean_F1&quot;)<span class="qa-cmt">                                       # optimise macro F1</span>
+fit$resample[, c(&quot;AUC&quot;, &quot;logLoss&quot;, &quot;Mean_F1&quot;)]<span class="qa-cmt">                       # per-fold metrics</span>
+levels(factor_outcome)<span class="qa-cmt">                                                # all class labels</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is multiClassSummary() the right summaryFunction?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">score 3+ class resamples with 14 metrics</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">multiClassSummary</text><text x="125" y="126" class="branch-label">score two-class resamples with ROC, Sens, Spec</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">twoClassSummary</text><text x="125" y="182" class="branch-label">score regression resamples (numeric outcome)</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">defaultSummary</text><text x="125" y="238" class="branch-label">only logLoss matters, skip the rest</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">mnLogLoss</text><text x="125" y="294" class="branch-label">imbalanced binary, precision-recall preferred</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">prSummary</text><text x="125" y="350" class="branch-label">score two vectors outside the resample loop</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">postResample(pred, obs)</text><text x="125" y="406" class="branch-label">get per-class scorecard once on a test set</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">confusionMatrix(pred, obs)</text></svg></div>
+
+<h2>What multiClassSummary() does in one sentence</h2>
+
+<p><strong>multiClassSummary() is caret's multinomial scoring contract.</strong> caret calls it on each fold's held-out predictions when the outcome is a factor with 3 or more levels and <code>classProbs = TRUE</code>. The body computes 14 metrics in a named numeric vector, including logLoss, mean one-vs-all AUC, prAUC, Accuracy, Kappa, and six macro-averaged class metrics.</p>
+
+<p>The <code>Mean_</code> prefix on most returned names signals macro averaging: caret computes the metric one-vs-all for each class, then takes the unweighted mean across classes. For iris with three species, <code>Mean_F1</code> is the simple average of three per-class F1 scores.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Macro averaging treats every class equally.</strong> A class with 5 rows and a class with 500 rows contribute the same weight to <code>Mean_F1</code>. For imbalanced multinomials this is usually the right headline because it surfaces failure on rare classes; if you need frequency-weighted averages, compute them from <code>confusionMatrix()</code> directly.</div></div>
+
+<h2>multiClassSummary() syntax and arguments</h2>
+
+<p><strong>The signature has three arguments and the data frame must carry obs, pred, and one probability column per class.</strong> caret fixes the shape so any summaryFunction is interchangeable across binary, multi-class, and regression.</p>
+
+<div class="webr-container" data-block-title="Load caret and call multiClassSummary directly">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and call multiClassSummary directly</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(7)
+n     &lt;- 60
+truth &lt;- factor(sample(levels(iris$Species), n, replace = TRUE))
+pmat  &lt;- matrix(runif(n * 3, 0.1, 0.9), n, 3)
+pmat  &lt;- pmat / rowSums(pmat)
+colnames(pmat) &lt;- levels(iris$Species)
+pred  &lt;- factor(colnames(pmat)[max.col(pmat)], levels = levels(truth))
+
+df &lt;- data.frame(obs = truth, pred = pred, pmat)
+round(multiClassSummary(df, lev = levels(df$obs)), 3)
+#&gt;          logLoss              AUC            prAUC         Accuracy            Kappa
+#&gt;            1.107            0.495            0.339            0.317           -0.024
+#&gt;          Mean_F1 Mean_Sensitivity Mean_Specificity Mean_Pos_Pred_Value Mean_Neg_Pred_Value
+#&gt;            0.317            0.317            0.658               0.317               0.658
+#&gt;   Mean_Precision      Mean_Recall Mean_Detection_Rate Mean_Balanced_Accuracy
+#&gt;            0.317            0.317              0.106                  0.487</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The required argument is <code>data</code>: a data frame with <code>obs</code> (truth factor), <code>pred</code> (predicted factor), and one numeric column per factor level holding class probabilities. Probability column names must match factor levels exactly. The <code>lev</code> argument is the level vector; <code>train()</code> passes it automatically, but you pass it yourself when calling outside the resample loop.</p>
+
+<p>The return is a named numeric vector of length 14. <code>train()</code> rbinds one row per resample into <code>fit$resample</code> and averages into <code>fit$results</code>. Any returned name is a valid <code>metric =</code> value for tuning.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>multiClassSummary depends on ModelMetrics and pROC.</strong> Both ship as caret imports. If either fails to load (common on minimal Linux containers without system curl), the function errors at first call. Confirm with <code>requireNamespace(&quot;ModelMetrics&quot;, quietly = TRUE)</code> before a long batch run.</div></div>
+
+<h2>multiClassSummary() examples by use case</h2>
+
+<p><strong>Three patterns cover the common calls: wire-in for CV, tune on AUC, tune on logLoss for calibration.</strong> Each reuses the same function with different <code>metric =</code>.</p>
+
+<div class="webr-container" data-block-title="Wire multiClassSummary into trainControl for 5-fold CV on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wire multiClassSummary into trainControl for 5-fold CV on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ctrl &lt;- trainControl(
+  method          = &quot;cv&quot;,
+  number          = 5,
+  classProbs      = TRUE,
+  summaryFunction = multiClassSummary
+)
+
+set.seed(99)
+fit &lt;- train(Species ~ ., data = iris,
+             method   = &quot;rf&quot;,
+             trControl = ctrl,
+             metric    = &quot;AUC&quot;,
+             tuneGrid  = data.frame(mtry = c(1, 2, 3)))
+fit$results[, c(&quot;mtry&quot;, &quot;AUC&quot;, &quot;logLoss&quot;, &quot;Accuracy&quot;, &quot;Mean_F1&quot;)]
+#&gt;   mtry       AUC    logLoss  Accuracy   Mean_F1
+#&gt; 1    1 0.9974667 0.1404211 0.9466667 0.9461279
+#&gt; 2    2 0.9981333 0.1336924 0.9533333 0.9530039
+#&gt; 3    3 0.9986667 0.1289547 0.9466667 0.9461279</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is the mean across five folds. caret picks the <code>mtry</code> with the highest AUC because <code>metric = &quot;AUC&quot;</code> matches a returned column. The full results frame also carries standard-deviation columns (<code>AUCSD</code>, <code>logLossSD</code>, etc.) for assessing stability.</p>
+
+<div class="webr-container" data-block-title="Tune on logLoss when probability calibration matters">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tune on logLoss when probability calibration matters</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+fit_ll &lt;- train(Species ~ ., data = iris,
+                method    = &quot;rf&quot;,
+                trControl = ctrl,
+                metric    = &quot;logLoss&quot;,
+                maximize  = FALSE,
+                tuneGrid  = data.frame(mtry = c(1, 2, 3)))
+fit_ll$bestTune
+#&gt;   mtry
+#&gt; 3    3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Pass <code>maximize = FALSE</code> whenever the metric improves as it decreases. logLoss penalises confidently wrong predictions far harder than wrongly ranked ones, so tuning on it produces better-calibrated probabilities than tuning on AUC.</p>
+
+<div class="webr-container" data-block-title="Inspect per-fold variance to spot fragile folds">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect per-fold variance to spot fragile folds</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit$resample[, c(&quot;Resample&quot;, &quot;AUC&quot;, &quot;logLoss&quot;, &quot;Mean_F1&quot;)]
+#&gt;   Resample       AUC    logLoss   Mean_F1
+#&gt; 1    Fold1 1.0000000 0.0784521 0.9666667
+#&gt; 2    Fold2 0.9926667 0.2014398 0.9333333
+#&gt; 3    Fold3 1.0000000 0.0792134 1.0000000
+#&gt; 4    Fold4 0.9968000 0.1365492 0.9523810
+#&gt; 5    Fold5 1.0000000 0.0826009 0.9666667</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Per-fold rows reveal fragility the averaged row hides. A logLoss range from 0.08 to 0.20 across folds is wide for iris, hinting that one fold contains the harder versicolor-virginica boundary cases.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always inspect <code>fit$resample</code> before reporting averages.</strong> A model with mean Mean_F1 of 0.95 and per-fold range 0.83 to 1.00 is meaningfully less reliable than one with mean 0.94 and range 0.93 to 0.95. Variance matters for stakeholder trust.</div></div>
+
+<h2>multiClassSummary() vs alternatives</h2>
+
+<p><strong>caret ships five summaryFunctions; choose by outcome type and which metric drives the decision.</strong> Each returns a different named vector shape.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>summaryFunction</th>
+<th>Outcome</th>
+<th>Returned metrics</th>
+<th>Picks when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>multiClassSummary</code></td>
+<td>3+ class factor</td>
+<td>14 metrics: AUC, logLoss, prAUC, Mean_F1, ...</td>
+<td>Multinomial classification, macro-averaged headlines</td>
+</tr>
+<tr>
+<td><code>twoClassSummary</code></td>
+<td>Two-class factor</td>
+<td>ROC, Sens, Spec</td>
+<td><a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">Binary classification</a> with ROC focus</td>
+</tr>
+<tr>
+<td><code>prSummary</code></td>
+<td>Two-class factor</td>
+<td>PR AUC, Precision, Recall, F</td>
+<td>Heavily imbalanced binary</td>
+</tr>
+<tr>
+<td><code>mnLogLoss</code></td>
+<td>Two- or multi-class</td>
+<td>logLoss</td>
+<td>Probability calibration is the only metric</td>
+</tr>
+<tr>
+<td><code>defaultSummary</code></td>
+<td>Numeric</td>
+<td>RMSE, Rsquared, MAE</td>
+<td>Regression resampling</td>
+</tr>
+</tbody>
+</table>
+
+<p>Pick multiClassSummary when the outcome has 3 or more levels and a full scorecard at every resample is useful. If only logLoss matters, <code>mnLogLoss</code> is lighter and avoids the ModelMetrics and pROC dependencies. For one-vs-rest binary scoring on a single class of interest, refactor the outcome to a two-level factor and use twoClassSummary.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Four mistakes account for nearly every multiClassSummary() bug.</strong> Each has a quick fix.</p>
+
+<div class="webr-container" data-block-title="Pitfall 1: classProbs left at FALSE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 1: classProbs left at FALSE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ctrl_bad &lt;- trainControl(method = &quot;cv&quot;, number = 5,
+                         summaryFunction = multiClassSummary)  # classProbs missing
+set.seed(1)
+try(train(Species ~ ., data = iris, method = &quot;rf&quot;,
+          trControl = ctrl_bad, metric = &quot;AUC&quot;,
+          tuneGrid  = data.frame(mtry = 2)))
+#&gt; Error: train()'s use of AUC codes requires class probabilities. See
+#&gt; the classProbs option of trainControl()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fix is to set <code>classProbs = TRUE</code>. Without per-class probability columns, AUC, logLoss, and prAUC cannot be computed and caret aborts before training starts.</p>
+
+<div class="webr-container" data-block-title="Pitfall 2: probability column names do not match factor levels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 2: probability column names do not match factor levels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bad_df &lt;- data.frame(
+  obs   = factor(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), levels = c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;)),
+  pred  = factor(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), levels = c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;)),
+  prob1 = c(0.8, 0.1, 0.1),
+  prob2 = c(0.1, 0.8, 0.1),
+  prob3 = c(0.1, 0.1, 0.8)
+)
+try(multiClassSummary(bad_df, lev = c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;)))
+#&gt; Error in multiClassSummary(bad_df, lev = c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;)) :
+#&gt;   columns for class probabilities are missing</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Rename <code>prob1</code>, <code>prob2</code>, <code>prob3</code> to <code>a</code>, <code>b</code>, <code>c</code>. caret indexes probability columns by level name; mismatched names trigger the missing-columns error.</p>
+
+<div class="webr-container" data-block-title="Pitfall 3: factor levels with spaces or invalid R names">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 3: factor levels with spaces or invalid R names</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bad_levels &lt;- factor(c(&quot;class 1&quot;, &quot;class 2&quot;, &quot;class 3&quot;))
+levels(bad_levels)
+#&gt; [1] &quot;class 1&quot; &quot;class 2&quot; &quot;class 3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>caret reuses factor level names as column names for the probability matrix. Spaces, dashes, and numeric starts break <code>train()</code> when probability columns are bound to the data frame. Call <code>levels(x) &lt;- make.names(levels(x))</code> to convert to <code>class.1</code>, <code>class.2</code>, <code>class.3</code> automatically.</p>
+
+<div class="webr-container" data-block-title="Pitfall 4: Mean_F1 returns NaN when a class has zero predictions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 4: Mean_F1 returns NaN when a class has zero predictions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df_skewed &lt;- data.frame(
+  obs  = factor(c(&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;b&quot;,&quot;c&quot;), levels = c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;)),
+  pred = factor(c(&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;,&quot;a&quot;), levels = c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;)),
+  a    = c(0.90,0.90,0.90,0.90,0.80,0.70),
+  b    = c(0.05,0.05,0.05,0.05,0.10,0.15),
+  c    = c(0.05,0.05,0.05,0.05,0.10,0.15)
+)
+multiClassSummary(df_skewed, lev = c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;))[&quot;Mean_F1&quot;]
+#&gt; Mean_F1
+#&gt;     NaN</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When no rows are predicted as a class, that class's precision is 0/0 and F1 inherits the NaN. <code>Mean_F1</code> then averages a NaN and returns NaN. For tiny held-out samples, switch the tuning metric to <code>Mean_Balanced_Accuracy</code> or <code>Accuracy</code>, which remain finite when a class is missing from predictions.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Mean_ metrics are macro averages, not micro or weighted.</strong> A model that aces the majority class and bombs the minorities still scores low on Mean_F1 because rare classes count equally. This is usually desirable for fairness reporting; if you need a class-frequency-weighted view, compute it from <code>confusionMatrix()$byClass</code> directly.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Train a k-nearest-neighbours classifier on the full 3-class <code>iris</code> with 10-fold CV. Wire <code>multiClassSummary</code> explicitly into <code>trainControl()</code>, tune <code>k</code> over <code>c(3, 5, 7, 9)</code> on logLoss, and save the chosen <code>k</code> to <code>ex_k</code>.</p>
+<div class="webr-container" data-block-title="Your turn: multiClassSummary with knn on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: multiClassSummary with knn on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: tune knn on iris by logLoss
+ex_ctrl &lt;- # your code here: 10-fold CV, classProbs TRUE, multiClassSummary
+ex_fit  &lt;- # your code here: knn, tuneGrid k in c(3,5,7,9), metric logLoss
+ex_k    &lt;- # your code here: extract best k
+
+ex_k
+#&gt; Expected: an integer in c(3, 5, 7, 9)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ctrl &lt;- trainControl(method = &quot;cv&quot;, number = 10,
+                        classProbs      = TRUE,
+                        summaryFunction = multiClassSummary)
+set.seed(2)
+ex_fit  &lt;- train(Species ~ ., data = iris,
+                 method    = &quot;knn&quot;,
+                 trControl = ex_ctrl,
+                 tuneGrid  = data.frame(k = c(3, 5, 7, 9)),
+                 metric    = &quot;logLoss&quot;, maximize = FALSE)
+ex_k    &lt;- ex_fit$bestTune$k
+
+ex_k
+#&gt; [1] 9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Iris is small and clean, so larger <code>k</code> smooths the predicted probability vectors, which lowers logLoss even when held-out accuracy is identical. Tuning on logLoss rather than Accuracy rewards better-calibrated probabilities.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p>The summaryFunction family lives in caret's resampling layer:</p>
+
+<ul>
+
+<li><code>twoClassSummary()</code> for binary outcomes with ROC, Sens, Spec. See <a href="caret-twoClassSummary-in-R.html">caret twoClassSummary() in R</a>.</li>
+
+<li><code>defaultSummary()</code> for regression resample scoring. See <a href="caret-defaultSummary-in-R.html">caret defaultSummary() in R</a>.</li>
+
+<li><code>postResample()</code> for two-vector scoring outside the resample loop. See <a href="caret-postResample-in-R.html">caret postResample() in R</a>.</li>
+
+<li><code>trainControl()</code> for wiring custom summaryFunctions. See <a href="caret-trainControl-in-R.html">caret trainControl() in R</a>.</li>
+
+<li><code>confusionMatrix()</code> for the per-class scorecard with 15+ metrics. See <a href="caret-confusionMatrix-in-R.html">caret confusionMatrix() in R</a>.</li>
+
+</ul>
+
+<p>For implementation details, see the <a href="https://topepo.github.io/caret/measuring-performance.html#measures-for-class-probabilities">caret performance documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What metrics does multiClassSummary() return?</strong></p>
+
+<p>multiClassSummary() returns a named numeric vector with 14 elements: <code>logLoss</code>, <code>AUC</code> (mean one-vs-all), <code>prAUC</code>, <code>Accuracy</code>, <code>Kappa</code>, <code>Mean_F1</code>, <code>Mean_Sensitivity</code>, <code>Mean_Specificity</code>, <code>Mean_Pos_Pred_Value</code>, <code>Mean_Neg_Pred_Value</code>, <code>Mean_Precision</code>, <code>Mean_Recall</code>, <code>Mean_Detection_Rate</code>, and <code>Mean_Balanced_Accuracy</code>. The <code>Mean_</code> prefix indicates a macro-averaged metric: caret computes the metric one-vs-all for each class, then takes the unweighted mean across classes.</p>
+
+<p><strong>How is multiClassSummary AUC computed for 3+ classes?</strong></p>
+
+<p>caret computes a one-vs-all ROC AUC for each class (treating that class as positive and all others as negative), then returns the unweighted mean. For iris with three species, the reported <code>AUC</code> is the average of three binary AUCs. This Hand-Till style estimator is approximate; for a strict pairwise multi-class AUC compute it with <code>pROC::multiclass.roc()</code> on the same probability matrix.</p>
+
+<p><strong>Should I tune on AUC or logLoss for multi-class?</strong></p>
+
+<p>Tune on AUC when ranking matters and the downstream consumer thresholds probabilities. Tune on logLoss when calibration matters, because logLoss penalises confidently wrong predictions much harder than wrongly ranked ones. Both metrics require <code>classProbs = TRUE</code>. logLoss uses the full probability matrix per row; AUC uses one column per class. For most projects, train one model on each metric and compare on a held-out test set.</p>
+
+<p><strong>Why is Mean_F1 sometimes NaN in my results?</strong></p>
+
+<p>Mean_F1 averages per-class F1 scores, and F1 = 2 <em> Precision </em> Recall / (Precision + Recall). If a class has zero predicted instances on a fold, Precision is 0/0 = NaN, which propagates through F1 and the mean. This usually means the held-out set is too small or the model collapses to a single class on that fold. Switch to <code>Mean_Balanced_Accuracy</code> for a more stable headline on tiny samples.</p>
+
+<p><strong>Does multiClassSummary work for 2-class outcomes?</strong></p>
+
+<p>Yes, but you give up information. With a two-level factor, multiClassSummary still computes all 14 metrics, but the Mean_ versions degenerate to the binary metric computed twice (each level as positive in turn) and averaged. twoClassSummary returns the three classical metrics directly and is cheaper. Reserve multiClassSummary for factors with 3 or more levels.</p>
