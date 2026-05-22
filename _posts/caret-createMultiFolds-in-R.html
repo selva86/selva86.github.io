@@ -1,0 +1,352 @@
+---
+title: "caret createMultiFolds() in R: Repeated K-Fold CV Indices"
+description: "caret createMultiFolds() in R returns repeated stratified k-fold training indices. Syntax, times, repeatedcv with train(), examples, pitfalls, and FAQ inside."
+keywords: "caret createMultiFolds, createMultiFolds function R, caret createMultiFolds examples, R repeated k-fold cross validation, caret repeatedcv, createMultiFolds vs createFolds, caret cross validation indices"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "createMultiFolds()|caret createMultiFolds|caret::createMultiFolds()|repeated k-fold cross validation|repeatedcv indices"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret createMultiFolds() in R: Repeated K-Fold CV Indices</h1>
+
+<p class="lead">The <code>createMultiFolds()</code> function in caret returns stratified training-row indices for repeated k-fold cross-validation, producing <code>k * times</code> resamples in a single <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a>. It is the resampler that backs <code>trainControl(method = "repeatedcv")</code> and the one to use when a single 10-fold run is too noisy to trust.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>createMultiFolds(y, k = 10, times = 5)<span class="qa-cmt">               # 50 training-index folds</span>
+createMultiFolds(y, k = 5,  times = 3)<span class="qa-cmt">               # 15 folds: 5-fold x 3 reps</span>
+createMultiFolds(iris$Species, k = 5, times = 2)<span class="qa-cmt">     # stratify by factor levels</span>
+createMultiFolds(mtcars$mpg, k = 5, times = 2)<span class="qa-cmt">       # numeric outcome, binned</span>
+names(folds)[1:3]<span class="qa-cmt">                                    # &quot;Fold1.Rep1&quot; &quot;Fold2.Rep1&quot; ...</span>
+length(folds)<span class="qa-cmt">                                        # k * times</span>
+trainControl(method = &quot;repeatedcv&quot;, number = 10, repeats = 5)<span class="qa-cmt">  # uses it internally</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is createMultiFolds() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">repeated k-fold CV indices</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">createMultiFolds(y, k = 10, times = 5)</text><text x="125" y="126" class="branch-label">single k-fold CV (faster)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">createFolds(y, k = 10)</text><text x="125" y="182" class="branch-label">one stratified train/test split</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">createDataPartition(y, p = 0.7)</text><text x="125" y="238" class="branch-label"><a class="auto-link" href="broom-bootstrap-in-R.html" title="broom Bootstrap in R: Tidy Resampled Estimates">bootstrap resamples</a></text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">createResample(y, times = 25)</text><text x="125" y="294" class="branch-label">rolling-origin time-series folds</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">createTimeSlices(y, initialWindow, horizon)</text><text x="125" y="350" class="branch-label">automate repeated CV inside train()</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">trainControl(method = &quot;repeatedcv&quot;, number = 10, repeats = 5)</text></svg></div>
+
+<h2>What createMultiFolds() does in one sentence</h2>
+
+<p><strong><code>createMultiFolds()</code> is caret's repeated k-fold splitter for cross-validation.</strong> It calls the stratified k-fold splitter <code>times</code> times with fresh randomness inside each repetition, then concatenates the training-index lists into one flat named list of length <code>k * times</code>.</p>
+
+<p>Each element holds the row positions to train on, so the held-out rows for that fold are the complement. Naming follows <code>Fold&lt;i&gt;.Rep&lt;j&gt;</code>, which lets you slice by repetition with a single regex. The function exists because a single 10-fold split can swing several percentage points in accuracy depending on which rows landed in which fold. Repeating the procedure 5 or 10 times and averaging tightens that variance, which is why <code>repeatedcv</code> is caret's default recommendation for small-to-medium data.</p>
+
+<h2>createMultiFolds() syntax and arguments</h2>
+
+<p><strong><code>createMultiFolds()</code> accepts three arguments and returns a list of training indices.</strong> The signature is minimal because the function inherits stratification logic from <code>createFolds()</code> under the hood.</p>
+
+<div class="webr-container" data-block-title="Load caret and inspect the outcome">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and inspect the outcome</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(1)
+str(iris$Species)
+#&gt;  Factor w/ 3 levels &quot;setosa&quot;,&quot;versicolor&quot;,..: 1 1 1 1 1 1 1 1 1 1 ...
+length(iris$Species)
+#&gt; [1] 150</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The signature:</p>
+
+<div class="webr-container" data-block-title="createMultiFolds signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">createMultiFolds signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">createMultiFolds(y, k = 10, times = 5)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<ul>
+
+<li><code>y</code>: the outcome vector. Factors trigger per-class stratification; numerics are binned by quantile, identical to <code>createFolds()</code>.</li>
+
+<li><code>k</code>: number of folds per repetition. 10 is the conventional default for small data; 5 is common when models are slow to fit.</li>
+
+<li><code>times</code>: number of repetitions of the full k-fold procedure. The output list has <code>k * times</code> elements.</li>
+
+</ul>
+
+<p>There is no <code>returnTrain</code> flag because the function always returns training indices. That is the opposite of <code>createFolds()</code>, which returns test indices by default. The reason is integration: <code>trainControl(method = &quot;repeatedcv&quot;)</code> consumes training indices through its <code>index</code> argument, so caret made <code>createMultiFolds()</code> match that shape directly.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>createMultiFolds()</code> and <code>createFolds()</code> use opposite defaults.</strong> <code>createFolds()</code> returns test indices unless you set <code>returnTrain = TRUE</code>; <code>createMultiFolds()</code> always returns training indices and has no flag to flip. Mixing the two in the same script is the most common source of off-by-complement bugs.</div></div>
+
+<h2>createMultiFolds() examples by use case</h2>
+
+<p><strong>Most repeated-CV workflows either iterate over the list directly or hand the list to <code>trainControl()</code>.</strong> The examples below build from the raw output to a fully wired <code>train()</code> call.</p>
+
+<p>A 5-fold by 3-repetition resample on the iris species column:</p>
+
+<div class="webr-container" data-block-title="Stratified 5x3 repeated CV indices">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stratified 5x3 repeated CV indices</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+folds &lt;- createMultiFolds(iris$Species, k = 5, times = 3)
+length(folds)
+#&gt; [1] 15
+names(folds)[1:6]
+#&gt; [1] &quot;Fold1.Rep1&quot; &quot;Fold2.Rep1&quot; &quot;Fold3.Rep1&quot; &quot;Fold4.Rep1&quot; &quot;Fold5.Rep1&quot; &quot;Fold1.Rep2&quot;
+sapply(folds, length)[1:3]
+#&gt; Fold1.Rep1 Fold2.Rep1 Fold3.Rep1 
+#&gt;        120        120        120</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Fifteen elements, each carrying 120 training rows (the four non-held-out folds of 30 rows each). Loop over the list to train on <code>iris[folds[[i]], ]</code> and predict on <code>iris[-folds[[i]], ]</code>.</p>
+
+<p>A hand-rolled repeated-CV loop that averages RMSE across all <code>k * times</code> folds:</p>
+
+<div class="webr-container" data-block-title="Custom repeated CV with createMultiFolds">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Custom repeated CV with createMultiFolds</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(123)
+folds &lt;- createMultiFolds(mtcars$mpg, k = 5, times = 3)
+rmse  &lt;- numeric(length(folds))
+
+for (i in seq_along(folds)) {
+  train_idx &lt;- folds[[i]]
+  train_set &lt;- mtcars[ train_idx, ]
+  test_set  &lt;- mtcars[-train_idx, ]
+  fit       &lt;- lm(mpg ~ wt + hp, data = train_set)
+  preds     &lt;- predict(fit, test_set)
+  rmse[i]   &lt;- sqrt(mean((test_set$mpg - preds)^2))
+}
+
+mean(rmse)
+#&gt; [1] 2.794165
+sd(rmse)
+#&gt; [1] 0.7869868</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The mean is the repeated-CV point estimate; the standard deviation across the 15 folds gives you a feel for fold-level variance, which is the whole reason you repeated the procedure.</p>
+
+<p>Per-repetition averaging when you want one RMSE per repetition rather than per fold:</p>
+
+<div class="webr-container" data-block-title="Average within each repetition">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Average within each repetition</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rep_id &lt;- sub(&quot;.*Rep&quot;, &quot;&quot;, names(folds))
+rmse_by_rep &lt;- tapply(rmse, rep_id, mean)
+rmse_by_rep
+#&gt;        1        2        3 
+#&gt; 2.728961 2.875132 2.778402</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three numbers, one per repetition, each averaged across its 5 folds. This is the shape caret uses internally when it prints "Resampling: Cross-Validated (5 fold, repeated 3 times)" in <code>train()</code> output.</p>
+
+<p>Passing the indices straight into <code>train()</code> for a model comparison:</p>
+
+<div class="webr-container" data-block-title="Reuse the same folds across two models">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Reuse the same folds across two models</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(123)
+folds &lt;- createMultiFolds(mtcars$mpg, k = 5, times = 3)
+ctrl  &lt;- trainControl(method = &quot;repeatedcv&quot;, index = folds)
+
+lm_fit  &lt;- train(mpg ~ wt + hp, data = mtcars, method = &quot;lm&quot;,  trControl = ctrl)
+rpart_fit &lt;- train(mpg ~ wt + hp, data = mtcars, method = &quot;rpart&quot;, trControl = ctrl)
+
+lm_fit$results$RMSE
+#&gt; [1] 2.794165
+rpart_fit$results$RMSE[1]
+#&gt; [1] 3.41213</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both models train on identical folds, so the RMSE difference reflects model behavior rather than fold randomness.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Seed once before <code>createMultiFolds()</code> and freeze the folds for every comparison.</strong> The function consumes the active RNG state, so re-calling it without <code>set.seed()</code> produces different folds on every run. Build the fold list once, pass it through <code>trainControl(index = ...)</code>, and every model you compare sees the same splits.</div></div>
+
+<h2>createMultiFolds() vs createFolds() and trainControl()</h2>
+
+<p><strong><code>createMultiFolds()</code> is the repeated-CV cousin of <code>createFolds()</code>.</strong> Both stratify the same way; the difference is the repetition loop and the default index direction.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Default returns</th>
+<th>Output length</th>
+<th>Used when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>createFolds(y, k = 10)</code></td>
+<td>test indices (list)</td>
+<td>k</td>
+<td>one round of k-fold CV</td>
+</tr>
+<tr>
+<td><code>createMultiFolds(y, k = 10, times = 5)</code></td>
+<td>training indices (list)</td>
+<td>k * times</td>
+<td>repeated k-fold CV</td>
+</tr>
+<tr>
+<td><code>createDataPartition(y, p = 0.7)</code></td>
+<td>training indices (list of 1)</td>
+<td>1</td>
+<td>initial train/test split</td>
+</tr>
+<tr>
+<td><code>createResample(y, times = 25)</code></td>
+<td>training indices (list)</td>
+<td>times</td>
+<td>bootstrap resamples</td>
+</tr>
+<tr>
+<td><code>trainControl(method = &quot;repeatedcv&quot;)</code></td>
+<td>a control object</td>
+<td>NA</td>
+<td>inside <code>caret::train()</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>If you are already calling <code>train()</code>, skip <code>createMultiFolds()</code> and pass <code>trainControl(method = &quot;repeatedcv&quot;, number = 10, repeats = 5)</code>; caret builds the folds for you. Reach for <code>createMultiFolds()</code> directly when you need a manual loop outside <code>train()</code>, or when you want to reuse identical folds across several <code>train()</code> calls for an apples-to-apples comparison.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most repeated-CV bugs.</strong> Each one has a clear signature in the fold list or output.</p>
+
+<p>The first is mixing up the index direction. <code>createFolds()</code> returns test indices by default and <code>createMultiFolds()</code> returns training indices, with no flag to flip on <code>createMultiFolds()</code>. If you ported a CV loop from <code>createFolds()</code> and forgot to flip the slicing, your training set is 30 rows and your test set is 120; the RMSE will spike, and the per-fold sizes via <code>sapply(folds, length)</code> will show this.</p>
+
+<p>The second is asking for too many repetitions on a slow model. Output length is <code>k * times</code>, so 10-fold by 10-reps is 100 model fits. Random forest on a 10,000-row dataset can easily push that into the hour range. Start with <code>times = 5</code>, profile one fit, then scale up only if variance across repetitions is still wide.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Time-ordered data needs a different resampler.</strong> <code>createMultiFolds()</code> shuffles rows by class, so future rows leak into the training set when the outcome is ordered by time. Use <code>createTimeSlices()</code> or a manual time-based window for any temporal target; repeated random k-fold gives optimistic metrics on <a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">time series</a>.</div></div>
+
+<p>The third is using <code>createMultiFolds()</code> when <code>createDataPartition()</code> is what you want. <code>createDataPartition()</code> returns ONE training-index vector for a single train/test split, not folds for CV. If your goal is to carve out a holdout set before any CV, that is the function; <code>createMultiFolds()</code> is for the CV phase that follows.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a stratified 5-fold by 2-repetition set on <code>iris$Species</code> and confirm the list has 10 elements named <code>FoldX.RepY</code>.</p>
+<div class="webr-container" data-block-title="Your turn: 5x2 repeated CV">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: 5x2 repeated CV</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_folds &lt;- # your code here
+
+length(ex_folds)
+#&gt; Expected: 10
+head(names(ex_folds), 3)
+#&gt; Expected: &quot;Fold1.Rep1&quot; &quot;Fold2.Rep1&quot; &quot;Fold3.Rep1&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_folds &lt;- createMultiFolds(iris$Species, k = 5, times = 2)
+
+length(ex_folds)
+#&gt; [1] 10
+head(names(ex_folds), 3)
+#&gt; [1] &quot;Fold1.Rep1&quot; &quot;Fold2.Rep1&quot; &quot;Fold3.Rep1&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>k * times</code> is <code>5 * 2 = 10</code>, so the list holds 10 elements. The naming follows <code>Fold&lt;i&gt;.Rep&lt;j&gt;</code>, which is the exact string format <code>trainControl(method = &quot;repeatedcv&quot;)</code> produces internally and lets you slice by repetition with a simple <code>sub()</code> call.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p>Caret's resampling family covers every standard cross-validation strategy. <code>createMultiFolds()</code> is for repeated k-fold; the others handle adjacent cases.</p>
+
+<ul>
+
+<li><code>createFolds(y, k = 10)</code>: single k-fold CV; returns test indices by default.</li>
+
+<li><code>createDataPartition(y, p = 0.7)</code>: one stratified train/test cut before any CV.</li>
+
+<li><code>createResample(y, times = 25)</code>: bootstrap resamples for <code>method = &quot;boot&quot;</code>.</li>
+
+<li><code>createTimeSlices(y, initialWindow, horizon)</code>: rolling-origin folds for time series.</li>
+
+<li><code>trainControl(method = &quot;repeatedcv&quot;, number = 10, repeats = 5)</code>: the wrapper that calls <code>createMultiFolds()</code> internally.</li>
+
+</ul>
+
+<p>The conventional workflow is split once with <code>createDataPartition()</code>, then cross-validate the training partition through <code>trainControl(method = &quot;repeatedcv&quot;)</code>; you only call <code>createMultiFolds()</code> directly for a custom loop or when comparing models on frozen folds.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between createMultiFolds() and createFolds()?</strong></p>
+
+<p><code>createFolds()</code> runs k-fold cross-validation once and returns test indices by default. <code>createMultiFolds()</code> runs the whole k-fold procedure <code>times</code> times and returns training indices, with no option to flip. The output list length is <code>k</code> for <code>createFolds()</code> and <code>k * times</code> for <code>createMultiFolds()</code>. Use <code>createFolds()</code> when one round of CV is enough, and <code>createMultiFolds()</code> when variance across folds is wide enough that you want to average over repetitions.</p>
+
+<p><strong>Why does createMultiFolds() return training indices instead of test indices?</strong></p>
+
+<p>caret designed it that way so the output drops directly into <code>trainControl(index = folds)</code>, which expects training indices. <code>createFolds()</code> predates that integration and defaulted to test indices. Flip the slicing with the minus sign (<code>mtcars[-train_idx, ]</code>) for the holdout fold.</p>
+
+<p><strong>How many repetitions should I use with createMultiFolds()?</strong></p>
+
+<p>Five is the standard starting point. If your model is fast to fit and you see noticeable variance across the five repetitions, bump to 10. Above 10 the marginal variance reduction is small relative to the doubled compute cost.</p>
+
+<p><strong>Can I pass createMultiFolds() output directly to trainControl()?</strong></p>
+
+<p>Yes, via <code>trainControl(method = &quot;repeatedcv&quot;, index = folds)</code> where <code>folds</code> is the list returned by <code>createMultiFolds()</code>. The function-name match is intentional, and reusing one fold list across several <code>train()</code> calls is the canonical way to compare models without contaminating the comparison with fold-randomness noise.</p>
+
+<p><strong>Does createMultiFolds() stratify numeric outcomes?</strong></p>
+
+<p>Yes. It delegates to <code>createFolds()</code> internally, which cuts a numeric outcome into <a class="auto-link" href="dplyr-ntile-in-R.html" title="dplyr ntile() in R: Bin Values into N Equal-Count Groups">quantile bins</a> and samples within each bin. The resulting folds keep the outcome distribution close to the full data, which matters most when the response is skewed or has heavy tails. For a regression target like <code>mtcars$mpg</code> this stratification is invisible but real.</p>
