@@ -1,0 +1,420 @@
+---
+title: "yardstick mcc() in R: Matthews Correlation Coefficient"
+description: "Use yardstick mcc() in R to compute Matthews correlation coefficient for binary and multiclass models. See syntax, grouped scoring, examples, and pitfalls."
+keywords: "yardstick mcc, mcc function R, yardstick mcc examples, Matthews correlation coefficient R, MCC classification metric R, mcc yardstick, binary classifier MCC R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "mcc()|yardstick mcc|yardstick::mcc()|Matthews correlation coefficient|MCC metric"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>yardstick mcc() in R: Matthews Correlation Coefficient</h1>
+
+<p class="lead">The yardstick mcc() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> computes the Matthews <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">correlation coefficient</a> between observed and predicted class labels, returning a single number between -1 and 1 that stays meaningful even when the classes are heavily imbalanced.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>mcc(df, truth, estimate)<span class="qa-cmt">                       # basic two-class call</span>
+mcc(df, truth = obs, estimate = pred)<span class="qa-cmt">          # named arguments</span>
+mcc(df, class, .pred_class)<span class="qa-cmt">                    # default parsnip output</span>
+df |&gt; group_by(fold) |&gt; mcc(class, .pred_class)<span class="qa-cmt">   # by resample</span>
+mcc(df, class, .pred_class, na_rm = TRUE)<span class="qa-cmt">      # drop missing rows</span>
+mcc_vec(truth_vec, pred_vec)<span class="qa-cmt">                   # vector interface</span>
+mcc(df, class, .pred_class, case_weights = w)<span class="qa-cmt">  # weighted scoring</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is mcc() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">single robust score on imbalanced data</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">mcc(df, truth, estimate)</text><text x="125" y="126" class="branch-label">balanced classes, want a transparent number</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">accuracy(df, truth, estimate)</text><text x="125" y="182" class="branch-label">precision-recall blend with one knob</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">f_meas(df, truth, estimate)</text><text x="125" y="238" class="branch-label">need per-class diagnostics, not an average</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">precision(df, truth, estimate)</text><text x="125" y="294" class="branch-label">probability scores, not hard classes</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">roc_auc(df, truth, .pred_class_1)</text><text x="125" y="350" class="branch-label">regression model, not classification</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">rmse(df, truth, estimate)</text></svg></div>
+
+<h2>What mcc() measures</h2>
+
+<p><strong>mcc() is a correlation coefficient between predicted and observed classes.</strong> For two classes it equals the <a class="auto-link" href="Measures-of-Association-in-R.html" title="Measures of Association in R: Cramer's V, Phi, Pearson r With Examples">phi coefficient</a>, computed from all four cells of the <a class="auto-link" href="Logistic-Regression-Exercises-in-R.html" title="Logistic Regression Exercises in R: 10 Classification Practice Problems, Solved Step-by-Step">confusion matrix</a>. The score is 1 for perfect agreement, 0 for chance, and -1 for perfectly inverted predictions.</p>
+
+<p>The function takes a data frame with two factor columns and returns a one-row tibble with <code>.metric</code>, <code>.estimator</code>, and <code>.estimate</code>. Because every confusion-matrix cell enters the formula, the score collapses whenever the model leans on one class at the expense of another.</p>
+
+<p>Reach for MCC when you want a single headline number that resists class imbalance. It is the default in bioinformatics and fraud-detection benchmarks for that reason.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>MCC is the chi-square statistic in disguise.</strong> For a two-by-two confusion table the squared MCC equals chi-square divided by the sample size. That equivalence is why values near zero really do mean independence between truth and prediction.</div></div>
+
+<h2>mcc() syntax and arguments</h2>
+
+<p><strong>The signature mirrors every other yardstick class metric.</strong> The same call shape works whether you score a logistic regression, a random forest, or a neural net.</p>
+
+<div class="webr-container" data-block-title="mcc generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">mcc generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mcc(data, truth, estimate, na_rm = TRUE, case_weights = NULL, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data</code></td>
+<td>A data frame with the truth and estimate columns.</td>
+</tr>
+<tr>
+<td><code>truth</code></td>
+<td>Unquoted column name of the observed class labels (a factor).</td>
+</tr>
+<tr>
+<td><code>estimate</code></td>
+<td>Unquoted column name of the predicted class labels (a factor with matching levels).</td>
+</tr>
+<tr>
+<td><code>na_rm</code></td>
+<td>If <code>TRUE</code>, drop rows where either column is missing before scoring.</td>
+</tr>
+<tr>
+<td><code>case_weights</code></td>
+<td>Optional column of row weights, useful for survey or class-rebalanced data.</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Currently unused; reserved for future extensions.</td>
+</tr>
+</tbody>
+</table>
+
+<p>Both <code>truth</code> and <code>estimate</code> must be factors with identical levels in the same order. There is no <code>estimator</code> argument here, because yardstick chooses the binary or multiclass formula automatically from the number of factor levels.</p>
+
+<h2>Examples: MCC for binary and multiclass</h2>
+
+<p><strong>The examples below score a binary problem first, then a multiclass one.</strong> Start with a deliberately imbalanced two-class data set where one label dominates.</p>
+
+<div class="webr-container" data-block-title="Build an imbalanced binary prediction tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build an imbalanced binary prediction tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+library(dplyr)
+
+set.seed(42)
+imb &lt;- tibble(
+  obs = factor(sample(c(&quot;yes&quot;, &quot;no&quot;), 200, replace = TRUE, prob = c(0.10, 0.90)),
+               levels = c(&quot;yes&quot;, &quot;no&quot;)),
+  pred = factor(sample(c(&quot;yes&quot;, &quot;no&quot;), 200, replace = TRUE, prob = c(0.05, 0.95)),
+                levels = c(&quot;yes&quot;, &quot;no&quot;))
+)
+head(imb, 4)
+#&gt; # A tibble: 4 x 2
+#&gt;   obs   pred
+#&gt;   &lt;fct&gt; &lt;fct&gt;
+#&gt; 1 no    no
+#&gt; 2 no    no
+#&gt; 3 no    yes
+#&gt; 4 no    no</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 1 contrasts accuracy with MCC on the same imbalanced data.</strong> Accuracy looks healthy because the model agrees with the dominant class most of the time. MCC tells the real story.</p>
+
+<div class="webr-container" data-block-title="Compare accuracy and MCC on imbalanced data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare accuracy and MCC on imbalanced data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">accuracy(imb, obs, pred)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric  .estimator .estimate
+#&gt;   &lt;chr&gt;    &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 accuracy binary         0.825
+
+mcc(imb, obs, pred)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 mcc     binary        0.0322</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Accuracy is 0.825 but MCC sits barely above zero. The 82 percent figure is inflated by correct rejections of the majority class; MCC sees that the model adds almost nothing on top of always predicting "no".</p>
+
+<p><strong>Example 2 scores a multiclass setup.</strong> For three or more classes, yardstick uses the multiclass MCC due to Gorodkin (2004): the result is a scalar that generalizes the binary phi coefficient to a K by K confusion table.</p>
+
+<div class="webr-container" data-block-title="Multiclass MCC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multiclass MCC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+multi &lt;- tibble(
+  obs = factor(sample(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), 150, replace = TRUE, prob = c(0.6, 0.3, 0.1)),
+               levels = c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;)),
+  pred = factor(sample(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), 150, replace = TRUE, prob = c(0.6, 0.3, 0.1)),
+                levels = c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;))
+)
+
+mcc(multi, truth = obs, estimate = pred)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 mcc     multiclass    -0.0246</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>.estimator</code> column reports <code>multiclass</code>. There is no macro vs micro choice to make; yardstick computes the single scalar directly from the full confusion matrix.</p>
+
+<p><strong>Example 3 groups scoring by resample fold.</strong> With cross-validation predictions in one tibble, <code>group_by()</code> plus mcc returns one score per fold.</p>
+
+<div class="webr-container" data-block-title="Per-fold MCC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-fold MCC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">folded &lt;- imb |&gt;
+  mutate(fold = rep(paste0(&quot;fold&quot;, 1:4), each = 50))
+
+folded |&gt;
+  group_by(fold) |&gt;
+  mcc(truth = obs, estimate = pred)
+#&gt; # A tibble: 4 x 4
+#&gt;   fold  .metric .estimator .estimate
+#&gt;   &lt;chr&gt; &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 fold1 mcc     binary        0.0000
+#&gt; 2 fold2 mcc     binary        0.0612
+#&gt; 3 fold3 mcc     binary        0.0428
+#&gt; 4 fold4 mcc     binary        0.0287</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 4 uses the vector interface for ad-hoc checks.</strong> <code>mcc_vec()</code> takes two factors directly and returns a numeric scalar instead of a tibble.</p>
+
+<div class="webr-container" data-block-title="Vector interface for quick checks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vector interface for quick checks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mcc_vec(imb$obs, imb$pred)
+#&gt; [1] 0.03224</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The vector form is the right choice inside <code>map()</code> calls, custom tuning code, or unit tests where a tibble would be overhead.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Combine MCC with accuracy in a metric_set().</strong> Wrap both into a single callable so you score them in one pass: <code>class_metrics &lt;- metric_set(accuracy, mcc)</code> then <code>class_metrics(df, truth, estimate)</code> returns a two-row tibble you can <code>pivot_wider()</code> or plot directly.</div></div>
+
+<h2>mcc() compared with related metrics</h2>
+
+<p><strong>MCC sits in the same family as f_meas() and <a class="auto-link" href="yardstick-bal_accuracy-in-R.html" title="yardstick bal_accuracy() in R: Score Imbalanced Classifiers">bal_accuracy()</a>, but reads them differently.</strong> The table below summarizes when to swap one for another.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Metric</th>
+<th>Best use case</th>
+<th>Limitation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mcc()</code></td>
+<td>Single robust score on imbalanced or balanced data</td>
+<td>Harder to explain than accuracy or F1</td>
+</tr>
+<tr>
+<td><code>accuracy()</code></td>
+<td>Balanced classes, equal error costs</td>
+<td>Misleading on skewed data</td>
+</tr>
+<tr>
+<td><code>bal_accuracy()</code></td>
+<td>Imbalanced classes, equal cost per class</td>
+<td>Hides class-specific failure modes</td>
+</tr>
+<tr>
+<td><code>f_meas()</code></td>
+<td>Precision-recall blend, harmonic mean</td>
+<td>Equal precision and recall weighting is a choice</td>
+</tr>
+<tr>
+<td><code>j_index()</code></td>
+<td>Two-class screening, Youden's J</td>
+<td>Binary only</td>
+</tr>
+<tr>
+<td><code>kap()</code></td>
+<td>Chance-corrected agreement</td>
+<td>Sensitive to marginal frequencies</td>
+</tr>
+</tbody>
+</table>
+
+<p>A practical rule: report MCC as the headline whenever any class is below 30 percent of the data, and add <code>roc_auc()</code> if you have probabilities.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>MCC and Cohen's kappa are different chance-corrected scores.</strong> Kappa subtracts agreement expected from marginal class distributions; MCC normalizes chi-square. They usually agree on rankings but diverge on extreme skew.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three small mistakes account for most mcc() errors.</strong> Each one has a clear fix.</p>
+
+<p>The first is passing <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">character vectors</a> instead of factors. yardstick needs factors to confirm that both columns share the same levels in the same order. The fix is one <code>factor()</code> call:</p>
+
+<div class="webr-container" data-block-title="Fix: convert character columns to factors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fix: convert character columns to factors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bad &lt;- tibble(obs = c(&quot;yes&quot;, &quot;no&quot;, &quot;yes&quot;, &quot;no&quot;), pred = c(&quot;yes&quot;, &quot;yes&quot;, &quot;no&quot;, &quot;no&quot;))
+# mcc(bad, obs, pred)  # would error
+bad &lt;- bad |&gt;
+  mutate(across(c(obs, pred), \(x) factor(x, levels = c(&quot;yes&quot;, &quot;no&quot;))))
+mcc(bad, obs, pred)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 mcc     binary             0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second pitfall is reading MCC on the same scale as accuracy. MCC ranges from -1 to 1, not 0 to 1. A score of 0.3 is solid; 0.7 is excellent. Label the scale on plots so stakeholders used to accuracy do not misread it.</p>
+
+<p>The third pitfall is a degenerate confusion matrix. When the model predicts only one class, one denominator in the formula goes to zero and yardstick returns 0 by convention. Inspect <code>conf_mat()</code> before trusting a near-zero score.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A zero MCC does not always mean random predictions.</strong> It also returns zero when the model predicts a single class for every row, regardless of how often that class appears in truth. Always pair mcc with <code>conf_mat()</code> so you can tell the two cases apart.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the built-in <code>hpc_cv</code> data from yardstick, which contains predictions across ten resamples for a multiclass problem. Compute MCC per resample, then sort the result. Save the per-resample tibble to <code>ex_mcc_by_fold</code>.</p>
+<div class="webr-container" data-block-title="Your turn: per-resample MCC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: per-resample MCC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+data(&quot;hpc_cv&quot;)
+
+# Try it: per-resample MCC
+ex_mcc_by_fold &lt;- # your code here
+
+ex_mcc_by_fold
+#&gt; Expected: 10 rows, one per Resample value</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+ex_mcc_by_fold &lt;- hpc_cv |&gt;
+  group_by(Resample) |&gt;
+  mcc(truth = obs, estimate = pred)
+
+ex_mcc_by_fold |&gt;
+  arrange(desc(.estimate)) |&gt;
+  head(3)
+#&gt; # A tibble: 3 x 4
+#&gt;   Resample .metric .estimator .estimate
+#&gt;   &lt;chr&gt;    &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 Fold06   mcc     multiclass     0.515
+#&gt; 2 Fold02   mcc     multiclass     0.508
+#&gt; 3 Fold10   mcc     multiclass     0.502</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Grouping by Resample before calling mcc gives one multiclass MCC per fold. Sorting by <code>.estimate</code> highlights the strongest fold, which you would then inspect with <code>conf_mat()</code> for class-specific patterns.</p>
+
+</details>
+</section>
+
+<h2>Related yardstick metrics</h2>
+
+<p><strong>mcc() is one entry in the yardstick class-metric family.</strong> Reach for these neighbors when MCC alone is not enough:</p>
+
+<ul>
+
+<li><code>accuracy()</code> for the unbalanced baseline you compare against</li>
+
+<li><code>bal_accuracy()</code> for the macro-recall view of the same problem</li>
+
+<li><code>f_meas()</code> for a precision-recall blend</li>
+
+<li><code>kap()</code> for chance-corrected agreement</li>
+
+<li><code>j_index()</code> for the binary Youden's J</li>
+
+<li><code>roc_auc()</code> and <code>pr_auc()</code> for probability-based ranking metrics</li>
+
+</ul>
+
+<p>For the full set, see the <a href="https://yardstick.tidymodels.org/reference/index.html">yardstick reference index</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How is MCC calculated for two classes?</strong></p>
+
+<p>For <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">binary classification</a>, MCC reads the four cells (TP, TN, FP, FN) and returns TP times TN minus FP times FN, divided by the square root of the four marginal totals multiplied. The result is the phi coefficient, identical to a <a class="auto-link" href="Correlation-in-R.html" title="Correlation in R: Choose Between Pearson, Spearman, and Kendall, With Tests">Pearson correlation</a> between two binary vectors.</p>
+
+<p><strong>When should I prefer mcc() over accuracy()?</strong></p>
+
+<p>Use MCC whenever any class is rare or the costs of false positives and false negatives are not symmetric. Accuracy can sit at 95 percent while a model ignores the minority class entirely; MCC drops to near zero in that case and exposes the failure with a single number.</p>
+
+<p><strong>Does mcc() work for multiclass classification?</strong></p>
+
+<p>Yes. yardstick switches <code>.estimator</code> from <code>binary</code> to <code>multiclass</code> based on the number of factor levels. The multiclass formula is the Gorodkin generalization of the phi coefficient and returns a single scalar in [-1, 1] from the full K by K confusion matrix.</p>
+
+<p><strong>Can I compute MCC from a parsnip workflow?</strong></p>
+
+<p>Pipe <code>augment()</code> output into mcc. With <code>augment(fit, new_data = test)</code> the result already contains the truth column and <code>.pred_class</code>, so the call becomes <code>augment(fit, test) |&gt; mcc(class, .pred_class)</code>. Replace <code>class</code> with the actual outcome column name.</p>
+
+<p><strong>What does an MCC of zero really mean?</strong></p>
+
+<p>Zero indicates no correlation between predicted and observed classes, which usually means the model predicts at random. yardstick also returns zero when the model predicts a single class for every row, even if that class dominates truth. Inspect <code>conf_mat()</code> to distinguish "random" from "degenerate" before reporting.</p>
+
+<h2>Summary</h2>
+
+<p><strong>mcc() is the right yardstick metric the moment class balance becomes a worry.</strong> Read it next to <code>accuracy()</code> so the gap quantifies how much imbalance is hiding, and reach for <code>roc_auc()</code> or <code>f_meas()</code> when you need probability rankings or a precision-recall blend. With <code>group_by()</code> it scales to any resampling scheme without reshaping.</p>
+
+{% endraw %}
