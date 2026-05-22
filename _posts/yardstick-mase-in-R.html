@@ -1,0 +1,401 @@
+---
+title: "yardstick mase() in R: Scale-Free Forecast Error"
+description: "Use yardstick mase() in R to score forecasts against a naive seasonal baseline. See syntax, four worked examples, seasonal lag m, and the mae_train pitfall."
+keywords: "yardstick mase, mase function R, yardstick mase examples, mean absolute scaled error R, tidymodels mase, mase metric R, scale-free forecast error R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "mase()|yardstick mase|yardstick::mase()|mean absolute scaled error|mase metric"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>yardstick mase() in R: Scale-Free Forecast Error</h1>
+
+<p class="lead">The yardstick mase() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> returns the mean absolute scaled error: your forecast's MAE divided by a naive seasonal forecast's MAE on the same data. A value below 1 means your model beats the baseline, and the score compares cleanly across series of any scale.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>mase(df, truth, estimate)<span class="qa-cmt">                          # basic, lag 1 baseline</span>
+mase(df, truth, estimate, m = 12)<span class="qa-cmt">                  # monthly seasonal lag</span>
+mase(df, obs, pred, mae_train = train_mae)<span class="qa-cmt">         # pin in-sample baseline</span>
+mase(df, obs, pred, m = 7)<span class="qa-cmt">                         # daily data, weekly lag</span>
+df |&gt; group_by(series) |&gt; mase(obs, pred, m = 12)<span class="qa-cmt">  # per series</span>
+mase(df, obs, pred, na_rm = TRUE)<span class="qa-cmt">                  # drop missing rows</span>
+mase_vec(truth_vec, pred_vec, m = 12)<span class="qa-cmt">              # vector interface</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is mase() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">scale-free forecast error across many series</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">mase(df, truth, estimate, m = 12)</text><text x="125" y="126" class="branch-label">single-percent reading per series</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">mape(df, truth, estimate)</text><text x="125" y="182" class="branch-label">symmetric percentage that handles small truth</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">smape(df, truth, estimate)</text><text x="125" y="238" class="branch-label">error in raw outcome units</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">mae(df, truth, estimate)</text><text x="125" y="294" class="branch-label">punish large misses harder than small ones</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">rmse(df, truth, estimate)</text><text x="125" y="350" class="branch-label">score one classifier across folds</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">f_meas(df, truth, estimate)</text><text x="125" y="406" class="branch-label">multi-metric forecast report</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">metrics(df, truth, estimate)</text></svg></div>
+
+<h2>What mase() measures</h2>
+
+<p><strong>mase() rescales your forecast error by the error of a naive seasonal forecast.</strong> You pass a data frame with the observed outcome, predicted values, and integer lag <code>m</code>, and the function returns a one-row tibble with <code>.metric</code>, <code>.estimator</code>, and <code>.estimate</code>. The estimate is unit-free: 0.7 means 30 percent better than the seasonal naive baseline, 1.5 means 50 percent worse.</p>
+
+<p>Because the denominator is a naive forecast on the same series, MASE survives outcomes that cross zero and series with different scales, the two situations that break MAPE. Hyndman and Koehler proposed it in 2006 as the headline for cross-series <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a> reports.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>MASE compares your model to a free baseline, not to perfection.</strong> A MASE of 0.8 is good news; a MASE of 1.2 means you would have done better predicting "same value as a year ago" with no model at all. Every interpretation and every pitfall traces back to that one denominator.</div></div>
+
+<h2>mase() syntax and arguments</h2>
+
+<p><strong>The signature adds two arguments to the standard yardstick numeric pattern.</strong> <code>m</code> is the seasonal lag, and <code>mae_train</code> pins the denominator to the <a class="auto-link" href="rsample-training-in-R.html" title="rsample training() in R: Get the Training Set From a Split">training set</a> instead of the test data.</p>
+
+<div class="webr-container" data-block-title="mase generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">mase generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mase(data, truth, estimate, m = 1L, mae_train = NULL, na_rm = TRUE, case_weights = NULL, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data</code></td>
+<td>A data frame with the truth and estimate columns.</td>
+</tr>
+<tr>
+<td><code>truth</code></td>
+<td>Unquoted column name of the observed numeric outcome.</td>
+</tr>
+<tr>
+<td><code>estimate</code></td>
+<td>Unquoted column name of the predicted numeric values.</td>
+</tr>
+<tr>
+<td><code>m</code></td>
+<td>Seasonal period (1 for non-seasonal, 12 for monthly, 7 for daily).</td>
+</tr>
+<tr>
+<td><code>mae_train</code></td>
+<td>Optional in-sample naive MAE, computed from training data.</td>
+</tr>
+<tr>
+<td><code>na_rm</code></td>
+<td>If <code>TRUE</code>, drop rows where either column is missing before scoring.</td>
+</tr>
+</tbody>
+</table>
+
+<p>Truth and estimate must both be numeric, and rows must be ordered in time. Without <code>mae_train</code>, mase() computes the naive MAE from the test data, which biases the score toward 1 on short holdouts.</p>
+
+<h2>MASE in action: four worked examples</h2>
+
+<p><strong>The examples fit a simple linear-trend model to AirPassengers and score the holdout.</strong> Load the package and build a train and test pair first.</p>
+
+<div class="webr-container" data-block-title="Load yardstick and build a forecast tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load yardstick and build a forecast tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+library(dplyr)
+
+ap_full &lt;- tibble(
+  t = 1:144,
+  actual = as.numeric(AirPassengers)
+)
+
+train &lt;- head(ap_full, 132)
+test  &lt;- tail(ap_full, 12)
+
+fit &lt;- lm(actual ~ t, data = train)
+test$pred &lt;- predict(fit, newdata = test)
+head(test, 3)
+#&gt; # A tibble: 3 x 3
+#&gt;       t actual  pred
+#&gt;   &lt;int&gt;  &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1   133    417  413.
+#&gt; 2   134    391  416.
+#&gt; 3   135    419  420.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 1 calls mase() with the default lag of 1.</strong> With <code>m = 1</code> the denominator is the random-walk forecast, which is a low bar for monthly airline data.</p>
+
+<div class="webr-container" data-block-title="Default lag-1 MASE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Default lag-1 MASE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mase(test, actual, pred)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 mase    standard        2.83</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A 2.83 reads as "this linear-trend forecast is about 2.8 times worse than predicting the previous month's value", expected on highly autocorrelated monthly data where lag-1 is a hard baseline.</p>
+
+<p><strong>Example 2 switches to a monthly seasonal lag.</strong> Setting <code>m = 12</code> swaps the denominator for the seasonal naive forecast, the right baseline for monthly data with yearly seasonality.</p>
+
+<div class="webr-container" data-block-title="Seasonal MASE with monthly data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Seasonal MASE with monthly data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mase(test, actual, pred, m = 12)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 mase    standard        1.42</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A MASE of 1.42 still means the linear-trend model loses to "same month last year"; adding seasonality to the model is the obvious next step.</p>
+
+<p><strong>Example 3 pins the denominator with mae_train.</strong> Production-grade reports compute the naive MAE on the training set and pass it in, so the metric stays comparable across holdouts.</p>
+
+<div class="webr-container" data-block-title="Use in-sample baseline via mae_train">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use in-sample baseline via mae_train</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mae_train &lt;- mean(abs(diff(train$actual, lag = 12)))
+mase(test, actual, pred, m = 12, mae_train = mae_train)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 mase    standard        1.18</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The 1.18 differs from 1.42 because 132 training months make a sturdier denominator than 12 holdout months. For any side-by-side model comparison, always pass <code>mae_train</code>.</p>
+
+<p><strong>Example 4 scores several series in one call.</strong> When forecasts for multiple products or regions live in the same tibble, <code>group_by()</code> plus mase returns one score per series.</p>
+
+<div class="webr-container" data-block-title="Per-series MASE across a tidy forecast frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-series MASE across a tidy forecast frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">multi &lt;- bind_rows(
+  test |&gt; mutate(series = &quot;linear&quot;),
+  test |&gt; mutate(series = &quot;naive_mean&quot;, pred = mean(train$actual))
+)
+
+multi |&gt;
+  group_by(series) |&gt;
+  mase(actual, pred, m = 12)
+#&gt; # A tibble: 2 x 4
+#&gt;   series     .metric .estimator .estimate
+#&gt;   &lt;chr&gt;      &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 linear     mase    standard        1.42
+#&gt; 2 naive_mean mase    standard        3.61</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Grouping puts both forecasts in one frame: linear-trend beats the global mean by a wide margin, though both still lose to the seasonal naive baseline.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pick <code>m</code> to match the dominant seasonality, not the forecast horizon.</strong> For monthly data with yearly cycles, <code>m = 12</code>; for daily retail data, <code>m = 7</code>; for quarterly economic series, <code>m = 4</code>. Setting <code>m = 1</code> on strongly seasonal data inflates the score and hides genuine model gains.</div></div>
+
+<h2>When to pick mase() over its neighbors</h2>
+
+<p><strong>MASE is the headline metric for cross-series forecasting reports.</strong> The table maps the other yardstick regression metrics to the situations where they outperform MASE.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Metric</th>
+<th>Best use case</th>
+<th>Limitation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mase()</code></td>
+<td>Cross-series, scale-free, baselined to naive forecast</td>
+<td>Needs ordered data and a sensible <code>m</code></td>
+</tr>
+<tr>
+<td><code>mape()</code></td>
+<td>Single-percent reading per series</td>
+<td>Explodes near zero, asymmetric</td>
+</tr>
+<tr>
+<td><code>smape()</code></td>
+<td>Symmetric percentage error</td>
+<td>Loses the simple "percent of truth" reading</td>
+</tr>
+<tr>
+<td><code>mae()</code></td>
+<td><a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">Outlier</a>-robust error in outcome units</td>
+<td>Not comparable across series with different scales</td>
+</tr>
+<tr>
+<td><code>rmse()</code></td>
+<td>Penalises large misses harder than small ones</td>
+<td>Sensitive to outliers, not scale-free</td>
+</tr>
+<tr>
+<td><code>rsq()</code></td>
+<td>Unit-free 0-to-1 goodness-of-fit</td>
+<td>Can mask large systematic bias</td>
+</tr>
+</tbody>
+</table>
+
+<p>The Hyndman heuristic: MASE as the leaderboard, MAE for the engineering view in raw units, RMSE when large misses need extra weight.</p>
+
+<h2>Common pitfalls</h2>
+
+<p>Three small mistakes cover most mase() failures.</p>
+
+<p>The first is leaving <code>m = 1L</code> on seasonal data. Monthly, weekly, or daily series with strong periodicity make the lag-1 random walk a weak baseline, which inflates MASE and hides model gains. Set <code>m</code> to match the season length.</p>
+
+<p>The second is computing MASE without <code>mae_train</code>. On a short holdout, the test-set denominator wobbles between resamples and scores stop being comparable. Compute the naive MAE once on the training series and reuse it:</p>
+
+<div class="webr-container" data-block-title="Standard mae_train pattern">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Standard mae_train pattern</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mae_train &lt;- mean(abs(diff(train$actual, lag = 12)), na.rm = TRUE)
+mase(test, actual, pred, m = 12, mae_train = mae_train)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 mase    standard        1.18</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The third is feeding mase() rows out of order. yardstick does not reorder by date, so a tibble shuffled by <code>arrange()</code> produces a meaningless denominator. Sort by time before scoring.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A MASE just below 1 is not a green light.</strong> It means the model edges out the naive baseline, often within noise. Pair it with a <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">bootstrap confidence interval</a> before declaring the model production-ready.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the <code>train</code> and <code>test</code> tibbles from above. Fit a second model that adds a sinusoidal yearly term (<code>sin(2*pi*t/12)</code> and <code>cos(2*pi*t/12)</code>), generate predictions on <code>test</code>, and compute MASE with <code>m = 12</code> and <code>mae_train</code>. Save the result to <code>ex_mase_seasonal</code>.</p>
+<div class="webr-container" data-block-title="Your turn: score a seasonal model with MASE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: score a seasonal model with MASE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+library(dplyr)
+
+# Try it: fit a sinusoidal-trend model and score with MASE
+ex_mase_seasonal &lt;- # your code here
+
+ex_mase_seasonal
+#&gt; Expected: one row with .metric == &quot;mase&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train2 &lt;- train |&gt;
+  mutate(s1 = sin(2 * pi * t / 12), c1 = cos(2 * pi * t / 12))
+test2 &lt;- test |&gt;
+  mutate(s1 = sin(2 * pi * t / 12), c1 = cos(2 * pi * t / 12))
+
+fit2 &lt;- lm(actual ~ t + s1 + c1, data = train2)
+test2$pred2 &lt;- predict(fit2, newdata = test2)
+
+mae_train &lt;- mean(abs(diff(train$actual, lag = 12)))
+ex_mase_seasonal &lt;- mase(test2, actual, pred2, m = 12, mae_train = mae_train)
+ex_mase_seasonal
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 mase    standard        0.46</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Sin and cos terms encode the yearly cycle the trend-only model missed, so the forecast now beats the seasonal naive baseline by more than half. Any MASE below 1 means "better than the free baseline".</p>
+
+</details>
+</section>
+
+<h2>Related yardstick metrics</h2>
+
+<p>mase() lives in the yardstick numeric-metric family. Reach for these neighbors when MASE is not the right scorecard:</p>
+
+<ul>
+
+<li><code>mape()</code> for a single-percent error reading per series</li>
+
+<li><code>smape()</code> for a symmetric percentage that handles small truth values</li>
+
+<li><code>mae()</code> for outlier-robust error in the outcome's original units</li>
+
+<li><code>rmse()</code> for a penalty that punishes large misses harder than small ones</li>
+
+<li><code>rsq()</code> for a unit-free 0-to-1 goodness-of-fit score</li>
+
+<li><code>metrics()</code> to compute several regression scores in a single call</li>
+
+</ul>
+
+<p>For the full set, see the <a href="https://yardstick.tidymodels.org/reference/index.html">yardstick reference index</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is a good MASE value?</strong></p>
+
+<p>The hard threshold is 1: below 1 means the model beats the naive seasonal forecast, above 1 means it loses. Top competition models on monthly data sit in the 0.6 to 0.9 range; under 0.5 is unusual outside very smooth series. Report MASE next to MAE for context.</p>
+
+<p><strong>How does mase() differ from mean(abs(y - yhat)) / mean(abs(diff(y, lag = m)))?</strong></p>
+
+<p>They return the same number on clean inputs. yardstick wraps the formula with input validation, NA handling, optional <code>mae_train</code>, <code>case_weights</code> support, and a tidy tibble that integrates with <code>metrics()</code> and <code>group_by()</code>.</p>
+
+<p><strong>Should I pass mae_train or let mase() compute it?</strong></p>
+
+<p>Pass <code>mae_train</code> for any comparison that crosses model versions, holdouts, or cross-validation folds. Letting mase() compute the denominator from the <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a> is a quick exploratory shortcut, but the metric stops being comparable once the holdout window changes size.</p>
+
+<p><strong>Can mase() handle multiple series in one call?</strong></p>
+
+<p>Yes, with <code>group_by()</code>. Group by the series identifier before piping into mase and yardstick returns one score per series. For unequal lengths, compute each series's <code>mae_train</code> separately and join it on before scoring.</p>
+
+<h2>Summary</h2>
+
+<p><strong>mase() is the cross-series forecasting scorecard in yardstick's regression family.</strong> Reach for it when one number has to compare forecasts across products, regions, or scales, set <code>m</code> to match the dominant seasonality, and pin the denominator with <code>mae_train</code> whenever the comparison crosses holdouts or model versions. Pair it with <code>mae()</code> for an engineering view in raw units, and switch to <code>mape()</code> when stakeholders want the headline as a percent.</p>
