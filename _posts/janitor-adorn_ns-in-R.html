@@ -1,0 +1,374 @@
+---
+title: "janitor adorn_ns() in R: Append Counts to Percentage Tables"
+description: "Use janitor adorn_ns() to paste raw counts onto a percentage table, like 47.2% (102). Covers position, format_func, the ns argument, and column selection."
+keywords: "janitor adorn_ns, adorn_ns function R, janitor adorn_ns examples, append counts to percentages R, tabyl counts and percentages, janitor crosstab counts, R show n with percent"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "adorn_ns()|janitor adorn_ns|janitor::adorn_ns()|append counts to percentages|show n with percent"
+auto_link_case_sensitive: true
+fr_parent: "janitor-Package-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>janitor adorn_ns() in R: Append Counts to Percentage Tables</h1>
+
+<p class="lead">The <code>janitor adorn_ns()</code> function pastes raw frequency counts in parentheses onto an already-formatted percentage table, turning cells like "47.2%" into "47.2% (102)". It is the final readability step in the janitor reporting chain and gives report readers both the share and the denominator in one glance.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>adorn_ns(df)<span class="qa-cmt">                                          # default: counts after percent, &quot;47% (12)&quot;</span>
+adorn_ns(df, position = &quot;front&quot;)<span class="qa-cmt">                      # counts first, &quot;12 (47%)&quot;</span>
+adorn_ns(df, ns = my_counts)<span class="qa-cmt">                          # supply counts when attribute is missing</span>
+adorn_ns(df, format_func = function(n) format(n, big.mark = &quot;,&quot;))<span class="qa-cmt">  # thousands separators</span>
+adorn_ns(df, , q1, q2)<span class="qa-cmt">                                # append to selected columns only</span>
+tabyl(x) |&gt; adorn_percentages() |&gt; adorn_pct_formatting() |&gt; adorn_ns()<span class="qa-cmt">  # canonical chain</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is adorn_ns() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">append counts to percentage cells</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">adorn_ns(df, position = &quot;rear&quot;)</text><text x="125" y="126" class="branch-label">compute the percentages themselves</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">adorn_percentages(df, denominator = &quot;row&quot;)</text><text x="125" y="182" class="branch-label">format proportions as percent strings</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">adorn_pct_formatting(df, digits = 1)</text><text x="125" y="238" class="branch-label">show only counts without percentages</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">tabyl(x, y) without any adorn_percentages</text><text x="125" y="294" class="branch-label">add row or column totals</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">adorn_totals(df, where = &quot;row&quot;)</text><text x="125" y="350" class="branch-label">attach a banner row above the table</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">adorn_title(df, &quot;top&quot;, row_name = &quot;cyl&quot;)</text><text x="125" y="406" class="branch-label">format counts outside a tabyl</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">scales::label_comma()(x)</text></svg></div>
+
+<h2>What adorn_ns() does in one sentence</h2>
+
+<p><strong><code>adorn_ns()</code> pastes a raw count, in parentheses, onto each cell of an already-formatted percentage table.</strong> It does not compute anything new; it reaches for counts that <code>tabyl()</code> quietly stashed as the <code>&quot;core&quot;</code> attribute and concatenates them with the displayed percent strings.</p>
+
+<p>The function expects the input cells to be character percent strings produced by <code>adorn_pct_formatting()</code>. Calling it directly on numeric proportions yields "0.472 (102)" rather than "47.2% (102)", which is rarely what reports want. Place <code>adorn_ns()</code> after <code>adorn_pct_formatting()</code>, never before.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>adorn_ns()</code> takes the formatted table and four optional arguments that control placement, the source of counts, the number format, and which columns to touch.</strong> The first column is treated as the row identifier and skipped, mirroring the rest of the janitor adorn family.</p>
+
+<div class="webr-container" data-block-title="Build a tabyl, percentage it, format it">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a tabyl, percentage it, format it</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+library(dplyr)
+
+base &lt;- mtcars |&gt;
+  tabyl(cyl, gear)
+
+base
+#&gt;  cyl  3  4  5
+#&gt;    4  1  8  2
+#&gt;    6  2  4  1
+#&gt;    8 12  0  2
+
+props &lt;- base |&gt;
+  adorn_percentages(denominator = &quot;row&quot;) |&gt;
+  adorn_pct_formatting(digits = 1)
+
+props
+#&gt;  cyl     3     4     5
+#&gt;    4   9.1% 72.7% 18.2%
+#&gt;    6  28.6% 57.1% 14.3%
+#&gt;    8  85.7%  0.0% 14.3%</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signature:</p>
+
+<pre><code>adorn_ns(dat, position = &quot;rear&quot;, ns = attr(dat, &quot;core&quot;),
+         format_func = function(x) format(x, big.mark = &quot;,&quot;), ...)</code></pre>
+
+<p>Only <code>dat</code> is required. <code>position</code> is <code>&quot;rear&quot;</code> (the default, counts after the percent) or <code>&quot;front&quot;</code> (counts before). <code>ns</code> is the source of raw counts; by default it pulls from the <code>&quot;core&quot;</code> attribute that <code>tabyl()</code> attaches automatically. <code>format_func</code> formats each count integer to a string. The <code>...</code> argument restricts which columns receive counts.</p>
+
+<h2>Five common patterns</h2>
+
+<p><strong>These five patterns cover almost every shape of count-plus-percent table you will produce.</strong> Each block reuses the <code>props</code> table from the syntax section, so you can run them in order.</p>
+
+<h3>1. Default: counts in the rear</h3>
+
+<p><strong>Calling <code>adorn_ns()</code> with no arguments appends the raw count in parentheses after each percentage cell.</strong> This is the most common reporting shape in surveys and clinical tables.</p>
+
+<div class="webr-container" data-block-title="Default counts in the rear">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Default counts in the rear</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">props |&gt;
+  adorn_ns()
+#&gt;  cyl          3         4          5
+#&gt;    4   9.1% (1) 72.7% (8)  18.2% (2)
+#&gt;    6  28.6% (2) 57.1% (4)  14.3% (1)
+#&gt;    8 85.7% (12)  0.0% (0)  14.3% (2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Counts pull from <code>attr(props, &quot;core&quot;)</code>, which <code>tabyl()</code> stashed at the start of the chain. The percent and count never disagree because they come from the same source <a class="auto-link" href="Categorical-Data-in-R.html" title="Categorical Data in R: Frequency Tables, Crosstabs & Mosaic Plots">frequency table</a>.</p>
+
+<h3>2. Counts in the front via <code>position = &quot;front&quot;</code></h3>
+
+<p><strong>Setting <code>position = &quot;front&quot;</code> swaps the order so counts lead and percentages follow in parentheses.</strong> Use this when readers care more about the absolute denominator than the share, for example in subgroup tables where small N can mislead.</p>
+
+<div class="webr-container" data-block-title="Counts then percentages">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Counts then percentages</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">props |&gt;
+  adorn_ns(position = &quot;front&quot;)
+#&gt;  cyl          3         4         5
+#&gt;    4   1 (9.1%) 8 (72.7%) 2 (18.2%)
+#&gt;    6  2 (28.6%) 4 (57.1%) 1 (14.3%)
+#&gt;    8 12 (85.7%) 0 (0.0%) 2 (14.3%)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The argument is purely cosmetic. The underlying counts are identical to pattern 1; only the parenthesis placement changes.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pick position by stakeholder.</strong> Executive audiences usually want the percentage first (the headline number); statisticians and clinicians often want N first to scan for low-power cells. When in doubt, stick with the rear default.</div></div>
+
+<h3>3. Format large counts with thousands separators</h3>
+
+<p><strong>Pass a custom <code>format_func</code> to control how counts are printed.</strong> The default already inserts commas at every thousand, but you can override it to use any format string or apply rounding.</p>
+
+<div class="webr-container" data-block-title="Build a synthetic large-N table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a synthetic large-N table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales &lt;- data.frame(
+  segment = c(&quot;SMB&quot;, &quot;Mid&quot;, &quot;Enterprise&quot;),
+  q1      = c(0.235, 0.412, 0.353)
+)
+sales_n &lt;- data.frame(
+  segment = c(&quot;SMB&quot;, &quot;Mid&quot;, &quot;Enterprise&quot;),
+  q1      = c(12500, 21900, 18750)
+)
+
+sales |&gt;
+  adorn_pct_formatting(digits = 1) |&gt;
+  adorn_ns(ns = sales_n,
+           format_func = function(n) format(n, big.mark = &quot;,&quot;))
+#&gt;     segment              q1
+#&gt;         SMB  23.5% (12,500)
+#&gt;         Mid  41.2% (21,900)
+#&gt;  Enterprise  35.3% (18,750)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For abbreviated counts in dashboards, set <code>format_func = function(n) paste0(round(n / 1000, 1), &quot;k&quot;)</code> so 12,500 becomes "12.5k". The function receives the raw integer vector and must return a character vector of the same length.</p>
+
+<h3>4. Append counts to selected columns only</h3>
+
+<p><strong>The <code>...</code> argument accepts unquoted column names so non-percent columns stay untouched.</strong> This keeps mixed tables (where some columns are shares and others are raw values) readable.</p>
+
+<div class="webr-container" data-block-title="Restrict adorn_ns to chosen percent columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Restrict adorn_ns to chosen percent columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mixed_pct &lt;- data.frame(
+  region = c(&quot;North&quot;, &quot;South&quot;, &quot;East&quot;),
+  share  = c(&quot;12.3%&quot;, &quot;45.6%&quot;, &quot;42.1%&quot;),
+  rev    = c(125000, 480000, 395000)
+)
+
+mixed_n &lt;- data.frame(
+  region = c(&quot;North&quot;, &quot;South&quot;, &quot;East&quot;),
+  share  = c(120, 446, 411),
+  rev    = c(NA, NA, NA)
+)
+
+mixed_pct |&gt;
+  adorn_ns(ns = mixed_n, , share)
+#&gt;   region        share     rev
+#&gt;    North  12.3% (120)  125000
+#&gt;    South  45.6% (446)  480000
+#&gt;     East  42.1% (411)  395000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Note the double comma before <code>share</code>: it skips the <code>position</code> argument by position so the column selector lands in <code>...</code>. The <code>rev</code> column passes through untouched because <code>ns_table</code> has <code>NA</code> for it and the selector excludes it.</p>
+
+<h3>5. Supply counts via the <code>ns</code> argument</h3>
+
+<p><strong>When the input lost its <code>&quot;core&quot;</code> attribute (for example after <code>as.data.frame()</code> or a <code>dplyr</code> step), pass <code>ns</code> explicitly.</strong> This is the rescue path for chains that strip attributes silently.</p>
+
+<div class="webr-container" data-block-title="Rebuild the chain when attributes are gone">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rebuild the chain when attributes are gone</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">flat &lt;- props
+attributes(flat)$core &lt;- NULL   # simulate attribute loss
+
+flat |&gt;
+  adorn_ns(ns = base)
+#&gt;  cyl          3         4          5
+#&gt;    4   9.1% (1) 72.7% (8)  18.2% (2)
+#&gt;    6  28.6% (2) 57.1% (4)  14.3% (1)
+#&gt;    8 85.7% (12)  0.0% (0)  14.3% (2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>ns</code> argument accepts any data frame with the same shape as <code>dat</code> (same number of rows, same column names except the first identifier). Most often it is the raw <code>tabyl()</code> output saved earlier in the script.</p>
+
+<h2>Compare with alternatives</h2>
+
+<p><strong>Base R requires manual <code>paste()</code>, and gt or kable offer prettier rendering at higher cost.</strong> The right pick depends on whether the table lives inside a janitor chain or downstream in a reporting package.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Best for</th>
+<th>Watch out for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>janitor::adorn_ns()</code></td>
+<td>Tabyl chains, character-cell tables</td>
+<td>Requires <code>adorn_pct_formatting()</code> first</td>
+</tr>
+<tr>
+<td><code>paste0(pct, &quot; (&quot;, n, &quot;)&quot;)</code></td>
+<td>Single-column quick fixes</td>
+<td>Manual; no column-skipping</td>
+</tr>
+<tr>
+<td><code>gt::cols_merge()</code></td>
+<td>HTML reports with custom styling</td>
+<td>Requires gt dependency and a gt object</td>
+</tr>
+<tr>
+<td><code>scales::label_comma()(n)</code></td>
+<td>Formatting counts before pasting</td>
+<td>Returns vectors only, not data frames</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Do NOT call <code>adorn_ns()</code> before <code>adorn_pct_formatting()</code>.</strong> Without formatted percent strings to paste onto, the function still runs but produces output like "0.472 (102)" instead of "47.2% (102)". Always run the chain in the order: <code>tabyl()</code>, <code>adorn_percentages()</code>, <code>adorn_pct_formatting()</code>, <code>adorn_ns()</code>.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: losing the <code>&quot;core&quot;</code> attribute mid-chain.</strong> Functions like <code>as.data.frame()</code>, <code>dplyr::mutate()</code>, or <code>dplyr::rename()</code> can silently drop the attribute that holds the original counts. When that happens, <code>adorn_ns()</code> fails with "ns is NULL" or pulls stale numbers. Save the raw <code>tabyl()</code> output to a variable up front so you can pass it via <code>ns =</code> when needed.</p>
+
+<p><strong>Pitfall 2: applying <code>adorn_ns()</code> twice.</strong> Each call pastes another set of parentheses, so a double call turns "47.2% (102)" into "47.2% (102) (102)". The function does not detect that counts are already present. Inspect the chain to ensure <code>adorn_ns()</code> appears exactly once.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>adorn_pct_formatting() turns numbers into strings; adorn_ns() concatenates more text onto those strings.</strong> Both are string operations, not numeric. Once <code>adorn_ns()</code> runs, the table is purely for display and cannot be piped into any further <code>adorn_*</code> helper that expects numeric input.</div></div>
+
+<p><strong>Pitfall 3: <code>position = &quot;front&quot;</code> with <code>adorn_totals()</code>.</strong> When a totals row is appended before <code>adorn_ns()</code>, the totals cell becomes "100 (100.0%)" with <code>position = &quot;front&quot;</code>, which reads as "100 of 100 percent" and confuses readers. Run <code>adorn_totals()</code> last, after <code>adorn_ns()</code>, or stick with the <code>&quot;rear&quot;</code> default when totals are present.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Take <code>mtcars</code>, build a <code>tabyl(am, cyl)</code> cross-tab, convert to column percentages with two-decimal formatting, then append the raw counts in front with thousands separators. Save the result to <code>ex_ns</code>.</p>
+<div class="webr-container" data-block-title="Your turn: counts in front of column percentages">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: counts in front of column percentages</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: tabyl plus adorn_percentages plus adorn_pct_formatting plus adorn_ns
+ex_ns &lt;- # your code here
+
+ex_ns
+#&gt; Expected: 2 rows (&quot;0&quot; and &quot;1&quot;) with cells like &quot;3 (27.27%)&quot; and &quot;8 (72.73%)&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ns &lt;- mtcars |&gt;
+  tabyl(am, cyl) |&gt;
+  adorn_percentages(denominator = &quot;col&quot;) |&gt;
+  adorn_pct_formatting(digits = 2) |&gt;
+  adorn_ns(position = &quot;front&quot;,
+           format_func = function(n) format(n, big.mark = &quot;,&quot;))
+
+ex_ns
+#&gt;  am          4          6           8
+#&gt;   0   3 (27.27%) 4 (57.14%) 12 (85.71%)
+#&gt;   1   8 (72.73%) 3 (42.86%)  2 (14.29%)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>denominator = &quot;col&quot;</code> divides each cell by its column total so columns sum to 100 percent. The chain then formats the proportions to two decimals and pastes the raw counts in front via <code>position = &quot;front&quot;</code>.</p>
+
+</details>
+</section>
+
+<h2>Related janitor functions</h2>
+
+<p><strong><code>adorn_ns()</code> sits at the end of a seven-function family that polishes tabyl output.</strong> Each call preserves the input class so the next call works.</p>
+
+<ul>
+
+<li><code>tabyl()</code>: the upstream frequency builder; stashes raw counts in the <code>&quot;core&quot;</code> attribute</li>
+
+<li><code>adorn_percentages()</code>: converts counts to proportions</li>
+
+<li><code>adorn_pct_formatting()</code>: rounds proportions and pastes the "%" sign</li>
+
+<li><code>adorn_totals()</code>: appends totals row or column; run after <code>adorn_ns()</code> to avoid the totals-cell pitfall</li>
+
+<li><code>adorn_rounding()</code>: rounds non-percent numeric columns</li>
+
+<li><code>adorn_title()</code>: attaches a banner row above the table</li>
+
+<li><code>clean_names()</code>: standardizes column names before any of the above</li>
+
+</ul>
+
+<p>See the <a href="https://sfirke.github.io/janitor/reference/adorn_ns.html">janitor reference on tidyverse.org</a> for the full argument list.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Where does adorn_ns() get the counts from?</strong></p>
+
+<p>By default, <code>adorn_ns()</code> reads the <code>&quot;core&quot;</code> attribute that <code>tabyl()</code> attaches to its output. The attribute holds the raw frequency table that became the input to <code>adorn_percentages()</code>, so the displayed counts always match the proportions. If the attribute is missing because an intermediate step stripped it, pass the count table explicitly via the <code>ns</code> argument.</p>
+
+<p><strong>Can I use adorn_ns() without a tabyl?</strong></p>
+
+<p>Yes. Build a percent table by hand (or with <code>dplyr::summarise()</code>), apply <code>adorn_pct_formatting()</code>, and pass the matching counts via <code>ns =</code>. The function does not care whether the input is a tabyl object as long as the columns line up and the first column is treated as the row identifier.</p>
+
+<p><strong>How do I format counts as thousands or abbreviate large numbers?</strong></p>
+
+<p>Set <code>format_func</code> to a function that takes an integer vector and returns a character vector. For thousands separators, use <code>function(n) format(n, big.mark = &quot;,&quot;)</code> (the default). For "12.5k" style abbreviations, use <code>function(n) paste0(round(n / 1000, 1), &quot;k&quot;)</code>. The function applies to every count before pasting.</p>
+
+<p><strong>Why does adorn_ns() add parentheses around the counts?</strong></p>
+
+<p>The parentheses are hardcoded into the paste step to keep the format consistent across reports. There is no argument to remove them. If you need a different separator (slash, dash, brackets), use <code>paste()</code> directly on the percent and count columns after the chain, or post-process the output with <code>gsub(&quot;\\((.*)\\)&quot;, &quot;[\\1]&quot;, cells)</code>.</p>
+
+<p><strong>Does adorn_ns() work with adorn_totals()?</strong></p>
+
+<p>Yes, but run <code>adorn_totals()</code> last to avoid awkward totals cells. The order <code>tabyl() |&gt; adorn_totals() |&gt; adorn_percentages() |&gt; adorn_pct_formatting() |&gt; adorn_ns()</code> works but produces a totals cell like "100.0% (32)". The order <code>... |&gt; adorn_ns() |&gt; adorn_totals()</code> gives a cleaner totals row that ignores the per-cell counts.</p>
