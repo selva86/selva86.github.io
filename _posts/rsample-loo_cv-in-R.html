@@ -1,0 +1,325 @@
+---
+title: "rsample loo_cv() in R: Leave-One-Out Cross-Validation"
+description: "Build leave-one-out cross-validation splits in R with rsample loo_cv(). Covers n-fold structure, analysis()/assessment(), and when to prefer vfold_cv()."
+keywords: "rsample loo_cv, loo_cv function R, rsample loo_cv examples, R leave one out cross validation, leave-one-out cross-validation rsample, tidymodels loo_cv, R loo_cv resampling"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "loo_cv()|rsample loo_cv|rsample::loo_cv()|leave-one-out cross-validation|LOO cross-validation"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>rsample loo_cv() in R: Leave-One-Out Cross-Validation</h1>
+
+<p class="lead">The rsample loo_cv() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> builds <a class="auto-link" href="Compare-Bayesian-Models-in-R.html" title="Compare Bayesian Models in R: Why LOO and WAIC Beat AIC for Bayesian Fits">leave-one-out cross-validation</a> splits, where each fold holds out exactly one observation and trains on the remaining n-1 rows. It returns one split per row, so it is the right tool for small datasets where you need an almost unbiased estimate of model performance.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>loo_cv(df)<span class="qa-cmt">                              # one split per row of df</span>
+loo_cv(df) |&gt; nrow()<span class="qa-cmt">                    # equals nrow(df)</span>
+analysis(folds$splits[[1]])<span class="qa-cmt">             # n-1 training rows for fold 1</span>
+assessment(folds$splits[[1]])<span class="qa-cmt">           # the 1 held-out row for fold 1</span>
+fit_resamples(wf, resamples = loo_cv(df))<span class="qa-cmt">  # tidymodels workflow on LOO</span>
+loo_cv(df) |&gt; dim()<span class="qa-cmt">                     # n folds, 2 columns (splits, id)</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is loo_cv() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">small data (n under 100), unbiased estimate</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">loo_cv(df)</text><text x="125" y="126" class="branch-label">larger data, want fewer fits</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">vfold_cv(df, v = 10)</text><text x="125" y="182" class="branch-label">variance-reduced k-fold estimate</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">vfold_cv(df, repeats = 5)</text><text x="125" y="238" class="branch-label"><a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">time series</a> with order constraint</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">rolling_origin(df)</text><text x="125" y="294" class="branch-label"><a class="auto-link" href="Bootstrap-Confidence-Intervals-in-R.html" title="Bootstrap CIs in R: Distribution-Free Confidence Intervals for Any Statistic">bootstrap resampling</a> for standard errors</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">bootstraps(df, times = 1000)</text><text x="125" y="350" class="branch-label">one held-out test set only</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">initial_split(df)</text></svg></div>
+
+<h2>What loo_cv() does</h2>
+
+<p><strong>loo_cv() generates one resample per observation.</strong> For a data frame with n rows, it returns an rset with n splits. Each split's analysis set holds n-1 rows and its assessment set holds exactly 1 row. This is the limiting case of k-fold cross-validation where k equals n.</p>
+
+<p>Leave-one-out cross-validation is theoretically the lowest-bias estimator of out-of-sample model error because every fit uses almost the full dataset. The trade-off is computational cost: you fit the model n times instead of 5 or 10. For most practical problems with hundreds of rows or more, 10-fold cross-validation gives a similar estimate at a fraction of the cost.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>LOO is k-fold with k equal to n.</strong> Every choice that applies to vfold_cv (stratification, repeats, grouping) does not apply here, because each fold has only one held-out row and no group structure to vary.</div></div>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>loo_cv() takes a data frame and returns an rset.</strong> The signature is short because there is no v argument, no repeats argument, no strata argument. The number of folds is fixed at nrow(data).</p>
+
+<div class="webr-container" data-block-title="Function signature and minimal call">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Function signature and minimal call</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rsample)
+
+# Use a tiny subset of mtcars so the example stays fast
+cars_small &lt;- mtcars[1:8, c(&quot;mpg&quot;, &quot;wt&quot;, &quot;hp&quot;)]
+
+# loo_cv has only one required argument: the data
+loo_cv(cars_small)
+#&gt; # Leave-one-out cross-validation
+#&gt; # A tibble: 8 x 2
+#&gt;   splits        id        
+#&gt;   &lt;list&gt;        &lt;chr&gt;     
+#&gt; 1 &lt;split [7/1]&gt; Resample1 
+#&gt; 2 &lt;split [7/1]&gt; Resample2 
+#&gt; ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The output is a tibble with two columns. <code>splits</code> is a list-column where each element is an <code>rsplit</code> object pointing at indices into the original data. <code>id</code> is a character label, useful for joining per-fold metrics back to the resample table.</p>
+
+<h2>loo_cv() examples</h2>
+
+<p><strong>Inspect a single split to see the n-1 / 1 partition.</strong> Use <code>analysis()</code> for the training rows and <code>assessment()</code> for the held-out row.</p>
+
+<div class="webr-container" data-block-title="Extract analysis and assessment from one fold">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract analysis and assessment from one fold</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">folds &lt;- loo_cv(cars_small)
+
+# First split's training rows (7 of 8)
+analysis(folds$splits[[1]])
+#&gt;                mpg    wt  hp
+#&gt; Mazda RX4 Wag 21.0 2.875 110
+#&gt; Datsun 710    22.8 2.320  93
+#&gt; Hornet 4 Drive 21.4 3.215 110
+#&gt; ...
+
+# First split's held-out row (1 of 8)
+assessment(folds$splits[[1]])
+#&gt;           mpg   wt  hp
+#&gt; Mazda RX4  21 2.62 110</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For a model evaluation loop, iterate over the splits, fit the model on the analysis set, then predict the single row in the assessment set.</p>
+
+<div class="webr-container" data-block-title="Compute LOO prediction error for linear regression">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute LOO prediction error for linear regression</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">preds &lt;- sapply(folds$splits, function(s) {
+  fit &lt;- lm(mpg ~ wt + hp, data = analysis(s))
+  predict(fit, newdata = assessment(s))
+})
+
+actual &lt;- cars_small$mpg
+
+# Mean absolute error across all 8 held-out predictions
+mean(abs(preds - actual))
+#&gt; [1] 1.847</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With tidymodels, <code>fit_resamples()</code> accepts an <code>rset</code> directly, so you can plug <code>loo_cv(df)</code> in wherever <code>vfold_cv(df)</code> would go.</p>
+
+<div class="webr-container" data-block-title="Plug loo_cv into a tidymodels workflow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Plug loo_cv into a tidymodels workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(parsnip)
+library(workflows)
+library(tune)
+
+spec &lt;- linear_reg() |&gt; set_engine(&quot;lm&quot;)
+
+wf &lt;- workflow() |&gt;
+  add_model(spec) |&gt;
+  add_formula(mpg ~ wt + hp)
+
+res &lt;- fit_resamples(wf, resamples = loo_cv(cars_small))
+collect_metrics(res)
+#&gt; # A tibble: 2 x 6
+#&gt;   .metric .estimator  mean     n std_err .config             
+#&gt;   &lt;chr&gt;   &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;               
+#&gt; 1 rmse    standard    2.13     8   0.521 Preprocessor1_Model1
+#&gt; 2 rsq     standard    0.731    8   0.157 Preprocessor1_Model1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Each fold's assessment set holds one row.</strong> Per-fold metrics like R-squared are unstable on a single point, so tidymodels averages across all n folds. Read the aggregated <code>mean</code> column, not the per-fold values.</div></div>
+
+<h2>loo_cv() vs vfold_cv() and other resampling</h2>
+
+<p><strong>Pick the resampler that matches your data size and bias-variance trade-off.</strong> Most analysts default to 10-fold CV. Leave-one-out becomes attractive only at small n.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>When to use</th>
+<th>Folds</th>
+<th>Cost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>loo_cv(df)</code></td>
+<td>n under 100, unbiased estimate needed</td>
+<td>n</td>
+<td>High (n fits)</td>
+</tr>
+<tr>
+<td><code>vfold_cv(df, v = 10)</code></td>
+<td>General purpose, 100 to 10,000 rows</td>
+<td>10</td>
+<td>Low</td>
+</tr>
+<tr>
+<td><code>vfold_cv(df, v = 5, repeats = 5)</code></td>
+<td>Variance-reduced estimate</td>
+<td>25</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td><code>bootstraps(df)</code></td>
+<td>Standard errors, <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a></td>
+<td>25 by default</td>
+<td>Medium</td>
+</tr>
+<tr>
+<td><code>mc_cv(df)</code></td>
+<td>Tune the train/test ratio per fold</td>
+<td>configurable</td>
+<td>Low to Medium</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Stop at vfold_cv unless you can justify LOO.</strong> Empirical evidence from Shao (1993) and later work shows that 10-fold CV often beats LOO on variance, despite LOO's lower bias. Reach for loo_cv when n is small enough that a single held-out row materially changes the fit.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes show up regularly.</strong> Each has a small fix.</p>
+
+<ol>
+
+<li><strong>Running loo_cv() on a large dataset.</strong> With n = 5,000 rows and a model that takes 1 second to fit, you wait 83 minutes per evaluation. Switch to <code>vfold_cv(df, v = 10)</code> unless you have a specific reason to pay the full LOO cost.</li>
+
+</ol>
+
+<ol>
+
+<li><strong>Mistaking the rset for a list of data frames.</strong> <code>loo_cv()</code> returns a tibble of <code>rsplit</code> objects, not actual sub-data. You must call <code>analysis(split)</code> or <code>assessment(split)</code> to materialize the rows for that fold.</li>
+
+</ol>
+
+<ol>
+
+<li><strong>Trying to stratify.</strong> <code>loo_cv()</code> has no <code>strata</code> argument because each held-out fold is one row, so stratification is meaningless. If you wanted stratified small-sample CV, use <code>vfold_cv(df, v = nrow(df), strata = y)</code> to get the same fold count with the stratification machinery.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Set the seed before fitting if downstream code uses randomness.</strong> loo_cv itself is deterministic given the input order, but model fits inside the loop (random forests, boosting) are not. Call <code>set.seed()</code> before <code>fit_resamples()</code> to keep the run reproducible.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run leave-one-out cross-validation on the first 10 rows of mtcars with the formula <code>mpg ~ wt</code>, then compute the LOO root-mean-squared error. Save the result to <code>ex_loo_rmse</code>.</p>
+<div class="webr-container" data-block-title="Your turn: LOO RMSE on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: LOO RMSE on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: LOO RMSE for mpg ~ wt
+ex_data &lt;- mtcars[1:10, c(&quot;mpg&quot;, &quot;wt&quot;)]
+ex_folds &lt;- # your code here
+
+ex_loo_rmse &lt;- # your code here
+ex_loo_rmse
+#&gt; Expected: about 2.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_data &lt;- mtcars[1:10, c(&quot;mpg&quot;, &quot;wt&quot;)]
+ex_folds &lt;- loo_cv(ex_data)
+
+ex_preds &lt;- sapply(ex_folds$splits, function(s) {
+  fit &lt;- lm(mpg ~ wt, data = analysis(s))
+  predict(fit, newdata = assessment(s))
+})
+
+ex_loo_rmse &lt;- sqrt(mean((ex_preds - ex_data$mpg)^2))
+round(ex_loo_rmse, 2)
+#&gt; [1] 2.42</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Each fold fits a one-variable <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a> on 9 rows and predicts the 10th. Squaring the held-out residuals and averaging gives the LOO <a class="auto-link" href="Point-Estimation-in-R.html" title="Point Estimation in R: What Makes an Estimator Good? Bias, Variance, and MSE">mean squared error</a>; the square root is the RMSE you report.</p>
+
+</details>
+</section>
+
+<h2>Related rsample functions</h2>
+
+<p><strong>These rsample functions cover related resampling needs.</strong> Reach for them when LOO does not fit.</p>
+
+<ul>
+
+<li><code>vfold_cv()</code>: k-fold cross-validation, the default choice for medium datasets</li>
+
+<li><code>initial_split()</code>: a single train/test split for a held-out test set</li>
+
+<li><code>bootstraps()</code>: <a class="auto-link" href="broom-bootstrap-in-R.html" title="broom Bootstrap in R: Tidy Resampled Estimates">bootstrap resamples</a> for standard errors and confidence intervals</li>
+
+<li><code>mc_cv()</code>: Monte Carlo cross-validation with a configurable train ratio</li>
+
+<li><code>rolling_origin()</code>: time-series-aware resampling that respects observation order</li>
+
+</ul>
+
+<p>Full argument reference at <a href="https://rsample.tidymodels.org/reference/loo_cv.html">rsample.tidymodels.org</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>When should I use loo_cv() instead of vfold_cv()?</strong></p>
+
+<p>Use loo_cv when your dataset has fewer than about 100 rows and you need the least-biased estimate of out-of-sample error. With 50 rows, 10-fold cross-validation removes 5 rows per fold; for some models that 10 percent loss noticeably changes the fit. Leave-one-out removes one row at a time, so each training fold is almost the full data. The cost is that you fit the model n times instead of 10, which is fine at small n and prohibitive at large n.</p>
+
+<p><strong>Why does loo_cv() not have a v argument like vfold_cv()?</strong></p>
+
+<p>The v argument controls the number of folds. Leave-one-out is the special case where v equals the number of rows, so the argument is redundant. If you want a configurable number of folds, call vfold_cv with <code>v = nrow(df)</code> for equivalent behavior, or with <code>v = 10</code> for the standard choice. Calling <code>vfold_cv(df, v = nrow(df))</code> lets you add <code>strata</code> if you need stratification at the LOO fold count.</p>
+
+<p><strong>Is leave-one-out cross-validation the same as <a class="auto-link" href="Jackknife-Resampling-in-R.html" title="Jackknife Resampling in R: Leave-One-Out Bias Correction">jackknife resampling</a>?</strong></p>
+
+<p>Yes, in the way the splits are built. The jackknife also drops one observation at a time. The naming differs by application: statisticians call it the jackknife when used for bias and variance estimation of a statistic, and leave-one-out cross-validation when used for predictive model evaluation. loo_cv() builds the splits; what you compute on them decides the label.</p>
+
+<p><strong>Does loo_cv() work with grouped data?</strong></p>
+
+<p>No, loo_cv has no group argument. For grouped cross-validation, use <code>group_vfold_cv()</code> with the column that identifies the grouping. That gives you grouped k-fold; there is no direct grouped-LOO helper in rsample because grouping plus leaving one row out collapses to standard LOO whenever the <a class="auto-link" href="dplyr-n-in-R.html" title="dplyr n() in R: Count Rows Inside summarise or mutate">group size</a> is 1.</p>
+
+<p><strong>How long will loo_cv() take to run on my dataset?</strong></p>
+
+<p>Multiply your single-model fit time by the number of rows. A linear regression that takes 0.01 seconds on 200 rows finishes in 2 seconds. A random forest that takes 5 seconds on 1,000 rows takes 83 minutes for the full LOO sweep. Estimate the budget before launching the full run; switch to 10-fold cross-validation if the answer exceeds your patience.</p>
+
+{% endraw %}
