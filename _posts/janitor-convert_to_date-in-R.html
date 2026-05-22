@@ -1,0 +1,409 @@
+---
+title: "janitor convert_to_date(): Smart Date Dispatcher in R"
+description: "janitor::convert_to_date() converts mixed character and numeric input to a real R Date class, dispatching to ymd() or excel_numeric_to_date() as needed."
+keywords: "janitor convert_to_date, convert_to_date function R, janitor convert_to_date examples, R convert mixed dates to date, character to date janitor, excel serial to date R, convert date column R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "convert_to_date()|janitor convert_to_date|janitor::convert_to_date()|convert mixed dates|dispatch date conversion"
+auto_link_case_sensitive: true
+fr_parent: "janitor-Package-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>janitor convert_to_date(): Smart Date Dispatcher in R</h1>
+
+<p class="lead">janitor::convert_to_date() converts mixed character and numeric input to a real R Date object. It dispatches on the input class: characters route through a parser (lubridate by default), and numbers route through excel_numeric_to_date(). One call cleans the messy date columns that arrive from CSV exports.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>convert_to_date(&quot;2024-01-15&quot;)<span class="qa-cmt">                          # ISO character to Date</span>
+convert_to_date(44197)<span class="qa-cmt">                                 # Excel serial to Date</span>
+convert_to_date(c(&quot;2024-01-15&quot;, &quot;44562&quot;))<span class="qa-cmt">              # mixed character column</span>
+convert_to_date(x, character_fun = lubridate::mdy)<span class="qa-cmt">     # US-style strings</span>
+convert_to_date(x, character_fun = lubridate::dmy)<span class="qa-cmt">     # European strings</span>
+convert_to_date(x, string_conversion_failure = &quot;warning&quot;)<span class="qa-cmt">  # tolerate junk</span>
+df |&gt; mutate(d = convert_to_date(raw))<span class="qa-cmt">                 # inside a pipe</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is convert_to_date() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">mixed character and numeric input</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">convert_to_date(x)</text><text x="125" y="126" class="branch-label">numeric Excel serial only</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">janitor::excel_numeric_to_date(x)</text><text x="125" y="182" class="branch-label">ISO 8601 character only</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">as.Date(x)</text><text x="125" y="238" class="branch-label">non-ISO character formats</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">lubridate::mdy(x), dmy(x), ymd(x)</text><text x="125" y="294" class="branch-label">need POSIXct with time</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">convert_to_datetime(x)</text><text x="125" y="350" class="branch-label">already a Date and just want validation</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">lubridate::is.Date(x)</text><text x="125" y="406" class="branch-label">Unix epoch seconds</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code"><a class="auto-link" href="Date-Time-Manipulation-Exercises-in-R.html" title="Date-Time Manipulation Exercises in R: 18 Practice Problems">as.POSIXct</a>(x, origin = &quot;1970-01-01&quot;)</text></svg></div>
+
+<h2>What convert_to_date() does</h2>
+
+<p><strong>convert_to_date() turns whatever date input you have into a Date object.</strong> A CSV exported from Excel often returns one column with two kinds of values: cells formatted as dates land as character strings like "2024-01-15", while cells formatted as numbers land as integers like 44562. Both represent the same calendar date, but base R sees them as incompatible types. convert_to_date() inspects the class of its input and dispatches to the right converter, returning a single Date vector.</p>
+
+<p>The function is an S3 generic. It has methods for character, numeric, factor, logical, POSIXct, and Date inputs. Characters get parsed by a function you supply via character_fun (default: lubridate::parse_date_time with ymd orders). Numerics get passed to excel_numeric_to_date(). The output class is always Date.</p>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>The signature has four parts: the input vector, dots forwarded to numeric handling, the character parser, and a failure mode.</strong> You usually pass only the first argument.</p>
+
+<div class="webr-container" data-block-title="Function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+library(lubridate)
+
+args(convert_to_date)
+#&gt; function (x, ...) 
+#&gt; NULL</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Default</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td>required</td>
+<td>Vector to convert (character, numeric, factor, POSIXct, Date)</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td></td>
+<td>Passed to <code>excel_numeric_to_date()</code> for numeric input (e.g., <code>date_system</code>, <code>include_time</code>)</td>
+</tr>
+<tr>
+<td><code>character_fun</code></td>
+<td><code>lubridate::parse_date_time(orders = c(&quot;ymd&quot;,&quot;ymd HMS&quot;))</code></td>
+<td>Function applied to character entries</td>
+</tr>
+<tr>
+<td><code>string_conversion_failure</code></td>
+<td><code>&quot;error&quot;</code></td>
+<td>What to do when a string fails parsing: <code>&quot;error&quot;</code> or <code>&quot;warning&quot;</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The dots argument is how you reach excel_numeric_to_date() options without calling it directly. If your serials originate on legacy Mac, pass <code>date_system = &quot;mac pre-2011&quot;</code> straight through convert_to_date(). For non-ISO character formats like "01/15/2024", swap character_fun to lubridate::mdy.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>character_fun controls everything about string parsing.</strong> The default tries ISO 8601 ("2024-01-15") and ISO datetime ("2024-01-15 10:30:00"). For US, European, or custom formats, pass a different parser. This is the single most useful argument to know.</div></div>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Five patterns cover most real-world calls to convert_to_date().</strong> Each example is self-contained and runs in a fresh R session.</p>
+
+<p><strong>Use 1: a clean ISO character vector.</strong> The default parser handles "YYYY-MM-DD" without configuration.</p>
+
+<div class="webr-container" data-block-title="Parse ISO date strings">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Parse ISO date strings</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+
+convert_to_date(c(&quot;2024-01-15&quot;, &quot;2024-02-29&quot;, &quot;2024-12-31&quot;))
+#&gt; [1] &quot;2024-01-15&quot; &quot;2024-02-29&quot; &quot;2024-12-31&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result is a Date vector ready for filtering, arithmetic, or joining.</p>
+
+<p><strong>Use 2: a numeric Excel serial column.</strong> The function detects the numeric class and forwards to excel_numeric_to_date().</p>
+
+<div class="webr-container" data-block-title="Convert Excel serials">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Convert Excel serials</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+
+convert_to_date(c(44197, 44562, 44927))
+#&gt; [1] &quot;2021-01-01&quot; &quot;2022-01-01&quot; &quot;2023-01-01&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the same result you would get from <a class="auto-link" href="janitor-excel_numeric_to_date-in-R.html" title="janitor excel_numeric_to_date(): Excel Serial to R Date">janitor::excel_numeric_to_date()</a> directly; convert_to_date() just saved you a class check.</p>
+
+<p><strong>Use 3: a messy column with both strings and numbers.</strong> This is the killer use case. CSV imports often produce a character column where some cells look like "2024-01-15" and others look like "45292".</p>
+
+<div class="webr-container" data-block-title="Mixed character column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mixed character column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+
+raw &lt;- c(&quot;2024-01-15&quot;, &quot;45292&quot;, &quot;2024-03-01&quot;, &quot;45352&quot;)
+convert_to_date(raw)
+#&gt; [1] &quot;2024-01-15&quot; &quot;2024-01-01&quot; &quot;2024-03-01&quot; &quot;2024-03-01&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Strings that parse as ISO dates become themselves; strings that look numeric get coerced and routed through the Excel serial path. The result is a single Date vector with no manual splitting.</p>
+
+<p><strong>Use 4: US or European date formats.</strong> The default parser only knows ISO. Swap character_fun for mdy or dmy.</p>
+
+<div class="webr-container" data-block-title="Use mdy parser for US dates">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use mdy parser for US dates</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+library(lubridate)
+
+us_dates &lt;- c(&quot;01/15/2024&quot;, &quot;02/29/2024&quot;, &quot;12/31/2024&quot;)
+convert_to_date(us_dates, character_fun = lubridate::mdy)
+#&gt; [1] &quot;2024-01-15&quot; &quot;2024-02-29&quot; &quot;2024-12-31&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Pass lubridate::dmy for "15/01/2024", lubridate::ymd_hms for "2024-01-15 10:30:00", or any function that takes a character vector and returns a Date or POSIXct.</p>
+
+<p><strong>Use 5: tolerate parse failures.</strong> Sometimes a column carries the occasional "TBD" or "N/A". The default errors on the first failure; switch to "warning" to return NA for failing rows and keep going.</p>
+
+<div class="webr-container" data-block-title="Tolerate junk values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tolerate junk values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+
+messy &lt;- c(&quot;2024-01-15&quot;, &quot;TBD&quot;, &quot;2024-03-01&quot;)
+convert_to_date(messy, string_conversion_failure = &quot;warning&quot;)
+#&gt; [1] &quot;2024-01-15&quot; NA           &quot;2024-03-01&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the right setting for first-pass cleanup, then you can audit NA rows separately.</p>
+
+<h2>Compare with alternatives</h2>
+
+<p><strong>Four other functions convert dates in R, but only convert_to_date() handles class dispatch.</strong> Pick it when the input type is mixed or unknown; pick the others when you already know what you have.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Input type</th>
+<th>When to pick it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>convert_to_date(x)</code></td>
+<td>Mixed character and numeric</td>
+<td>Unknown or mixed input columns</td>
+</tr>
+<tr>
+<td><code>excel_numeric_to_date(x)</code></td>
+<td>Numeric Excel serial only</td>
+<td>Pure numeric column from Excel</td>
+</tr>
+<tr>
+<td><code>as.Date(x)</code></td>
+<td>ISO 8601 character</td>
+<td>Already in YYYY-MM-DD format</td>
+</tr>
+<tr>
+<td><code>lubridate::mdy(x)</code>, <code>dmy(x)</code>, <code>ymd(x)</code></td>
+<td>Free-form character</td>
+<td>Known non-ISO character format</td>
+</tr>
+<tr>
+<td><code>as.POSIXct(x, origin = &quot;1970-01-01&quot;)</code></td>
+<td>Unix epoch seconds</td>
+<td>Non-Excel numeric timestamps</td>
+</tr>
+</tbody>
+</table>
+
+<p>For interactive exploration where you do not yet know the column type, convert_to_date() is the safe default. For production code where you control the upstream format, the more specific functions document intent better.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Prefer readxl::<a class="auto-link" href="Importing-Data-in-R.html" title="Importing Data into R: read_csv(), read_excel(), read_json() — Complete Guide">read_excel()</a> when you control the import.</strong> If you load an .xlsx file with readxl, date cells arrive as Date objects already; no conversion is needed. Reserve convert_to_date() for CSV imports, web-scraped data, and any case where dates may have been re-typed as character or number along the way.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three traps recur, each easy to spot once you know what to look for.</strong> All three reflect the dispatch mechanism, not bugs in the function.</p>
+
+<div class="webr-container" data-block-title="Pitfall 1: small numbers that look like serials">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 1: small numbers that look like serials</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+
+convert_to_date(c(1, 2, 3))
+#&gt; [1] &quot;1899-12-31&quot; &quot;1900-01-01&quot; &quot;1900-01-02&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Numbers under 10000 produce dates in 1899 or 1900 because excel_numeric_to_date() interprets them as days since 1899-12-30. A column with single-digit values is almost never a date column; verify column meaning before converting.</p>
+
+<div class="webr-container" data-block-title="Pitfall 2: ambiguous date strings with default parser">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 2: ambiguous date strings with default parser</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+
+# Default character_fun expects ymd; &quot;01-15-2024&quot; is mdy
+try(convert_to_date(&quot;01-15-2024&quot;))
+#&gt; Warning message:
+#&gt; All formats failed to parse. No formats found.
+#&gt; [1] NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The default parser only tries ISO orders. Pass character_fun = lubridate::mdy when strings are US-formatted, or expect NA results.</p>
+
+<div class="webr-container" data-block-title="Pitfall 3: factor input with stale levels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 3: factor input with stale levels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+
+f &lt;- factor(c(&quot;2024-01-15&quot;, &quot;2024-02-29&quot;), levels = c(&quot;2024-01-15&quot;, &quot;2024-02-29&quot;, &quot;old&quot;))
+convert_to_date(f)
+#&gt; [1] &quot;2024-01-15&quot; &quot;2024-02-29&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Factor methods convert via the level labels, not the integer codes. Unused levels do not appear in the output, but watch out: if a level label is not a valid <a class="auto-link" href="lubridate-ymd-in-R.html" title="lubridate ymd() in R: Parse Dates From Strings">date string</a> and any row uses it, you will get NA for that row.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The dispatch is decided once for the whole vector.</strong> If you pass a list or a mixed-type column that R has coerced to character (the usual CSV behavior), every entry routes through character_fun. That is the right path for the mixed example above. But if a numeric column got accidentally coerced to character upstream, you may need to call <a class="auto-link" href="R-Type-Coercion.html" title="R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters">as.numeric()</a> before convert_to_date() to force the Excel serial path.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> A CSV import returned a character vector mixing ISO dates and Excel serials: <code>c(&quot;2024-01-15&quot;, &quot;45292&quot;, &quot;2024-03-01&quot;)</code>. Convert it with convert_to_date() and save the result to ex_dates. Confirm the class is Date and the length is 3.</p>
+<div class="webr-container" data-block-title="Your turn: convert a mixed column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: convert a mixed column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+
+ex_raw &lt;- c(&quot;2024-01-15&quot;, &quot;45292&quot;, &quot;2024-03-01&quot;)
+ex_dates &lt;- # your code here
+
+ex_dates
+#&gt; Expected: 2024-01-15, 2024-01-01, 2024-03-01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+
+ex_raw &lt;- c(&quot;2024-01-15&quot;, &quot;45292&quot;, &quot;2024-03-01&quot;)
+ex_dates &lt;- convert_to_date(ex_raw)
+
+ex_dates
+#&gt; [1] &quot;2024-01-15&quot; &quot;2024-01-01&quot; &quot;2024-03-01&quot;
+
+class(ex_dates)
+#&gt; [1] &quot;Date&quot;
+
+length(ex_dates)
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> convert_to_date() inspects each entry: "2024-01-15" parses as ISO, "45292" coerces to numeric and routes through excel_numeric_to_date() (returning 2024-01-01), and "2024-03-01" parses as ISO. The unified output is a Date vector.</p>
+
+</details>
+</section>
+
+<h2>Related janitor functions</h2>
+
+<p><strong>janitor groups convert_to_date() with five other import-cleanup helpers.</strong> Together they handle the most common spreadsheet quirks.</p>
+
+<ul>
+
+<li><code>excel_numeric_to_date()</code> is the numeric-only path that convert_to_date() calls under the hood for numeric input</li>
+
+<li><code>convert_to_datetime()</code> does the same dispatch but returns POSIXct for time-of-day fidelity</li>
+
+<li><code>excel_numeric_to_datetime()</code> is the POSIXct analogue of excel_numeric_to_date()</li>
+
+<li><code>sas_numeric_to_date()</code> handles SAS serials with a 1960-01-01 origin</li>
+
+<li><code>clean_names()</code> standardises column names once the date column is fixed</li>
+
+</ul>
+
+<p>For a tour of the full toolkit, see the <a href="janitor-Package-in-R.html">janitor Package in R</a> tutorial. The official function reference lives at <a href="https://sfirke.github.io/janitor/reference/convert_to_date.html">sfirke.github.io/janitor</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between convert_to_date() and excel_numeric_to_date()?</strong></p>
+
+<p>excel_numeric_to_date() accepts numeric input only and errors on anything else. convert_to_date() dispatches on input class to accept character, numeric, factor, logical, POSIXct, and Date. For numeric input both return the same result; for character input only convert_to_date() works.</p>
+
+<p><strong>Can convert_to_date() parse non-ISO formats like "01/15/2024"?</strong></p>
+
+<p>Only if you change the character_fun argument. The default tries ISO 8601 and ISO datetime orders and fails on US or European formats. Pass character_fun = lubridate::mdy for "01/15/2024", lubridate::dmy for "15/01/2024", or any function that takes a character vector and returns a Date-like object.</p>
+
+<p><strong>How do I keep the time component when converting?</strong></p>
+
+<p>Use convert_to_datetime() instead. That function returns POSIXct and preserves fractional time of day from Excel serials and parses datetime strings from character input. convert_to_date() always truncates to midnight.</p>
+
+<p><strong>Why did convert_to_date(1) return a 19th-century date?</strong></p>
+
+<p>The numeric path uses Excel's epoch of 1899-12-30, so serial 1 is 1899-12-31. Small integers below about 10000 produce dates in 1899 or 1900 and almost certainly mean the input is not a real date column. Inspect the source before continuing.</p>
+
+<p><strong>Should I use string_conversion_failure = "warning" in production?</strong></p>
+
+<p>It depends on your tolerance for silent NA. In exploratory work, "warning" lets you finish the pipeline and audit failed rows. In production ETL, "error" forces you to detect bad data upstream rather than ship NAs to a dashboard.</p>
+
+{% endraw %}
