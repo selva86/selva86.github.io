@@ -1,0 +1,362 @@
+---
+title: "rsample vfold_cv() in R: V-Fold Cross-Validation Splits"
+description: "Build v-fold cross-validation splits with rsample vfold_cv() in R. Covers v, repeats, strata, set.seed reproducibility, and analysis()/assessment() helpers."
+keywords: "rsample vfold_cv, vfold_cv function R, rsample vfold_cv examples, R k-fold cross validation, vfold_cv tidymodels, cross validation R rsample"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "vfold_cv()|rsample vfold_cv|rsample::vfold_cv()|v-fold cross-validation|k-fold cross-validation"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>rsample vfold_cv() in R: V-Fold Cross-Validation Splits</h1>
+
+<p class="lead">The <a class="auto-link" href="Cross-Validation-Exercises-in-R.html" title="Cross Validation Exercises in R: 20 Practice Problems">rsample vfold_cv</a>() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> builds v-fold cross-validation splits, so you can tune and evaluate a model on multiple held-out folds instead of relying on a single train/test partition.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>vfold_cv(df)<span class="qa-cmt">                                # default 10 folds</span>
+vfold_cv(df, v = 5)<span class="qa-cmt">                         # 5-fold cross-validation</span>
+vfold_cv(df, v = 10, repeats = 5)<span class="qa-cmt">           # repeated 10-fold CV</span>
+vfold_cv(df, strata = y)<span class="qa-cmt">                    # stratified folds</span>
+analysis(folds$splits[[1]])<span class="qa-cmt">                 # training rows of fold 1</span>
+assessment(folds$splits[[1]])<span class="qa-cmt">               # held-out rows of fold 1</span>
+set.seed(123); vfold_cv(df, v = 5)<span class="qa-cmt">          # reproducible folds</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is vfold_cv() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">k-fold cross-validation</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">vfold_cv(df, v = 10)</text><text x="125" y="126" class="branch-label">single train/test split</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">initial_split(df, prop = 0.8)</text><text x="125" y="182" class="branch-label">repeated resampling with replacement</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">bootstraps(df, times = 25)</text><text x="125" y="238" class="branch-label">time-ordered resamples</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">rolling_origin(df, initial = 100)</text><text x="125" y="294" class="branch-label">keep groups intact across folds</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">group_vfold_cv(df, group_var)</text><text x="125" y="350" class="branch-label"><a class="auto-link" href="Compare-Bayesian-Models-in-R.html" title="Compare Bayesian Models in R: Why LOO and WAIC Beat AIC for Bayesian Fits">leave-one-out cross-validation</a></text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">loo_cv(df)</text><text x="125" y="406" class="branch-label">monte carlo random splits</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">mc_cv(df, prop = 0.8, times = 25)</text></svg></div>
+
+<h2>What vfold_cv() does</h2>
+
+<p><strong>vfold_cv() splits a data frame into v approximately equal folds for cross-validation.</strong> It belongs to the rsample package, the resampling engine of the tidymodels ecosystem. The function does not duplicate your data. It returns a tibble of <code>rsplit</code> objects in a <code>splits</code> list-column, where each split stores the row indices that belong to the analysis (training) portion and the assessment (held-out) portion of one fold.</p>
+
+<p>The point of cross-validation is a stable performance estimate. Every row sits in the held-out set exactly once across the v folds, so the model is scored on the entire data without ever evaluating on rows it was trained on. This is the resampling object that <code>tune_grid()</code> and <code>fit_resamples()</code> consume during hyperparameter tuning.</p>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>The signature has one required argument and four tuning knobs.</strong></p>
+
+<div class="webr-container" data-block-title="vfold_cv function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">vfold_cv function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">vfold_cv(
+  data,           # the data frame to resample
+  v = 10,         # number of folds
+  repeats = 1,    # how many times to repeat the v-fold scheme
+  strata = NULL,  # column to stratify the folds by
+  breaks = 4,     # bins used when strata is numeric
+  pool = 0.1      # small-group pooling threshold for strata
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments that matter in practice:</p>
+
+<ul>
+
+<li><strong>data</strong>: the data frame or tibble to resample.</li>
+
+<li><strong>v</strong>: the number of folds. The default <code>10</code> is the standard k-fold choice.</li>
+
+<li><strong>repeats</strong>: the number of times the entire v-fold scheme is repeated with a fresh shuffle. Use <code>repeats &gt; 1</code> to reduce variance on small datasets.</li>
+
+<li><strong>strata</strong>: a column name. Folds are formed within each level so class proportions are preserved.</li>
+
+<li><strong>breaks</strong>: when <code>strata</code> is numeric, the number of <a class="auto-link" href="dplyr-ntile-in-R.html" title="dplyr ntile() in R: Bin Values into N Equal-Count Groups">quantile bins</a> used to stratify.</li>
+
+</ul>
+
+<h2>vfold_cv() examples</h2>
+
+<h3>Basic 10-fold cross-validation</h3>
+
+<p><strong>Call vfold_cv() on a data frame and print the result to see the fold structure.</strong> The default <code>v = 10</code> produces a tibble with ten splits.</p>
+
+<div class="webr-container" data-block-title="Create default 10-fold CV">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create default 10-fold CV</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rsample)
+
+set.seed(123)
+iris_folds &lt;- vfold_cv(iris)
+iris_folds
+#&gt; #  10-fold cross-validation 
+#&gt; # A tibble: 10 x 2
+#&gt;    splits           id    
+#&gt;    &lt;list&gt;           &lt;chr&gt; 
+#&gt;  1 &lt;split [135/15]&gt; Fold01
+#&gt;  2 &lt;split [135/15]&gt; Fold02
+#&gt;  3 &lt;split [135/15]&gt; Fold03
+#&gt;  4 &lt;split [135/15]&gt; Fold04
+#&gt;  5 &lt;split [135/15]&gt; Fold05
+#&gt;  6 &lt;split [135/15]&gt; Fold06
+#&gt;  7 &lt;split [135/15]&gt; Fold07
+#&gt;  8 &lt;split [135/15]&gt; Fold08
+#&gt;  9 &lt;split [135/15]&gt; Fold09
+#&gt; 10 &lt;split [135/15]&gt; Fold10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Extract analysis and assessment sets</h3>
+
+<p><strong>Each split has an analysis() set used for fitting and an assessment() set used for scoring.</strong> These helpers return ordinary data frames you can pass to any modeling function.</p>
+
+<div class="webr-container" data-block-title="Pull one fold&#x27;s data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pull one fold&#x27;s data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fold1 &lt;- iris_folds$splits[[1]]
+
+train_fold &lt;- analysis(fold1)
+test_fold  &lt;- assessment(fold1)
+
+nrow(train_fold)
+#&gt; [1] 135
+nrow(test_fold)
+#&gt; [1] 15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Change the number of folds</h3>
+
+<p><strong>Pass v to choose a different number of folds.</strong> Five folds is a common, faster alternative when models are slow to fit.</p>
+
+<div class="webr-container" data-block-title="Use 5-fold cross-validation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use 5-fold cross-validation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(123)
+folds_5 &lt;- vfold_cv(iris, v = 5)
+folds_5
+#&gt; #  5-fold cross-validation 
+#&gt; # A tibble: 5 x 2
+#&gt;   splits           id   
+#&gt;   &lt;list&gt;           &lt;chr&gt;
+#&gt; 1 &lt;split [120/30]&gt; Fold1
+#&gt; 2 &lt;split [120/30]&gt; Fold2
+#&gt; 3 &lt;split [120/30]&gt; Fold3
+#&gt; 4 &lt;split [120/30]&gt; Fold4
+#&gt; 5 &lt;split [120/30]&gt; Fold5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Repeated v-fold cross-validation</h3>
+
+<p><strong>Set repeats > 1 to rerun the v-fold scheme with a fresh shuffle each time.</strong> The result is <code>v * repeats</code> splits, useful when a single 10-fold estimate is too noisy.</p>
+
+<div class="webr-container" data-block-title="Run repeated 5-fold CV">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run repeated 5-fold CV</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(123)
+rep_folds &lt;- vfold_cv(iris, v = 5, repeats = 3)
+nrow(rep_folds)
+#&gt; [1] 15
+
+unique(rep_folds$id)
+#&gt; [1] &quot;Repeat1&quot; &quot;Repeat2&quot; &quot;Repeat3&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Stratify by the outcome</h3>
+
+<p><strong>Use strata to keep the outcome distribution balanced across every fold.</strong> Without stratification a random fold may under-represent a rare class. Here every species appears in equal counts in each fold.</p>
+
+<div class="webr-container" data-block-title="Stratified folds by a factor column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stratified folds by a factor column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(123)
+strat_folds &lt;- vfold_cv(iris, v = 5, strata = Species)
+table(analysis(strat_folds$splits[[1]])$Species)
+#&gt; 
+#&gt;     setosa versicolor  virginica 
+#&gt;         40         40         40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>vfold_cv() vs other resampling functions</h2>
+
+<p><strong>vfold_cv() partitions every row into exactly one held-out fold; the alternatives sample differently.</strong> Choose based on the resampling estimator you need.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Produces</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vfold_cv()</code></td>
+<td>v folds, every row held out once</td>
+<td>Tuning, robust performance estimates</td>
+</tr>
+<tr>
+<td><code>initial_split()</code></td>
+<td>One train/test split</td>
+<td>Final hold-out evaluation</td>
+</tr>
+<tr>
+<td><code>bootstraps()</code></td>
+<td>Resamples with replacement</td>
+<td>Small data, variance estimates</td>
+</tr>
+<tr>
+<td><code>mc_cv()</code></td>
+<td>Random train/test splits, can overlap</td>
+<td>Many resamples without v-fold structure</td>
+</tr>
+<tr>
+<td><code>rolling_origin()</code></td>
+<td>Time-ordered resamples</td>
+<td><a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">Forecasting</a>, expanding or sliding windows</td>
+</tr>
+<tr>
+<td><code>loo_cv()</code></td>
+<td>n folds of size 1</td>
+<td>Very small datasets, leave-one-out</td>
+</tr>
+</tbody>
+</table>
+
+<p>A typical tidymodels workflow combines them: <code>initial_split()</code> carves off a final testing set, then <code>vfold_cv()</code> on the training portion drives <code>tune_grid()</code> or <code>fit_resamples()</code>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The folds object is a tibble of pointers, not data.</strong> Each <code>&lt;split [135/15]&gt;</code> entry stores indices into the original data frame, so a 10-fold object on a million-row table is still tiny. <code>analysis()</code> and <code>assessment()</code> are the only way to materialize a fold's rows as a usable data frame.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most vfold_cv() bugs.</strong></p>
+
+<ul>
+
+<li><strong>Forgetting set.seed().</strong> <code>vfold_cv()</code> shuffles rows before partitioning. Without <code>set.seed()</code> before the call, every run produces different folds and your cross-validated metrics drift. Set the seed in the same script, right before the resample.</li>
+
+<li><strong>Calling vfold_cv() on the full dataset before <a class="auto-link" href="rsample-initial_split-in-R.html" title="rsample initial_split() in R: Make a Train/Test Split">initial_split()</a>.</strong> Cross-validating on the entire data, including rows you later evaluate on, leaks information into <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">model selection</a>. Always split first with <code>initial_split()</code>, then resample only the training portion.</li>
+
+<li><strong>Confusing v with repeats.</strong> <code>v = 100</code> builds 100 folds of <code>n/100</code> rows each, which is expensive and high-variance. <code>v = 10, repeats = 10</code> runs ten standard 10-fold passes, almost always the better choice.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>rsample no longer exports <code>bootstrap()</code> as a noun, only <code>bootstraps()</code>.</strong> Older tutorials referencing <code>bootstrap()</code> (singular) are out of date; current rsample uses the plural form alongside <code>vfold_cv()</code>, <code>mc_cv()</code>, and <code>loo_cv()</code>.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a 5-fold cross-validation object on the <code>mtcars</code> dataset stratified by <code>cyl</code>. Save it to <code>ex_folds</code>.</p>
+<div class="webr-container" data-block-title="Your turn: stratified 5-fold CV">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: stratified 5-fold CV</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: 5-fold stratified CV
+set.seed(42)
+ex_folds &lt;- # your code here
+
+nrow(ex_folds)
+#&gt; Expected: 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+ex_folds &lt;- vfold_cv(mtcars, v = 5, strata = cyl)
+nrow(ex_folds)
+#&gt; [1] 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>v = 5</code> produces five splits; <code>strata = cyl</code> preserves the proportion of 4, 6, and 8 cylinder cars across every fold. The result is a tibble with one row per fold, regardless of dataset size.</p>
+
+</details>
+</section>
+
+<h2>Related rsample functions</h2>
+
+<p><strong>vfold_cv() is the workhorse; these functions extend it.</strong></p>
+
+<ul>
+
+<li><code>analysis()</code> and <code>assessment()</code>: extract the two data frames from a split object.</li>
+
+<li><code>initial_split()</code>: carve off a final testing set before resampling the training portion.</li>
+
+<li><code>bootstraps()</code>: build <a class="auto-link" href="broom-bootstrap-in-R.html" title="broom Bootstrap in R: Tidy Resampled Estimates">bootstrap resamples</a> with replacement for variance estimates.</li>
+
+<li><code>group_vfold_cv()</code>: build folds while keeping all rows of a group together.</li>
+
+<li><code>mc_cv()</code>: build random monte carlo train/test splits without the v-fold constraint.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from scikit-learn?</strong> <code>vfold_cv(df, v = 10)</code> is the tidymodels equivalent of <code>KFold(n_splits=10)</code>. The <code>strata</code> argument matches <code>StratifiedKFold</code>, and <code>repeats &gt; 1</code> matches <code>RepeatedKFold</code>.</div></div>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the default number of folds in vfold_cv()?</strong></p>
+
+<p>The default <code>v</code> argument is <code>10</code>, which builds a 10-fold cross-validation object. Each fold holds out 1/10 of the rows for assessment and uses the remaining 9/10 for analysis. For a 150-row dataset that is 15 held-out rows per fold. Five folds is a common faster alternative when models are slow to fit, and three folds is sometimes used during quick prototyping.</p>
+
+<p><strong>How do I make vfold_cv() reproducible?</strong></p>
+
+<p>Call <code>set.seed()</code> with any integer immediately before <code>vfold_cv()</code>. The function shuffles rows before partitioning, so a fixed seed guarantees the same folds every time the script runs. Keep the seed and the resample call together. Re-running with the same seed and the same R version reproduces the exact row assignments in every fold.</p>
+
+<p><strong>What is the difference between vfold_cv() and bootstraps()?</strong></p>
+
+<p><code>vfold_cv()</code> partitions the data without replacement: every row appears in the held-out set exactly once across the v folds. <code>bootstraps()</code> draws each resample with replacement, so the same row can appear many times in one analysis set and never in another. Use cross-validation for stable tuning estimates and bootstraps for variance or bias estimates on small datasets.</p>
+
+<p><strong>When should I use repeats?</strong></p>
+
+<p>Set <code>repeats &gt; 1</code> when a single 10-fold estimate is too noisy, typically on small datasets where the fold-to-fold variance is large. Repeated v-fold runs the entire scheme several times with a fresh shuffle and averages across all <code>v * repeats</code> results. The cost scales linearly: <code>v = 10, repeats = 5</code> fits 50 models instead of 10, but the resulting performance estimate has lower variance.</p>
+
+<p><strong>Can vfold_cv() handle <a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">time series</a> data?</strong></p>
+
+<p>Not directly. <code>vfold_cv()</code> shuffles rows, which breaks the time order a forecasting model depends on. Use <code>rolling_origin()</code> instead. It produces resamples that respect chronology, with each assessment set following its analysis set in time, suitable for expanding-window or sliding-window evaluation.</p>
