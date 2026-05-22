@@ -1,0 +1,394 @@
+---
+title: "dials grid_latin_hypercube() in R: Space-Filling Tuning Grid"
+description: "Use dials grid_latin_hypercube() in R to draw space-filling hyperparameter candidates for tune_grid(). Covers syntax, stratification, examples, and pitfalls."
+keywords: "dials grid_latin_hypercube, grid_latin_hypercube R, latin hypercube sampling R, tidymodels space-filling design, latin hypercube tuning grid, grid_latin_hypercube tidymodels, lhs tuning R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "grid_latin_hypercube()|dials::grid_latin_hypercube()|dials grid_latin_hypercube|Latin hypercube grid|space-filling Latin hypercube"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>dials grid_latin_hypercube() in R: Space-Filling Tuning Grid</h1>
+
+<p class="lead">The dials grid_latin_hypercube() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> draws a space-filling Latin hypercube sample across one or more tuning parameters, returning a tibble of candidate combinations that cover the joint range more evenly than random search at the same row budget.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>grid_latin_hypercube(penalty(), size = 25)<span class="qa-cmt">                          # one parameter, 25 strata</span>
+grid_latin_hypercube(penalty(), mixture(), size = 30)<span class="qa-cmt">               # two parameters</span>
+grid_latin_hypercube(penalty(range = c(-4, 0)), size = 20)<span class="qa-cmt">          # custom log10 range</span>
+grid_latin_hypercube(extract_parameter_set_dials(wf), size = 50)<span class="qa-cmt">    # from a workflow</span>
+grid_latin_hypercube(mtry(c(1, 10)), trees(c(100, 500)), size = 25)<span class="qa-cmt"> # tree-model knobs</span>
+grid_latin_hypercube(neighbors(), weight_func(), size = 15)<span class="qa-cmt">         # numeric and qualitative</span>
+grid_latin_hypercube(pset, size = 40, original = FALSE)<span class="qa-cmt">             # transformed-scale draws</span>
+set.seed(1); grid_latin_hypercube(penalty(), size = 10)<span class="qa-cmt">             # reproducible sample</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is grid_latin_hypercube() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">space-filling sample of the parameter space</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">grid_latin_hypercube(penalty(), size = 25)</text><text x="125" y="126" class="branch-label">independent uniform draws (faster, less even)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">grid_random(penalty(), size = 25)</text><text x="125" y="182" class="branch-label">exhaustive grid at evenly-spaced levels</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">grid_regular(penalty(), levels = 5)</text><text x="125" y="238" class="branch-label">maximally spread space-filling design</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">grid_max_entropy(penalty(), size = 25)</text><text x="125" y="294" class="branch-label">new umbrella for random and space-filling</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">grid_space_filling(pset, size = 25)</text><text x="125" y="350" class="branch-label">iterative model-based search</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">tune_bayes(wf, resamples = folds)</text><text x="125" y="406" class="branch-label">a hand-picked candidate tibble</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">tibble(penalty = c(0.001, 0.01, 0.1))</text></svg></div>
+
+<h2>What grid_latin_hypercube() does in one sentence</h2>
+
+<p><strong>grid_latin_hypercube() divides each parameter's range into size equal strata and draws one sample from every stratum.</strong> You pass dials parameter objects (or a <code>parameters()</code> set), say how many rows you want, and the function returns a size-by-p tibble where every column is a stratified permutation. The same size value drives the grid regardless of parameter count.</p>
+
+<p>The function lives in dials and is re-exported by tidymodels. Pair it with <code>tune_grid()</code> whenever a regular grid would explode but you still want even coverage. Latin hypercube reaches corners random search can miss without a full <a class="auto-link" href="dplyr-cross_join-in-R.html" title="dplyr cross_join() in R: Cartesian Product of Two Tables">cartesian product</a>.</p>
+
+<h2>How Latin hypercube stratification works</h2>
+
+<p><strong>Each axis is split into size equal-probability bins; one draw per bin.</strong> For a single parameter and <code>size = 10</code>, you get one sample from each of 10 strata, so the column is guaranteed to span the full range. With multiple parameters, the stratum order is permuted independently per column, which prevents the diagonal alignment a naive grid would produce.</p>
+
+<div class="webr-container" data-block-title="Load tidymodels and inspect a one-parameter LHS">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load tidymodels and inspect a one-parameter LHS</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+
+set.seed(1)
+lhs1 &lt;- grid_latin_hypercube(penalty(range = c(-4, 0)), size = 10)
+lhs1
+#&gt; # A tibble: 10 x 1
+#&gt;     penalty
+#&gt;       &lt;dbl&gt;
+#&gt;  1 0.000235
+#&gt;  2 0.00111
+#&gt;  3 0.00455
+#&gt;  4 0.0153
+#&gt;  5 0.0488
+#&gt;  6 0.143
+#&gt;  7 0.000702
+#&gt;  8 0.0257
+#&gt;  9 0.00257
+#&gt; 10 0.357</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Even though rows are shuffled, the 10 values together cover all 10 log10 strata between 1e-4 and 1. A random grid of the same size could leave [-3, -2] empty or stack three draws in [-1, 0]. The stratification removes that lottery.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Latin hypercube guarantees marginal coverage, not joint coverage.</strong> Each column visits every stratum, but the joint pattern is space-filling rather than exhaustive, so two points can still land near each other in 2D. For maximum spread on a tight budget, switch to <code>grid_max_entropy()</code>, which post-processes the Latin hypercube to push candidates apart.</div></div>
+
+<h2>grid_latin_hypercube() syntax and arguments</h2>
+
+<p><strong>The signature mirrors the rest of the dials grid family.</strong></p>
+
+<div class="webr-container" data-block-title="grid_latin_hypercube generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">grid_latin_hypercube generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grid_latin_hypercube(
+  x,                      # parameters object or one+ dials parameter objects
+  ...,                    # additional parameter objects
+  size = 3,               # number of candidates (= strata per axis)
+  original = TRUE         # return values on the original scale
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code>, <code>...</code></td>
+<td>Parameter objects: <code>penalty()</code>, <code>mixture()</code>, <code>mtry()</code>, or a <code>parameters()</code> set.</td>
+</tr>
+<tr>
+<td><code>size</code></td>
+<td>How many candidates to draw, and equivalently the number of strata per axis.</td>
+</tr>
+<tr>
+<td><code>original</code></td>
+<td>If <code>TRUE</code>, returns natural-scale values; if <code>FALSE</code>, returns transformed-scale values useful for plotting the sample geometry.</td>
+</tr>
+</tbody>
+</table>
+
+<p>Latin hypercube has no <code>filter</code> argument because dropping rows would break the one-per-stratum guarantee. Constrain the design upfront with parameter ranges.</p>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Start with two parameters where the space-filling property shows up visually.</strong> A 2D Latin hypercube spreads candidates across both axes without the <a class="auto-link" href="Clustering-with-R.html" title="Clustering with R">clustering</a> that random search occasionally exhibits.</p>
+
+<div class="webr-container" data-block-title="Two-parameter Latin hypercube for elastic net">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-parameter Latin hypercube for elastic net</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2)
+lhs2 &lt;- grid_latin_hypercube(
+  penalty(range = c(-4, 0)),
+  mixture(range = c(0, 1)),
+  size = 16
+)
+head(lhs2, 4)
+#&gt; # A tibble: 4 x 2
+#&gt;     penalty mixture
+#&gt;       &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 0.0290    0.793
+#&gt; 2 0.000156  0.412
+#&gt; 3 0.00521   0.262
+#&gt; 4 0.156     0.0540</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With 16 rows you get 16 distinct strata per axis, covering the whole <code>[10^-4, 1] x [0, 1]</code> rectangle. A <code>grid_regular(levels = 4)</code> also fits 16 cells, but only at four exact grid lines per axis.</p>
+
+<p>Reading from a workflow keeps identifiers in sync with the model spec.</p>
+
+<div class="webr-container" data-block-title="Build an LHS from a workflow parameter set">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build an LHS from a workflow parameter set</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">glmnet_spec &lt;- linear_reg(penalty = tune(), mixture = tune()) |&gt;
+  set_engine(&quot;glmnet&quot;)
+
+wf &lt;- workflow() |&gt;
+  add_formula(mpg ~ .) |&gt;
+  add_model(glmnet_spec)
+
+pset &lt;- extract_parameter_set_dials(wf) |&gt;
+  update(penalty = penalty(range = c(-4, -1)))
+
+set.seed(3)
+lhs_wf &lt;- grid_latin_hypercube(pset, size = 25)
+nrow(lhs_wf)
+#&gt; [1] 25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Hand the tibble to <code>tune_grid()</code> exactly as you would a random grid; only the geometry differs.</p>
+
+<div class="webr-container" data-block-title="Use the LHS inside tune_grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use the LHS inside tune_grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(4)
+folds &lt;- vfold_cv(mtcars, v = 5)
+
+res &lt;- tune_grid(
+  wf,
+  resamples = folds,
+  grid      = lhs_wf,
+  metrics   = metric_set(rmse)
+)
+show_best(res, metric = &quot;rmse&quot;, n = 3)
+#&gt; # A tibble: 3 x 8
+#&gt;     penalty mixture .metric .estimator  mean     n std_err .config
+#&gt;       &lt;dbl&gt;   &lt;dbl&gt; &lt;chr&gt;   &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 0.0631    0.282   rmse    standard    2.65     5   0.388 Preprocessor1_Model07
+#&gt; 2 0.0263    0.514   rmse    standard    2.67     5   0.382 Preprocessor1_Model11
+#&gt; 3 0.106     0.731   rmse    standard    2.68     5   0.391 Preprocessor1_Model03</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Higher-dimensional sweeps are where Latin hypercube earns its keep. With five parameters a <code>levels = 5</code> regular grid hits 3,125 candidates; a 50-row LHS reaches every stratum on every axis with sixty times fewer fits.</p>
+
+<div class="webr-container" data-block-title="Five-parameter Latin hypercube for boosted trees">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Five-parameter Latin hypercube for boosted trees</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(5)
+bt_grid &lt;- grid_latin_hypercube(
+  trees(range = c(100, 800)),
+  tree_depth(range = c(2, 12)),
+  learn_rate(range = c(-3, -1)),
+  min_n(range = c(2, 40)),
+  mtry(range = c(2, 10)),
+  size = 50
+)
+dim(bt_grid)
+#&gt; [1] 50  5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>grid_latin_hypercube() vs grid_random() vs grid_max_entropy()</h2>
+
+<p><strong>Choose by how strict the even-coverage requirement is, not by what feels exotic.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Coverage style</th>
+<th>When to reach for it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>grid_random()</code></td>
+<td>Independent uniform draws</td>
+<td>Quick prototyping, very high dimensions, no concern about clustering.</td>
+</tr>
+<tr>
+<td><code>grid_latin_hypercube()</code></td>
+<td>Stratified (one sample per axis bin)</td>
+<td>Most tuning runs with continuous parameters; sensible default for 3 to 6 knobs.</td>
+</tr>
+<tr>
+<td><code>grid_max_entropy()</code></td>
+<td>Post-processed LHS, maximally spread in joint space</td>
+<td>Expensive fits where every candidate must be far from the others.</td>
+</tr>
+<tr>
+<td><code>grid_regular()</code></td>
+<td>Exhaustive cartesian product</td>
+<td>Two-parameter sweeps you intend to plot as a heatmap.</td>
+</tr>
+</tbody>
+</table>
+
+<p>Latin hypercube is the modern default for 3 to 6 continuous parameters. Regular still wins for 2-parameter heatmaps; max-entropy pays its setup cost when fits are expensive; random remains cheapest for quick scans at large budgets.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three traps account for most Latin hypercube surprises.</strong></p>
+
+<ol>
+
+<li><strong>Treating <code>size</code> as candidate count without thinking about strata.</strong> <code>size = 5</code> means 5 strata per axis, leaving wide gaps. For 3 to 6 parameters, aim for 30 to 100.</li>
+
+<li><strong>Unfinalized data-dependent parameters.</strong> <code>mtry()</code> has no default upper bound; pass an explicit range or call <code>finalize(mtry(), train)</code> before sampling, otherwise the function errors with an unknown-range message.</li>
+
+<li><strong>Expecting LHS to beat max-entropy at low budgets.</strong> Latin hypercube stratifies each axis but does not enforce joint spread, so at <code>size = 10</code> in 4 dimensions you can still get near-duplicate points. Reach for <code>grid_max_entropy()</code> when wasted candidates hurt.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Set a seed before every grid_latin_hypercube() call.</strong> The stratification is deterministic but the stratum permutation is stochastic, so two runs return different tibbles. Pair <code>set.seed()</code> with the grid call in the same chunk so the candidate set is reproducible for reviewers.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Use grid_space_filling() for new code.</strong> dials 1.2+ introduced <code>grid_space_filling(pset, size = N, type = &quot;latin_hypercube&quot;)</code> as an umbrella that dispatches to LHS, random, or max-entropy. The direct <code>grid_latin_hypercube()</code> still works for backward compatibility and reads more clearly when the design is decided upfront.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a Latin hypercube grid for an elastic-net workflow with <code>penalty</code> on the log10 range <code>[-3, 0]</code> and <code>mixture</code> on <code>[0, 1]</code>, drawing 12 candidates with <code>set.seed(7)</code>. The result should have 12 rows and 2 columns.</p>
+<div class="webr-container" data-block-title="Your turn: build a 12-row Latin hypercube grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build a 12-row Latin hypercube grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: build a Latin hypercube for elastic net
+library(tidymodels)
+
+set.seed(7)
+ex_lhs &lt;- # your code here
+
+nrow(ex_lhs)
+#&gt; Expected: 12
+
+ncol(ex_lhs)
+#&gt; Expected: 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+ex_lhs &lt;- grid_latin_hypercube(
+  penalty(range = c(-3, 0)),
+  mixture(range = c(0, 1)),
+  size = 12
+)
+nrow(ex_lhs)
+#&gt; [1] 12
+
+ncol(ex_lhs)
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> grid_latin_hypercube() takes one <code>size</code> regardless of parameter count, so 12 rows of two columns means 12 strata on each axis with the stratum order permuted independently per column. The seed pins both the strata and the permutation so the tibble is identical across sessions.</p>
+
+</details>
+</section>
+
+<h2>Related dials functions</h2>
+
+<p><strong>grid_latin_hypercube() sits inside a family; reach for the right neighbor when stratified sampling is wrong.</strong></p>
+
+<ul>
+
+<li><code>grid_random()</code> when the budget is large and clustering is acceptable.</li>
+
+<li><code>grid_regular()</code> for an exhaustive cartesian product on 2 or 3 parameters you plan to plot.</li>
+
+<li><code>grid_max_entropy()</code> when expensive fits demand the maximum joint spread.</li>
+
+<li><code>grid_space_filling()</code> as the new umbrella in dials 1.2+, with a <code>type</code> argument that selects Latin hypercube, max entropy, or random.</li>
+
+<li><code>parameters()</code> and <code>extract_parameter_set_dials()</code> to assemble a tuning specification from a workflow.</li>
+
+<li><code>finalize()</code> to pin data-dependent ranges such as <code>mtry()</code> against a <a class="auto-link" href="rsample-training-in-R.html" title="rsample training() in R: Get the Training Set From a Split">training set</a> before grid construction.</li>
+
+<li><code>update()</code> to override one parameter's range inside an existing parameter set without rebuilding it.</li>
+
+</ul>
+
+<p>External reference: the official dials package documentation at <a href="https://dials.tidymodels.org/reference/grid_max_entropy.html">dials.tidymodels.org/reference/grid_max_entropy.html</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does "Latin hypercube" mean in plain terms?</strong></p>
+
+<p>A Latin hypercube is a sampling design where each parameter's range is split into equal-probability strata and exactly one sample falls in every stratum. The "<a class="auto-link" href="Latin-Square-Design-in-R.html" title="Latin Square Design in R: Two-Way Blocking for Efficient Experiments">Latin square</a>" analogy comes from the property that any 2D projection has at most one point per row and per column. Extended to p parameters it becomes a "hypercube" because the same one-per-stratum property holds on every axis.</p>
+
+<p><strong>How is grid_latin_hypercube() different from <a class="auto-link" href="tune-grid_random-in-R.html" title="dials grid_random() in R: Random Hyperparameter Grids">grid_random()</a>?</strong></p>
+
+<p>Both return <code>size</code> rows with one column per parameter, but Latin hypercube stratifies each axis so marginal samples are uniform, while <code>grid_random()</code> draws independently and can cluster. For a 25-row grid on <code>penalty()</code>, LHS guarantees one sample in each of 25 log10 strata; random gives no such guarantee. Use LHS as the default for continuous parameters; reserve random for very high dimensions or quick scans.</p>
+
+<p><strong>How many candidates should I draw with grid_latin_hypercube()?</strong></p>
+
+<p>For 2 parameters, 20 to 30 candidates beat a 5x5 regular grid on coverage. For 3 to 6 parameters, draw 50 to 100. Above that, switch to <code>tune_bayes()</code> because the marginal value of each extra LHS candidate drops fast in high dimensions and model-based search uses prior runs to focus the budget.</p>
+
+<p><strong>Can I tune qualitative parameters with grid_latin_hypercube()?</strong></p>
+
+<p>Yes. Qualitative parameters like <code>weight_func()</code> are treated as factors whose levels are stratified across the size rows. <code>grid_latin_hypercube(neighbors(), weight_func(), size = 15)</code> returns 15 rows where the numeric column spans 15 strata and the qualitative column visits each level proportionally. The stratification logic adapts via the dials class system.</p>
+
+<p><strong>Should I prefer grid_latin_hypercube() or grid_space_filling()?</strong></p>
+
+<p>Both produce the same sample when <code>grid_space_filling(type = &quot;latin_hypercube&quot;)</code> is used; the umbrella lets one call switch designs by changing an argument. New code that compares LHS against max-entropy benefits from the umbrella. Code that has already chosen LHS at design time reads more clearly with the direct call.</p>
