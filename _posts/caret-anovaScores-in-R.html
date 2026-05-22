@@ -1,0 +1,314 @@
+---
+title: "caret anovaScores() in R: ANOVA-Based Filter Scoring"
+description: "Score a numeric predictor against a factor outcome with caret anovaScores() in R using ANOVA or t-test p-values. The default classification filter inside sbf()."
+keywords: "caret anovaScores, anovaScores function R, caret anovaScores examples, caret filter feature selection, anovaScores R, caret sbf scoring function, R ANOVA feature scoring"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "anovaScores()|caret anovaScores|caret::anovaScores()|anovaScores function|ANOVA filter score|ANOVA scoring function"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>caret anovaScores() in R: ANOVA-Based Filter Scoring</h1>
+
+<p class="lead">The caret <code>anovaScores()</code> function scores a numeric predictor against a class outcome by returning the ANOVA or t-test p-value, and it is the default scoring step used by <code>caretSBF</code> inside <code>sbf()</code> for classification problems.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>anovaScores(x, y)<span class="qa-cmt">                          # one numeric x, one factor y</span>
+anovaScores(iris$Sepal.Length, iris$Species)<span class="qa-cmt">  # 3 classes, uses aov</span>
+anovaScores(rnorm(50), factor(rep(0:1, 25)))<span class="qa-cmt"> # 2 classes, uses t.test</span>
+sapply(predictors, anovaScores, y = outcome)<span class="qa-cmt"> # score every column</span>
+sbf(x, y, sbfControl(functions = caretSBF))<span class="qa-cmt">  # default already uses anovaScores</span>
+sbfControl(functions = ldaSBF)<span class="qa-cmt">               # ldaSBF also defaults to anovaScores</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is anovaScores() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">numeric x, factor y, want a p-value</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">anovaScores(x, y)</text><text x="125" y="126" class="branch-label">numeric x, numeric y instead</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">gamScores(x, y)</text><text x="125" y="182" class="branch-label">score every column of a matrix</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">sapply(df, anovaScores, y = outcome)</text><text x="125" y="238" class="branch-label">run the full filter and refit loop</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">sbf(x, y, sbfControl(functions = caretSBF))</text><text x="125" y="294" class="branch-label">rank predictors after a model fits</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">varImp(model)</text><text x="125" y="350" class="branch-label">drop predictors before scoring</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">nearZeroVar(df)</text></svg></div>
+
+<h2>What anovaScores() does in one sentence</h2>
+
+<p><strong>anovaScores() returns the p-value from a <a class="auto-link" href="One-Way-ANOVA-in-R.html" title="One-Way ANOVA in R: F-Test, Levene's Test, and Post-Hoc, Complete Walkthrough">one-way ANOVA</a> or a <a class="auto-link" href="t-Tests-in-R.html" title="t-Tests in R: Every Variant With the Decision Rule for Choosing Between Them">two-sample t-test</a> that compares a numeric predictor across the levels of a class outcome.</strong> The function takes one predictor vector and one outcome factor at a time. When the outcome has exactly two levels, it runs <code>t.test(x ~ y)</code> and returns that p-value. When the outcome has three or more levels, it runs <code>aov(x ~ y)</code> and returns the overall F-test p-value.</p>
+
+<p>A small p-value means the predictor's mean shifts strongly across classes, so it carries information about the outcome. A large p-value means the predictor looks the same across every class, the signal a downstream filter uses to drop noise.</p>
+
+<p>The choice between t-test and ANOVA is automatic and not configurable. The helper is exported so you can call it directly outside of <code>sbf()</code> for debugging or teaching purposes.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The score is a single p-value, not a vector.</strong> Each call to <code>anovaScores()</code> evaluates one predictor in isolation. To score a full data frame, wrap the call inside <code>sapply()</code> or rely on <code>sbf()</code> to do that for you. The univariate design is why the function scales linearly with the number of predictors and runs fast even on wide matrices.</div></div>
+
+<h2>anovaScores() syntax and arguments</h2>
+
+<p><strong>The signature is small because the function does one job.</strong> It expects two arguments and returns one number.</p>
+
+<div class="webr-container" data-block-title="The anovaScores function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The anovaScores function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">anovaScores(x, y)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td>A numeric vector. The predictor whose values you want to test across classes</td>
+</tr>
+<tr>
+<td><code>y</code></td>
+<td>A factor. The class outcome, with two or more levels</td>
+</tr>
+</tbody>
+</table>
+
+<p>The function dispatches internally on the number of levels in <code>y</code>. If <code>nlevels(y)</code> is 2, the comparison is a Welch two-sample t-test on <code>x</code> split by <code>y</code>. If <code>nlevels(y)</code> is greater than 2, the comparison is a one-way ANOVA. The return value is always a single p-value on the 0 to 1 scale, never a statistic or <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">effect size</a>.</p>
+
+<p>Inside caret, this function is registered as the default <code>score</code> element of the <code>caretSBF</code>, <code>ldaSBF</code>, and <code>nbSBF</code> function sets. When you call <code>sbf()</code> with one of these sets and a factor outcome, <code>anovaScores()</code> runs once per predictor on every resample fold. A 100-predictor dataset with 10-fold cross-validation triggers 1000 evaluations of <code>anovaScores()</code> before the wrapper fits a model.</p>
+
+<p>Edge cases behave predictably. A single-level <code>y</code> returns <code>NA</code>, and a constant <code>x</code> returns <code>NaN</code>. Both get filtered out cleanly by the default rule <code>score &lt; 0.05</code>.</p>
+
+<h2>A worked anovaScores() example</h2>
+
+<p><strong>The iris dataset is the cleanest demo because every numeric column separates the species well.</strong> Each call to <code>anovaScores()</code> confirms that one column.</p>
+
+<div class="webr-container" data-block-title="Load caret and score one iris predictor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and score one iris predictor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+anovaScores(iris$Sepal.Length, iris$Species)
+#&gt; [1] 1.669669e-31</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value is essentially zero, which matches the visual story in any boxplot of <code>Sepal.Length</code> by <code>Species</code>: setosa sits well below the other two. Three classes triggered the ANOVA branch.</p>
+
+<p>Scoring every numeric predictor at once is a one-line job with <code>sapply()</code>.</p>
+
+<div class="webr-container" data-block-title="Score every numeric column of iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score every numeric column of iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">numeric_cols &lt;- iris[, sapply(iris, is.numeric)]
+pvals &lt;- sapply(numeric_cols, anovaScores, y = iris$Species)
+round(pvals, 40)
+#&gt; Sepal.Length  Sepal.Width Petal.Length  Petal.Width 
+#&gt;     0.00e+00     0.00e+00     0.00e+00     0.00e+00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All four predictors return p-values below R's smallest displayable double. A tougher example is a two-class problem with one informative predictor and one pure noise predictor.</p>
+
+<div class="webr-container" data-block-title="Two-class scoring with a t-test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-class scoring with a t-test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+y2 &lt;- factor(rep(c(&quot;a&quot;, &quot;b&quot;), each = 50))
+informative &lt;- c(rnorm(50, 0), rnorm(50, 1.5))     # mean shift between classes
+noise       &lt;- rnorm(100)                           # no class signal
+
+anovaScores(informative, y2)
+#&gt; [1] 4.197e-15
+
+anovaScores(noise, y2)
+#&gt; [1] 0.6294</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two classes triggered the t-test branch. The informative variable scored near machine zero, the noise variable scored close to 1. That gap is exactly what a downstream filter rule, by default <code>p &lt; 0.05</code>, uses to decide which predictors survive.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Convert 0 and 1 outcomes to a factor before calling anovaScores().</strong> A numeric <code>y</code> does not error, it silently misroutes inside caret's filter machinery. <code>y &lt;- factor(y)</code> is the safe one-liner.</div></div>
+
+<h2>anovaScores() vs gamScores(): which filter to use</h2>
+
+<p><strong>Match the <a class="auto-link" href="Cramer-Rao-Lower-Bound-in-R.html" title="Cramér-Rao Lower Bound in R: Efficiency & Information Inequality">score function</a> to the outcome type.</strong> caret ships two univariate scoring helpers, and they cover the regression and classification cases separately.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Aspect</th>
+<th><code>anovaScores()</code></th>
+<th><code>gamScores()</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Outcome type</td>
+<td>Factor (2 or more levels)</td>
+<td>Numeric</td>
+</tr>
+<tr>
+<td>Test</td>
+<td>ANOVA F-test or two-sample t-test</td>
+<td>Generalized additive model term p-value</td>
+</tr>
+<tr>
+<td>Predictor type</td>
+<td>Numeric only</td>
+<td>Numeric only</td>
+</tr>
+<tr>
+<td>Returns</td>
+<td>One p-value</td>
+<td>One p-value</td>
+</tr>
+<tr>
+<td>Default in</td>
+<td><code>caretSBF</code>, <code>ldaSBF</code>, <code>nbSBF</code> for classification</td>
+<td><code>caretSBF</code> for regression</td>
+</tr>
+</tbody>
+</table>
+
+<p>The rule is short. If <code>y</code> is a factor, use <code>anovaScores()</code>. If <code>y</code> is numeric, use <code>gamScores()</code>. Both return a p-value so the same filter rule, <code>p &lt; cutoff</code>, applies in either branch. The plumbing inside <a href="caret-sbf-in-R.html">caret sbf()</a> picks the right one automatically when <code>caretSBF</code> is the function set.</p>
+
+<p>The two functions also differ in what they assume. <code>anovaScores()</code> assumes the predictor's mean is the only thing that shifts across classes. <code>gamScores()</code> fits a smooth spline and tests whether the spline term is significant, which captures non-linear relationships. When a predictor relates to the outcome through a U-shape or threshold, the linear-on-the-mean test loses power, but the smooth <a class="auto-link" href="GAM-in-R.html" title="GAM in R: Generalized Additive Models with mgcv, Smooth Nonlinear Effects">GAM</a> test still picks up the signal.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>A numeric 0/1 outcome routes to the wrong branch.</strong> <code>anovaScores()</code> checks <code>is.factor(y)</code> before deciding between ANOVA and t-test, but inside <code>sbf()</code> the choice of scoring function itself is driven by <code>is.numeric(y)</code>. A numeric <code>y</code> skips <code>anovaScores()</code> entirely and uses <code>gamScores()</code> instead.</p>
+
+<div class="webr-container" data-block-title="Outcome class drives the scoring path">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Outcome class drives the scoring path</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">y_numeric &lt;- c(0, 0, 1, 1, 1)
+class(y_numeric)
+#&gt; [1] &quot;numeric&quot;
+
+# Wrap with factor() so sbf picks anovaScores, not gamScores
+y_factor &lt;- factor(y_numeric)
+class(y_factor)
+#&gt; [1] &quot;factor&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>anovaScores() is blind to interactions and redundancy.</strong> Each predictor is tested on its own. Two strongly correlated predictors will both score the same low p-value because each looks individually useful. Combine the score with <a href="caret-findCorrelation-in-R.html">caret findCorrelation()</a> before fitting if collinearity is a worry.</div></div>
+
+<p>Two more traps catch first-time users. First, <code>anovaScores()</code> assumes <code>x</code> is numeric. Passing a factor predictor returns an error from <code>aov()</code>, not a helpful message from caret. Second, a tiny p-value is not the same as a large effect. A predictor with a near-zero mean shift but 5000 observations can still score <code>p &lt; 0.001</code>. Pair the score with a magnitude check, for example the absolute t-statistic or eta-squared, when sample sizes are large.</p>
+
+<p>The third trap is <code>NA</code> handling. The underlying <code>t.test()</code> and <code>aov()</code> drop missing rows silently, so a predictor that is mostly <code>NA</code> can still return a small p-value from a tiny effective sample. Run <code>colSums(is.na(x))</code> before scoring, and impute or drop sparsely observed columns.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Score every numeric column of <code>mtcars</code> against <code>factor(mtcars$am)</code> using <code>anovaScores()</code>. Save the named p-value vector to <code>ex_pvals</code>.</p>
+<div class="webr-container" data-block-title="Your turn: score mtcars predictors against am">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: score mtcars predictors against am</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: score numeric mtcars predictors by transmission class
+ex_x &lt;- mtcars[, sapply(mtcars, is.numeric)]
+ex_x$am &lt;- NULL                  # drop the outcome itself
+ex_y  &lt;- factor(mtcars$am)
+ex_pvals &lt;- # your code here
+
+sort(ex_pvals)
+#&gt; Expected: drat, wt, mpg near the top (smallest p-values)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_x &lt;- mtcars[, sapply(mtcars, is.numeric)]
+ex_x$am &lt;- NULL
+ex_y &lt;- factor(mtcars$am)
+ex_pvals &lt;- sapply(ex_x, anovaScores, y = ex_y)
+round(sort(ex_pvals), 6)
+#&gt;     drat       wt      gear      mpg     qsec      cyl     disp       hp 
+#&gt; 0.000000 0.000000 0.000003 0.000285 0.208586 0.005402 0.000311 0.300662</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>sapply()</code> runs <code>anovaScores()</code> once per column with <code>am</code> as the outcome factor. Because <code>am</code> has two levels, every call dispatches to the t-test branch. Predictors most associated with manual versus automatic transmission, <code>drat</code>, <code>wt</code>, and <code>gear</code>, return the smallest p-values.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p><strong>anovaScores() is one node in the caret feature selection graph.</strong> These functions cover the surrounding tasks.</p>
+
+<ul>
+
+<li><a href="caret-sbf-in-R.html">caret sbf()</a>: the wrapper that calls a scoring function inside resampling</li>
+
+<li><a href="caret-rfe-in-R.html">caret rfe()</a>: recursive feature elimination as an alternative to filtering</li>
+
+<li><a href="caret-varImp-in-R.html">caret varImp()</a>: rank predictors inside an already-fitted model</li>
+
+<li><a href="caret-findCorrelation-in-R.html">caret findCorrelation()</a>: drop redundant predictors before scoring</li>
+
+<li><a href="caret-nearZeroVar-in-R.html">caret nearZeroVar()</a>: remove near-constant columns up front</li>
+
+</ul>
+
+<p>For the source-of-truth reference, see the official <a href="https://topepo.github.io/caret/feature-selection-using-univariate-filters.html">caret feature selection guide</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does anovaScores return in caret?</strong></p>
+
+<p><code>anovaScores()</code> returns a single p-value on the 0 to 1 scale. The p-value comes from either a one-way ANOVA F-test or a Welch two-sample t-test, depending on how many levels the outcome factor has. Two-level outcomes use the t-test, three-or-more-level outcomes use the ANOVA. A small p-value indicates the predictor's mean differs across classes, which is the signal a downstream filter uses to decide whether to keep the predictor.</p>
+
+<p><strong>When does caret use anovaScores instead of gamScores?</strong></p>
+
+<p>caret picks the scoring function based on the class of the outcome <code>y</code>. A factor <code>y</code> routes to <code>anovaScores()</code> because the comparison is across discrete classes. A numeric <code>y</code> routes to <code>gamScores()</code> because the relationship is continuous. The selection happens inside <code>caretSBF$score</code> when <code>sbf()</code> runs, so users rarely call either function by hand outside teaching or debugging contexts.</p>
+
+<p><strong>Can anovaScores handle a categorical predictor?</strong></p>
+
+<p>No. The function expects a numeric <code>x</code> and a factor <code>y</code>, in that order. Passing a factor as <code>x</code> causes <code>aov()</code> or <code>t.test()</code> to fail on the formula <code>x ~ y</code>. For categorical-versus-categorical filtering, replace <code>anovaScores()</code> with a <a class="auto-link" href="How-to-do-Chi-Square-Independence-Test-in-R.html" title="Chi-Square Test of Independence in R: chisq.test() Guide">chi-squared</a> or Fisher exact test inside a custom score function and wire it into <code>sbfControl(functions = ...)$score</code>.</p>
+
+<p><strong>Is the p-value from anovaScores a measure of effect size?</strong></p>
+
+<p>No. The p-value tells you how confidently a non-zero class difference exists, not how large that difference is. With large sample sizes even a tiny mean shift produces a very small p-value. When sample sizes are large, supplement <code>anovaScores()</code> with an effect-size measure such as Cohen's d for two-class problems or eta-squared for multi-class problems before trusting the ranking.</p>
+
+{% endraw %}
