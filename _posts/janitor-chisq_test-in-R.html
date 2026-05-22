@@ -1,0 +1,404 @@
+---
+title: "janitor chisq.test() in R: Chi-Square Test on Tabyls"
+description: "Use janitor chisq.test() to run a chi-square test of independence directly on a tabyl object in R. Covers two-way tables, simulated p-values, and pitfalls."
+keywords: "janitor chisq.test, chisq.test function R, janitor chisq.test examples, tabyl chi-square test, chi-square test janitor, independence test tabyl, chisq.test tabyl"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "janitor chisq.test|janitor::chisq.test()|chi-square test on tabyl|chisq.test on a tabyl|chi-square test of independence on tabyl"
+auto_link_case_sensitive: true
+fr_parent: "janitor-Package-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>janitor chisq.test() in R: Chi-Square Test on Tabyls</h1>
+
+<p class="lead">The <code>chisq.test()</code> method in janitor runs Pearson's chi-square test directly on a <code>tabyl</code> object, so you can stay in the tidy pipe instead of converting the table to a matrix first. It dispatches to <code>stats::chisq.test()</code> under the hood, accepting all the same arguments, and works on both 2-way (independence) and 1-way (goodness-of-fit) tabyls.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>tabyl(df, v1, v2) |&gt; chisq.test()<span class="qa-cmt">                          # independence test</span>
+tabyl(df, v1, v2) |&gt; chisq.test(correct = FALSE)<span class="qa-cmt">           # no Yates correction</span>
+tabyl(df, v1, v2) |&gt; chisq.test(simulate.p.value = TRUE)<span class="qa-cmt">   # Monte Carlo p</span>
+tabyl(df, v1) |&gt; chisq.test()<span class="qa-cmt">                              # goodness-of-fit, equal p</span>
+tabyl(df, v1) |&gt; chisq.test(p = c(.5, .3, .2))<span class="qa-cmt">             # custom expected p</span>
+tabyl(df, v1, v2) |&gt; chisq.test() |&gt; broom::tidy()<span class="qa-cmt">         # tidy data frame</span>
+chisq.test(tabyl(df, v1, v2))$expected<span class="qa-cmt">                     # inspect expecteds</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is <a class="auto-link" href="Which-Statistical-Test-in-R.html" title="Which Statistical Test in R? A Decision Flowchart That Ends the Confusion">chisq.test()</a> on a tabyl the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">test independence on a 2-way tabyl</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">tabyl(df, v1, v2) |&gt; chisq.test()</text><text x="125" y="126" class="branch-label">expected cell count below 5</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">tabyl(df, v1, v2) |&gt; fisher.test()</text><text x="125" y="182" class="branch-label">ordered categories with trend</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">prop.trend.test() on counts vector</text><text x="125" y="238" class="branch-label">one-way goodness-of-fit, equal p</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">tabyl(df, v1) |&gt; chisq.test()</text><text x="125" y="294" class="branch-label">exact small-sample 2x2 test</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">fisher.test(tabyl(df, v1, v2))</text><text x="125" y="350" class="branch-label">need standardized residuals</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">chisq.test(tab)$stdres</text><text x="125" y="406" class="branch-label">adorned with totals or percents</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">drop adorn_* then run chisq.test()</text></svg></div>
+
+<h2>What chisq.test() does on a tabyl in one sentence</h2>
+
+<p><strong><code>janitor::chisq.test()</code> is an <a class="auto-link" href="S3-Classes-in-R.html" title="S3 Classes in R: Create, Inherit & Write Methods — Complete Tutorial">S3 method</a> that lets a <code>tabyl</code> flow straight into a Pearson chi-square test without an intermediate <code>as.matrix()</code> step.</strong> The function inherits every argument of <code>stats::chisq.test()</code>, so the test logic, p-value, and <code>htest</code> return object are identical to the base R call. The only thing janitor adds is method dispatch on the <code>tabyl</code> class.</p>
+
+<p>In a tidy workflow this matters: <code>chisq.test()</code> is the natural last step after a cross-tab, and the janitor method removes the break to base R <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">hypothesis testing</a>.</p>
+
+<h2>Syntax</h2>
+
+<p><strong>The method accepts a tabyl as the first argument; everything else is forwarded to <code>stats::chisq.test()</code>.</strong> The signature is intentionally minimal:</p>
+
+<div class="webr-container" data-block-title="Load janitor and build a sample tabyl">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load janitor and build a sample tabyl</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+library(dplyr)
+
+tab &lt;- mtcars |&gt;
+  tabyl(cyl, am)
+
+tab
+#&gt;  cyl  0  1
+#&gt;    4  3  8
+#&gt;    6  4  3
+#&gt;    8 12  2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The call that follows looks just like base R:</p>
+
+<pre><code>chisq.test(x, correct = TRUE, p = rep(1/length(x), length(x)),
+           rescale.p = FALSE, simulate.p.value = FALSE, B = 2000)</code></pre>
+
+<p>The only thing that changes is the type of <code>x</code>: a tabyl instead of a matrix or table. The <code>correct</code> argument controls Yates' continuity correction (defaults to TRUE for 2x2 tables, ignored otherwise). The <code>simulate.p.value</code> switch turns on <a class="auto-link" href="Sample-Spaces-Events-and-Probability-Axioms-in-R-With-Monte-Carlo-Proof.html" title="Probability Axioms in R: Prove the Rules of Probability via Monte Carlo Simulation">Monte Carlo simulation</a>, useful when expected counts dip below 5.</p>
+
+<h2>Six common patterns</h2>
+
+<h3>1. Two-way independence test</h3>
+
+<p>The canonical use case: do the row and column variables vary together, or are they independent?</p>
+
+<div class="webr-container" data-block-title="Test cyl by am for independence">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test cyl by am for independence</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  tabyl(cyl, am) |&gt;
+  chisq.test()
+#&gt;
+#&gt; 	Pearson's Chi-squared test
+#&gt;
+#&gt; data:  
+#&gt; X-squared = 8.7407, df = 2, p-value = 0.01265</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value below 0.05 rejects the null of independence between cylinder count and transmission type. R prints a warning when expected counts fall below 5, which happens here for the 6-cylinder by automatic cell.</p>
+
+<h3>2. One-way goodness-of-fit test</h3>
+
+<p>A 1-way tabyl can be tested for goodness-of-fit. The default null is that all categories occur with equal probability.</p>
+
+<div class="webr-container" data-block-title="Goodness-of-fit on a single column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Goodness-of-fit on a single column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  tabyl(cyl) |&gt;
+  chisq.test()
+#&gt;
+#&gt; 	Chi-squared test for given probabilities
+#&gt;
+#&gt; data:  
+#&gt; X-squared = 2.3125, df = 2, p-value = 0.3147</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Against a uniform 11/11/11 null, mtcars cylinder counts are not significantly different.</p>
+
+<h3>3. Custom expected probabilities</h3>
+
+<p>For a goodness-of-fit test with non-uniform expected probabilities, pass a numeric vector to <code>p</code>. The vector must have the same length as the tabyl's categories and sum to 1.</p>
+
+<div class="webr-container" data-block-title="Goodness-of-fit with custom expected p">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Goodness-of-fit with custom expected p</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  tabyl(cyl) |&gt;
+  chisq.test(p = c(0.5, 0.2, 0.3))
+#&gt;
+#&gt; 	Chi-squared test for given probabilities
+#&gt;
+#&gt; data:  
+#&gt; X-squared = 2.1761, df = 2, p-value = 0.3369</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong><code>rescale.p = TRUE</code> saves a step when probabilities do not sum to exactly 1.</strong> Floating-point inputs from a calculation often miss 1 by a tiny amount, which makes <code>chisq.test()</code> throw an error. Passing <code>rescale.p = TRUE</code> divides each probability by the sum, normalizing them before the test runs.</div></div>
+
+<h3>4. Simulated p-values for sparse tables</h3>
+
+<p>When expected counts fall below 5, the chi-square approximation breaks down. <code>simulate.p.value = TRUE</code> returns a <a class="auto-link" href="Permutation-Tests-in-R.html" title="Permutation Tests in R: Exact p-Values via Randomization">Monte Carlo p-value</a> instead.</p>
+
+<div class="webr-container" data-block-title="Monte Carlo p-value for a sparse tabyl">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Monte Carlo p-value for a sparse tabyl</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+
+mtcars |&gt;
+  tabyl(cyl, am) |&gt;
+  chisq.test(simulate.p.value = TRUE, B = 5000)
+#&gt;
+#&gt; 	Pearson's Chi-squared test with simulated p-value
+#&gt; 	(based on 5000 replicates)
+#&gt;
+#&gt; data:  
+#&gt; X-squared = 8.7407, df = NA, p-value = 0.01539</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>B</code> sets the number of simulated tables (2000 by default); higher <code>B</code> gives a more stable p-value.</p>
+
+<h3>5. Extract test components for reporting</h3>
+
+<p>The return value is a standard <code>htest</code> list. Pull out individual pieces with <code>$</code>, or convert the whole result to a <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> frame with <code>broom::tidy()</code>.</p>
+
+<div class="webr-container" data-block-title="Extract statistic, p-value, and expecteds">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract statistic, p-value, and expecteds</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">res &lt;- mtcars |&gt;
+  tabyl(cyl, am) |&gt;
+  chisq.test()
+
+res$statistic
+#&gt; X-squared 
+#&gt;  8.740725
+
+res$p.value
+#&gt; [1] 0.01265
+
+res$expected
+#&gt;  cyl       0       1
+#&gt;    4 6.71875 4.28125
+#&gt;    6 4.27500 2.72500
+#&gt;    8 8.00625 5.99375</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>$expected</code> table is the most important diagnostic; cells below 5 are the warning signs that the chi-square assumption is shaky.</p>
+
+<h3>6. Switch to Fisher's exact test when assumptions break</h3>
+
+<p><code>fisher.test()</code> also has a janitor method, so the swap is one verb deep.</p>
+
+<div class="webr-container" data-block-title="Fisher exact test on the same tabyl">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fisher exact test on the same tabyl</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars |&gt;
+  tabyl(cyl, am) |&gt;
+  fisher.test()
+#&gt;
+#&gt; 	Fisher's Exact Test for Count Data
+#&gt;
+#&gt; data:  
+#&gt; p-value = 0.009105
+#&gt; alternative hypothesis: two.sided</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Fisher's test makes no large-sample approximation, so it is safer for sparse 2-way tables.</p>
+
+<h2>Compare with alternatives</h2>
+
+<p><strong>Several routes lead to the same chi-square result; the right pick depends on what is already in the pipeline.</strong> The table below maps each route to its best use case.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Code</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>janitor method</td>
+<td>`tabyl(df, v1, v2) \</td>
+<td>> chisq.test()`</td>
+<td>already piping with janitor or dplyr</td>
+</tr>
+<tr>
+<td>Base R on a table</td>
+<td><code>chisq.test(table(df$v1, df$v2))</code></td>
+<td>quick one-liner, no pipe</td>
+</tr>
+<tr>
+<td>Base R on a matrix</td>
+<td><code>chisq.test(matrix(c(...), nrow = 2))</code></td>
+<td>working from pre-computed counts</td>
+</tr>
+<tr>
+<td>Fisher exact</td>
+<td>`tabyl(df, v1, v2) \</td>
+<td>> fisher.test()`</td>
+<td>expected counts below 5</td>
+</tr>
+<tr>
+<td>broom-tidy result</td>
+<td>`chisq.test(tab) \</td>
+<td>> broom::<a class="auto-link" href="parsnip-tidy-fit-in-R.html" title="parsnip tidy() in R: Tidy Model Coefficients">tidy()</a>`</td>
+<td>building report tables</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li>The janitor method is the cleanest fit inside a tidy pipeline; the test logic is identical to base R.</li>
+
+<li>Reach for <code>table()</code> when you have raw vectors and no other reason to build a tabyl.</li>
+
+<li>Use <code>fisher.test()</code> whenever the chi-square test prints a "chi-squared approximation may be incorrect" warning.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python pandas?</strong> The closest equivalent of <code>tabyl(df, v1, v2) |&gt; chisq.test()</code> is <code>scipy.stats.chi2_contingency(pd.crosstab(df.v1, df.v2))</code>. The tidy pipe in R keeps the table and the test in one expression; <code>scipy</code> separates them into two calls.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: running chisq.test() on an adorned tabyl.</strong> The adorn_* family changes the tabyl's values: totals get appended, counts become proportions. Piping such a tabyl into <code>chisq.test()</code> treats the totals row as a real category, inflating the statistic. Always call <code>chisq.test()</code> BEFORE any adorn step.</p>
+
+<p><strong>Pitfall 2: low expected counts trigger a silent warning, not an error.</strong> R prints "Chi-squared approximation may be incorrect" but still returns a p-value. Readers often miss the warning and report the result. Inspect <code>$expected</code> first; if any cell is below 5, switch to <code>fisher.test()</code> or pass <code>simulate.p.value = TRUE</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>show_na = TRUE</code> (the tabyl default) inflates the chi-square statistic.</strong> <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">Missing values</a> become their own row or column in the tabyl, and <code>chisq.test()</code> treats that NA category as just another bucket. If you do not intend to test missingness as a category, build the tabyl with <code>show_na = FALSE</code> (or filter NA before tabulating) so the test ignores missing observations.</div></div>
+
+<p><strong>Pitfall 3: forgetting Yates' continuity correction is on by default for 2x2.</strong> For 2x2 tables, base R subtracts 0.5 from each absolute cell difference before squaring, which lowers the statistic and the p-value compared with the uncorrected form. If you want the uncorrected Pearson statistic, pass <code>correct = FALSE</code> explicitly. Many textbooks and other software packages report uncorrected values by default.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Take <code>HairEyeColor</code>, collapse the <code>Sex</code> margin, build a tabyl of hair color by eye color from the underlying counts, and run a <a class="auto-link" href="Chi-Square-Tests-in-R.html" title="Chi-Square Tests in R: Independence, Goodness-of-Fit, With Effect Sizes">chi-square test of independence</a>. Save the test to <code>ex_chi</code>.</p>
+<div class="webr-container" data-block-title="Your turn: hair by eye independence">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: hair by eye independence</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: chi-square on HairEyeColor (collapsed across Sex)
+ex_dat &lt;- as.data.frame(margin.table(HairEyeColor, c(1, 2)))
+ex_dat &lt;- ex_dat[rep(seq_len(nrow(ex_dat)), ex_dat$Freq), c(&quot;Hair&quot;, &quot;Eye&quot;)]
+
+ex_chi &lt;- # your code here
+
+ex_chi
+#&gt; Expected: very small p-value, X-squared above 100</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_dat &lt;- as.data.frame(margin.table(HairEyeColor, c(1, 2)))
+ex_dat &lt;- ex_dat[rep(seq_len(nrow(ex_dat)), ex_dat$Freq), c(&quot;Hair&quot;, &quot;Eye&quot;)]
+
+ex_chi &lt;- ex_dat |&gt;
+  tabyl(Hair, Eye) |&gt;
+  chisq.test()
+
+ex_chi
+#&gt;
+#&gt; 	Pearson's Chi-squared test
+#&gt;
+#&gt; data:  
+#&gt; X-squared = 138.29, df = 9, p-value &lt; 2.2e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Expanding the <a class="auto-link" href="Categorical-Data-in-R.html" title="Categorical Data in R: Frequency Tables, Crosstabs & Mosaic Plots">frequency table</a> back to one row per observation lets <code>tabyl()</code> count from raw data. The test rejects independence: hair color and eye color are strongly associated, exactly the textbook conclusion for this dataset.</p>
+
+</details>
+</section>
+
+<h2>Related janitor functions</h2>
+
+<p>After running <code>chisq.test()</code> on a tabyl, these are the natural next steps:</p>
+
+<ul>
+
+<li><code>tabyl()</code>: build the 1-way or 2-way frequency table the test operates on</li>
+
+<li><code>fisher.test()</code>: janitor S3 method for <a class="auto-link" href="Fishers-Exact-Test-in-R.html" title="Fisher's Exact Test in R: 2×2 Tables, Odds Ratios & Small Samples">Fisher's exact test</a>, the small-sample alternative</li>
+
+<li><code>adorn_totals()</code>: add row, column, or both totals AFTER the test, never before</li>
+
+<li><code>adorn_percentages()</code>: convert counts to row, column, or grand-total proportions</li>
+
+<li><code>untabyl()</code>: strip the tabyl class if a downstream function rejects it</li>
+
+</ul>
+
+<p>For a full tour of janitor's verbs, see the <a href="janitor-Package-in-R.html">janitor package guide</a>. The official reference lives at <a href="https://sfirke.github.io/janitor/">sfirke.github.io/janitor</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does janitor chisq.test() do?</strong></p>
+
+<p>It adds an S3 method, <code>chisq.test.tabyl()</code>, that accepts a tabyl and forwards to <code>stats::chisq.test()</code>. The result is the same Pearson chi-square test you would get from base R, computed on the same counts, returning the same <code>htest</code> object. The benefit is purely ergonomic: a tabyl flows straight into the test inside a tidy pipe, without an <code>as.matrix()</code> step.</p>
+
+<p><strong>How is janitor::chisq.test() different from stats::chisq.test()?</strong></p>
+
+<p>The statistical logic is identical. janitor only adds method dispatch: when the input has class <code>tabyl</code>, R routes the call through <code>chisq.test.tabyl()</code>, which strips the tabyl wrapper and calls <code>stats::chisq.test()</code> on the underlying counts. Every argument (<code>correct</code>, <code>p</code>, <code>rescale.p</code>, <code>simulate.p.value</code>, <code>B</code>) is passed through unchanged.</p>
+
+<p><strong>Why do I get a "chi-squared approximation may be incorrect" warning?</strong></p>
+
+<p>This warning fires when any expected cell count falls below 5. The chi-square distribution is an approximation to the exact <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">sampling distribution</a>; the approximation degrades when cells are sparse. Check <code>result$expected</code> to confirm, then either combine sparse categories, switch to <code>fisher.test()</code>, or rerun with <code>simulate.p.value = TRUE</code> for a Monte Carlo p-value.</p>
+
+<p><strong>Can I run chisq.test() on a tabyl with adorn_totals() applied?</strong></p>
+
+<p>No. <code>adorn_totals()</code> adds a "Total" row or column whose counts duplicate the marginals, and <code>chisq.test()</code> would treat that row as a real category, inflating the statistic. Run <code>chisq.test()</code> first, then add adornments to the printable table afterward, or build a separate tabyl for the test.</p>
+
+<p><strong>Does janitor have a method for fisher.test() too?</strong></p>
+
+<p>Yes. <code>janitor::fisher.test()</code> is the same kind of S3 method as <code>chisq.test.tabyl()</code>. It accepts a tabyl and forwards to <code>stats::fisher.test()</code>. The pattern is consistent: any base R hypothesis test that operates on a <a class="auto-link" href="R-Mosaic-Plots.html" title="R Mosaic Plots: Visualize Categorical Variable Relationships">contingency table</a> now flows out of <code>tabyl()</code> in one verb.</p>
