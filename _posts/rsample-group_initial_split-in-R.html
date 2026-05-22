@@ -1,0 +1,328 @@
+---
+title: "rsample group_initial_split() in R: Group-Safe Splits"
+description: "Split grouped data with rsample group_initial_split() in R. Keeps all rows of a group in one set, with prop, strata, set.seed, and group leakage examples."
+keywords: "rsample group_initial_split, group_initial_split function R, rsample group_initial_split examples, grouped train test split R, tidymodels grouped split, group based split"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "group_initial_split()|rsample group_initial_split|rsample::group_initial_split()|grouped initial split|group based split"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>rsample group_initial_split() in R: Group-Safe Splits</h1>
+
+<p class="lead">The rsample group_initial_split() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> creates a train/test partition that keeps every row of a group in the same set, preventing data leakage when observations are clustered by patient, customer, store, or session.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>group_initial_split(df, group_var)<span class="qa-cmt">                           # default 75/25 by group</span>
+group_initial_split(df, group_var, prop = 0.8)<span class="qa-cmt">               # custom group proportion</span>
+group_initial_split(df, group_var, strata = y)<span class="qa-cmt">               # group split + outcome strata</span>
+training(split)<span class="qa-cmt">                                              # extract training rows</span>
+testing(split)<span class="qa-cmt">                                               # extract testing rows</span>
+set.seed(123); group_initial_split(df, group_var)<span class="qa-cmt">            # reproducible group split</span>
+group_initial_split(df, group_var, pool = 0.05)<span class="qa-cmt">              # small group pooling</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is group_initial_split() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">one split with grouped data</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">group_initial_split(df, group)</text><text x="125" y="126" class="branch-label">standard random single split</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">initial_split(df, prop = 0.8)</text><text x="125" y="182" class="branch-label">grouped <a class="auto-link" href="rsample-vfold_cv-in-R.html" title="rsample vfold_cv() in R: V-Fold Cross-Validation Splits">k-fold cross-validation</a></text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">group_vfold_cv(df, group)</text><text x="125" y="238" class="branch-label">time-ordered single split</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">initial_time_split(df, prop = 0.8)</text><text x="125" y="294" class="branch-label">stratified outcome only</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">initial_split(df, strata = y)</text><text x="125" y="350" class="branch-label">three-way train/val/test</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">initial_validation_split(df)</text><text x="125" y="406" class="branch-label">repeated grouped resamples</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">group_bootstraps(df, group)</text></svg></div>
+
+<h2>What group_initial_split() does</h2>
+
+<p><strong>group_initial_split() partitions a data frame once by group, so every row sharing a group identifier stays together in training or testing.</strong> It belongs to the rsample package, the resampling engine of the tidymodels ecosystem. Instead of sampling individual rows, it samples whole groups and assigns each one entirely to a single side of the split.</p>
+
+<p>The point of a grouped split is to stop information from a single subject leaking across both sets. If a patient has ten visits and three appear in training while seven appear in testing, the model sees the same patient twice and reports an inflated accuracy that will not hold on new patients. group_initial_split() guarantees that does not happen.</p>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>The signature mirrors <a class="auto-link" href="rsample-initial_split-in-R.html" title="rsample initial_split() in R: Make a Train/Test Split">initial_split()</a> with one extra argument that names the grouping column.</strong></p>
+
+<div class="webr-container" data-block-title="group_initial_split function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">group_initial_split function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">group_initial_split(
+  data,           # the data frame to split
+  group,          # column that identifies the groups
+  prop = 3/4,     # approximate proportion of rows sent to training
+  strata = NULL,  # optional outcome column for stratification within groups
+  breaks = 4,     # bins used when strata is numeric
+  pool = 0.1      # small-group pooling threshold for strata
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments you reach for in practice:</p>
+
+<ul>
+
+<li><strong>data</strong>: the data frame or tibble to partition.</li>
+
+<li><strong>group</strong>: unquoted column name that holds the group identifier (subject ID, customer ID, store ID).</li>
+
+<li><strong>prop</strong>: target fraction of rows in training. The actual ratio shifts slightly because whole groups are assigned at random.</li>
+
+<li><strong>strata</strong>: optional outcome column, applied at the group level when stratification is needed.</li>
+
+<li><strong>pool</strong>: strata levels smaller than this fraction get pooled together before splitting.</li>
+
+</ul>
+
+<h2>group_initial_split() examples</h2>
+
+<h3>Basic grouped split with simulated patient data</h3>
+
+<p><strong>Call group_initial_split() with a data frame and the grouping column to see how rows distribute by group.</strong> Each subject_id ends up entirely in one set.</p>
+
+<div class="webr-container" data-block-title="Create a grouped train test split">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create a grouped train test split</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rsample)
+library(dplyr)
+
+set.seed(123)
+patients &lt;- tibble(
+  subject_id = rep(paste0(&quot;P&quot;, 1:20), each = 5),
+  visit      = rep(1:5, 20),
+  outcome    = rnorm(100)
+)
+
+grp_split &lt;- group_initial_split(patients, group = subject_id)
+grp_split
+#&gt; &lt;Training/Testing/Total&gt;
+#&gt; &lt;75/25/100&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Confirm no subject appears in both sets</h3>
+
+<p><strong>The whole point of grouped splitting is that the training and testing subject lists are disjoint.</strong> Inspect the unique IDs in each set to verify.</p>
+
+<div class="webr-container" data-block-title="Verify zero group overlap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Verify zero group overlap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">train_ids &lt;- unique(training(grp_split)$subject_id)
+test_ids  &lt;- unique(testing(grp_split)$subject_id)
+
+length(intersect(train_ids, test_ids))
+#&gt; [1] 0
+
+length(train_ids)
+#&gt; [1] 15
+length(test_ids)
+#&gt; [1] 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Set a custom group proportion</h3>
+
+<p><strong>Pass prop to change the fraction of groups assigned to training.</strong> With 20 subjects, prop = 0.8 sends 16 subjects to training and 4 to testing.</p>
+
+<div class="webr-container" data-block-title="Use a custom 80 20 group split">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use a custom 80 20 group split</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(123)
+grp_split_80 &lt;- group_initial_split(patients, group = subject_id, prop = 0.8)
+length(unique(training(grp_split_80)$subject_id))
+#&gt; [1] 16
+length(unique(testing(grp_split_80)$subject_id))
+#&gt; [1] 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Stratify the outcome while preserving groups</h3>
+
+<p><strong>Combine group with strata when the outcome is imbalanced and observations are clustered.</strong> rsample assigns each group to a stratum first, then splits within strata.</p>
+
+<div class="webr-container" data-block-title="Group split with outcome stratification">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Group split with outcome stratification</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">patients2 &lt;- patients |&gt;
+  mutate(class = if_else(outcome &gt; 0, &quot;high&quot;, &quot;low&quot;))
+
+set.seed(123)
+grp_strat &lt;- group_initial_split(patients2, group = subject_id, strata = class)
+table(training(grp_strat)$class)
+#&gt; 
+#&gt; high  low 
+#&gt;   37   38</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>group_initial_split() vs other split functions</h2>
+
+<p><strong>group_initial_split() is the right choice whenever rows share an identifier that the model should not see twice.</strong> The other rsample splitters serve different scenarios.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Produces</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>group_initial_split()</code></td>
+<td>One split with groups intact</td>
+<td>Clustered or repeated-measures data</td>
+</tr>
+<tr>
+<td><code>initial_split()</code></td>
+<td>One row-level random split</td>
+<td>Independent observations</td>
+</tr>
+<tr>
+<td><code>group_vfold_cv()</code></td>
+<td>k folds, groups intact</td>
+<td>Cross-validation on clustered data</td>
+</tr>
+<tr>
+<td><code>initial_time_split()</code></td>
+<td>One time-ordered split</td>
+<td><a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">Time series</a> or panel data</td>
+</tr>
+<tr>
+<td><code>group_bootstraps()</code></td>
+<td>Many group-level resamples</td>
+<td>Variance estimates on clustered data</td>
+</tr>
+</tbody>
+</table>
+
+<p>A clinical pipeline often pairs both: <code>group_initial_split()</code> to carve off a final patient-level hold-out, then <code>group_vfold_cv()</code> on the training patients for hyperparameter tuning.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Row-level proportions are approximate; group-level proportions are exact.</strong> Because whole groups are assigned at random, the realized row ratio depends on group sizes. If groups vary wildly in size, a 75/25 group split can produce a 60/40 row split or worse. Inspect both the group count and the row count after splitting.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most grouped-split bugs.</strong></p>
+
+<ul>
+
+<li><strong>Forgetting set.seed().</strong> group_initial_split() shuffles groups at random. Without a seed before the call, the partition changes every run and your reported metrics drift between sessions.</li>
+
+<li><strong>Using initial_split() on clustered data.</strong> This is the silent failure mode this function fixes. A normal random split scatters a single subject across both sets, the model memorizes that subject, and offline accuracy looks great while production accuracy collapses.</li>
+
+<li><strong>Confusing group with strata.</strong> group keeps observations together; strata balances an outcome variable. They solve different problems and can be combined. Passing the outcome to group will create one group per outcome value and ruin the split.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Strata at the group level is not the same as strata at the row level.</strong> When you pass both group and strata, rsample assigns one stratum to each group (typically the modal outcome or first value). If outcomes vary within a group, stratification cannot be perfectly balanced. Check the resulting class counts before training.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the simulated <code>patients</code> data above. Make a 70/30 group_initial_split by <code>subject_id</code>, then save the unique training subject IDs to <code>ex_train_ids</code>.</p>
+<div class="webr-container" data-block-title="Your turn: split patients by subject">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: split patients by subject</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: 70/30 group split of patients
+set.seed(42)
+ex_split     &lt;- # your code here
+ex_train_ids &lt;- # your code here
+
+length(ex_train_ids)
+#&gt; Expected: 14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+ex_split     &lt;- group_initial_split(patients, group = subject_id, prop = 0.70)
+ex_train_ids &lt;- unique(training(ex_split)$subject_id)
+length(ex_train_ids)
+#&gt; [1] 14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> prop = 0.70 targets 70 percent of the 20 subjects, which rounds to 14 in training and 6 in testing. The row count will not be exactly 70/30 because group sizes are equal here, but in real data the row ratio drifts further.</p>
+
+</details>
+</section>
+
+<h2>Related rsample functions</h2>
+
+<p><strong>group_initial_split() is the entry point for grouped workflows; these extend it.</strong></p>
+
+<ul>
+
+<li><code>training()</code> and <code>testing()</code>: extract the two data frames from a grouped split object.</li>
+
+<li><code>group_vfold_cv()</code>: build k-fold cross-validation folds with groups intact.</li>
+
+<li><code>group_bootstraps()</code>: generate group-level <a class="auto-link" href="broom-bootstrap-in-R.html" title="broom Bootstrap in R: Tidy Resampled Estimates">bootstrap resamples</a>.</li>
+
+<li><code>group_mc_cv()</code>: Monte Carlo cross-validation that respects group membership.</li>
+
+<li><code>initial_split()</code>: the row-level counterpart for independent observations.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from scikit-learn?</strong> group_initial_split() is the tidymodels equivalent of <code>GroupShuffleSplit</code> followed by a single <code>next()</code> call. The group argument matches scikit-learn's <code>groups</code> parameter, and the function honors strata in the same way.</div></div>
+
+<h2>FAQ</h2>
+
+<p><strong>When should I use group_initial_split() instead of initial_split()?</strong></p>
+
+<p>Use group_initial_split() whenever a single real-world entity contributes multiple rows. Common cases include repeated patient visits, multiple orders per customer, multiple sessions per user, longitudinal measurements, and panel data. A regular initial_split() shuffles rows independently, so the same subject can land in training and testing. The model then partly memorizes that subject and offline performance becomes optimistic.</p>
+
+<p><strong>Does group_initial_split() guarantee an exact 75/25 row ratio?</strong></p>
+
+<p>No. The function guarantees that whole groups are kept together and targets the prop value at the group level. Because group sizes vary, the realized row ratio drifts. With 20 subjects and prop = 0.75, you get 15 groups in training and 5 in testing exactly, but the row counts depend on how many observations each subject contributes. For tighter row balance, prefer groups of similar size or accept the drift.</p>
+
+<p><strong>Can I use group_initial_split() with a numeric group identifier?</strong></p>
+
+<p>Yes. The group argument accepts any column type that uniquely identifies a cluster, including integers, characters, and factors. rsample treats each distinct value as a group label. If the column has accidental duplicates across what you consider different clusters, those clusters are merged into one group, which usually is not what you want. Verify the column has the right cardinality before splitting.</p>
+
+<p><strong>How does group_initial_split() interact with set.seed()?</strong></p>
+
+<p>Call set.seed() with any integer immediately before the function. The random selection of groups is deterministic given a fixed seed and a fixed R version, so the same script reproduces the same partition. Moving the seed to a different script, switching R versions, or rerunning with a different rsample version can shift which groups end up where. Keep the seed and the split in the same chunk for reproducibility.</p>
+
+{% endraw %}
