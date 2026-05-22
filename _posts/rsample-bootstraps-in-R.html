@@ -1,0 +1,349 @@
+---
+title: "rsample bootstraps() in R: Bootstrap Resampling Splits"
+description: "Build bootstrap resamples with rsample bootstraps() in R. Covers times, strata, apparent, set.seed reproducibility, and analysis()/assessment() helpers."
+keywords: "rsample bootstraps, bootstraps function R, rsample bootstraps examples, R bootstrap resampling, tidymodels bootstraps, rsample resampling with replacement, bootstrap samples R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "bootstraps()|rsample bootstraps|rsample::bootstraps()|bootstrap resampling|bootstrap samples"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>rsample bootstraps() in R: Bootstrap Resampling Splits</h1>
+
+<p class="lead">The rsample bootstraps() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> builds <a class="auto-link" href="broom-bootstrap-in-R.html" title="broom Bootstrap in R: Tidy Resampled Estimates">bootstrap resamples</a> by drawing rows with replacement, so you can estimate model variance, build <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a>, or train ensemble models on small datasets.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>bootstraps(df)<span class="qa-cmt">                              # default 25 resamples</span>
+bootstraps(df, times = 1000)<span class="qa-cmt">                # large bootstrap for CIs</span>
+bootstraps(df, strata = y)<span class="qa-cmt">                  # stratified bootstrap</span>
+bootstraps(df, apparent = TRUE)<span class="qa-cmt">             # add apparent (original) split</span>
+analysis(boots$splits[[1]])<span class="qa-cmt">                 # in-bag rows of resample 1</span>
+assessment(boots$splits[[1]])<span class="qa-cmt">               # out-of-bag (OOB) rows</span>
+set.seed(123); bootstraps(df, times = 100)<span class="qa-cmt">  # reproducible resamples</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is bootstraps() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label"><a class="auto-link" href="Bootstrap-Confidence-Intervals-in-R.html" title="Bootstrap CIs in R: Distribution-Free Confidence Intervals for Any Statistic">bootstrap resampling</a> with replacement</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">bootstraps(df, times = 1000)</text><text x="125" y="126" class="branch-label">k-fold cross-validation without replacement</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">vfold_cv(df, v = 10)</text><text x="125" y="182" class="branch-label">single train/test partition</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">initial_split(df, prop = 0.8)</text><text x="125" y="238" class="branch-label">monte carlo random splits</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">mc_cv(df, prop = 0.8, times = 25)</text><text x="125" y="294" class="branch-label">time-ordered resamples</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">rolling_origin(df, initial = 100)</text><text x="125" y="350" class="branch-label">keep groups intact across resamples</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">group_bootstraps(df, group_var)</text><text x="125" y="406" class="branch-label">leave-one-out resampling</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">loo_cv(df)</text></svg></div>
+
+<h2>What bootstraps() does</h2>
+
+<p><strong>bootstraps() draws resamples of the same size as the input data, with replacement.</strong> It is part of the rsample package, the resampling engine in the tidymodels ecosystem. Each resample uses bootstrap sampling: rows are drawn at random with replacement from the original data, so the analysis set is the same length as the input but contains duplicate rows. On average about 63.2 percent of the original rows appear at least once; the remaining 36.8 percent form the out-of-bag (OOB) assessment set.</p>
+
+<p>The function returns a tibble with a <code>splits</code> list-column of <code>rsplit</code> objects and an <code>id</code> column labelling each resample. It does not copy the underlying data. Each <code>rsplit</code> stores integer row indices into the original frame, so a thousand bootstrap resamples of a million-row table is still a small object. Use bootstrap resampling to estimate the sampling variance of a statistic, build percentile confidence intervals, or feed <code>fit_resamples()</code> when cross-validation is impractical on very small data.</p>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>The signature has one required argument and five tuning knobs.</strong></p>
+
+<div class="webr-container" data-block-title="bootstraps function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">bootstraps function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bootstraps(
+  data,            # the data frame to resample
+  times = 25,      # number of bootstrap resamples
+  strata = NULL,   # column to stratify resamples by
+  breaks = 4,      # bins used when strata is numeric
+  pool = 0.1,      # small-group pooling threshold for strata
+  apparent = FALSE # add an extra &quot;apparent&quot; split using original data
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments that matter in practice:</p>
+
+<ul>
+
+<li><strong>data</strong>: the data frame or tibble to resample.</li>
+
+<li><strong>times</strong>: the number of bootstrap resamples. The default <code>25</code> is fine for quick checks; use <code>1000</code> or more for percentile confidence intervals.</li>
+
+<li><strong>strata</strong>: a column name. Resamples are drawn within each stratum so class or quantile proportions are preserved.</li>
+
+<li><strong>breaks</strong>: when <code>strata</code> is numeric, the number of <a class="auto-link" href="dplyr-ntile-in-R.html" title="dplyr ntile() in R: Bin Values into N Equal-Count Groups">quantile bins</a> used to stratify.</li>
+
+<li><strong>apparent</strong>: if <code>TRUE</code>, appends one extra row to the result where both analysis and assessment sets are the full original data. Used by some bias correction methods.</li>
+
+</ul>
+
+<h2>bootstraps() examples</h2>
+
+<h3>Basic 25-sample bootstrap</h3>
+
+<p><strong>Call bootstraps() on a data frame and print the result to see the resample structure.</strong> The default <code>times = 25</code> produces a tibble with 25 rows, one per resample.</p>
+
+<div class="webr-container" data-block-title="Create default 25 bootstrap resamples">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create default 25 bootstrap resamples</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rsample)
+
+set.seed(123)
+iris_boots &lt;- bootstraps(iris)
+iris_boots
+#&gt; # Bootstrap sampling 
+#&gt; # A tibble: 25 x 2
+#&gt;    splits           id         
+#&gt;    &lt;list&gt;           &lt;chr&gt;      
+#&gt;  1 &lt;split [150/53]&gt; Bootstrap01
+#&gt;  2 &lt;split [150/49]&gt; Bootstrap02
+#&gt;  3 &lt;split [150/60]&gt; Bootstrap03
+#&gt;  4 &lt;split [150/57]&gt; Bootstrap04
+#&gt;  5 &lt;split [150/58]&gt; Bootstrap05
+#&gt;  6 &lt;split [150/52]&gt; Bootstrap06
+#&gt;  7 &lt;split [150/55]&gt; Bootstrap07
+#&gt;  8 &lt;split [150/57]&gt; Bootstrap08
+#&gt;  9 &lt;split [150/56]&gt; Bootstrap09
+#&gt; 10 &lt;split [150/57]&gt; Bootstrap10
+#&gt; # i 15 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Extract analysis and assessment sets</h3>
+
+<p><strong>Each split has an analysis() set with duplicates and an assessment() set of out-of-bag rows.</strong> The two helpers return ordinary data frames you can feed to any modeling function.</p>
+
+<div class="webr-container" data-block-title="Pull one resample&#x27;s data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pull one resample&#x27;s data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">boot1 &lt;- iris_boots$splits[[1]]
+
+in_bag  &lt;- analysis(boot1)
+oob_bag &lt;- assessment(boot1)
+
+nrow(in_bag)
+#&gt; [1] 150
+nrow(oob_bag)
+#&gt; [1] 53
+
+sum(duplicated(in_bag))
+#&gt; [1] 97</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Increase times for confidence intervals</h3>
+
+<p><strong>Set times to a large number when you want a percentile confidence interval.</strong> A common rule of thumb is at least 1,000 resamples for a 95 percent interval and 10,000 for the tails of a 99 percent interval.</p>
+
+<div class="webr-container" data-block-title="Run 1000 bootstrap resamples for a CI">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run 1000 bootstrap resamples for a CI</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(123)
+boots_1000 &lt;- bootstraps(iris, times = 1000)
+nrow(boots_1000)
+#&gt; [1] 1000
+
+boot_means &lt;- vapply(
+  boots_1000$splits,
+  function(s) mean(analysis(s)$Sepal.Length),
+  numeric(1)
+)
+quantile(boot_means, c(0.025, 0.975))
+#&gt;     2.5%    97.5% 
+#&gt; 5.751333 5.937833</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Stratify by a class column</h3>
+
+<p><strong>Use strata to keep the outcome distribution balanced across every resample.</strong> Without stratification a small minority class can be absent from some bootstraps, breaking models that need all classes present.</p>
+
+<div class="webr-container" data-block-title="Stratified bootstrap by a factor column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stratified bootstrap by a factor column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(123)
+strat_boots &lt;- bootstraps(iris, times = 5, strata = Species)
+table(analysis(strat_boots$splits[[1]])$Species)
+#&gt; 
+#&gt;     setosa versicolor  virginica 
+#&gt;         50         50         50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>bootstraps() vs other resampling functions</h2>
+
+<p><strong>bootstraps() draws with replacement; the alternatives partition without replacement or sample with constraints.</strong> Pick the function that matches the estimator you need.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Produces</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bootstraps()</code></td>
+<td>Resamples with replacement, same size as data</td>
+<td>Confidence intervals, variance estimates, small data</td>
+</tr>
+<tr>
+<td><code>vfold_cv()</code></td>
+<td>v folds, every row held out once</td>
+<td>Tuning, stable performance estimates</td>
+</tr>
+<tr>
+<td><code>mc_cv()</code></td>
+<td>Random train/test splits, can overlap</td>
+<td>Many resamples without v-fold structure</td>
+</tr>
+<tr>
+<td><code>initial_split()</code></td>
+<td>One train/test split</td>
+<td>Final hold-out evaluation</td>
+</tr>
+<tr>
+<td><code>loo_cv()</code></td>
+<td>n folds of size 1</td>
+<td>Very small datasets, leave-one-out</td>
+</tr>
+<tr>
+<td><code>group_bootstraps()</code></td>
+<td>Bootstrap on whole groups</td>
+<td>Hierarchical or clustered data</td>
+</tr>
+</tbody>
+</table>
+
+<p>A typical bootstrap workflow looks like: <code>bootstraps()</code> returns the resamples, you fit a statistic or model on each <code>analysis()</code> set, then aggregate the per-resample statistics into a distribution. The OOB rows from <code>assessment()</code> are useful for honest accuracy estimates that mirror random forest OOB error.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The analysis() set is always the same size as the original data, but contains duplicates.</strong> This is what makes bootstraps different from cross-validation. About 63.2 percent of rows appear at least once in any resample; the rest are out-of-bag and form a free assessment set, no extra splitting required.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most bootstraps() bugs.</strong></p>
+
+<ul>
+
+<li><strong>Forgetting set.seed().</strong> <code>bootstraps()</code> shuffles and samples with replacement before partitioning. Without <code>set.seed()</code> before the call, every run produces different resamples and your bootstrap intervals drift. Set the seed in the same script, right before the resample.</li>
+
+<li><strong>Using too few resamples for a confidence interval.</strong> The default <code>times = 25</code> is meant for quick checks and <code>fit_resamples()</code> plumbing tests, not statistics. Percentile confidence intervals need at least 1,000 resamples; tail quantiles of a 99 percent interval need 10,000 or more.</li>
+
+<li><strong>Treating duplicates as a bug.</strong> A bootstrap resample is supposed to contain repeated rows. <code>sum(duplicated(analysis(split)))</code> will be non-zero by design. The OOB assessment set is the unique held-out portion.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Bootstrap performance estimates are optimistic on small data because duplicate rows leak between training and validation.</strong> The 0.632 and 0.632+ bootstrap estimators correct for this. For honest <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">model selection</a>, prefer <code>vfold_cv()</code> or compute the OOB error from the <code>assessment()</code> set instead of overall in-bag fit.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build 100 bootstrap resamples of the <code>mtcars</code> dataset stratified by <code>cyl</code>. Save it to <code>ex_boots</code>.</p>
+<div class="webr-container" data-block-title="Your turn: stratified bootstrap">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: stratified bootstrap</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: 100 stratified bootstraps
+set.seed(42)
+ex_boots &lt;- # your code here
+
+nrow(ex_boots)
+#&gt; Expected: 100</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+ex_boots &lt;- bootstraps(mtcars, times = 100, strata = cyl)
+nrow(ex_boots)
+#&gt; [1] 100</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>times = 100</code> produces 100 resamples; <code>strata = cyl</code> keeps the proportion of 4, 6, and 8 cylinder cars roughly constant in each analysis set. The result is a tibble with one row per resample, regardless of dataset size.</p>
+
+</details>
+</section>
+
+<h2>Related rsample functions</h2>
+
+<p><strong>bootstraps() is the workhorse for resampling with replacement; these functions extend or pair with it.</strong></p>
+
+<ul>
+
+<li><code>analysis()</code> and <code>assessment()</code>: extract the in-bag and out-of-bag data frames from a split object.</li>
+
+<li><code>initial_split()</code>: carve off a final testing set before bootstrapping the training portion.</li>
+
+<li><code>vfold_cv()</code>: build k-fold cross-validation splits when you need every row held out exactly once.</li>
+
+<li><code>group_bootstraps()</code>: bootstrap whole groups together for clustered or hierarchical data.</li>
+
+<li><code>int_pctl()</code>: compute percentile confidence intervals from a bootstrapped tibble of statistics.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from scikit-learn?</strong> <code>bootstraps(df, times = 1000)</code> is the tidymodels equivalent of <code>sklearn.utils.resample</code> repeated 1,000 times. There is no direct stratified bootstrap helper in scikit-learn; rsample's <code>strata</code> argument fills that gap.</div></div>
+
+<p>See the <a href="https://rsample.tidymodels.org/reference/bootstraps.html">rsample bootstraps reference</a> on the tidymodels site for the full argument list.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the default number of resamples in bootstraps()?</strong></p>
+
+<p>The default <code>times</code> argument is <code>25</code>, which builds 25 bootstrap resamples. That is enough for quick sanity checks and for plumbing <code>fit_resamples()</code> calls, but it is far too few for a stable percentile confidence interval. For inference, use at least 1,000 resamples; for the tails of a 99 percent interval or for bias correction, use 5,000 to 10,000.</p>
+
+<p><strong>How do I make bootstraps() reproducible?</strong></p>
+
+<p>Call <code>set.seed()</code> with any integer immediately before <code>bootstraps()</code>. The function draws row indices with replacement using R's random number generator, so a fixed seed guarantees the same resamples every time the script runs. Keep the seed and the resample call together. Re-running with the same seed and the same R version reproduces the exact in-bag and out-of-bag assignments.</p>
+
+<p><strong>What is the difference between bootstraps() and vfold_cv()?</strong></p>
+
+<p><code>bootstraps()</code> samples rows with replacement, so the analysis set is the same size as the original data and contains duplicates. <code>vfold_cv()</code> partitions rows without replacement, so every row appears in the held-out set exactly once across the v folds. Use bootstrap resampling for variance estimates and confidence intervals on small data, and use cross-validation for stable performance estimates during model tuning.</p>
+
+<p><strong>What does the apparent argument do?</strong></p>
+
+<p>Setting <code>apparent = TRUE</code> appends one extra row to the resulting tibble where both the analysis set and the assessment set are the full original data. Some bias correction methods, including the 0.632+ estimator, use this "apparent" split alongside the bootstrap resamples to compare in-sample fit to out-of-sample fit. Most everyday bootstrap workflows can leave it at the default <code>FALSE</code>.</p>
+
+<p><strong>Can bootstraps() handle <a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">time series</a> data?</strong></p>
+
+<p>Not directly. <code>bootstraps()</code> ignores row order and samples uniformly with replacement, which breaks the temporal dependence a <a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">forecasting</a> model needs. For chronological resamples use <code>rolling_origin()</code>. If you need a bootstrap-style estimator on time series, look at block bootstrap methods in the <code>boot</code> package or <code>tsboot()</code>, which preserve local autocorrelation by resampling contiguous blocks.</p>
+
+{% endraw %}
