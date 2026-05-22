@@ -1,0 +1,361 @@
+---
+title: "caret confusionMatrix() in R: Evaluate Classification Models"
+description: "Use caret confusionMatrix() in R to score classifiers. Accuracy, Kappa, sensitivity, specificity, F1, positive class, multi-class, and yardstick comparisons."
+keywords: "caret confusionMatrix, confusionMatrix function R, caret confusionMatrix examples, R classification metrics, caret accuracy kappa, R confusion matrix caret"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "confusionMatrix()|caret confusionMatrix|caret::confusionMatrix()|confusion matrix in caret|caret confusion matrix"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret confusionMatrix() in R: Evaluate Classification Models</h1>
+
+<p class="lead">The <code>confusionMatrix()</code> function in caret takes predicted and observed class labels and returns the <a class="auto-link" href="Logistic-Regression-Exercises-in-R.html" title="Logistic Regression Exercises in R: 10 Classification Practice Problems, Solved Step-by-Step">confusion matrix</a> plus a battery of classification metrics: accuracy, Kappa, sensitivity, specificity, PPV, NPV, F1, balanced accuracy, and prevalence. It works for two-class and multi-class outcomes from a single call.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>confusionMatrix(pred, ref)<span class="qa-cmt">                                # default, picks first level as positive</span>
+confusionMatrix(pred, ref, positive = &quot;yes&quot;)<span class="qa-cmt">              # set positive class</span>
+confusionMatrix(table(pred, ref))<span class="qa-cmt">                         # pass a precomputed table</span>
+confusionMatrix(pred, ref, mode = &quot;prec_recall&quot;)<span class="qa-cmt">          # F1, precision, recall</span>
+confusionMatrix(pred, ref, mode = &quot;everything&quot;)<span class="qa-cmt">           # all 15 metrics</span>
+confusionMatrix(pred, ref)$byClass[&quot;F1&quot;]<span class="qa-cmt">                  # extract one metric</span>
+cm$table<span class="qa-cmt">                                                  # the raw 2x2 (or k x k) matrix</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is confusionMatrix() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">score a classifier on labels</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">confusionMatrix(pred, ref)</text><text x="125" y="126" class="branch-label">need a <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">ROC curve</a> or AUC</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">pROC::roc(ref, probs)</text><text x="125" y="182" class="branch-label">need calibration of probabilities</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">caret::calibration(ref ~ probs)</text><text x="125" y="238" class="branch-label">compare many fitted models</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">resamples(list(a = fit1, b = fit2))</text><text x="125" y="294" class="branch-label">want tidy tibble output</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">yardstick::conf_mat(df, truth, estimate)</text><text x="125" y="350" class="branch-label">multi-class macro metrics only</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">yardstick::f_meas(df, truth, estimate)</text></svg></div>
+
+<h2>What confusionMatrix() does in one sentence</h2>
+
+<p><strong><code>confusionMatrix()</code> is caret's classifier scorecard.</strong> You hand it a vector of predicted class labels and a vector of reference (true) labels, and it cross-tabulates them, then derives every standard classification metric from that table in one call. The return object holds the raw table, overall metrics (accuracy and Kappa with <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a>), and per-class metrics (sensitivity, specificity, PPV, NPV, prevalence, balanced accuracy).</p>
+
+<p>The function does not need a fitted model. It only sees labels, so it works with any classifier in R, not just caret-trained ones. Pass the output of <code>predict()</code> from <code>glm</code>, <code>randomForest</code>, <code>xgboost</code>, or <code>nnet</code> and you get the same scorecard. The same call covers two-class and multi-class problems: for k classes the per-class metric table widens to k rows, one per class as the positive label.</p>
+
+<h2>confusionMatrix() syntax and arguments</h2>
+
+<p><strong>The signature accepts predictions in two shapes: vectors of labels, or a precomputed <a class="auto-link" href="R-Mosaic-Plots.html" title="R Mosaic Plots: Visualize Categorical Variable Relationships">contingency table</a>.</strong> Both produce the same output object.</p>
+
+<div class="webr-container" data-block-title="Load caret and build a quick classifier">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and build a quick classifier</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(1)
+idx     &lt;- createDataPartition(iris$Species, p = 0.7, list = FALSE)
+train_d &lt;- iris[idx, ]
+test_d  &lt;- iris[-idx, ]
+
+fit  &lt;- train(Species ~ ., data = train_d, method = &quot;rpart&quot;)
+pred &lt;- predict(fit, newdata = test_d)
+ref  &lt;- test_d$Species
+
+length(pred)
+#&gt; [1] 42</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two main calling styles are:</p>
+
+<pre><code>confusionMatrix(data, reference, positive = NULL, dnn = c(&quot;Prediction&quot;, &quot;Reference&quot;),
+                mode = &quot;sens_spec&quot;, ...)
+
+confusionMatrix(table, positive = NULL, prevalence = NULL, mode = &quot;sens_spec&quot;, ...)</code></pre>
+
+<ul>
+
+<li><code>data</code>: predicted class labels (factor). Same length and levels as <code>reference</code>.</li>
+
+<li><code>reference</code>: ground-truth class labels (factor).</li>
+
+<li><code>positive</code>: which factor level counts as the positive class for two-class metrics. Defaults to the first level, which is rarely what you want.</li>
+
+<li><code>table</code>: a precomputed <code>table()</code> of predictions versus reference, used when you already cross-tabbed the labels yourself.</li>
+
+<li><code>mode</code>: <code>&quot;sens_spec&quot;</code> (default), <code>&quot;prec_recall&quot;</code>, or <code>&quot;everything&quot;</code>. Controls which per-class metrics get reported.</li>
+
+<li><code>prevalence</code>: optional override of the base rate. Useful when the test set under- or over-samples the positive class.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Both vectors must be factors with identical levels.</strong> Comparing a factor with three levels (<code>c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;)</code>) against a factor with two (<code>c(&quot;a&quot;,&quot;b&quot;)</code>) raises <code>the data cannot have more levels than the reference</code>. Coerce both with <code>factor(..., levels = expected_levels)</code> before the call.</div></div>
+
+<h2>confusionMatrix() examples by use case</h2>
+
+<h3>1. Two-class confusion matrix with default metrics</h3>
+
+<p>Build a binary outcome from <code>iris</code> and score a logistic-regression-style classifier. The default <code>mode = &quot;sens_spec&quot;</code> reports accuracy, Kappa, sensitivity, and specificity.</p>
+
+<div class="webr-container" data-block-title="Score a two-class classifier">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score a two-class classifier</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+two_class      &lt;- iris
+two_class$flag &lt;- factor(ifelse(two_class$Species == &quot;setosa&quot;, &quot;yes&quot;, &quot;no&quot;),
+                         levels = c(&quot;no&quot;, &quot;yes&quot;))
+
+idx2  &lt;- createDataPartition(two_class$flag, p = 0.7, list = FALSE)
+fit2  &lt;- train(flag ~ Sepal.Length + Sepal.Width + Petal.Length + Petal.Width,
+               data = two_class[idx2, ], method = &quot;glm&quot;, family = &quot;binomial&quot;)
+pred2 &lt;- predict(fit2, newdata = two_class[-idx2, ])
+ref2  &lt;- two_class[-idx2, &quot;flag&quot;]
+
+cm &lt;- confusionMatrix(pred2, ref2, positive = &quot;yes&quot;)
+cm$overall[c(&quot;Accuracy&quot;, &quot;Kappa&quot;)]
+#&gt;  Accuracy     Kappa
+#&gt;     1.000     1.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The overall section gives accuracy with a 95 percent exact-<a class="auto-link" href="Exact-Binomial-Test-in-R.html" title="Exact Binomial Test in R: binom.test() for Small Samples">binomial confidence interval</a>; <code>cm$byClass</code> gives sensitivity, specificity, PPV, NPV, prevalence, and balanced accuracy. Kappa adjusts accuracy for chance agreement, which matters when one class dominates. A Kappa near one beats constant prediction; near zero is no better than guessing the majority class.</p>
+
+<h3>2. Multi-class confusion matrix</h3>
+
+<p>For three or more classes, caret reports metrics per class instead of for one positive class. The same call works; only the output table widens.</p>
+
+<div class="webr-container" data-block-title="Score a three-class classifier">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score a three-class classifier</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cm_multi &lt;- confusionMatrix(pred, ref)
+cm_multi$table
+#&gt;             Reference
+#&gt; Prediction   setosa versicolor virginica
+#&gt;   setosa         14          0         0
+#&gt;   versicolor      0         14         1
+#&gt;   virginica       0          0        13
+
+cm_multi$byClass[, c(&quot;Sensitivity&quot;, &quot;Specificity&quot;, &quot;Balanced Accuracy&quot;)]
+#&gt;                   Sensitivity Specificity Balanced Accuracy
+#&gt; Class: setosa           1.000       1.000             1.000
+#&gt; Class: versicolor       1.000       0.964             0.982
+#&gt; Class: virginica        0.929       1.000             0.964</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row of <code>cm_multi$byClass</code> is one class treated as positive against everything else (one-vs-rest). The per-class view exposes asymmetries a single accuracy number hides. For multi-class problems the <code>positive</code> argument is ignored; macro and micro averages must be computed from <code>byClass</code> manually.</p>
+
+<h3>3. Set the positive class explicitly</h3>
+
+<p>The default positive class is the first factor level, alphabetical for character data. That is rarely the medically or commercially interesting class. Always set <code>positive</code> for binary problems.</p>
+
+<div class="webr-container" data-block-title="Set positive class to yes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Set positive class to yes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">no_pos  &lt;- confusionMatrix(pred2, ref2)
+yes_pos &lt;- confusionMatrix(pred2, ref2, positive = &quot;yes&quot;)
+
+c(default_positive = levels(ref2)[1], explicit_positive = &quot;yes&quot;)
+#&gt; default_positive explicit_positive
+#&gt;             &quot;no&quot;             &quot;yes&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The matrix is identical either way; only which row of <code>byClass</code> is reported as sensitivity versus specificity flips. Mislabeling the positive class is the most common reason metrics look reasonable for the wrong reason.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Pick the positive class to match the cost asymmetry.</strong> In churn modelling, churners are positive because false negatives (missed churners) hurt revenue. In fraud, fraud is positive. In a screening test, the disease is positive. Sensitivity is always "how well we catch the positive class," so the positive choice decides which error type sensitivity measures.</div></div>
+
+<h3>4. Get F1, precision, and recall</h3>
+
+<p>Switch to <code>mode = &quot;prec_recall&quot;</code> for precision, recall, and F1, or <code>mode = &quot;everything&quot;</code> for all 15 metrics.</p>
+
+<div class="webr-container" data-block-title="Report F1 instead of sensitivity and specificity">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Report F1 instead of sensitivity and specificity</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cm_f1 &lt;- confusionMatrix(pred2, ref2, positive = &quot;yes&quot;, mode = &quot;prec_recall&quot;)
+cm_f1$byClass[c(&quot;Precision&quot;, &quot;Recall&quot;, &quot;F1&quot;)]
+#&gt; Precision    Recall        F1
+#&gt;     1.000     1.000     1.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Precision is the same as positive predictive value (PPV); recall is the same as sensitivity. caret renames them under <code>mode = &quot;prec_recall&quot;</code> to match the information-retrieval convention. F1 is the harmonic mean of precision and recall, so it drops sharply if either is weak. The <code>mode = &quot;everything&quot;</code> option reports all 15 per-class metrics at once.</p>
+
+<h3>5. Pass a precomputed table</h3>
+
+<p>If you already have a contingency table from <code>table()</code>, hand it in directly. Useful when predictions and labels arrive as a precomputed <a class="auto-link" href="Categorical-Data-in-R.html" title="Categorical Data in R: Frequency Tables, Crosstabs & Mosaic Plots">cross-tabulation</a>.</p>
+
+<div class="webr-container" data-block-title="Use a precomputed table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use a precomputed table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tab &lt;- table(prediction = pred, reference = ref)
+cm_tab &lt;- confusionMatrix(tab)
+cm_tab$overall[c(&quot;Accuracy&quot;, &quot;AccuracyPValue&quot;)]
+#&gt;       Accuracy AccuracyPValue
+#&gt;      0.9761905      0.0000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>AccuracyPValue</code> tests whether observed accuracy beats the no-information rate (always predicting the majority class). A low <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a> means the model beats a constant predictor. The row dimension of the input table is the prediction and the column is the reference; reverse this and <a class="auto-link" href="Bayes-Theorem-in-R.html" title="Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why">sensitivity and specificity</a> flip.</p>
+
+<h2>confusionMatrix() vs alternatives</h2>
+
+<p><strong>caret's <code>confusionMatrix()</code> is the most comprehensive scorecard; tidymodels' <code>yardstick::conf_mat()</code> and base <code>table()</code> cover the simpler cases.</strong> The choice usually comes down to how much downstream tidyverse code consumes the output.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Returns</th>
+<th>Multi-class metrics</th>
+<th>Confidence intervals on accuracy</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>caret::confusionMatrix()</code></td>
+<td>List of overall + per-class metrics</td>
+<td>Yes, one-vs-rest per class</td>
+<td>Yes, exact binomial</td>
+</tr>
+<tr>
+<td><code>yardstick::conf_mat()</code></td>
+<td>A tibble-friendly conf_mat object</td>
+<td>Yes, via <code>summary()</code></td>
+<td>No (use <code>yardstick::accuracy()</code> separately)</td>
+</tr>
+<tr>
+<td><code>base::table()</code></td>
+<td>Raw contingency table</td>
+<td>None</td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>MLmetrics::ConfusionMatrix()</code></td>
+<td>A plain matrix</td>
+<td>Limited</td>
+<td>None</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for <code>confusionMatrix()</code> when you want one call and a complete report. Use <code>yardstick::conf_mat()</code> when the rest of your code is tidymodels or you want to pipe into ggplot. The metric numbers are the same across libraries; what changes is the output shape. See the official caret reference at <a href="https://topepo.github.io/caret/measuring-performance.html">topepo.github.io/caret/measuring-performance.html</a> for the full metric list.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: factor levels mismatch between prediction and reference.</strong> If the model never predicted some classes, those levels are missing from the prediction factor. caret then refuses to compare. Force the levels: <code>pred &lt;- factor(pred, levels = levels(ref))</code>.</p>
+
+<p><strong>Pitfall 2: leaving the positive class on the default first level.</strong> A "no" first-positive flips sensitivity and specificity in the report, leading to plausible but inverted conclusions. Always pass <code>positive = &quot;yes&quot;</code> (or your domain-relevant level) for binary outcomes.</p>
+
+<p><strong>Pitfall 3: comparing accuracy across imbalanced classes.</strong> If 95 percent of records are negative, predicting "negative" every time scores 95 percent accuracy. Kappa, balanced accuracy, and F1 in <code>byClass</code> are designed for that case; the <code>AccuracyPValue</code> flags it.</p>
+
+<p><strong>Pitfall 4: treating one test matrix as the model's quality.</strong> A single train/test split gives one matrix; cross-validation gives one per fold. For stable estimates, average per-fold metrics from a cross-validated fit instead.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>confusionMatrix()</code> does not score probabilities.</strong> It needs hard class labels. For probability-based metrics (AUC, log loss, Brier score), pair it with <code>pROC::roc()</code> or <code>caret::twoClassSummary()</code> inside <code>trainControl()</code>.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Score a kNN classifier on the <code>iris</code> test split (use the <code>train_d</code>, <code>test_d</code>, <code>ref</code>, <code>pred</code> objects defined earlier in this post) and pull out the balanced accuracy column from <code>byClass</code>. Save the resulting vector to <code>ex_bal_acc</code>.</p>
+<div class="webr-container" data-block-title="Your turn: extract balanced accuracy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: extract balanced accuracy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: balanced accuracy for each class
+ex_bal_acc &lt;- # your code here
+
+ex_bal_acc
+#&gt; Expected: a numeric vector of length 3 with one balanced accuracy per Species</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_cm      &lt;- confusionMatrix(pred, ref)
+ex_bal_acc &lt;- ex_cm$byClass[, &quot;Balanced Accuracy&quot;]
+ex_bal_acc
+#&gt; Class: setosa Class: versicolor  Class: virginica
+#&gt;         1.000             0.982             0.964</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>byClass</code> is a matrix when there are 3+ classes (one row per class, one column per metric). Subset with <code>[, &quot;Balanced Accuracy&quot;]</code> to pull a single metric across classes.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p>After <code>confusionMatrix()</code>, these caret functions round out classification evaluation:</p>
+
+<ul>
+
+<li><code>train()</code>: fits and resamples the model whose predictions you score</li>
+
+<li><code>predict.train()</code>: produces the class-label vector you feed in as <code>data</code></li>
+
+<li><code>trainControl(classProbs = TRUE)</code>: enables probability output for ROC-based tuning</li>
+
+<li><code>twoClassSummary()</code>: drop-in for <code>summaryFunction</code> to get ROC, sensitivity, specificity during resampling</li>
+
+<li><code>varImp()</code>: model-agnostic <a class="auto-link" href="Variable-Selection-and-Importance-With-R.html" title="Feature Selection and Variable Importance">variable importance</a> for a fitted classifier</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does caret confusionMatrix() return exactly?</strong></p>
+
+<p>It returns an S3 object with five named slots: <code>table</code> (the raw k x k contingency table), <code>overall</code> (accuracy, Kappa, accuracy CI, no-information rate, McNemar p-value), <code>byClass</code> (per-class sensitivity, specificity, PPV, NPV, prevalence, balanced accuracy), <code>mode</code>, and <code>dots</code>. Subset <code>cm$overall[&quot;Accuracy&quot;]</code> to pull individual numbers.</p>
+
+<p><strong>How do I plot a caret confusion matrix?</strong></p>
+
+<p>The matrix lives in <code>cm$table</code>. Convert to a data frame and use <code>ggplot2::geom_tile()</code> for a heatmap. For a quick base R version, <code>fourfoldplot(cm$table)</code> works for 2x2 matrices and <code>mosaicplot(cm$table)</code> works for k x k.</p>
+
+<p><strong>Why is sensitivity 100 percent but the model still bad?</strong></p>
+
+<p>Sensitivity ignores the negative class. A model that predicts "positive" for every record has 100 percent sensitivity and 0 percent specificity. Always read sensitivity, specificity, and prevalence together. Balanced accuracy and Kappa correct for the asymmetry.</p>
+
+<p><strong>Can confusionMatrix() handle multi-class outputs?</strong></p>
+
+<p>Yes, with no extra arguments. caret detects k > 2 levels and reports per-class metrics one-vs-rest. There is no built-in macro or micro averaging; compute that manually as <code>mean(cm$byClass[, &quot;F1&quot;], na.rm = TRUE)</code> or switch to <code>yardstick::f_meas(df, truth, estimate, estimator = &quot;macro&quot;)</code>.</p>
