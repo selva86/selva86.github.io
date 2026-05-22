@@ -1,0 +1,490 @@
+---
+title: "yardstick f_meas() in R: Score the F-Measure of Classifiers"
+description: "Use yardstick f_meas() in R to score the F-measure of classifiers: harmonic mean of precision and recall. Syntax, beta tuning, multiclass averaging, pitfalls."
+keywords: "yardstick f_meas, f_meas function R, yardstick f_meas examples, F1 score R, tidymodels f_meas, F-measure R, f_meas yardstick tidymodels"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "yardstick f_meas|yardstick::f_meas()|F-measure|F1 score|f_meas metric"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>yardstick f_meas() in R: Score the F-Measure of Classifiers</h1>
+
+<p class="lead">The yardstick f_meas() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> computes the F-measure of a classifier, a single score that combines precision and recall through their harmonic mean. It accepts a tibble of truth and prediction columns, supports beta tuning for asymmetric costs, and returns a tidy one-row summary you can group, average across classes, or feed into a metric set.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>f_meas(df, truth, estimate)<span class="qa-cmt">                             # basic F1 score</span>
+f_meas(df, truth, estimate, beta = 2)<span class="qa-cmt">                   # F2, weights recall</span>
+f_meas(df, truth, estimate, beta = 0.5)<span class="qa-cmt">                 # F0.5, weights precision</span>
+f_meas(df, class, .pred_class)<span class="qa-cmt">                          # default parsnip output</span>
+df |&gt; group_by(fold) |&gt; f_meas(class, .pred_class)<span class="qa-cmt">      # by resample</span>
+f_meas(df, class, .pred_class, estimator = &quot;macro&quot;)<span class="qa-cmt">     # multiclass macro F1</span>
+f_meas(df, class, .pred_class, event_level = &quot;second&quot;)<span class="qa-cmt">  # flip positive class</span>
+f_meas_vec(truth_vec, pred_vec)<span class="qa-cmt">                         # vector interface</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is f_meas() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">combine precision and recall in one score</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">f_meas(df, truth, estimate)</text><text x="125" y="126" class="branch-label">score predicted-positive correctness only</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">precision(df, truth, estimate)</text><text x="125" y="182" class="branch-label">score actual-positive coverage only</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">recall(df, truth, estimate)</text><text x="125" y="238" class="branch-label">score overall correctness</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">accuracy(df, truth, estimate)</text><text x="125" y="294" class="branch-label">rank by probability not class</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">pr_auc(df, truth, .pred_class_1)</text><text x="125" y="350" class="branch-label">chance-corrected agreement instead</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">kap(df, truth, estimate)</text><text x="125" y="406" class="branch-label">regression problem, not classification</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">rmse(df, truth, estimate)</text></svg></div>
+
+<h2>What f_meas() measures</h2>
+
+<p><strong>f_meas() answers one question: how well does the model balance catching positives and avoiding false alarms?</strong> You pass a data frame with observed labels and predicted labels, and the function returns a one-row tibble with <code>.metric</code>, <code>.estimator</code>, and <code>.estimate</code>. The estimate is the harmonic mean of precision and recall, a number between 0 and 1.</p>
+
+<p>The harmonic mean punishes extremes. A model with 1.0 precision and 0.01 recall scores 0.02, not 0.5. That property makes the F-measure useful whenever a high score requires the model to be good at both jobs at once.</p>
+
+<p>F1 is the default and weights precision and recall equally. The <code>beta</code> argument tunes that weighting: values above 1 favor recall, values below 1 favor precision. Pick beta by which kind of error costs more.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The F-measure is a compromise.</strong> Two models with the same F1 may be precision-dominant or recall-dominant. Always report precision and recall alongside f_meas() so the trade-off is visible.</div></div>
+
+<h2>f_meas() syntax and arguments</h2>
+
+<p><strong>The signature matches the rest of the yardstick class-metric family.</strong> The same call works for <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">logistic regression</a>, random forest, xgboost, or any classifier whose predictions land in a tibble.</p>
+
+<div class="webr-container" data-block-title="f_meas generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">f_meas generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">f_meas(data, truth, estimate, beta = 1, estimator = NULL,
+       na_rm = TRUE, case_weights = NULL, event_level = &quot;first&quot;, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data</code></td>
+<td>Data frame with truth and estimate columns.</td>
+</tr>
+<tr>
+<td><code>truth</code></td>
+<td>Unquoted column of observed class labels (factor).</td>
+</tr>
+<tr>
+<td><code>estimate</code></td>
+<td>Unquoted column of predicted class labels (factor, same levels).</td>
+</tr>
+<tr>
+<td><code>beta</code></td>
+<td>Recall weight relative to precision. <code>1</code> = F1; <code>&gt;1</code> favors recall; <code>&lt;1</code> favors precision.</td>
+</tr>
+<tr>
+<td><code>estimator</code></td>
+<td>Multiclass averaging: <code>&quot;binary&quot;</code>, <code>&quot;macro&quot;</code>, <code>&quot;macro_weighted&quot;</code>, <code>&quot;micro&quot;</code>. Defaults to <code>&quot;binary&quot;</code> for two-class data, <code>&quot;macro&quot;</code> for multiclass.</td>
+</tr>
+<tr>
+<td><code>na_rm</code></td>
+<td>If <code>TRUE</code>, drop rows where either column is missing.</td>
+</tr>
+<tr>
+<td><code>event_level</code></td>
+<td><code>&quot;first&quot;</code> or <code>&quot;second&quot;</code>; picks which factor level is positive.</td>
+</tr>
+</tbody>
+</table>
+
+<p>Both columns must be factors with identical levels. The most common mistake is passing class probabilities to <code>estimate</code>; f_meas() needs class labels, so feed <code>.pred_class</code> from <code>parsnip::augment()</code>.</p>
+
+<h2>Score classifiers: five worked examples</h2>
+
+<p><strong>The examples use yardstick's built-in two_class_example data, then a multiclass tibble.</strong> Load yardstick and inspect the bundled predictions first.</p>
+
+<div class="webr-container" data-block-title="Load yardstick and inspect predictions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load yardstick and inspect predictions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+library(dplyr)
+
+data(&quot;two_class_example&quot;)
+head(two_class_example, 4)
+#&gt; # A tibble: 4 x 4
+#&gt;   truth   Class1   Class2 predicted
+#&gt;   &lt;fct&gt;    &lt;dbl&gt;    &lt;dbl&gt; &lt;fct&gt;
+#&gt; 1 Class2 0.00359 0.996    Class2
+#&gt; 2 Class1 0.679   0.321    Class1
+#&gt; 3 Class2 0.111   0.889    Class2
+#&gt; 4 Class1 0.735   0.265    Class1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 1 calls f_meas() with positional arguments.</strong> <code>&quot;Class1&quot;</code> is the first factor level, so yardstick treats it as the positive class by default.</p>
+
+<div class="webr-container" data-block-title="Two-class F1 score">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-class F1 score</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">f_meas(two_class_example, truth, predicted)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 f_meas  binary         0.849</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>An F1 of 0.849 sits between this classifier's precision (0.819) and recall (0.880), as the harmonic mean always will.</p>
+
+<p><strong>Example 2 tunes the recall-precision balance with <code>beta</code>.</strong> Switching from F1 to F2 raises the weight on recall.</p>
+
+<div class="webr-container" data-block-title="F2 score: recall costs twice as much">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">F2 score: recall costs twice as much</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">f_meas(two_class_example, truth, predicted, beta = 2)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 f_meas  binary         0.867</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A higher beta pulls the score toward recall (0.880). Use F2 for cancer screening, fraud, or any setting where missing a positive is costly.</p>
+
+<p><strong>Example 3 flips the positive class with <code>event_level</code>.</strong> Setting <code>event_level = &quot;second&quot;</code> makes <code>&quot;Class2&quot;</code> the positive class.</p>
+
+<div class="webr-container" data-block-title="Flip the positive class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Flip the positive class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">f_meas(two_class_example, truth, predicted, event_level = &quot;second&quot;)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 f_meas  binary         0.843</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The score barely moves because the classes are roughly balanced; on imbalanced data the swing is dramatic.</p>
+
+<p><strong>Example 4 groups scoring by resample fold.</strong> Cross-validated predictions in one tibble pair with <code>group_by()</code> to give one F1 per group.</p>
+
+<div class="webr-container" data-block-title="Per-fold F1">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-fold F1</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">folded &lt;- two_class_example |&gt;
+  mutate(fold = rep(paste0(&quot;fold&quot;, 1:5), each = 100))
+
+folded |&gt;
+  group_by(fold) |&gt;
+  f_meas(truth = truth, estimate = predicted)
+#&gt; # A tibble: 5 x 4
+#&gt;   fold  .metric .estimator .estimate
+#&gt;   &lt;chr&gt; &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 fold1 f_meas  binary         0.857
+#&gt; 2 fold2 f_meas  binary         0.835
+#&gt; 3 fold3 f_meas  binary         0.864
+#&gt; 4 fold4 f_meas  binary         0.851
+#&gt; 5 fold5 f_meas  binary         0.836</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 5 uses the vector interface.</strong> <code>f_meas_vec()</code> accepts two factors and returns a numeric scalar instead of a tibble.</p>
+
+<div class="webr-container" data-block-title="Vector interface for quick checks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vector interface for quick checks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">f_meas_vec(two_class_example$truth, two_class_example$predicted)
+#&gt; [1] 0.8488889</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Bind precision, recall, and f_meas in one tibble.</strong> <code>metric_set(precision, recall, f_meas)</code> builds a reusable function you pipe predictions into to get all three scores at once, so you never have to read F1 in isolation.</div></div>
+
+<h2>Multiclass averaging: macro, weighted, and micro</h2>
+
+<p><strong>f_meas() handles multiclass data, but the answer depends on the averaging rule.</strong></p>
+
+<div class="webr-container" data-block-title="Load multiclass predictions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load multiclass predictions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data(&quot;hpc_cv&quot;)
+head(hpc_cv, 4)
+#&gt; # A tibble: 4 x 7
+#&gt;   obs   pred     VF      F       M       L Resample
+#&gt;   &lt;fct&gt; &lt;fct&gt; &lt;dbl&gt;  &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 VF    VF    0.914 0.0779 0.00848 0.000000 Fold01
+#&gt; 2 VF    VF    0.938 0.0571 0.00482 0.000000 Fold01
+#&gt; 3 VF    VF    0.947 0.0495 0.00316 0.000000 Fold01
+#&gt; 4 VF    VF    0.929 0.0653 0.00582 0.000000 Fold01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>hpc_cv has four imbalanced classes (VF, F, M, L). Score it under each averaging mode.</p>
+
+<div class="webr-container" data-block-title="Compare averaging modes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare averaging modes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">modes &lt;- c(&quot;macro&quot;, &quot;macro_weighted&quot;, &quot;micro&quot;)
+lapply(modes, \(m) f_meas(hpc_cv, obs, pred, estimator = m)) |&gt;
+  bind_rows()
+#&gt; # A tibble: 3 x 3
+#&gt;   .metric .estimator     .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;              &lt;dbl&gt;
+#&gt; 1 f_meas  macro              0.534
+#&gt; 2 f_meas  macro_weighted     0.708
+#&gt; 3 f_meas  micro              0.709</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Estimator</th>
+<th>What it does</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>macro</code></td>
+<td>Unweighted mean of per-class F1</td>
+<td>Every class equally important regardless of size</td>
+</tr>
+<tr>
+<td><code>macro_weighted</code></td>
+<td>Mean weighted by class prevalence</td>
+<td>Reflect the real population class mix</td>
+</tr>
+<tr>
+<td><code>micro</code></td>
+<td>Pool all predictions, compute one ratio</td>
+<td>Track the global hit rate</td>
+</tr>
+<tr>
+<td><code>binary</code></td>
+<td>Score one positive class only</td>
+<td>Two-class problems (default)</td>
+</tr>
+</tbody>
+</table>
+
+<p>The 0.18 gap between macro and macro_weighted is the imbalance signature: small classes (L, M) score lower than the large class (VF), so the unweighted mean drags the headline down. Choose macro when small classes matter to your stakeholders.</p>
+
+<h2>f_meas compared with related metrics</h2>
+
+<p><strong>The F-measure is one slot in the classification scorecard.</strong> Reach for each yardstick metric where it fits.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Metric</th>
+<th>Best use case</th>
+<th>Limitation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>f_meas()</code></td>
+<td>One imbalance-aware score for precision + recall</td>
+<td>Hides the trade-off</td>
+</tr>
+<tr>
+<td><code>precision()</code></td>
+<td>Costly false positives (spam, fraud flags)</td>
+<td>Ignores missed positives</td>
+</tr>
+<tr>
+<td><code>recall()</code></td>
+<td>Costly false negatives (cancer screening)</td>
+<td>Ignores wasted positives</td>
+</tr>
+<tr>
+<td><code>accuracy()</code></td>
+<td>Balanced classes, equal error costs</td>
+<td>Misleading on imbalanced data</td>
+</tr>
+<tr>
+<td><code>bal_accuracy()</code></td>
+<td>Mean per-class recall, robust to imbalance</td>
+<td>Ignores precision</td>
+</tr>
+<tr>
+<td><code>pr_auc()</code></td>
+<td>Threshold-free ranking under heavy imbalance</td>
+<td>Needs probabilities, not class labels</td>
+</tr>
+</tbody>
+</table>
+
+<p>A practical workflow reports precision, recall, and f_meas() together. Add <code>pr_auc()</code> whenever the threshold is still tunable; F-measure assumes it is fixed.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from scikit-learn?</strong> <code>yardstick::f_meas()</code> equals <code>sklearn.metrics.f1_score()</code> at <code>beta = 1</code> and <code>fbeta_score()</code> for other betas. The <code>estimator</code> argument maps to scikit-learn's <code>average</code>: <code>&quot;macro&quot;</code>, <code>&quot;micro&quot;</code>, <code>&quot;macro_weighted&quot;</code> line up with <code>&quot;macro&quot;</code>, <code>&quot;micro&quot;</code>, <code>&quot;weighted&quot;</code>.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three small mistakes account for most f_meas() errors.</strong></p>
+
+<p>The first is feeding probabilities instead of class labels. A probability cast to a factor produces a meaningless score. Always pull <code>.pred_class</code> from <code>augment()</code>, not <code>.pred_&lt;level&gt;</code>.</p>
+
+<div class="webr-container" data-block-title="Fix: use the class column, not the probability column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fix: use the class column, not the probability column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">preds &lt;- tibble(
+  obs         = factor(c(&quot;yes&quot;, &quot;yes&quot;, &quot;no&quot;, &quot;no&quot;), levels = c(&quot;yes&quot;, &quot;no&quot;)),
+  .pred_yes   = c(0.9, 0.4, 0.3, 0.2),                       # probability
+  .pred_class = factor(c(&quot;yes&quot;, &quot;no&quot;, &quot;no&quot;, &quot;no&quot;), levels = c(&quot;yes&quot;, &quot;no&quot;))
+)
+f_meas(preds, obs, .pred_class)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 f_meas  binary         0.667</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second pitfall is forgetting that <code>beta</code> is asymmetric. <code>beta = 2</code> does not double the recall component; it raises the weight on recall by a factor of <code>beta^2</code> = 4. Read the F-beta definition before tuning.</p>
+
+<p>The third pitfall is reporting macro F1 without checking for empty classes. If the model never predicts a class, the macro average drops to <code>NaN</code>. Switch to <code>estimator = &quot;macro_weighted&quot;</code> so empty classes drop by weight, or inspect <code>conf_mat()</code> to see what is missing.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A high F1 needs strong precision AND recall.</strong> The harmonic mean is dominated by the smaller input, so F1 above 0.95 needs both above 0.91; if either is below 0.5, F1 cannot reach 0.67. Use this to sanity-check reported scores.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the built-in <code>two_class_example</code> data from yardstick. Compute F1 (the default), then compute F2 to put more weight on recall. Save the F2 result to <code>ex_f2</code>.</p>
+<div class="webr-container" data-block-title="Your turn: F1 versus F2">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: F1 versus F2</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+data(&quot;two_class_example&quot;)
+
+# Try it: compute F2 score (beta = 2)
+ex_f2 &lt;- # your code here
+
+ex_f2
+#&gt; Expected: one row, .estimator binary, .estimate near 0.87</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+ex_f2 &lt;- two_class_example |&gt;
+  f_meas(truth = truth, estimate = predicted, beta = 2)
+ex_f2
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 f_meas  binary         0.867</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>beta = 2</code> weights recall four times as heavily as precision (<code>beta^2</code> sets the ratio). Because this classifier already recalls more positives than it precisely predicts, F2 rises above F1.</p>
+
+</details>
+</section>
+
+<h2>Related yardstick metrics</h2>
+
+<p><strong>f_meas() is one entry in the yardstick class-metric family.</strong> Reach for these neighbors when F-measure alone is not enough:</p>
+
+<ul>
+
+<li><code>precision()</code> and <code>recall()</code> for the two components</li>
+
+<li><code>accuracy()</code> and <code>bal_accuracy()</code> for overall hit rate</li>
+
+<li><code>kap()</code> and <code>mcc()</code> for chance-corrected agreement</li>
+
+<li><code>pr_auc()</code> and <code>roc_auc()</code> for threshold-free probability rankings</li>
+
+<li><code>conf_mat()</code> to see the full <a class="auto-link" href="Logistic-Regression-Exercises-in-R.html" title="Logistic Regression Exercises in R: 10 Classification Practice Problems, Solved Step-by-Step">confusion matrix</a></li>
+
+</ul>
+
+<p>See the <a href="https://yardstick.tidymodels.org/reference/index.html">yardstick reference index</a> for the full set.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between f_meas() and the F1 score?</strong></p>
+
+<p><code>f_meas()</code> is the general F-beta function; F1 is the specific case where <code>beta = 1</code>. yardstick uses the more general name because the same function computes F1, F2, F0.5, and any other beta. When people say "F1" they mean the default call; when they say "F-measure" they may mean any beta. Set <code>beta</code> explicitly so reviewers know the weighting.</p>
+
+<p><strong>Does f_meas() handle multiclass classification?</strong></p>
+
+<p>Yes, with one extra decision: how to average per-class scores. yardstick defaults to <code>estimator = &quot;macro&quot;</code> for multiclass data, which computes F1 for each class against the rest and takes an unweighted mean. Pass <code>estimator = &quot;macro_weighted&quot;</code> to weight by class prevalence, or <code>&quot;micro&quot;</code> to pool predictions globally.</p>
+
+<p><strong>When should I use F2 instead of F1?</strong></p>
+
+<p>Use F2 when missing a positive costs more than a false alarm: medical screening, fraud detection, equipment failure prediction. Use F0.5 in the opposite case, where false positives are the expensive error.</p>
+
+<p><strong>Why does f_meas return NaN on my multiclass data?</strong></p>
+
+<p>A <code>NaN</code> F-measure means at least one class has precision or recall undefined: the model never predicted it, or the truth never contained it. Switch to <code>estimator = &quot;macro_weighted&quot;</code> so empty classes drop by weight, or inspect <code>conf_mat()</code> to confirm which class is missing.</p>
