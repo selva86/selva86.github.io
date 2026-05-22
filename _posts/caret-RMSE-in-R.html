@@ -1,0 +1,363 @@
+---
+title: "caret RMSE() in R: Root Mean Squared Error for Regression"
+description: "Use caret RMSE() in R to compute root mean squared error between predicted and observed values. Outlier-sensitive regression score, same units as outcome."
+keywords: "caret RMSE, RMSE function R, caret RMSE examples, R root mean squared error caret, regression error metric R, caret::RMSE, RMSE vs MAE R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "RMSE()|caret RMSE|caret::RMSE()|root mean squared error in caret|RMSE function"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret RMSE() in R: Root Mean Squared Error for Regression</h1>
+
+<p class="lead">The <code>RMSE()</code> function in caret computes root <a class="auto-link" href="Point-Estimation-in-R.html" title="Point Estimation in R: What Makes an Estimator Good? Bias, Variance, and MSE">mean squared error</a>: the square root of the average squared difference between predicted and observed numeric values. It returns one number in the units of the outcome, penalises large misses quadratically, and is the default selection metric for regression inside <code>caret::train()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>RMSE(pred, obs)<span class="qa-cmt">                               # basic call: returns one number</span>
+RMSE(pred, obs, na.rm = TRUE)<span class="qa-cmt">                 # drop NAs in either vector</span>
+caret::RMSE(pred, obs)<span class="qa-cmt">                        # namespaced when caret not attached</span>
+sqrt(mean((pred - obs)^2))<span class="qa-cmt">                    # equivalent base R</span>
+postResample(pred, obs)[&quot;RMSE&quot;]<span class="qa-cmt">               # RMSE inside the full metric set</span>
+RMSE(predict(fit, newdata = te), te$y)<span class="qa-cmt">        # score a fitted regression model</span>
+sapply(fold_preds, function(p) RMSE(p, obs))<span class="qa-cmt">  # per-fold RMSE in resampling</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is RMSE() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">score squared error on a regression vector</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">RMSE(pred, obs)</text><text x="125" y="126" class="branch-label">treat every miss equally regardless of size</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">MAE(pred, obs)</text><text x="125" y="182" class="branch-label">report error as a percent of truth</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">mean(abs((pred - obs) / obs))</text><text x="125" y="238" class="branch-label">get RMSE, Rsquared, MAE in one call</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">postResample(pred, obs)</text><text x="125" y="294" class="branch-label">score a classifier instead of regression</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">caret::confusionMatrix(pred, obs)</text><text x="125" y="350" class="branch-label">need RMSE inside caret</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">:train resampling: summaryFunction = defaultSummary</text></svg></div>
+
+<h2>What RMSE() does in one sentence</h2>
+
+<p><strong><code>RMSE()</code> returns the square root of the mean of squared residuals.</strong> You pass two <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">numeric vectors</a> of equal length and get back one number with the same units as the outcome. There is no model object, no formula, and no resampling logic; the function exists so you can score a vector of predictions in a single line and compare models on a common scale.</p>
+
+<p>Internally the call is <code>sqrt(mean((pred - obs)^2))</code> with an optional <code>na.rm</code>. caret exposes RMSE at the top level so it can also drop into <code>defaultSummary()</code> and <code>train()</code> resampling, where it is the default metric for regression.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Squaring the residuals is what makes RMSE different from MAE.</strong> A residual of 10 contributes 100 to the inner mean, while two residuals of 5 each contribute only 25. RMSE rewards models that keep their worst predictions small; if you do not care more about big misses than small ones, use MAE instead.</div></div>
+
+<h2>RMSE() syntax and arguments</h2>
+
+<p><strong>The signature is three arguments, two of them mandatory.</strong> Both vectors must be numeric and the same length. Mismatched lengths trigger a <a class="auto-link" href="R-Warning-Object-Length.html" title="R Warning: longer object length is not a multiple of shorter">recycling warning</a> and a meaningless result, so check <code>length(pred) == length(obs)</code> before scoring.</p>
+
+<div class="webr-container" data-block-title="Load caret and compute RMSE on a small vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and compute RMSE on a small vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(1)
+obs  &lt;- rnorm(20, mean = 50, sd = 8)
+pred &lt;- obs + rnorm(20, sd = 3)        # noisy predictions around truth
+
+RMSE(pred = pred, obs = obs)
+#&gt; [1] 2.612139</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments are <code>pred</code> (predictions), <code>obs</code> (the truth), and <code>na.rm</code> (default <code>FALSE</code>). The order is <code>pred</code> first, consistent with the rest of caret but reversed from <code>Metrics::rmse(actual, predicted)</code>; name the arguments if you switch between packages.</p>
+
+<p>RMSE is bounded below by zero and unbounded above. Zero means every prediction matched exactly. There is no upper benchmark: compare RMSE to the standard deviation of the outcome, to a baseline predictor, or to a competing model on the same hold-out set.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from scikit-learn?</strong> The equivalent of <code>caret::RMSE(pred, obs)</code> is <code>sklearn.metrics.mean_squared_error(y_true, y_pred, squared = FALSE)</code> or, from sklearn 1.4, the dedicated <code>root_mean_squared_error(y_true, y_pred)</code>. sklearn takes truth first; caret takes predictions first.</div></div>
+
+<h2>RMSE() examples by use case</h2>
+
+<p><strong>Most calls fall into four patterns: a quick vector score, a hold-out test score, a per-fold cross-validation score, and side-by-side model comparison.</strong> Each example uses RMSE in the role it does best: penalising big regression misses on a common scale.</p>
+
+<div class="webr-container" data-block-title="Score an lm fit on mtcars hold-out data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score an lm fit on mtcars hold-out data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(42)
+idx &lt;- createDataPartition(mtcars$mpg, p = 0.7, list = FALSE)
+tr  &lt;- mtcars[idx, ]
+te  &lt;- mtcars[-idx, ]
+
+fit  &lt;- lm(mpg ~ wt + hp + cyl, data = tr)
+pred &lt;- predict(fit, newdata = te)
+
+RMSE(pred, te$mpg)
+#&gt; [1] 2.872461</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>An RMSE of 2.87 on mtcars means the linear model is typically off by about 2.9 mpg, but with extra weight on the test cars where it missed worst. Always pair RMSE with a one-line <code>sd(te$mpg)</code> for context: an RMSE smaller than the test SD shows the model is doing better than always predicting the mean.</p>
+
+<div class="webr-container" data-block-title="Per-fold RMSE in 5-fold cross-validation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-fold RMSE in 5-fold cross-validation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(7)
+ctrl &lt;- trainControl(method = &quot;cv&quot;, number = 5,
+                     summaryFunction = defaultSummary)
+
+fit_cv &lt;- train(mpg ~ wt + hp + cyl, data = mtcars,
+                method = &quot;lm&quot;, trControl = ctrl,
+                metric = &quot;RMSE&quot;)
+
+fit_cv$resample[, c(&quot;Resample&quot;, &quot;RMSE&quot;)]
+#&gt;   Resample     RMSE
+#&gt; 1    Fold1 2.534612
+#&gt; 2    Fold2 3.011804
+#&gt; 3    Fold3 2.687233
+#&gt; 4    Fold4 2.918551
+#&gt; 5    Fold5 2.612988</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>metric = &quot;RMSE&quot;</code> is the default for regression, but writing it makes the choice obvious to a reviewer. Lower is better, and caret minimises RMSE automatically (no <code>maximize = FALSE</code> needed; minimisation is the default for RMSE). The <code>$resample</code> slot exposes the per-fold values so you can plot them or take a <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence interval</a>.</p>
+
+<div class="webr-container" data-block-title="Compare two models with RMSE on the same hold-out set">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare two models with RMSE on the same hold-out set</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_lm  &lt;- lm(mpg ~ wt + hp + cyl, data = tr)
+fit_lm2 &lt;- lm(mpg ~ wt + hp + cyl + disp + drat, data = tr)
+
+c(
+  small = RMSE(predict(fit_lm,  newdata = te), te$mpg),
+  large = RMSE(predict(fit_lm2, newdata = te), te$mpg)
+)
+#&gt;    small    large
+#&gt; 2.872461 3.054318</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Side-by-side RMSE on the same hold-out set is the cleanest regression comparison: same units, same observations, same metric. The smaller model wins despite having fewer predictors, the signature of mild overfitting in the larger one.</p>
+
+<h2>RMSE vs MAE vs MAPE: which to report</h2>
+
+<p><strong>Pick the metric whose penalty matches how your stakeholder feels about errors.</strong> All three measure regression error but weight it differently.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Metric</th>
+<th>Formula (mean of...)</th>
+<th>Units</th>
+<th><a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">Outlier</a> weight</th>
+<th>Best when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RMSE</td>
+<td>squared residuals, then sqrt</td>
+<td>outcome units</td>
+<td>Quadratic</td>
+<td>Large misses are disproportionately costly</td>
+</tr>
+<tr>
+<td>MAE</td>
+<td>absolute residuals</td>
+<td>outcome units</td>
+<td>Equal</td>
+<td>Every miss is equally bad; stakeholder-friendly</td>
+</tr>
+<tr>
+<td>MAPE</td>
+<td>absolute percent residuals</td>
+<td>percent</td>
+<td>Variable</td>
+<td>Outcome magnitudes vary widely across rows</td>
+</tr>
+</tbody>
+</table>
+
+<p>RMSE answers "how bad are my worst predictions on average." MAE answers "on a typical row, how far off am I." MAPE answers "what fraction of the truth do I miss." Pick RMSE when extreme errors are catastrophic; pick MAE when you need a number you can explain to a product manager in one sentence.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Report RMSE alongside MAE, not instead of it.</strong> The ratio <code>RMSE / MAE</code> quantifies error skew. A ratio near 1 means residuals are uniform; a ratio above 1.5 means a few large misses are driving RMSE up. Showing both numbers in the same row of your report gives readers more signal than either alone, and a sudden ratio jump in a refreshed dataset is an early warning that outliers have changed.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes show up repeatedly in RMSE workflows.</strong> Each has a one-line fix.</p>
+
+<div class="webr-container" data-block-title="Mistake 1: silent NA propagation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mistake 1: silent NA propagation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">obs2  &lt;- c(10, 12, NA, 15)
+pred2 &lt;- c(11, 11, 14, 14)
+
+RMSE(pred2, obs2)
+#&gt; [1] NA
+
+RMSE(pred2, obs2, na.rm = TRUE)
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Without <code>na.rm = TRUE</code>, a single <code>NA</code> in either vector wipes out the score. Drop or <a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">impute missing values</a> explicitly before scoring, or pass <code>na.rm = TRUE</code>; do not assume the test set is clean just because <code>train()</code> succeeded.</p>
+
+<div class="webr-container" data-block-title="Mistake 2: confusing RMSE with MSE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mistake 2: confusing RMSE with MSE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pred3 &lt;- c(11, 13, 14, 16)
+obs3  &lt;- c(10, 12, 15, 15)
+
+mse  &lt;- mean((pred3 - obs3)^2)
+rmse &lt;- RMSE(pred3, obs3)
+
+c(MSE = mse, RMSE = rmse)
+#&gt;  MSE RMSE
+#&gt; 1.00 1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The numbers happen to agree here because the inner mean is 1, but in general <code>MSE = RMSE^2</code>. They have different units: MSE is in squared units of the outcome, RMSE is back in the original units. Always report RMSE for human consumption; MSE is a calculator-stage value.</p>
+
+<div class="webr-container" data-block-title="Mistake 3: comparing RMSE across different outcomes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mistake 3: comparing RMSE across different outcomes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mpg_rmse  &lt;- RMSE(predict(fit_lm, newdata = te), te$mpg)
+disp_rmse &lt;- RMSE(rnorm(nrow(te), mean(te$disp)), te$disp)
+
+mpg_rmse    # ~2.87 mpg
+disp_rmse   # ~100 cubic inches
+# Same metric, different scales, NOT comparable.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>RMSE is in the outcome's units, so the same number means very different things on different targets. Normalise by the outcome's standard deviation (<code>NRMSE = RMSE / sd(obs)</code>) or by its range before comparing models across datasets.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>One huge outlier can dominate RMSE.</strong> Because residuals are squared, a single bad prediction can move the score more than dozens of small misses combined. Plot residuals before trusting RMSE: if a residual plot shows one or two extreme points, decide whether that point is data quality (clean it) or a real tail observation (then RMSE is right to flag it).</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute RMSE for a linear model predicting <code>Petal.Length</code> from <code>Petal.Width</code> on the <code>iris</code> dataset, using a 70/30 split. Save the value to <code>ex_rmse</code>.</p>
+<div class="webr-container" data-block-title="Your turn: RMSE on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: RMSE on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+set.seed(99)
+
+# Try it: fit lm and compute RMSE on hold-out
+ex_idx  &lt;- # your code here
+ex_tr   &lt;- # your code here
+ex_te   &lt;- # your code here
+ex_fit  &lt;- # your code here
+ex_rmse &lt;- # your code here
+
+ex_rmse
+#&gt; Expected: a number around 0.4 to 0.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+set.seed(99)
+
+ex_idx  &lt;- createDataPartition(iris$Petal.Length, p = 0.7, list = FALSE)
+ex_tr   &lt;- iris[ex_idx, ]
+ex_te   &lt;- iris[-ex_idx, ]
+
+ex_fit  &lt;- lm(Petal.Length ~ Petal.Width, data = ex_tr)
+ex_rmse &lt;- RMSE(predict(ex_fit, newdata = ex_te), ex_te$Petal.Length)
+
+ex_rmse
+#&gt; [1] 0.4671248</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>createDataPartition()</code> stratifies on the outcome so train and test distributions match. With a single strong predictor (<code>Petal.Width</code>), RMSE on iris hovers near 0.47; adding <code>Sepal.Length</code> typically drops it below 0.4.</p>
+
+</details>
+</section>
+
+<h2>FAQ</h2>
+
+<p><strong>What is a good RMSE value in R?</strong></p>
+
+<p>There is no universal threshold. A good RMSE is small relative to the spread of the outcome on the test set. Compare it to <code>sd(obs)</code>, to a baseline (always predicting <code>mean(obs)</code>), or to a competing model's RMSE on the same hold-out rows. Rule of thumb: RMSE under half the test SD is a usable model; RMSE at or above the SD means the model has not learned anything useful.</p>
+
+<p><strong>How is RMSE different from MAE in caret?</strong></p>
+
+<p>Both <code>RMSE()</code> and <code>MAE()</code> <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> residuals in the outcome's units, but RMSE squares residuals before averaging and then takes the square root. The squaring penalises large misses much more heavily, so RMSE is always greater than or equal to MAE for the same data. The ratio <code>RMSE / MAE</code> flags outliers in the residual distribution: a ratio near 1 means errors are uniform, a ratio above 1.5 signals a few large misses driving RMSE up.</p>
+
+<p><strong>Does caret RMSE handle <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">NA values</a>?</strong></p>
+
+<p>Yes, but only when you ask. The default is <code>na.rm = FALSE</code>, so any <code>NA</code> in <code>pred</code> or <code>obs</code> propagates and the result is <code>NA</code>. Pass <code>na.rm = TRUE</code> to drop pairs where either side is missing, or impute upstream so the test set has no gaps.</p>
+
+<p><strong>Why does caret pick RMSE as the default metric?</strong></p>
+
+<p><code>caret::train()</code> calls <code>defaultSummary()</code> per fold, which returns RMSE, R-squared, and MAE for regression. RMSE drives tuning by default because it is differentiable, in the outcome's units, and penalises large misses. Override with <code>metric = &quot;MAE&quot;</code> or <code>metric = &quot;Rsquared&quot;</code> if RMSE is the wrong target for your use case.</p>
+
+<p><strong>Can RMSE be used for classification in caret?</strong></p>
+
+<p>No. RMSE is a regression metric; it requires numeric inputs. For factor outcomes, use <code>caret::confusionMatrix(pred, obs)</code> for accuracy and kappa, or <code>postResample(pred, obs)</code> which switches metric sets based on input type. Calling <code>RMSE()</code> on factors throws an error before any computation runs.</p>
+
+<h2>Related caret functions</h2>
+
+<ul>
+
+<li><a href="caret-MAE-in-R.html">caret::MAE()</a>: absolute-error sibling, equal weight per miss</li>
+
+<li><a href="caret-R2-in-R.html">caret::R2()</a>: proportion of <a class="auto-link" href="Interpreting-PCA-Results-in-R.html" title="Read PCA Output in R: What Loadings, Scores, and Variance Explained Actually Tell You">variance explained</a></li>
+
+<li><a href="caret-postResample-in-R.html">caret::postResample()</a>: RMSE, R-squared, and MAE in one call</li>
+
+<li><a href="caret-defaultSummary-in-R.html">caret::defaultSummary()</a>: the default summary function used inside <code>train()</code></li>
+
+<li><a href="caret-train-in-R.html">caret::train()</a>: fit and tune <a class="auto-link" href="adv-regression-models.html" title="Advanced Regression Models">regression models</a> with RMSE as the selection metric</li>
+
+</ul>
+
+<p>For the official function reference, see the <a href="https://cran.r-project.org/package=caret">caret package documentation on CRAN</a>.</p>
