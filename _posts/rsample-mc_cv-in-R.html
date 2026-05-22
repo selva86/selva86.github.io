@@ -1,0 +1,357 @@
+---
+title: "rsample mc_cv() in R: Monte Carlo Cross-Validation Splits"
+description: "Build Monte Carlo cross-validation splits with rsample mc_cv() in R. Covers prop, times, strata, set.seed reproducibility, and how mc_cv differs from vfold_cv."
+keywords: "rsample mc_cv, mc_cv function R, rsample mc_cv examples, R monte carlo cross validation, mc_cv tidymodels, monte carlo cv R, repeated random splits R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "mc_cv()|rsample mc_cv|rsample::mc_cv()|monte carlo cross-validation|monte carlo cv"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>rsample mc_cv() in R: Monte Carlo Cross-Validation Splits</h1>
+
+<p class="lead">The rsample mc_cv() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> builds Monte Carlo cross-validation splits, drawing many independent random train/test partitions so you can average a model's performance across resamples without committing to a fixed v-fold structure.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>mc_cv(df)<span class="qa-cmt">                                # default: 25 splits, prop = 0.75</span>
+mc_cv(df, prop = 0.8)<span class="qa-cmt">                    # 80/20 random splits</span>
+mc_cv(df, times = 100)<span class="qa-cmt">                   # 100 Monte Carlo splits</span>
+mc_cv(df, prop = 0.7, times = 50)<span class="qa-cmt">        # 50 splits at 70/30</span>
+mc_cv(df, strata = y)<span class="qa-cmt">                    # class-balanced splits</span>
+analysis(mcs$splits[[1]])<span class="qa-cmt">                # training rows of split 1</span>
+assessment(mcs$splits[[1]])<span class="qa-cmt">              # held-out rows of split 1</span>
+set.seed(123); mc_cv(df, times = 25)<span class="qa-cmt">     # reproducible splits</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is mc_cv() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">repeated random train/test splits</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">mc_cv(df, prop = 0.75, times = 25)</text><text x="125" y="126" class="branch-label">every row held out exactly once</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">vfold_cv(df, v = 10)</text><text x="125" y="182" class="branch-label">one final hold-out partition</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">initial_split(df, prop = 0.8)</text><text x="125" y="238" class="branch-label">resamples with replacement</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">bootstraps(df, times = 25)</text><text x="125" y="294" class="branch-label">time-ordered resamples</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">rolling_origin(df, initial = 100)</text><text x="125" y="350" class="branch-label">keep group rows together across splits</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">group_vfold_cv(df, group_var)</text><text x="125" y="406" class="branch-label">very small dataset, leave-one-out</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">loo_cv(df)</text></svg></div>
+
+<h2>What mc_cv() does</h2>
+
+<p><strong>mc_cv() draws a sequence of independent random train/test splits from a data frame.</strong> It belongs to the rsample package, the resampling engine of the tidymodels ecosystem. Each call to <code>mc_cv()</code> returns a tibble of <code>rsplit</code> objects in a <code>splits</code> list-column, where every row is one Monte Carlo replicate with its own analysis (training) portion and assessment (held-out) portion.</p>
+
+<p>The defining feature is independence. Unlike vfold_cv(), which partitions every row into exactly one held-out fold, mc_cv() resamples freely. A given row may sit in the assessment set of several splits or of none at all. That property makes mc_cv() useful when you want many resamples (50, 100, or more) without inflating the cost of a high-v fold scheme, and when the natural unit of evaluation is a random hold-out rather than an exhaustive partition.</p>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>The signature has one required argument and four tuning knobs.</strong></p>
+
+<div class="webr-container" data-block-title="mc_cv function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">mc_cv function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mc_cv(
+  data,           # the data frame to resample
+  prop = 3/4,     # proportion that goes to the analysis (training) set
+  times = 25,     # number of Monte Carlo splits
+  strata = NULL,  # column to stratify the splits by
+  breaks = 4,     # bins used when strata is numeric
+  pool = 0.1      # small-group pooling threshold for strata
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments that matter in practice:</p>
+
+<ul>
+
+<li><strong>data</strong>: the data frame or tibble to resample.</li>
+
+<li><strong>prop</strong>: proportion of rows assigned to the analysis (training) set in each split. The default <code>0.75</code> gives 75/25 splits.</li>
+
+<li><strong>times</strong>: how many independent splits to draw. The default <code>25</code> is a reasonable starting point; raise to 50 or 100 on small datasets.</li>
+
+<li><strong>strata</strong>: a column name. Each split is drawn so the class proportions of <code>strata</code> are preserved in both analysis and assessment sets.</li>
+
+<li><strong>breaks</strong>: when <code>strata</code> is numeric, the number of <a class="auto-link" href="dplyr-ntile-in-R.html" title="dplyr ntile() in R: Bin Values into N Equal-Count Groups">quantile bins</a> used for stratification.</li>
+
+</ul>
+
+<h2>mc_cv() examples</h2>
+
+<h3>Default Monte Carlo splits</h3>
+
+<p><strong>Call mc_cv() on a data frame and print the result to see the split structure.</strong> The defaults produce 25 splits at a 75/25 ratio.</p>
+
+<div class="webr-container" data-block-title="Create default Monte Carlo splits">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Create default Monte Carlo splits</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rsample)
+
+set.seed(123)
+mc_splits &lt;- mc_cv(mtcars)
+mc_splits
+#&gt; # Monte Carlo cross-validation (0.75/0.25) with 25 resamples  
+#&gt; # A tibble: 25 x 2
+#&gt;    splits         id        
+#&gt;    &lt;list&gt;         &lt;chr&gt;     
+#&gt;  1 &lt;split [24/8]&gt; Resample01
+#&gt;  2 &lt;split [24/8]&gt; Resample02
+#&gt;  3 &lt;split [24/8]&gt; Resample03
+#&gt;  4 &lt;split [24/8]&gt; Resample04
+#&gt;  5 &lt;split [24/8]&gt; Resample05
+#&gt;  6 &lt;split [24/8]&gt; Resample06
+#&gt;  7 &lt;split [24/8]&gt; Resample07
+#&gt;  8 &lt;split [24/8]&gt; Resample08
+#&gt;  9 &lt;split [24/8]&gt; Resample09
+#&gt; 10 &lt;split [24/8]&gt; Resample10
+#&gt; # i 15 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Extract analysis and assessment sets</h3>
+
+<p><strong>Each split exposes an analysis() set for fitting and an assessment() set for scoring.</strong> These helpers return ordinary data frames you can pass to any modeling function.</p>
+
+<div class="webr-container" data-block-title="Pull one split&#x27;s data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pull one split&#x27;s data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">split1 &lt;- mc_splits$splits[[1]]
+
+train_part &lt;- analysis(split1)
+test_part  &lt;- assessment(split1)
+
+nrow(train_part)
+#&gt; [1] 24
+nrow(test_part)
+#&gt; [1] 8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Change the train/test proportion</h3>
+
+<p><strong>Pass prop to control how much of the data goes into the analysis set on each split.</strong> Raising prop produces smaller assessment sets and lower-variance training, useful when the data is scarce and you want to keep most of it for fitting.</p>
+
+<div class="webr-container" data-block-title="Use 80/20 splits">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use 80/20 splits</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(123)
+mc_80 &lt;- mc_cv(mtcars, prop = 0.8)
+mc_80$splits[[1]]
+#&gt; &lt;Analysis/Assess/Total&gt;
+#&gt; &lt;26/6/32&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Increase the number of resamples</h3>
+
+<p><strong>Set times higher to average over more random splits.</strong> A common pattern is 50 or 100 resamples on small datasets where a single 10-fold pass is noisy.</p>
+
+<div class="webr-container" data-block-title="Run 50 Monte Carlo splits">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run 50 Monte Carlo splits</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(123)
+mc_50 &lt;- mc_cv(mtcars, prop = 0.75, times = 50)
+nrow(mc_50)
+#&gt; [1] 50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Stratify by the outcome</h3>
+
+<p><strong>Use strata to keep a class or numeric distribution balanced across every split.</strong> Without stratification a random split can under-represent a rare class. Here a cylinder-balanced split preserves the 4/6/8-cylinder mix in both portions.</p>
+
+<div class="webr-container" data-block-title="Stratified splits by a factor column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Stratified splits by a factor column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(123)
+strat_mc &lt;- mc_cv(mtcars, prop = 0.75, times = 10, strata = cyl)
+table(analysis(strat_mc$splits[[1]])$cyl)
+#&gt; 
+#&gt;  4  6  8 
+#&gt;  8  5 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>mc_cv() vs other resampling functions</h2>
+
+<p><strong>mc_cv() draws repeated random hold-outs; the alternatives have different sampling structures.</strong> Choose based on the resampling estimator you need.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Produces</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mc_cv()</code></td>
+<td>Independent random train/test splits</td>
+<td>Many resamples, no v-fold constraint</td>
+</tr>
+<tr>
+<td><code>vfold_cv()</code></td>
+<td>v folds, every row held out exactly once</td>
+<td>Stable k-fold tuning, standard CV</td>
+</tr>
+<tr>
+<td><code>initial_split()</code></td>
+<td>One train/test split</td>
+<td>Final hold-out evaluation</td>
+</tr>
+<tr>
+<td><code>bootstraps()</code></td>
+<td>Resamples with replacement</td>
+<td>Variance estimates, very small data</td>
+</tr>
+<tr>
+<td><code>rolling_origin()</code></td>
+<td>Time-ordered resamples</td>
+<td><a class="auto-link" href="Time-Series-Forecasting-With-R.html" title="Time Series Forecasting with R">Forecasting</a>, expanding or sliding windows</td>
+</tr>
+<tr>
+<td><code>loo_cv()</code></td>
+<td>n folds of size 1</td>
+<td>Tiny datasets, leave-one-out</td>
+</tr>
+</tbody>
+</table>
+
+<p>A tidymodels workflow can plug <code>mc_cv()</code> directly into <code>fit_resamples()</code> or <code>tune_grid()</code> wherever a <code>vfold_cv()</code> object would go. The resamples object is interchangeable.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Rows are not partitioned, they are resampled.</strong> With <code>mc_cv()</code>, the same row can appear in the assessment set of multiple splits or never at all. That is the deliberate trade-off: you give up the every-row-held-out-once guarantee of v-fold CV in exchange for an unbounded number of resamples drawn from the same family of random splits.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most mc_cv() bugs.</strong></p>
+
+<ul>
+
+<li><strong>Forgetting set.seed().</strong> <code>mc_cv()</code> shuffles rows on every call. Without <code>set.seed()</code> before the call, runs are not reproducible and any cross-validated metric drifts between executions. Place the seed in the same script, immediately before the resample.</li>
+
+<li><strong>Using mc_cv() on time-ordered data.</strong> Random splits ignore chronology, so a forecasting model can train on the future and test on the past. Use <code>rolling_origin()</code> instead for <a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">time series</a>; reserve <code>mc_cv()</code> for cross-sectional data.</li>
+
+<li><strong>Confusing times with prop.</strong> <code>times</code> controls how many splits are drawn, not how big each one is. To take 100 resamples of size 30/70 use <code>mc_cv(df, prop = 0.3, times = 100)</code>, not <code>times = 30, prop = 100</code>.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>mc_cv() splits can overlap heavily on small datasets.</strong> With 25 resamples on a 32-row dataset at <code>prop = 0.75</code>, each row sits in roughly 6 to 7 different assessment sets on average. That is fine for performance averaging but useless for variance estimates of a single observation, where <code>bootstraps()</code> is the better choice.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build 30 Monte Carlo splits on the <code>mtcars</code> dataset with a 70/30 ratio, stratified by <code>cyl</code>. Save the result to <code>ex_mcs</code>.</p>
+<div class="webr-container" data-block-title="Your turn: stratified mc_cv on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: stratified mc_cv on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: 30 Monte Carlo splits, 70/30, stratified by cyl
+set.seed(42)
+ex_mcs &lt;- # your code here
+
+nrow(ex_mcs)
+#&gt; Expected: 30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+ex_mcs &lt;- mc_cv(mtcars, prop = 0.7, times = 30, strata = cyl)
+nrow(ex_mcs)
+#&gt; [1] 30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>times = 30</code> produces thirty independent splits; <code>prop = 0.7</code> sends 70 percent of rows into each training portion; <code>strata = cyl</code> keeps the cylinder mix proportional in both halves of every split.</p>
+
+</details>
+</section>
+
+<h2>Related rsample functions</h2>
+
+<p><strong>mc_cv() draws the splits; these companions consume and extend them.</strong></p>
+
+<ul>
+
+<li><code>analysis()</code> and <code>assessment()</code>: pull the training and held-out data frames from a split object.</li>
+
+<li><code>initial_split()</code>: carve off a final testing set before applying mc_cv() to the training portion.</li>
+
+<li><code>vfold_cv()</code>: build a partitioned v-fold object when every row must be held out exactly once.</li>
+
+<li><code>bootstraps()</code>: draw with-replacement resamples when variance estimates are the goal.</li>
+
+<li><code>group_vfold_cv()</code>: <a class="auto-link" href="dplyr-full_join-in-R.html" title="dplyr full_join() in R: Keep All Rows From Both Tables">keep all rows</a> of a group together; mc_cv() has no group-aware analogue.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from scikit-learn?</strong> <code>mc_cv(df, prop = 0.75, times = 25)</code> is the tidymodels equivalent of <code>ShuffleSplit(n_splits=25, train_size=0.75)</code>. The <code>strata</code> argument matches <code>StratifiedShuffleSplit</code>.</div></div>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the default number of splits in mc_cv()?</strong></p>
+
+<p>The default <code>times</code> argument is <code>25</code>, which builds 25 Monte Carlo splits at a 75/25 ratio. Each split is independent, so a row can be in the assessment set of several splits or none. Twenty-five splits is a reasonable starting point for medium-sized datasets. On small data, raise it to 50 or 100 to reduce the variance of the averaged performance metric. The cost scales linearly with <code>times</code>.</p>
+
+<p><strong>How is mc_cv() different from vfold_cv()?</strong></p>
+
+<p><code>vfold_cv()</code> partitions the data: every row sits in exactly one held-out fold across v folds, so v controls both the number of folds and the held-out size. <code>mc_cv()</code> resamples freely: it draws each split at random with the chosen <code>prop</code>, and the same row can appear in the assessment set of many splits or none. Use vfold_cv() for standard k-fold cross-validation and mc_cv() when you want many independent random hold-outs.</p>
+
+<p><strong>How do I make mc_cv() reproducible?</strong></p>
+
+<p>Call <code>set.seed()</code> with any integer immediately before <code>mc_cv()</code>. The function randomises rows on every call, so a fixed seed guarantees identical splits across runs. Keep the seed and the resample call in the same script, and rerun with the same seed plus the same R version to reproduce the exact assignments. The <code>splits</code> column is stable under that combination.</p>
+
+<p><strong>Can mc_cv() be used for time series data?</strong></p>
+
+<p>No. <code>mc_cv()</code> ignores row order and draws random hold-outs, which lets a forecasting model train on future observations and test on past ones. That leakage destroys the validity of any time-series performance estimate. Use <code>rolling_origin()</code>, <code>sliding_window()</code>, or <code>sliding_period()</code> from rsample instead. Those functions respect chronology and produce resamples that mimic real forecasting evaluation.</p>
+
+<p><strong>Does mc_cv() work with tune_grid() and fit_resamples()?</strong></p>
+
+<p>Yes. The object returned by <code>mc_cv()</code> carries the same <code>rset</code> class as <code>vfold_cv()</code> output, so tidymodels tuning and evaluation functions accept it without modification. Pass it as the <code>resamples</code> argument to <code>fit_resamples()</code> for a single model, or to <code>tune_grid()</code> when tuning hyperparameters. The performance metrics are then averaged across the <code>times</code> Monte Carlo splits rather than across v folds.</p>
+
+{% endraw %}
