@@ -1,0 +1,424 @@
+---
+title: "yardstick bal_accuracy() in R: Score Imbalanced Classifiers"
+description: "Use yardstick bal_accuracy() in R to score classification models on imbalanced data. See syntax, multiclass averaging, grouped scoring, and common pitfalls."
+keywords: "yardstick bal_accuracy, bal_accuracy function R, yardstick bal_accuracy examples, balanced accuracy R, tidymodels balanced accuracy, bal_accuracy metric R, balanced accuracy yardstick"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "bal_accuracy()|yardstick bal_accuracy|yardstick::bal_accuracy()|balanced accuracy|balanced accuracy metric"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>yardstick bal_accuracy() in R: Score Imbalanced Classifiers</h1>
+
+<p class="lead">The yardstick bal_accuracy() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> returns the macro-average of per-class recall for a classification model, accepting a tibble of truth and prediction columns and producing a tidy one-row summary that stays honest when one class dominates the data.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>bal_accuracy(df, truth, estimate)<span class="qa-cmt">                       # basic two-class call</span>
+bal_accuracy(df, truth = obs, estimate = pred)<span class="qa-cmt">          # named arguments</span>
+bal_accuracy(df, class, .pred_class)<span class="qa-cmt">                    # default parsnip output</span>
+df |&gt; group_by(fold) |&gt; bal_accuracy(class, .pred_class)<span class="qa-cmt">   # by resample</span>
+bal_accuracy(df, class, .pred_class, na_rm = TRUE)<span class="qa-cmt">      # drop missing rows</span>
+bal_accuracy_vec(truth_vec, pred_vec)<span class="qa-cmt">                   # vector interface</span>
+bal_accuracy(df, class, .pred_class, estimator = &quot;macro_weighted&quot;)<span class="qa-cmt">  # weighted macro</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is bal_accuracy() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">imbalanced classes, want one robust number</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">bal_accuracy(df, truth, estimate)</text><text x="125" y="126" class="branch-label">classes are roughly balanced</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">accuracy(df, truth, estimate)</text><text x="125" y="182" class="branch-label">need precision-recall tradeoff</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">f_meas(df, truth, estimate)</text><text x="125" y="238" class="branch-label">ranking by probability, not classes</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">roc_auc(df, truth, .pred_class_1)</text><text x="125" y="294" class="branch-label">per-class diagnostics, not an average</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">precision(df, truth, estimate)</text><text x="125" y="350" class="branch-label">regression model, not classification</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">rmse(df, truth, estimate)</text></svg></div>
+
+<h2>What bal_accuracy() measures</h2>
+
+<p><strong>bal_accuracy() averages how well a model recalls each class.</strong> For a two-class problem it equals the mean of <a class="auto-link" href="Bayes-Theorem-in-R.html" title="Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why">sensitivity and specificity</a>. For multiclass it equals the macro average of per-class recall. The result is a number between 0 and 1; 0.5 is chance for a binary classifier.</p>
+
+<p>The function accepts a data frame with two factor columns and returns a tibble with <code>.metric</code>, <code>.estimator</code>, and <code>.estimate</code>. It ignores class proportions: a model that always predicts the majority class scores zero on the minority class, dragging the average down.</p>
+
+<p>Reach for balanced accuracy when one class is rare, costs are roughly symmetric, and you want a single headline number. Pair it with <code>accuracy()</code> so you can see how much the imbalance is hiding.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Balanced accuracy ignores class proportions.</strong> It treats every class as equally important, which is exactly what you want when the rare class is the one you care about and a high overall accuracy would otherwise hide a model that ignores it.</div></div>
+
+<h2>bal_accuracy() syntax and arguments</h2>
+
+<p><strong>The signature is identical to every other yardstick class metric.</strong> The same call shape works whether you score logistic regression, a random forest, or a neural net.</p>
+
+<div class="webr-container" data-block-title="bal_accuracy generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">bal_accuracy generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bal_accuracy(data, truth, estimate, estimator = NULL, na_rm = TRUE, case_weights = NULL, event_level = &quot;first&quot;, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data</code></td>
+<td>A data frame with the truth and estimate columns.</td>
+</tr>
+<tr>
+<td><code>truth</code></td>
+<td>Unquoted column name of the observed class labels (a factor).</td>
+</tr>
+<tr>
+<td><code>estimate</code></td>
+<td>Unquoted column name of the predicted class labels (a factor with matching levels).</td>
+</tr>
+<tr>
+<td><code>estimator</code></td>
+<td><code>&quot;binary&quot;</code>, <code>&quot;macro&quot;</code>, or <code>&quot;macro_weighted&quot;</code>; yardstick picks one based on the number of factor levels if you leave it <code>NULL</code>.</td>
+</tr>
+<tr>
+<td><code>na_rm</code></td>
+<td>If <code>TRUE</code>, drop rows where either column is missing before scoring.</td>
+</tr>
+<tr>
+<td><code>case_weights</code></td>
+<td>Optional column of row weights, useful for survey or class-rebalanced data.</td>
+</tr>
+<tr>
+<td><code>event_level</code></td>
+<td><code>&quot;first&quot;</code> or <code>&quot;second&quot;</code>; controls which factor level counts as the positive class for two-class problems.</td>
+</tr>
+</tbody>
+</table>
+
+<p>Both <code>truth</code> and <code>estimate</code> must be factors with identical levels. The <code>estimator</code> argument only matters for multiclass: <code>&quot;macro&quot;</code> is the default; <code>&quot;macro_weighted&quot;</code> weights each class by prevalence, which partly defeats the point of using balanced accuracy.</p>
+
+<h2>Examples: balanced accuracy for binary and multiclass</h2>
+
+<p><strong>The examples below build a deliberately imbalanced two-class data set, then a multiclass one.</strong> First, create a binary frame where 90 percent of rows belong to one class.</p>
+
+<div class="webr-container" data-block-title="Imbalanced two-class predictions tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Imbalanced two-class predictions tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+library(dplyr)
+
+set.seed(42)
+imb &lt;- tibble(
+  obs = factor(sample(c(&quot;yes&quot;, &quot;no&quot;), 200, replace = TRUE, prob = c(0.10, 0.90)),
+               levels = c(&quot;yes&quot;, &quot;no&quot;)),
+  pred = factor(sample(c(&quot;yes&quot;, &quot;no&quot;), 200, replace = TRUE, prob = c(0.05, 0.95)),
+                levels = c(&quot;yes&quot;, &quot;no&quot;))
+)
+head(imb, 4)
+#&gt; # A tibble: 4 x 2
+#&gt;   obs   pred
+#&gt;   &lt;fct&gt; &lt;fct&gt;
+#&gt; 1 no    no
+#&gt; 2 no    no
+#&gt; 3 no    yes
+#&gt; 4 no    no</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 1 contrasts accuracy with bal_accuracy on the same imbalanced data.</strong> Accuracy looks healthy because the model agrees with the dominant class most of the time. Balanced accuracy tells the real story.</p>
+
+<div class="webr-container" data-block-title="Accuracy vs balanced accuracy on imbalanced data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Accuracy vs balanced accuracy on imbalanced data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">accuracy(imb, obs, pred)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric  .estimator .estimate
+#&gt;   &lt;chr&gt;    &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 accuracy binary         0.825
+
+bal_accuracy(imb, obs, pred)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric      .estimator .estimate
+#&gt;   &lt;chr&gt;        &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 bal_accuracy binary         0.516</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Accuracy is 0.825 but balanced accuracy is barely above chance. The 82 percent figure is inflated by correct rejections of the majority class, not useful predictions on the rare class.</p>
+
+<p><strong>Example 2 scores a multiclass setup.</strong> For three or more classes, bal_accuracy defaults to the macro estimator: average the per-class recall, no weighting.</p>
+
+<div class="webr-container" data-block-title="Multiclass balanced accuracy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multiclass balanced accuracy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+multi &lt;- tibble(
+  obs = factor(sample(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), 150, replace = TRUE, prob = c(0.6, 0.3, 0.1)),
+               levels = c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;)),
+  pred = factor(sample(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), 150, replace = TRUE, prob = c(0.6, 0.3, 0.1)),
+                levels = c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;))
+)
+
+bal_accuracy(multi, truth = obs, estimate = pred)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric      .estimator .estimate
+#&gt;   &lt;chr&gt;        &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 bal_accuracy macro          0.351</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>.estimator</code> column reports <code>macro</code>. Switch to <code>estimator = &quot;macro_weighted&quot;</code> to count each class proportional to its frequency.</p>
+
+<p><strong>Example 3 groups scoring by resample fold.</strong> With cross-validation predictions in one tibble, <code>group_by()</code> plus bal_accuracy returns one score per fold.</p>
+
+<div class="webr-container" data-block-title="Per-fold balanced accuracy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-fold balanced accuracy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">folded &lt;- imb |&gt;
+  mutate(fold = rep(paste0(&quot;fold&quot;, 1:4), each = 50))
+
+folded |&gt;
+  group_by(fold) |&gt;
+  bal_accuracy(truth = obs, estimate = pred)
+#&gt; # A tibble: 4 x 4
+#&gt;   fold  .metric      .estimator .estimate
+#&gt;   &lt;chr&gt; &lt;chr&gt;        &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 fold1 bal_accuracy binary         0.500
+#&gt; 2 fold2 bal_accuracy binary         0.527
+#&gt; 3 fold3 bal_accuracy binary         0.522
+#&gt; 4 fold4 bal_accuracy binary         0.518</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 4 uses the vector interface for ad-hoc checks.</strong> <code>bal_accuracy_vec()</code> takes two factors directly and returns a numeric scalar instead of a tibble.</p>
+
+<div class="webr-container" data-block-title="Vector interface for quick checks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vector interface for quick checks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bal_accuracy_vec(imb$obs, imb$pred)
+#&gt; [1] 0.5156</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The vector form is the right choice inside <code>map()</code> calls or unit tests.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Compute accuracy and bal_accuracy together with metric_set().</strong> Wrap both into one callable so you score them in a single pass: <code>class_metrics &lt;- metric_set(accuracy, bal_accuracy)</code>, then <code>class_metrics(df, truth, estimate)</code> returns a two-row tibble ready for <code>bind_rows()</code> or plotting.</div></div>
+
+<h2>bal_accuracy() compared with related metrics</h2>
+
+<p><strong>Balanced accuracy lands between plain accuracy and the full precision-recall family.</strong> The table below summarizes when to reach for another yardstick metric.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Metric</th>
+<th>Best use case</th>
+<th>Limitation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>bal_accuracy()</code></td>
+<td>Imbalanced classes, equal cost per class</td>
+<td>Hides which class drives errors</td>
+</tr>
+<tr>
+<td><code>accuracy()</code></td>
+<td>Balanced classes, equal error costs</td>
+<td>Misleading on skewed data</td>
+</tr>
+<tr>
+<td><code>j_index()</code></td>
+<td>Two-class screening, Youden's J</td>
+<td>Only defined for binary problems</td>
+</tr>
+<tr>
+<td><code>f_meas()</code></td>
+<td>Single score combining precision and recall</td>
+<td>Equal weighting is a choice, not a default</td>
+</tr>
+<tr>
+<td><code>mcc()</code></td>
+<td>Single score robust to imbalance and chance</td>
+<td>Harder to explain to stakeholders</td>
+</tr>
+<tr>
+<td><code>roc_auc()</code></td>
+<td>Probability-threshold comparison</td>
+<td>Requires predicted probabilities, not classes</td>
+</tr>
+</tbody>
+</table>
+
+<p>A practical rule: report balanced accuracy as the headline whenever any class is below 30 percent of the data, and add <code>roc_auc()</code> if you have probability predictions.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>bal_accuracy is sometimes called macro recall.</strong> For multiclass problems the two are identical by construction. The "balanced" name emphasizes the connection to the binary case, where it equals the average of sensitivity and specificity.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three small mistakes account for most bal_accuracy() errors.</strong> Each one has a clear fix.</p>
+
+<p>The first is passing <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">character vectors</a> instead of factors. yardstick requires factors so it can validate that both columns share the same levels. The fix is one <code>factor()</code> call:</p>
+
+<div class="webr-container" data-block-title="Fix: convert character columns to factors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fix: convert character columns to factors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bad &lt;- tibble(obs = c(&quot;yes&quot;, &quot;no&quot;, &quot;yes&quot;, &quot;no&quot;), pred = c(&quot;yes&quot;, &quot;yes&quot;, &quot;no&quot;, &quot;no&quot;))
+# bal_accuracy(bad, obs, pred)  # would error
+bad &lt;- bad |&gt;
+  mutate(across(c(obs, pred), \(x) factor(x, levels = c(&quot;yes&quot;, &quot;no&quot;))))
+bal_accuracy(bad, obs, pred)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric      .estimator .estimate
+#&gt;   &lt;chr&gt;        &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 bal_accuracy binary         0.500</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second pitfall is forgetting the difference between <code>&quot;macro&quot;</code> and <code>&quot;macro_weighted&quot;</code>. The default macro estimator weights every class equally, which is exactly what you want for imbalance. Switching to <code>&quot;macro_weighted&quot;</code> weights each class by its prevalence and re-introduces the very bias you were trying to escape.</p>
+
+<p>The third pitfall is using <code>event_level = &quot;second&quot;</code> without noticing it flips the positive class. Sensitivity and specificity swap, the average stays numerically the same, but downstream <code>precision()</code> and <code>recall()</code> calls report a different class as positive. Set <code>event_level</code> once at the top of the workflow.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Balanced accuracy is undefined when a class has zero rows in truth.</strong> yardstick will return <code>NaN</code> for that class's recall and the macro average inherits it. <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> empty classes out or use <code>case_weights</code> to keep the math defined.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the built-in <code>hpc_cv</code> data from yardstick, which contains predictions across four resamples for a multiclass problem. Compute balanced accuracy per resample, then report the best resample. Save the per-resample tibble to <code>ex_bal_by_fold</code>.</p>
+<div class="webr-container" data-block-title="Your turn: per-resample balanced accuracy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: per-resample balanced accuracy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+data(&quot;hpc_cv&quot;)
+
+# Try it: per-resample balanced accuracy
+ex_bal_by_fold &lt;- # your code here
+
+ex_bal_by_fold
+#&gt; Expected: 10 rows, one per Resample value</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+ex_bal_by_fold &lt;- hpc_cv |&gt;
+  group_by(Resample) |&gt;
+  bal_accuracy(truth = obs, estimate = pred)
+
+ex_bal_by_fold |&gt;
+  arrange(desc(.estimate)) |&gt;
+  head(3)
+#&gt; # A tibble: 3 x 4
+#&gt;   Resample .metric      .estimator .estimate
+#&gt;   &lt;chr&gt;    &lt;chr&gt;        &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 Fold06   bal_accuracy macro          0.661
+#&gt; 2 Fold02   bal_accuracy macro          0.654
+#&gt; 3 Fold10   bal_accuracy macro          0.651</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Grouping by Resample before calling bal_accuracy gives one macro-recall score per fold. Sorting by <code>.estimate</code> highlights the strongest fold, which you would then inspect for class confusion patterns.</p>
+
+</details>
+</section>
+
+<h2>Related yardstick metrics</h2>
+
+<p><strong>bal_accuracy() is one entry in the yardstick class-metric family.</strong> Reach for these neighbors when balanced accuracy alone is not enough:</p>
+
+<ul>
+
+<li><code>accuracy()</code> for the unbalanced baseline you compare against</li>
+
+<li><code>sens()</code> and <code>spec()</code> for the two components of the binary case</li>
+
+<li><code>j_index()</code> for Youden's J, the binary special case</li>
+
+<li><code>f_meas()</code> for a precision-recall blend</li>
+
+<li><code>mcc()</code> for the Matthews <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">correlation coefficient</a></li>
+
+<li><code>roc_auc()</code> and <code>pr_auc()</code> for probability-based ranking metrics</li>
+
+</ul>
+
+<p>For the full set, see the <a href="https://yardstick.tidymodels.org/reference/index.html">yardstick reference index</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How is balanced accuracy calculated for two classes?</strong></p>
+
+<p>For <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">binary classification</a>, bal_accuracy is the arithmetic mean of sensitivity and specificity. yardstick reads them from the <a class="auto-link" href="Logistic-Regression-Exercises-in-R.html" title="Logistic Regression Exercises in R: 10 Classification Practice Problems, Solved Step-by-Step">confusion matrix</a> and averages. The score is 1 when both rates are 1, 0.5 for a majority-only classifier, and 0 when the model is wrong on both classes.</p>
+
+<p><strong>When should I use bal_accuracy() instead of accuracy()?</strong></p>
+
+<p>Use balanced accuracy whenever class proportions are skewed and you care about the rare class. A 95 percent accuracy on a 95 / 5 split says little about the minority class, while balanced accuracy drops sharply if the model ignores it.</p>
+
+<p><strong>Does bal_accuracy() work for multiclass classification?</strong></p>
+
+<p>Yes. yardstick switches the <code>.estimator</code> from <code>binary</code> to <code>macro</code> based on the number of factor levels. The macro estimator averages per-class recall without weighting. Set <code>estimator = &quot;macro_weighted&quot;</code> if you want a prevalence-weighted average, though that partly undoes the rebalancing.</p>
+
+<p><strong>Can I compute balanced accuracy from a parsnip workflow?</strong></p>
+
+<p>Pipe <code>augment()</code> output into bal_accuracy. With <code>augment(fit, new_data = test)</code>, the result already contains <code>truth</code> and <code>.pred_class</code> columns, so the call becomes <code>augment(fit, test) |&gt; bal_accuracy(class, .pred_class)</code>. Replace <code>class</code> with your outcome column name.</p>
+
+<p><strong>How does bal_accuracy compare with Cohen's kappa?</strong></p>
+
+<p>Balanced accuracy averages per-class recall; <code>kap()</code> compares observed agreement to chance agreement from marginal frequencies. Kappa can go negative when the model is worse than chance, while balanced accuracy is bounded at 0. Use kap for a chance-corrected agreement score.</p>
+
+<h2>Summary</h2>
+
+<p><strong>bal_accuracy() is the right yardstick metric the moment one class dominates.</strong> Read it next to plain <code>accuracy()</code> so the gap quantifies the imbalance, and reach for <code>roc_auc()</code> or <code>f_meas()</code> when symmetric class treatment stops being the right framing. With <code>group_by()</code> it scales to any resampling scheme without reshaping.</p>
+
+{% endraw %}
