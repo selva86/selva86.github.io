@@ -1,0 +1,393 @@
+---
+title: "caret postResample() in R: Score Model Predictions"
+description: "Use caret postResample() in R to score predictions. Get RMSE, R-squared, MAE for regression and Accuracy, Kappa for classification with a single call."
+keywords: "caret postResample, postResample function R, caret postResample examples, R regression metrics caret, RMSE Rsquared MAE caret, R model evaluation caret"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "postResample()|caret postResample|caret::postResample()|postResample function|caret regression metrics"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret postResample() in R: Score Model Predictions</h1>
+
+<p class="lead">The <code>postResample()</code> function in caret takes a vector of predicted values and a vector of observed values and returns a labeled numeric summary of prediction quality. For numeric outcomes it reports RMSE, R-squared, and MAE; for factor outcomes it reports Accuracy and Kappa. One call covers regression and classification with no model object required.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>postResample(pred, obs)<span class="qa-cmt">                              # regression: RMSE, Rsquared, MAE</span>
+postResample(pred_factor, obs_factor)<span class="qa-cmt">                # classification: Accuracy, Kappa</span>
+postResample(pred, obs)[&quot;RMSE&quot;]<span class="qa-cmt">                      # extract one metric</span>
+postResample(pred_matrix, obs_matrix)<span class="qa-cmt">                # multi-output regression</span>
+caret::defaultSummary(data.frame(obs = obs, pred = pred))<span class="qa-cmt">  # same metrics, wider API</span>
+do.call(rbind, fold_scores)<span class="qa-cmt">                          # per-fold score table</span>
+1 - postResample(pred, obs)[&quot;Rsquared&quot;]<span class="qa-cmt">              # variance unexplained</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is postResample() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">score a regression vector quickly</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">postResample(pred, obs)</text><text x="125" y="126" class="branch-label">score a classification vector</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">caret::confusionMatrix(pred, obs)</text><text x="125" y="182" class="branch-label">score during caret</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">:train() resampling: pass summaryFunction to trainControl()</text><text x="125" y="238" class="branch-label">need ROC, sensitivity, specificity</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">twoClassSummary(data, lev, model)</text><text x="125" y="294" class="branch-label">want tidy tibble output</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">yardstick::metrics(df, truth, estimate)</text><text x="125" y="350" class="branch-label">compare many fitted caret models</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">resamples(list(a = fit1, b = fit2))</text></svg></div>
+
+<h2>What postResample() does in one sentence</h2>
+
+<p><strong><code>postResample()</code> is caret's lightweight metric helper.</strong> You pass a vector of predictions and a vector of observations and get a small named numeric vector with the standard metrics. The function detects whether inputs are numeric or factor and switches metric sets automatically, so one call covers regression and classification.</p>
+
+<p>It does not need a fitted model, only the two vectors, so it works with predictions from any source: <code>caret::train</code>, a base <code>lm</code>, an <code>xgboost</code> booster, or a hand-coded rule. Internally, <code>defaultSummary()</code> and <code>train()</code> call it to build per-fold metric rows.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The R-squared is <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">Pearson correlation</a> squared, not 1 minus SS_res over SS_tot.</strong> That distinction matters when predictions are biased: a perfectly correlated but shifted prediction returns Rsquared = 1 even though residuals are large. Pair it with RMSE before reporting model quality.</div></div>
+
+<h2>postResample() syntax and arguments</h2>
+
+<p><strong>The signature is short: two vectors in, one named vector out.</strong> Both inputs must have the same length and the same type (both numeric or both factor with the same levels).</p>
+
+<div class="webr-container" data-block-title="Load caret and create a small regression scoring set">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and create a small regression scoring set</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(1)
+n   &lt;- 30
+obs &lt;- rnorm(n, mean = 10, sd = 3)
+pred &lt;- obs + rnorm(n, sd = 1.2)        # noisy predictions around truth
+
+postResample(pred = pred, obs = obs)
+#&gt;     RMSE Rsquared      MAE
+#&gt;  1.10987  0.86445  0.91402</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two arguments are <code>pred</code> (predictions) and <code>obs</code> (the truth). For a single outcome both are vectors. For multi-output regression both are matrices with the same number of columns; the result is a 3 by k matrix. Subset by name with bracket indexing to extract one metric.</p>
+
+<p>RMSE and MAE inherit the units of the outcome, which makes them easier to communicate than scale-free metrics. Kappa corrects accuracy for chance agreement, so it is safer than raw accuracy when one class dominates. The function does not accept weights; for those, use <code>defaultSummary()</code> inside a <code>trainControl(summaryFunction = ...)</code> block.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Argument order is <code>pred</code> then <code>obs</code>.</strong> This matches caret's broader convention but reverses <code>Metrics::rmse(actual, predicted)</code>. Swapping does not change RMSE or MAE, but it affects asymmetric metrics added via <code>summaryFunction</code>. Name the arguments when in doubt.</div></div>
+
+<h2>postResample() examples by use case</h2>
+
+<p><strong>Most calls fall into four patterns: regression scoring, classification scoring, multi-output regression, and integration with caret resampling.</strong> Each pattern uses the same function with slightly different inputs.</p>
+
+<div class="webr-container" data-block-title="Score a regression model trained on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score a regression model trained on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(42)
+idx &lt;- createDataPartition(mtcars$mpg, p = 0.7, list = FALSE)
+tr  &lt;- mtcars[idx, ]
+te  &lt;- mtcars[-idx, ]
+
+fit  &lt;- lm(mpg ~ wt + hp + cyl, data = tr)
+pred &lt;- predict(fit, newdata = te)
+
+postResample(pred, te$mpg)
+#&gt;     RMSE Rsquared      MAE
+#&gt;  2.84571  0.79234  2.31448</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>RMSE penalises large residuals quadratically, so a single bad prediction inflates it more than several small ones, while MAE weights every residual equally and tracks typical error better. Always inspect a residual plot before celebrating a high Rsquared; correlation alone hides bias.</p>
+
+<p>For classification, pass two factors with identical levels. The function falls through to the two-class metric branch and returns Accuracy and Kappa.</p>
+
+<div class="webr-container" data-block-title="Score a classifier on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score a classifier on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2)
+idx_c &lt;- createDataPartition(iris$Species, p = 0.7, list = FALSE)
+trc   &lt;- iris[idx_c, ]
+tec   &lt;- iris[-idx_c, ]
+
+fitc  &lt;- train(Species ~ ., data = trc, method = &quot;rpart&quot;)
+predc &lt;- predict(fitc, newdata = tec)
+
+postResample(predc, tec$Species)
+#&gt;  Accuracy     Kappa
+#&gt;  0.93333   0.90000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The gap between Accuracy and Kappa shrinks when class prevalence is balanced and widens when one class dominates; for an imbalanced binary outcome with 95 percent negatives, a constant-negative predictor scores 0.95 accuracy but Kappa near zero.</p>
+
+<p>Multi-output regression works by passing matrices with one column per outcome. The result widens to a metric-by-output matrix that is easy to print or convert to a data frame.</p>
+
+<div class="webr-container" data-block-title="Multi-output regression: one column of metrics per outcome">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multi-output regression: one column of metrics per outcome</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(3)
+n &lt;- 50
+obs_m  &lt;- cbind(o1 = rnorm(n, 5, 2),
+                o2 = rnorm(n, 50, 10))
+pred_m &lt;- obs_m + cbind(rnorm(n, sd = 0.8),
+                        rnorm(n, sd = 4))
+
+postResample(pred_m, obs_m)
+#&gt;             o1        o2
+#&gt; RMSE     0.778     4.211
+#&gt; Rsquared 0.872     0.821
+#&gt; MAE      0.621     3.395</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A fourth pattern hand-rolls a per-fold score table. Loop the folds, call <code>postResample()</code> on each, <code>rbind</code> the rows.</p>
+
+<div class="webr-container" data-block-title="Per-fold scores from saved predictions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-fold scores from saved predictions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+folds  &lt;- caret::createFolds(mtcars$mpg, k = 4, returnTrain = TRUE)
+scores &lt;- lapply(folds, function(tr_idx) {
+  fit  &lt;- lm(mpg ~ wt + hp, data = mtcars[tr_idx, ])
+  pred &lt;- predict(fit, newdata = mtcars[-tr_idx, ])
+  postResample(pred, mtcars[-tr_idx, &quot;mpg&quot;])
+})
+do.call(rbind, scores)
+#&gt;            RMSE Rsquared      MAE
+#&gt; Fold1   2.55482  0.83441  2.13209
+#&gt; Fold2   3.10293  0.75812  2.62018
+#&gt; Fold3   2.78416  0.79927  2.27365
+#&gt; Fold4   2.94175  0.77244  2.41889</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The four-row data frame matches the shape caret stores in <code>fit$resample</code>.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>postResample()</code> to score holdout predictions without re-running caret.</strong> If you trained a model in another session and saved only the prediction vectors, you can recover the standard metrics in one line. Pair it with <code>summary()</code> on the residuals when the holdout is small and you want a sanity check on bias.</div></div>
+
+<h2>postResample() vs alternatives</h2>
+
+<p><strong>Five tools score predictions in R: postResample(), defaultSummary(), confusionMatrix(), yardstick, and Metrics.</strong> They differ in input shape, return shape, and metric coverage.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Input shape</th>
+<th>Returns</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>postResample()</code></td>
+<td>Two vectors or matrices</td>
+<td>Named numeric vector</td>
+<td>Quick scoring outside caret resamples</td>
+</tr>
+<tr>
+<td><code>defaultSummary()</code></td>
+<td>Data frame with <code>obs</code>, <code>pred</code></td>
+<td>Named numeric vector</td>
+<td><code>summaryFunction</code> in <code>trainControl()</code></td>
+</tr>
+<tr>
+<td><code>confusionMatrix()</code></td>
+<td>Two factor vectors</td>
+<td>List with table plus 15 metrics</td>
+<td>Full classification scorecard</td>
+</tr>
+<tr>
+<td><code>yardstick::metrics()</code></td>
+<td>Tibble with truth, estimate</td>
+<td>Tibble (one row per metric)</td>
+<td>Tidy pipelines and reporting</td>
+</tr>
+<tr>
+<td><code>Metrics::rmse()</code> etc.</td>
+<td>Two vectors</td>
+<td>Single numeric</td>
+<td>One metric at a time, no caret dependency</td>
+</tr>
+</tbody>
+</table>
+
+<p>Pick <code>postResample()</code> when you want a one-line score outside the caret training loop and a compact named vector you can subset by metric name. Switch to <code>defaultSummary()</code> (which calls <code>postResample()</code> under the hood) when you write a custom <code>summaryFunction</code> for <code>trainControl()</code>. Switch to <code>confusionMatrix()</code> for the full classifier scorecard with sensitivity, specificity, and per-class breakdown. Use <code>yardstick</code> when downstream code expects tibbles, especially in tidymodels pipelines. Reach for <code>Metrics::rmse()</code> only when you want a single number with no caret dependency.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most postResample() bugs.</strong> Each has a quick fix.</p>
+
+<div class="webr-container" data-block-title="Pitfall 1: factor with mismatched levels returns NA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 1: factor with mismatched levels returns NA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pred_bad &lt;- factor(c(&quot;yes&quot;, &quot;no&quot;, &quot;yes&quot;))
+obs_bad  &lt;- factor(c(&quot;yes&quot;, &quot;no&quot;, &quot;no&quot;), levels = c(&quot;no&quot;, &quot;yes&quot;, &quot;maybe&quot;))
+
+postResample(pred_bad, obs_bad)
+#&gt;  Accuracy     Kappa
+#&gt;  0.66667        NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Kappa needs matching factor levels on both sides. Align them with <code>factor(x, levels = lv)</code> before scoring, or use <code>confusionMatrix(pred, obs)</code> which surfaces the mismatch in its error message.</p>
+
+<div class="webr-container" data-block-title="Pitfall 2: NA in either vector propagates to all metrics">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 2: NA in either vector propagates to all metrics</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pred_na &lt;- c(1, 2, NA, 4)
+obs_na  &lt;- c(1.1, 1.9, 3, 4.2)
+
+postResample(pred_na, obs_na)
+#&gt;     RMSE Rsquared      MAE
+#&gt;       NA       NA       NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Drop NAs before scoring with <code>complete.cases()</code>. Predictions are NA most often when a newdata row contains a level the model has not seen; investigate the source rather than silently dropping. A third common cause is a <code>summaryFunction</code> that runs on a fold where one class never appears, which produces a Kappa of NA even though Accuracy is defined; in that case the right fix is <code>createDataPartition</code> with a stratified split, not silent imputation.</p>
+
+<div class="webr-container" data-block-title="Pitfall 3: character vectors silently fall through to regression">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 3: character vectors silently fall through to regression</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pred_chr &lt;- c(&quot;yes&quot;, &quot;no&quot;, &quot;yes&quot;, &quot;no&quot;)
+obs_chr  &lt;- c(&quot;yes&quot;, &quot;no&quot;, &quot;no&quot;, &quot;no&quot;)
+
+postResample(pred_chr, obs_chr)
+#&gt; Error in mean((pred - obs)^2) :
+#&gt;   non-numeric argument to binary operator</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>postResample()</code> decides between regression and classification branches by checking whether inputs are numeric. <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">Character vectors</a> fall through to the regression path and error. Wrap both inputs in <code>factor()</code> with matching levels before scoring.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Rsquared is the squared Pearson correlation between pred and obs, not 1 minus SS_res over SS_tot.</strong> A model that returns <code>pred = obs + 10</code> has perfect correlation and reports Rsquared = 1 even though every prediction is off by ten units. Always inspect RMSE alongside Rsquared before claiming a strong fit.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a linear model of <code>airquality$Ozone</code> on <code>Solar.R</code> and <code>Wind</code> (dropping NAs first). Generate predictions on the same data and score them with <code>postResample()</code>. Save the RMSE to <code>ex_rmse</code>.</p>
+<div class="webr-container" data-block-title="Your turn: score an ozone model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: score an ozone model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: postResample on airquality
+ex_data  &lt;- na.omit(airquality)
+ex_fit   &lt;- # your code here: lm of Ozone on Solar.R and Wind
+ex_pred  &lt;- # your code here: predict on ex_data
+ex_score &lt;- # your code here: postResample of ex_pred vs Ozone
+ex_rmse  &lt;- ex_score[&quot;RMSE&quot;]
+
+ex_rmse
+#&gt; Expected: a single named numeric near 21</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_data  &lt;- na.omit(airquality)
+ex_fit   &lt;- lm(Ozone ~ Solar.R + Wind, data = ex_data)
+ex_pred  &lt;- predict(ex_fit, newdata = ex_data)
+ex_score &lt;- postResample(ex_pred, ex_data$Ozone)
+ex_rmse  &lt;- ex_score[&quot;RMSE&quot;]
+
+ex_rmse
+#&gt;     RMSE
+#&gt; 21.40432</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>na.omit()</code> drops rows with <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> so the model can fit; <code>postResample()</code> then returns RMSE, Rsquared, and MAE on the training predictions. Subset with <code>[&quot;RMSE&quot;]</code> to pull a single metric out of the named vector.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p>The metric you want often sits one call away:</p>
+
+<ul>
+
+<li><code>confusionMatrix()</code> for the full classifier scorecard. See <a href="caret-confusionMatrix-in-R.html">caret confusionMatrix() in R</a>.</li>
+
+<li><code>train()</code> for fitting and resampling models that call <code>postResample()</code> on every fold. See <a href="caret-train-in-R.html">caret train() in R</a>.</li>
+
+<li><code>trainControl()</code> for swapping in a custom <code>summaryFunction</code>. See <a href="caret-trainControl-in-R.html">caret trainControl() in R</a>.</li>
+
+<li><code>createDataPartition()</code> for stratified train/test splits. See <a href="caret-createDataPartition-in-R.html">caret createDataPartition() in R</a>.</li>
+
+<li><code>preProcess()</code> for scaling before a regression fit. See <a href="caret-preProcess-in-R.html">caret preProcess() in R</a>.</li>
+
+</ul>
+
+<p>For the upstream reference, see the <a href="https://topepo.github.io/caret/">caret package documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does postResample() return for regression?</strong></p>
+
+<p>For numeric <code>pred</code> and <code>obs</code>, <code>postResample()</code> returns a named numeric vector with three entries: <code>RMSE</code>, <code>Rsquared</code> (squared Pearson correlation), and <code>MAE</code>. The vector is length 3 for a single outcome and a 3 by k matrix for multi-output regression. Subset by name with <code>[&quot;RMSE&quot;]</code> to pull a single metric.</p>
+
+<p><strong>Why does postResample() report Rsquared = 1 when my predictions are biased?</strong></p>
+
+<p>caret defines <code>Rsquared</code> as the squared Pearson correlation, so a prediction shifted by a constant returns 1 even though residuals are large. The traditional 1 minus SS_res over SS_tot definition is available via <code>yardstick::rsq_trad()</code>. Always report RMSE alongside Rsquared so a biased model cannot pass off as accurate.</p>
+
+<p><strong>How is postResample() different from defaultSummary()?</strong></p>
+
+<p><code>defaultSummary()</code> is the function caret calls inside the resampling loop. It expects a data frame with columns <code>obs</code> and <code>pred</code> and calls <code>postResample()</code> internally. Use <code>postResample()</code> interactively on two vectors; use <code>defaultSummary()</code> when writing a custom <code>summaryFunction</code> for <code>trainControl()</code>.</p>
+
+<p><strong>Can I use postResample() for <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">binary classification</a> with probabilities?</strong></p>
+
+<p>Not directly. <code>postResample()</code> switches on input type: factor inputs trigger Accuracy and Kappa, numeric inputs trigger regression metrics. Threshold probabilities to a factor first, or use <code>twoClassSummary()</code> which expects probabilities and returns ROC, sensitivity, and specificity.</p>
+
+<p><strong>Does postResample() handle missing values?</strong></p>
+
+<p>No. A single NA in either <code>pred</code> or <code>obs</code> propagates to all metrics. Drop missing rows with <code>complete.cases(pred, obs)</code> before scoring, and investigate why predictions are NA (the most common cause is a <code>newdata</code> row with an unseen factor level).</p>
