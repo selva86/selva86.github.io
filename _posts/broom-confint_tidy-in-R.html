@@ -1,0 +1,337 @@
+---
+title: "broom confint_tidy() in R: Tidy Model Confidence Intervals"
+description: "Use broom::confint_tidy() in R to build a tidy tibble of conf.low and conf.high columns for any model whose confint() method works, ready for joining."
+keywords: "broom confint_tidy, confint_tidy R, broom confidence intervals, tidy confint R, R model confidence interval tibble, broom conf.int, broom confint_tidy examples"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "confint_tidy()|broom confint_tidy|broom::confint_tidy()|tidy confidence intervals|model confidence interval tibble"
+auto_link_case_sensitive: true
+fr_parent: "Linear-Regression.html"
+---
+<!-- md2html:generated -->
+
+<h1>broom confint_tidy() in R: Tidy Model Confidence Intervals</h1>
+
+<p class="lead">The <code>broom::confint_tidy()</code> helper calls <code>confint()</code> on a fitted model and returns the result as a two-column tibble with <code>conf.low</code> and <code>conf.high</code>, ready to bind onto a tidy coefficient table. It is the building block that powers the <code>conf.int = TRUE</code> argument of every <code>tidy.lm()</code>, <code>tidy.glm()</code>, and <code>tidy.survreg()</code> method inside broom.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>broom:::confint_tidy(fit)<span class="qa-cmt">                                # default 95% interval</span>
+broom:::confint_tidy(fit, conf.level = 0.90)<span class="qa-cmt">             # widen or tighten</span>
+broom:::confint_tidy(fit, func = MASS::confint.glm)<span class="qa-cmt">      # profile likelihood for glm</span>
+tidy(fit, conf.int = TRUE)<span class="qa-cmt">                               # the public way</span>
+tidy(fit, conf.int = TRUE, conf.level = 0.99)<span class="qa-cmt">            # public + level</span>
+as_tibble(confint(fit), rownames = &quot;term&quot;)<span class="qa-cmt">               # exported alternative</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is confint_tidy() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">tibble of conf.low/conf.high for an internal broom method</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">broom:::confint_tidy(fit)</text><text x="125" y="126" class="branch-label">public coefficient table with conf.int columns</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">broom::tidy(fit, conf.int = TRUE)</text><text x="125" y="182" class="branch-label">raw matrix from base R</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">stats::confint(fit)</text><text x="125" y="238" class="branch-label"><a class="auto-link" href="Likelihood-Ratio-Tests-and-Pivotal-Methods.html" title="Likelihood Ratio Tests & Pivotal Methods: Confidence Sets Theory">profile likelihood</a> interval for a glm</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">MASS::confint.glm(fit)</text><text x="125" y="294" class="branch-label">bootstrap interval, not Wald</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">broom::tidy_bootstrap(fit, conf.int = TRUE)</text><text x="125" y="350" class="branch-label">Bayesian <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">credible interval</a></text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">broom.mixed::tidy(fit, conf.int = TRUE)</text><text x="125" y="406" class="branch-label">one-row model summary</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code"><a class="auto-link" href="broom-Exercises-in-R.html" title="broom Exercises in R: 15 Practice Problems">broom::glance</a>(fit)</text></svg></div>
+
+<h2>What confint_tidy() does in one sentence</h2>
+
+<p><strong>confint_tidy() takes a fitted model, calls confint() on it, and returns a tibble whose two columns are conf.low and conf.high.</strong> Base R's <code>confint()</code> method returns a numeric matrix whose column names depend on the conf.level you pass: at 95% you get "2.5 %" and "97.5 %", at 90% you get "5 %" and "95 %", and so on. Those percentage headers are unfriendly for downstream binding because they change with every level and contain whitespace.</p>
+
+<p>The helper fixes that by renaming the matrix columns to the broom canonical names <code>conf.low</code> and <code>conf.high</code>, then wrapping the result in <code>tibble::as_tibble()</code>. Because the function only emits the interval columns, broom's tidy methods bind it next to a coefficient tibble produced by <code>fix_data_frame()</code> rather than treating it as a standalone output. As of broom 1.0+ the function lives in the internal <a class="auto-link" href="R-Namespaces.html" title="R Namespaces: How Packages Export Functions & Prevent Conflicts">namespace</a>, so direct user code reaches it via <code>broom:::confint_tidy()</code>.</p>
+
+<h2>Syntax</h2>
+
+<p><strong>confint_tidy() has three named arguments and no hidden behavior.</strong> The first is the fitted model, the second sets the confidence level, and the third lets you swap in a non-default interval method.</p>
+
+<div class="webr-container" data-block-title="Load broom and fit a small linear model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load broom and fit a small linear model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(broom)
+library(dplyr)
+library(tibble)
+
+fit &lt;- lm(mpg ~ wt + cyl, data = mtcars)
+class(fit)
+#&gt; [1] &quot;lm&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three arguments are:</p>
+
+<ul>
+
+<li><code>x</code>: a fitted model object that has a working <code>confint()</code> method (required)</li>
+
+<li><code>conf.level</code>: the confidence level for the interval; defaults to <code>0.95</code></li>
+
+<li><code>func</code>: the function used to compute the interval; defaults to <code>stats::confint</code>. Pass <code>MASS::confint.glm</code> or any function with the same signature to switch from Wald to profile likelihood intervals.</li>
+
+</ul>
+
+<p>The return value is always a tibble with exactly two columns, <code>conf.low</code> and <code>conf.high</code>, and one row per model coefficient in the same order as the model's coefficient vector.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>confint_tidy() became internal in broom 1.0.0 (2020).</strong> Before that it was an exported helper used in worked examples. Today the function still ships with broom and is called by dozens of internal <code>tidy.*</code> methods, but user code must use the triple-colon operator or call <code>tidy(fit, conf.int = TRUE)</code> and let broom run the helper for you.</div></div>
+
+<h2>Common patterns</h2>
+
+<h3>1. Get conf.low and conf.high for a linear model</h3>
+
+<div class="webr-container" data-block-title="Call confint_tidy on a fitted lm and inspect the columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Call confint_tidy on a fitted lm and inspect the columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">broom:::confint_tidy(fit)
+#&gt; # A tibble: 3 x 2
+#&gt;   conf.low conf.high
+#&gt;      &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1   36.2       43.2
+#&gt; 2   -4.74      -1.63
+#&gt; 3   -2.36      -0.659</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The output has three rows because the model has three coefficients: <code>(Intercept)</code>, <code>wt</code>, and <code>cyl</code>. Row order matches the order returned by <code>coef(fit)</code>, so a positional bind against a tibble of estimates is safe as long as you do not reshuffle either side. The column names are the broom canonical pair, which is the whole reason the helper exists rather than relying on raw <code>confint()</code> output.</p>
+
+<p>This is the entire job of <code>confint_tidy()</code>. It does not include a <code>term</code> column because it is meant to be column-bound onto a <code>fix_data_frame()</code> result that already carries the term names. Using <code>confint_tidy()</code> alone produces a tibble that is hard to interpret in isolation, which is why <code>tidy(fit, conf.int = TRUE)</code> is the user-facing API.</p>
+
+<h3>2. Change the confidence level</h3>
+
+<div class="webr-container" data-block-title="Pass conf.level to widen or tighten the interval">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pass conf.level to widen or tighten the interval</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">broom:::confint_tidy(fit, conf.level = 0.90)
+#&gt; # A tibble: 3 x 2
+#&gt;   conf.low conf.high
+#&gt;      &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1   36.8       42.5
+#&gt; 2   -4.49      -1.88
+#&gt; 3   -2.21      -0.812
+
+broom:::confint_tidy(fit, conf.level = 0.99)
+#&gt; # A tibble: 3 x 2
+#&gt;   conf.low conf.high
+#&gt;      &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1   34.9       44.5
+#&gt; 2   -5.26      -1.11
+#&gt; 3   -2.65      -0.367</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Lower confidence levels produce narrower intervals, higher levels produce wider ones. The column names stay as <code>conf.low</code> and <code>conf.high</code> regardless, which is the practical benefit over raw <code>confint()</code>: you can vary the level inside a loop or <code>purrr::map()</code> without rewriting downstream binding code that would otherwise break when the percentage headers shift.</p>
+
+<h3>3. Use the public wrapper tidy(conf.int = TRUE)</h3>
+
+<div class="webr-container" data-block-title="Get a full tidy table with conf.int columns attached">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Get a full tidy table with conf.int columns attached</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(fit, conf.int = TRUE)
+#&gt; # A tibble: 3 x 7
+#&gt;   term        estimate std.error statistic  p.value conf.low conf.high
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 (Intercept)   39.7      1.71      23.1   3.04e-20    36.2     43.2
+#&gt; 2 wt            -3.19     0.757     -4.22  2.22e- 4    -4.74    -1.63
+#&gt; 3 cyl           -1.51     0.415     -3.64  1.06e- 3    -2.36    -0.659</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the call most user code wants. Internally, <code>tidy.lm()</code> builds the first five columns via <code>fix_data_frame()</code>, then calls <code>confint_tidy()</code> and binds the two interval columns on the right. The end result is one tibble per model that <a class="auto-link" href="ggplot2-Tutorial-With-R.html" title="ggplot2 Short Tutorial">ggplot2</a>, dplyr, and gt all consume without further reshaping. Reach for the internal helper directly only when you are writing a new <code>tidy.*</code> method or debugging an existing one.</p>
+
+<h3>4. Swap the interval function for profile likelihood</h3>
+
+<div class="webr-container" data-block-title="Use confint.glm for a logistic regression">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use confint.glm for a logistic regression</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">gfit &lt;- glm(am ~ wt + hp, data = mtcars, family = binomial)
+broom:::confint_tidy(gfit, func = MASS::confint.glm)
+#&gt; Waiting for profiling to be done...
+#&gt; # A tibble: 3 x 2
+#&gt;   conf.low conf.high
+#&gt;      &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1   1.79      31.4
+#&gt; 2  -12.4      -1.45
+#&gt; 3   0.0226    0.232</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>func</code> argument is a clean extension point. The default <code>stats::confint</code> does the right thing for <code>lm</code> (Wald intervals from t critical values) and for <code>glm</code> (profile likelihood intervals via <code>MASS</code>). When you need to force profile likelihood explicitly, pass <code>MASS::confint.glm</code>. When you want Wald intervals on a <code>glm</code> because profile fitting is slow, pass <code>stats::confint.default</code>. Any function with the signature <code>function(x, level, ...)</code> works.</p>
+
+<h2>confint_tidy() vs the modern alternatives</h2>
+
+<p><strong>Three rivals cover the same ground; pick by what you actually want back.</strong> The choice is between a public API, a matrix shape, and a different interval method.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Goal</th>
+<th>Use</th>
+<th>Returns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tidy tibble with <code>term</code> + intervals</td>
+<td><code>tidy(fit, conf.int = TRUE)</code></td>
+<td>tibble, public, broom canonical</td>
+</tr>
+<tr>
+<td>Just the two interval columns</td>
+<td><code>broom:::confint_tidy(fit)</code></td>
+<td>tibble, internal, two columns</td>
+</tr>
+<tr>
+<td>Base <a class="auto-link" href="R-Matrices.html" title="R Matrices: Fast Linear Algebra Operations That Data Frames Can't Do">R matrix</a> with level-named cols</td>
+<td><code>stats::confint(fit)</code></td>
+<td>matrix, public, names vary</td>
+</tr>
+<tr>
+<td>Matrix to tibble with <code>term</code></td>
+<td><code>as_tibble(confint(fit), rownames = &quot;term&quot;)</code></td>
+<td>tibble, public, two columns plus term</td>
+</tr>
+<tr>
+<td>Profile likelihood interval for glm</td>
+<td><code>MASS::confint.glm(fit)</code></td>
+<td>matrix, public, slower</td>
+</tr>
+</tbody>
+</table>
+
+<div class="webr-container" data-block-title="Equivalent one-liners with public APIs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Equivalent one-liners with public APIs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(fit, conf.int = TRUE) |&gt; dplyr::select(term, conf.low, conf.high)
+as_tibble(confint(fit), rownames = &quot;term&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For new code, prefer <code>tidy(fit, conf.int = TRUE)</code>. It is exported, documented, and produces the term column for free. Use <code>broom:::confint_tidy()</code> only when writing a <code>tidy.*</code> method or maintaining package code that already calls it. For the rare case where you need just the two columns without the rest of the tidy table, <code>as_tibble(confint(fit), rownames = &quot;term&quot;) |&gt; dplyr::select(-term)</code> is the public way.</p>
+
+<h2>Common pitfalls</h2>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Calling <code>broom::confint_tidy()</code> without the triple colon fails on broom 1.0+.</strong> The function is no longer exported, so the public form errors with <code>&#x27;confint_tidy&#x27; is not an exported object from &#x27;namespace:broom&#x27;</code>. Either use <code>broom:::confint_tidy()</code> for direct access, or switch to <code>tidy(fit, conf.int = TRUE)</code> which calls the helper internally.</div></div>
+
+<p>A second trap: <code>confint_tidy()</code> returns no <code>term</code> column. The output is a two-column tibble, so binding next to a coefficient tibble needs positional alignment. Always check <code>coef(fit)</code> and the tibble row order before <code>dplyr::bind_cols()</code>; a silently misaligned bind produces intervals that point at the wrong predictor.</p>
+
+<p>The third trap is models without a <code>confint()</code> method. Calling the helper on a <code>kmeans</code> or <code>prcomp</code> fit aborts with <code>no applicable method for &#x27;confint&#x27;</code>. Check <code>methods(&quot;confint&quot;)</code> for the classes that work: linear models, generalized linear models, and survival models that ship a Wald or profile likelihood method.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit <code>lm(mpg ~ hp + wt, data = mtcars)</code>, call <code>confint_tidy()</code> at the 99% level, and bind the result onto a tibble of coefficients so each row carries <code>term</code>, <code>estimate</code>, <code>conf.low</code>, and <code>conf.high</code>.</p>
+<div class="webr-container" data-block-title="Your turn: tidy intervals at 99%">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tidy intervals at 99%</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: bind term + estimate + 99% interval
+ex_fit &lt;- lm(mpg ~ hp + wt, data = mtcars)
+ex_coef &lt;- # your code here: a tibble with term and estimate
+ex_ci   &lt;- # your code here: 99% conf.low/conf.high
+ex_out  &lt;- # your code here: bind them column-wise
+
+ex_out
+#&gt; Expected: 3 rows with term, estimate, conf.low, conf.high</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit  &lt;- lm(mpg ~ hp + wt, data = mtcars)
+ex_coef &lt;- tibble::enframe(coef(ex_fit), name = &quot;term&quot;, value = &quot;estimate&quot;)
+ex_ci   &lt;- broom:::confint_tidy(ex_fit, conf.level = 0.99)
+ex_out  &lt;- dplyr::bind_cols(ex_coef, ex_ci)
+ex_out
+#&gt; # A tibble: 3 x 4
+#&gt;   term        estimate conf.low conf.high
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 (Intercept)  37.2     32.8      41.6
+#&gt; 2 hp           -0.0318  -0.0563   -0.00736
+#&gt; 3 wt           -3.88    -5.61     -2.15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>enframe()</code> lifts the named coefficient vector into a tibble. <code>confint_tidy(conf.level = 0.99)</code> returns matched-order interval rows. <code>bind_cols()</code> joins them positionally because both tibbles share the same row order from <code>coef(fit)</code>.</p>
+
+</details>
+</section>
+
+<h2>Related broom functions</h2>
+
+<p>For day-to-day model output, the higher-level wrappers do more in one call:</p>
+
+<ul>
+
+<li><a href="broom-tidy-survival-in-R.html">tidy()</a>: one row per term with <code>estimate</code>, <code>std.error</code>, <code>statistic</code>, <code>p.value</code>, and optional <code>conf.low</code>, <code>conf.high</code></li>
+
+<li><code>glance()</code>: one-row model summary with R-squared, <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a>, BIC, residual df</li>
+
+<li><code>augment()</code>: per-observation fitted values, residuals, <a class="auto-link" href="Multivariate-Outlier-Detection-in-R.html" title="Multivariate Outlier Detection in R: Mahalanobis Distance & Influence">influence diagnostics</a></li>
+
+<li><a href="broom-fix_data_frame-in-R.html">fix_data_frame()</a>: the sister helper that lifts coefficient rownames into a <code>term</code> column</li>
+
+<li><a href="broom-bootstrap-in-R.html">tidy_bootstrap()</a>: bootstrap intervals instead of Wald or profile likelihood</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>Why was confint_tidy() unexported in broom 1.0?</strong></p>
+
+<p>Broom 1.0 reorganized the package around three user-facing generics: <code>tidy()</code>, <code>glance()</code>, and <code>augment()</code>. The maintainers moved internal helpers like <code>confint_tidy()</code> and <code>fix_data_frame()</code> into the private namespace to keep the public API small and the documentation focused. The function still ships with broom and is called by every <code>tidy.*</code> method that supports <code>conf.int = TRUE</code>; only direct user calls need the <code>:::</code> operator.</p>
+
+<p><strong>How is confint_tidy() different from base R confint()?</strong></p>
+
+<p><code>stats::confint()</code> returns a numeric matrix whose column names encode the confidence level, like <code>&quot;2.5 %&quot;</code> and <code>&quot;97.5 %&quot;</code>. Those headers change every time you change <code>conf.level</code>. <code>confint_tidy()</code> calls <code>confint()</code> internally, then renames the columns to the stable pair <code>conf.low</code> and <code>conf.high</code> and wraps the result in a tibble. Downstream binding code stays the same regardless of the level.</p>
+
+<p><strong>Does confint_tidy() work for generalized linear models?</strong></p>
+
+<p>Yes. <code>glm</code> objects ship a <code>confint()</code> method that uses profile likelihood via <code>MASS</code>, so <code>broom:::confint_tidy(glm_fit)</code> returns the profile interval as <code>conf.low</code> and <code>conf.high</code>. Pass <code>func = stats::confint.default</code> to force the faster Wald interval, or <code>func = MASS::confint.glm</code> to be explicit about profile fitting. Either way the column names are stable.</p>
+
+<p><strong>Why doesn't confint_tidy() include the term column?</strong></p>
+
+<p>By design. <code>confint_tidy()</code> is a positional helper meant to be column-bound onto a coefficient tibble built by <code>fix_data_frame()</code>, which already supplies the term column. Returning only the interval columns lets broom's internal methods <a class="auto-link" href="R-Function-Operators.html" title="R Function Operators: Compose, Negate & Partial Application">compose</a> the final tibble with one <code>bind_cols()</code> rather than juggling duplicate term columns. For a complete tibble in one call, use <code>tidy(fit, conf.int = TRUE)</code> from the public API.</p>
+
+<p><strong>Can I use confint_tidy() with a Bayesian model?</strong></p>
+
+<p>Not directly. <code>confint_tidy()</code> requires a frequentist <code>confint()</code> method, which Bayesian fits from <code>rstanarm</code> or <code>brms</code> do not provide. For Bayesian intervals, install <a href="https://cran.r-project.org/package=broom.mixed">broom.mixed</a> and call <code>broom.mixed::tidy(fit, conf.int = TRUE)</code>. That implementation reads posterior samples and reports credible intervals instead.</p>
