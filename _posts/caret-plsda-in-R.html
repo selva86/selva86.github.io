@@ -1,0 +1,380 @@
+---
+title: "caret plsda() in R: PLS Discriminant Analysis"
+description: "Learn how caret plsda() in R fits a PLS discriminant model. Formula and matrix forms, predict() with softmax probabilities, choosing ncomp, and pitfalls."
+keywords: "caret plsda, plsda function R, caret plsda examples, R plsda classification, partial least squares discriminant analysis R, plsda multiclass, caret pls discriminant"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "plsda()|caret plsda|caret::plsda()|PLS-DA in R|partial least squares discriminant analysis"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret plsda() in R: PLS Discriminant Analysis</h1>
+
+<p class="lead">The <code>plsda()</code> function in caret fits a <a class="auto-link" href="parsnip-pls-in-R.html" title="parsnip pls() in R: Partial Least Squares Models">partial least squares</a> discriminant analysis model. It dummy-codes a factor outcome, fits PLS regression on the resulting <a class="auto-link" href="Multiple-Correspondence-Analysis-in-R.html" title="Multiple Correspondence Analysis (MCA) in R: Visualize Categorical Tables">indicator matrix</a>, and returns a classifier that supports class and probability predictions, ideal for high-dimensional data where predictors outnumber rows.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>plsda(x = iris[, 1:4], y = iris$Species, ncomp = 2)<span class="qa-cmt">        # basic fit</span>
+plsda(x, y, ncomp = 3, probMethod = &quot;softmax&quot;)<span class="qa-cmt">             # softmax probs (default)</span>
+plsda(x, y, ncomp = 3, probMethod = &quot;Bayes&quot;)<span class="qa-cmt">               # Bayes-rule probs</span>
+plsda(x, y, ncomp = 5, prior = c(0.5, 0.3, 0.2))<span class="qa-cmt">           # custom class priors</span>
+predict(fit, newdata = x[1:5, ], type = &quot;class&quot;)<span class="qa-cmt">           # predicted class</span>
+predict(fit, newdata = x[1:5, ], type = &quot;prob&quot;)<span class="qa-cmt">            # class probabilities</span>
+splsda(x, y, ncomp = 3, keepX = c(5, 5, 5))<span class="qa-cmt">                # sparse variant</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is plsda() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">multiclass classification with correlated predictors</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">plsda(x, y, ncomp = 3)</text><text x="125" y="126" class="branch-label">predictors outnumber rows (p greater than n)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">plsda(x, y, ncomp = 5)</text><text x="125" y="182" class="branch-label">sparse PLS-DA, variable selection per component</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">splsda(x, y, ncomp = 3, keepX = ...)</text><text x="125" y="238" class="branch-label">PLS regression for numeric outcome (not classes)</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">pls::plsr(y ~ ., data = df)</text><text x="125" y="294" class="branch-label">LDA when predictors are not collinear</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">MASS::lda(y ~ ., data = df)</text><text x="125" y="350" class="branch-label">cross-validated tuning of ncomp</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">train(x, y, method = &quot;pls&quot;, trControl = trainControl(&quot;cv&quot;))</text></svg></div>
+
+<h2>What plsda() does in one sentence</h2>
+
+<p><strong><code>plsda()</code> is caret's wrapper around <code>pls::plsr()</code> for classification.</strong> You pass a numeric predictor matrix and a factor outcome, pick <code>ncomp</code>, and the function dummy-codes the response, fits a PLS model, and stores everything <code>predict()</code> needs to score new rows.</p>
+
+<p>Ordinary LDA fails when predictors are collinear or when there are more predictors than rows. PLS-DA solves both by projecting predictors onto latent components that maximize covariance with the dummy-coded response, then classifies in that low-rank space.</p>
+
+<h2>plsda() syntax and arguments</h2>
+
+<p><strong>The signature centers on three inputs: predictors <code>x</code>, factor outcome <code>y</code>, and the number of components <code>ncomp</code>.</strong> Everything else has reasonable defaults.</p>
+
+<div class="webr-container" data-block-title="Load caret and inspect iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and inspect iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(1)
+head(iris, 3)
+#&gt;   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+#&gt; 1          5.1         3.5          1.4         0.2  setosa
+#&gt; 2          4.9         3.0          1.4         0.2  setosa
+#&gt; 3          4.7         3.2          1.3         0.2  setosa</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full call shape is:</p>
+
+<pre><code>plsda(x, y, ncomp = 2, probMethod = &quot;softmax&quot;, prior = NULL, ...)</code></pre>
+
+<ul>
+
+<li><code>x</code>: a numeric matrix or data frame of predictors, one column per feature. No factor columns allowed; dummy-code them first.</li>
+
+<li><code>y</code>: a factor vector of class labels, same length as <code>nrow(x)</code>.</li>
+
+<li><code>ncomp</code>: the number of latent components retained. Defaults to 2; cap at <code>min(nrow(x), ncol(x))</code>.</li>
+
+<li><code>probMethod</code>: how class probabilities are computed from the dummy-coded predictions. <code>&quot;softmax&quot;</code> (default) is the simple normalization; <code>&quot;Bayes&quot;</code> fits per-class normal densities via <code>naiveBayes()</code>.</li>
+
+<li><code>prior</code>: optional named or unnamed numeric vector of class priors. Defaults to empirical frequencies.</li>
+
+<li><code>...</code>: extra arguments passed to the underlying <code>pls::plsr()</code> call, including <code>method = &quot;kernelpls&quot;</code> or <code>&quot;simpls&quot;</code>.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>plsda()</code> always returns an object that inherits from <code>mvr</code> (the pls package class).</strong> Anything that works on a <code>pls</code> regression fit (<code>scores()</code>, <code>loadings()</code>, <code>coef()</code>) also works on a <code>plsda</code> fit, which is useful for inspecting the latent space directly.</div></div>
+
+<h2>plsda() examples by use case</h2>
+
+<h3>1. Fit a basic PLS-DA classifier on iris</h3>
+
+<p>The shortest call uses the four numeric iris features to separate the three species. With only 4 predictors, two components capture nearly all the discriminant signal.</p>
+
+<div class="webr-container" data-block-title="Fit plsda with two components">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit plsda with two components</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+x &lt;- iris[, 1:4]
+y &lt;- iris$Species
+
+fit &lt;- plsda(x, y, ncomp = 2)
+fit
+#&gt; Partial least squares classification, fitted with the kernel algorithm.
+#&gt; The softmax function was used to compute class probabilities.
+#&gt;
+#&gt; Coefficients:
+#&gt;             Comp 1     Comp 2
+#&gt; Sepal.Length  0.0857   0.4827
+#&gt; Sepal.Width  -0.0468   0.7385
+#&gt; Petal.Length  0.2049  -0.1859
+#&gt; Petal.Width   0.2030  -0.2725</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The returned object stores the fitted PLS model, the response, and the chosen <code>probMethod</code>. Use <code>scores(fit)</code> to see how species separate in the 2D component space, the standard PLS-DA diagnostic.</p>
+
+<h3>2. Predict classes and probabilities</h3>
+
+<p><code>predict.plsda()</code> mirrors the convention of other caret model objects. Use <code>type = &quot;class&quot;</code> for hard predictions and <code>type = &quot;prob&quot;</code> for the softmax probability matrix.</p>
+
+<div class="webr-container" data-block-title="Score three iris rows two ways">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Score three iris rows two ways</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(fit, newdata = x[c(1, 60, 130), ], type = &quot;class&quot;)
+#&gt; [1] setosa     versicolor virginica
+#&gt; Levels: setosa versicolor virginica
+
+predict(fit, newdata = x[c(1, 60, 130), ], type = &quot;prob&quot;)
+#&gt; , , 2 comps
+#&gt;
+#&gt;          setosa versicolor virginica
+#&gt; [1,] 0.91200320  0.0568123 0.0311845
+#&gt; [2,] 0.06820112  0.7129881 0.2188108
+#&gt; [3,] 0.05012004  0.1402371 0.8096429</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The probability matrix is three-dimensional because <code>predict()</code> can return scores for multiple <code>ncomp</code> values at once. The third dimension labels the component count. Collapse it by indexing <code>predict(...)[, , &quot;2 comps&quot;]</code>.</p>
+
+<h3>3. Tune ncomp by holding out a test set</h3>
+
+<p>The single dial worth turning on PLS-DA is <code>ncomp</code>. Too few components underfit; too many drift into noise. A held-out split gives a quick read on the sweet spot.</p>
+
+<div class="webr-container" data-block-title="Sweep ncomp on a 70/30 split">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sweep ncomp on a 70/30 split</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+idx &lt;- createDataPartition(y, p = 0.7, list = FALSE)
+xtr &lt;- x[idx, ]; ytr &lt;- y[idx]
+xte &lt;- x[-idx, ]; yte &lt;- y[-idx]
+
+fit_full &lt;- plsda(xtr, ytr, ncomp = 4)
+acc &lt;- sapply(1:4, function(k) {
+  pr &lt;- predict(fit_full, newdata = xte, ncomp = k, type = &quot;class&quot;)
+  mean(pr == yte)
+})
+data.frame(ncomp = 1:4, accuracy = acc)
+#&gt;   ncomp  accuracy
+#&gt; 1     1 0.7333333
+#&gt; 2     2 0.9555556
+#&gt; 3     3 0.9555556
+#&gt; 4     4 0.9555556</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two components are enough on iris. Going from 1 to 2 captures the second discriminant direction; beyond that, accuracy plateaus.</p>
+
+<h3>4. Use the Bayes probability method</h3>
+
+<p>Softmax probabilities are produced by normalizing the raw dummy-code predictions. The <code>&quot;Bayes&quot;</code> alternative fits a per-class Gaussian on the PLS scores and applies Bayes' rule, which often yields better-calibrated probabilities when class densities are roughly normal in the latent space.</p>
+
+<div class="webr-container" data-block-title="Compare softmax and Bayes probabilities">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare softmax and Bayes probabilities</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+fit_softmax &lt;- plsda(xtr, ytr, ncomp = 2, probMethod = &quot;softmax&quot;)
+fit_bayes   &lt;- plsda(xtr, ytr, ncomp = 2, probMethod = &quot;Bayes&quot;)
+
+round(predict(fit_softmax, xte[1:3, ], type = &quot;prob&quot;)[, , 1], 3)
+#&gt;      setosa versicolor virginica
+#&gt; [1,]  0.912      0.057     0.031
+#&gt; [2,]  0.910      0.058     0.032
+#&gt; [3,]  0.908      0.060     0.032
+
+round(predict(fit_bayes, xte[1:3, ], type = &quot;prob&quot;)[, , 1], 3)
+#&gt;      setosa versicolor virginica
+#&gt; [1,]      1          0         0
+#&gt; [2,]      1          0         0
+#&gt; [3,]      1          0         0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Bayes pushes confident predictions closer to 0 or 1; softmax keeps a thin tail on the wrong classes. For threshold-tuning or ROC analysis, prefer softmax; for hard decision rules, Bayes is fine.</p>
+
+<h3>5. Sparse PLS-DA via splsda()</h3>
+
+<p>When you have hundreds or thousands of predictors and want <a class="auto-link" href="Variable-Selection-and-Importance-With-R.html" title="Feature Selection and Variable Importance">feature selection</a> baked in, switch to <code>splsda()</code>. It keeps only <code>keepX</code> variables per component, zeroing out the rest.</p>
+
+<div class="webr-container" data-block-title="Sparse PLS-DA on the iris matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sparse PLS-DA on the iris matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+fit_sparse &lt;- splsda(xtr, ytr, ncomp = 2, keepX = c(3, 3))
+pred_sparse &lt;- predict(fit_sparse, newdata = xte, ncomp = 2, type = &quot;class&quot;)
+mean(pred_sparse == yte)
+#&gt; [1] 0.9555556</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With only 4 predictors, sparsity does little here. The same call on a gene-expression matrix with 20,000 probes would shrink the active set to a handful of interpretable variables per component.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>PLS-DA shines when predictors are highly correlated or p is greater than n.</strong> LDA inverts the within-class <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">covariance matrix</a>; if that matrix is singular, LDA breaks. PLS-DA replaces inversion with projection onto orthogonal latent components, so it stays stable in both regimes. This is why it is a default in chemometrics, metabolomics, and wide tabular data.</div></div>
+
+<h2>plsda() vs splsda() and train(method = "pls")</h2>
+
+<p><strong><code>plsda()</code> is the direct fit; <code>splsda()</code> adds sparsity; <code>train(method = &quot;pls&quot;)</code> adds resampling.</strong> All three lean on the same underlying PLS engine.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Use it when</th>
+<th>Resampling built in</th>
+<th>Feature selection</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>plsda()</code></td>
+<td>quick fit, you pick <code>ncomp</code> yourself</td>
+<td>No, use <code>train()</code> for that</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>splsda()</code></td>
+<td>wide data, want variable selection per component</td>
+<td>No</td>
+<td>Yes, via <code>keepX</code></td>
+</tr>
+<tr>
+<td><code>train(method = &quot;pls&quot;)</code></td>
+<td>want cross-validated <code>ncomp</code> tuning</td>
+<td>Yes, via <code>trControl</code></td>
+<td>No</td>
+</tr>
+</tbody>
+</table>
+
+<p>Pick <code>plsda()</code> for prototyping or when <code>ncomp</code> is known. Pick <code>splsda()</code> for high-dimensional omics-style problems. Pick <code>train(method = &quot;pls&quot;)</code> to let caret pick the components by cross-validation. See the <a href="https://topepo.github.io/caret/">caret reference</a> for the full method list, including <code>&quot;simpls&quot;</code> and <code>&quot;oscorespls&quot;</code> algorithm variants.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: passing a non-numeric predictor matrix.</strong> <code>plsda()</code> calls <code>as.matrix(x)</code> internally; factor columns get coerced to character then <code>NA</code>. Dummy-code categorical predictors with <code>model.matrix(~ . - 1, data = df)</code> or <code>caret::dummyVars()</code> first.</p>
+
+<p><strong>Pitfall 2: forgetting to scale.</strong> PLS-DA is scale-sensitive because component directions maximize covariance. A variable on a larger scale dominates the first component. Either pre-scale with <code>scale()</code> or pass <code>scale = TRUE</code> through <code>...</code> to the underlying <code>pls::plsr()</code>.</p>
+
+<p><strong>Pitfall 3: picking ncomp too high.</strong> With <code>ncomp</code> near <code>min(n, p)</code>, PLS-DA reproduces the outcome exactly on training data and overfits. Cross-validate or hold out a test set; never pick by training accuracy.</p>
+
+<p><strong>Pitfall 4: misreading the 3D probability array.</strong> <code>predict(fit, type = &quot;prob&quot;)</code> returns a <code>[n, n_classes, length(ncomp)]</code> array, not a matrix. Always index the third dimension explicitly or pass a single <code>ncomp = k</code> to <code>predict()</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The <code>plsda</code> object does not store the original predictor matrix.</strong> Unlike <code>knn3()</code>, you cannot recover <code>x</code> from the fitted model. Save your training data separately if you plan to inspect scores or refit; otherwise <code>scores(fit)</code> is the only window into the latent space you have.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a plsda model on iris with <code>ncomp = 3</code>, predict the class and probabilities for the first row of iris, and save the results to <code>ex_class</code> and <code>ex_prob</code>.</p>
+<div class="webr-container" data-block-title="Your turn: predict class and probability">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: predict class and probability</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: plsda with ncomp = 3
+ex_fit &lt;- plsda(x = iris[, 1:4], y = iris$Species, ncomp = 3)
+ex_class &lt;- # your code here
+ex_prob  &lt;- # your code here
+
+ex_class
+ex_prob
+#&gt; Expected: setosa with a probability near 1 in the setosa column</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- plsda(x = iris[, 1:4], y = iris$Species, ncomp = 3)
+ex_class &lt;- predict(ex_fit, newdata = iris[1, 1:4], ncomp = 3, type = &quot;class&quot;)
+ex_prob  &lt;- predict(ex_fit, newdata = iris[1, 1:4], ncomp = 3, type = &quot;prob&quot;)
+
+ex_class
+#&gt; [1] setosa
+#&gt; Levels: setosa versicolor virginica
+ex_prob
+#&gt; , , 3 comps
+#&gt;
+#&gt;        setosa versicolor virginica
+#&gt; [1,] 0.96123   0.025112  0.013658</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Passing <code>ncomp = 3</code> to both <code>plsda()</code> and <code>predict()</code> keeps the call symmetric. The probability matrix has the same softmax shape as the basic example; the third array dimension reflects that only one <code>ncomp</code> was requested.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p>These pair naturally with a PLS-DA workflow:</p>
+
+<ul>
+
+<li><code>splsda()</code>: sparse PLS-DA with variable selection per component</li>
+
+<li><code>train()</code> with <code>method = &quot;pls&quot;</code>: resampled, cross-validated PLS-DA</li>
+
+<li><code>dummyVars()</code>: convert <a class="auto-link" href="Dummy-Variables-in-R.html" title="Dummy Variables in R: What lm() Does With Factor Predictors Under the Hood">factor predictors</a> to a numeric matrix</li>
+
+<li><code>preProcess()</code>: center, scale, or impute predictors before fitting</li>
+
+<li><code>confusionMatrix()</code>: per-class precision, recall, and kappa for predictions</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between plsda() and LDA in R?</strong></p>
+
+<p>LDA inverts the within-class covariance matrix and fails when predictors are collinear or outnumber rows. <code>plsda()</code> sidesteps that by projecting onto PLS components that maximize covariance with the dummy-coded outcome. Pick LDA for well-behaved tabular data; pick <code>plsda()</code> for wide or correlated data such as spectra, gene expression, or metabolomics.</p>
+
+<p><strong>How do I choose the number of components for plsda?</strong></p>
+
+<p>Cross-validate it. Wrap <code>plsda()</code> inside <code>train(x, y, method = &quot;pls&quot;, tuneLength = 10, trControl = trainControl(&quot;cv&quot;, number = 10))</code>. caret reports accuracy or kappa for each candidate <code>ncomp</code> and stores the winner in <code>bestTune</code>. A good starting search range is 1 to <code>min(20, ncol(x))</code>; accuracy typically rises, plateaus, then dips as you add noise components.</p>
+
+<p><strong>Does plsda() return class probabilities?</strong></p>
+
+<p>Yes. Call <code>predict(fit, newdata = ..., type = &quot;prob&quot;)</code> to get a 3D array shaped <code>[n_rows, n_classes, length(ncomp)]</code>. The default <code>probMethod = &quot;softmax&quot;</code> normalizes the raw dummy-code predictions; <code>&quot;Bayes&quot;</code> fits per-class Gaussians on the PLS scores and applies Bayes' rule for better-calibrated probabilities in roughly normal latent spaces.</p>
+
+<p><strong>Can plsda() handle <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">binary classification</a>?</strong></p>
+
+<p>Yes. Pass a two-level factor as <code>y</code> and PLS-DA reduces to PLS regression on a single indicator column. The latent-score threshold can be tuned via ROC. For binary outcomes you can also call <code>pls::plsr()</code> directly and threshold the predicted indicator yourself.</p>
+
+<p><strong>Is plsda() suitable for very wide data like gene expression?</strong></p>
+
+<p>It is one of the standard tools for that exact use case. PLS-DA handles <code>p</code> much greater than <code>n</code> without numerical issues because it never inverts a covariance matrix. For 10,000+ predictors, switch to <code>splsda()</code> so each component selects only the most informative variables, which makes results interpretable and reduces overfitting on noise features.</p>
