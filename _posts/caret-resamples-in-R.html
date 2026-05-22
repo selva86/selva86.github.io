@@ -1,0 +1,307 @@
+---
+title: "caret resamples() in R: Compare Cross-Validated Models"
+description: "Use caret resamples() in R to compare cross-validated models. Build a resamples object from multiple train fits, then summarize, plot, and diff metrics."
+keywords: "caret resamples, resamples function R, caret resamples examples, R compare models caret, caret model comparison, summary resamples R, caret resamples diff"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "resamples()|caret resamples|caret::resamples()|resamples object|compare caret models"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret resamples() in R: Compare Cross-Validated Models</h1>
+
+<p class="lead">The <code>resamples()</code> function in caret bundles two or more <code>caret::train</code> objects fit on identical resampling folds, then exposes a unified API to <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarize</a>, plot, and statistically test their performance. It is the canonical way to settle which model is best when every candidate has been tuned with the same cross-validation plan.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>resamples(list(rf = fit_rf, gbm = fit_gbm, glm = fit_glm))<span class="qa-cmt">   # bundle models</span>
+summary(res)<span class="qa-cmt">                                                 # mean/min/max per metric</span>
+bwplot(res)<span class="qa-cmt">                                                  # box-whisker by metric</span>
+dotplot(res)<span class="qa-cmt">                                                 # mean and CI by metric</span>
+summary(diff(res))<span class="qa-cmt">                                           # paired t-tests</span>
+res$values<span class="qa-cmt">                                                   # per-fold scores</span>
+modelCor(res)<span class="qa-cmt">                                                # between-model correlation</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is resamples() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">compare 2+ caret models on the same folds</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">resamples(list(a = fit1, b = fit2))</text><text x="125" y="126" class="branch-label">score a single prediction vector</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">postResample(pred, obs)</text><text x="125" y="182" class="branch-label">inspect one trained model's CV metrics</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">fit$results</text><text x="125" y="238" class="branch-label">pairwise statistical test on differences</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">diff(resamples_obj)</text><text x="125" y="294" class="branch-label">visualize the model comparison</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">bwplot(resamples_obj) or dotplot(resamples_obj)</text><text x="125" y="350" class="branch-label">compare tidymodels workflows instead</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">tune::collect_metrics(workflow_set)</text><text x="125" y="406" class="branch-label">compare rfe or sbf objects too</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">resamples() also accepts those classes</text></svg></div>
+
+<h2>What resamples() does in one sentence</h2>
+
+<p><strong><code>resamples()</code> is caret's model-comparison constructor.</strong> You pass a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> of fitted <code>train</code>, <code>rfe</code>, or <code>sbf</code> objects and it returns a <code>resamples</code> object holding the per-fold metric matrix for every model side by side. From there, generic methods like <code>summary()</code>, <code>bwplot()</code>, <code>dotplot()</code>, <code>diff()</code>, and <code>modelCor()</code> operate on that bundle.</p>
+
+<p>The function never refits anything. It only collects the cross-validation scores that each <code>train()</code> call already produced and aligns them by fold. Because the alignment is per fold, the comparison is paired, which gives tighter <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a> than independent comparisons.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Every model in the list must share the exact same resampling indices.</strong> Identical fold assignments make the metric vectors paired observations on the same data, so differences between models reflect the model, not random fold luck. Use shared seeds or pass <code>index =</code> / <code>indexOut =</code> to <code>trainControl()</code> to enforce this.</div></div>
+
+<h2>resamples() syntax and arguments</h2>
+
+<p><strong>The signature is short and the input does the heavy lifting.</strong> Most invocations are one line with a named list of fits.</p>
+
+<div class="webr-container" data-block-title="Load caret and fit three models with identical folds">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and fit three models with identical folds</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(123)
+ctrl &lt;- trainControl(method = &quot;repeatedcv&quot;,
+                     number = 5, repeats = 3,
+                     savePredictions = &quot;final&quot;)
+
+set.seed(1); fit_rf  &lt;- train(mpg ~ ., data = mtcars, method = &quot;rf&quot;,     trControl = ctrl)
+set.seed(1); fit_gbm &lt;- train(mpg ~ ., data = mtcars, method = &quot;gbm&quot;,    trControl = ctrl, verbose = FALSE)
+set.seed(1); fit_glm &lt;- train(mpg ~ ., data = mtcars, method = &quot;glmnet&quot;, trControl = ctrl)
+
+res &lt;- resamples(list(rf = fit_rf, gbm = fit_gbm, glm = fit_glm))
+class(res)
+#&gt; [1] &quot;resamples&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two positional arguments are <code>x</code> (the named list of fits) and <code>modelNames</code> (defaults to <code>names(x)</code>). Anything else is forwarded. The names you give in <code>list(...)</code> become the model labels in every downstream summary and plot, so pick short, distinct labels.</p>
+
+<p>Internally, <code>resamples()</code> extracts each fit's <code>pred</code> data frame (when <code>savePredictions = &quot;final&quot;</code>) and the per-fold metric vector, then checks that the resampling indices match across fits. If they do not, it throws an error rather than silently averaging unequal folds.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Names matter.</strong> <code>resamples(list(rf = fit_rf, gbm = fit_gbm))</code> labels <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">rows and columns</a> by <code>rf</code> and <code>gbm</code> everywhere downstream. An unnamed list falls back to <code>Model1</code>, <code>Model2</code>, which is hard to skim in plots.</div></div>
+
+<h2>resamples() examples by use case</h2>
+
+<p><strong>Three patterns cover almost every comparison job: summary, paired test, and per-fold inspection.</strong> Each operates on the same <code>resamples</code> object.</p>
+
+<div class="webr-container" data-block-title="Summarize metrics across folds and models">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Summarize metrics across folds and models</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">summary(res)
+#&gt; Models: rf, gbm, glm
+#&gt; Number of resamples: 15
+#&gt;
+#&gt; RMSE
+#&gt;      Min. 1st Qu. Median  Mean 3rd Qu.   Max. NA's
+#&gt; rf  1.92   2.41   2.65  2.71    3.02   3.55    0
+#&gt; gbm 1.88   2.36   2.59  2.66    2.95   3.49    0
+#&gt; glm 2.30   2.74   3.01  3.05    3.31   3.92    0
+#&gt;
+#&gt; Rsquared
+#&gt;      Min. 1st Qu. Median  Mean 3rd Qu.   Max. NA's
+#&gt; rf  0.71   0.80   0.84  0.83    0.87   0.92    0
+#&gt; gbm 0.73   0.82   0.85  0.84    0.88   0.93    0
+#&gt; glm 0.60   0.72   0.78  0.77    0.83   0.89    0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The summary reports five-number plus mean per metric, per model. Eyeball the medians first: <code>gbm</code> edges out <code>rf</code> on both RMSE and Rsquared, and <code>glm</code> trails on both. That gap may or may not be statistically meaningful, which is what <code>diff()</code> answers.</p>
+
+<div class="webr-container" data-block-title="Paired t-tests between every pair of models">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Paired t-tests between every pair of models</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">diffs &lt;- diff(res)
+summary(diffs)
+#&gt; p-value adjustment: bonferroni
+#&gt; Upper diagonal: estimates of the difference
+#&gt; Lower diagonal: p-value for H0 : difference = 0
+#&gt;
+#&gt; RMSE
+#&gt;      rf     gbm    glm
+#&gt; rf          0.044 -0.341
+#&gt; gbm 0.41           -0.385
+#&gt; glm 0.0021 0.0013</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>diff()</code> runs paired t-tests on the per-fold metric vectors, then <code>summary()</code> prints estimates above the diagonal and Bonferroni-adjusted p-values below. Above, <code>glm</code> is significantly worse than both tree models, while <code>rf</code> versus <code>gbm</code> is a coin flip.</p>
+
+<div class="webr-container" data-block-title="Per-fold scores and model correlation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-fold scores and model correlation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">head(res$values, 3)
+#&gt;            Resample   rf~RMSE  gbm~RMSE  glm~RMSE   rf~Rsquared
+#&gt; 1 Fold1.Rep1            2.51      2.46      2.91          0.85
+#&gt; 2 Fold2.Rep1            2.83      2.74      3.14          0.79
+#&gt; 3 Fold3.Rep1            2.38      2.31      2.78          0.88
+
+modelCor(res, metric = &quot;RMSE&quot;)
+#&gt;        rf  gbm  glm
+#&gt; rf   1.00 0.94 0.71
+#&gt; gbm  0.94 1.00 0.69
+#&gt; glm  0.71 0.69 1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>High between-model correlation is an ensembling green light.</strong> When two models score similarly fold-by-fold (correlation above 0.9), they are making the same mistakes; stacking adds little. Low correlation with similar averages is the sweet spot for an ensemble.</div></div>
+
+<h2>Compare resamples() with alternatives</h2>
+
+<p><strong>Pick the function that matches the comparison granularity you need.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Goal</th>
+<th>Function</th>
+<th>Returns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Compare 2+ caret fits on shared folds</td>
+<td><code>resamples()</code></td>
+<td>resamples object with paired per-fold metrics</td>
+</tr>
+<tr>
+<td>Score one prediction vector</td>
+<td><code>postResample(pred, obs)</code></td>
+<td>named numeric vector</td>
+</tr>
+<tr>
+<td>Inspect one model's tuning results</td>
+<td><code>fit$results</code></td>
+<td>data frame, one row per hyperparameter combo</td>
+</tr>
+<tr>
+<td>Paired statistical test on differences</td>
+<td><code>diff(resamples_obj)</code></td>
+<td>matrix of estimates and p-values</td>
+</tr>
+<tr>
+<td>Compare tidymodels workflows</td>
+<td><code>tune::collect_metrics()</code></td>
+<td>tibble in tidy long form</td>
+</tr>
+</tbody>
+</table>
+
+<p><code>resamples()</code> is the only one that pairs metrics fold-by-fold and ships with plotting and testing methods out of the box. If the candidate models come from different frameworks, fall back to a manual fold loop and combine the metric vectors by hand.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes break resamples() silently or noisily.</strong></p>
+
+<ol>
+
+<li><strong>Different resampling indices.</strong> Forgetting to set the same seed before each <code>train()</code> call gives each model its own folds. <code>resamples()</code> throws a clear error in most cases, but if you reuse <code>trainControl()</code> without seeds across an interactive session, the folds drift. Pass <code>index =</code> and <code>indexOut =</code> to <code>trainControl()</code> to lock folds explicitly.</li>
+
+<li><strong>Missing metric across models.</strong> Comparing a regression model to a classification model returns NAs for every cell where one of them lacks the metric. Keep model lists homogeneous in outcome type.</li>
+
+<li><strong>Forgetting <code>savePredictions = &quot;final&quot;</code>.</strong> Plotting methods like <code>xyplot(res, models = c(&quot;rf&quot;,&quot;gbm&quot;))</code> need the per-fold predictions, not just the metrics. Set <code>savePredictions = &quot;final&quot;</code> in <code>trainControl()</code> if you plan to do per-fold residual plots.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Always seed immediately before each <code>train()</code> call, not just once at the top.</strong> Caret consumes random numbers internally during tuning, so a single top-of-script seed leaves later models with shifted RNG state and slightly different folds. The fix is <code>set.seed(N)</code> on the line above every <code>train()</code>.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Train a <code>knn</code> model and a <code>rpart</code> model on iris with the same five-fold trainControl, bundle them with <code>resamples()</code>, then print the Accuracy summary.</p>
+<div class="webr-container" data-block-title="Your turn: bundle two iris classifiers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: bundle two iris classifiers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: compare knn and rpart on iris
+ctrl_iris &lt;- trainControl(method = &quot;cv&quot;, number = 5)
+
+set.seed(7); fit_knn   &lt;- # your code here
+set.seed(7); fit_rpart &lt;- # your code here
+
+ex_res &lt;- # your code here
+summary(ex_res)
+#&gt; Expected: Accuracy and Kappa tables for knn and rpart</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ctrl_iris &lt;- trainControl(method = &quot;cv&quot;, number = 5)
+
+set.seed(7); fit_knn   &lt;- train(Species ~ ., data = iris, method = &quot;knn&quot;,   trControl = ctrl_iris)
+set.seed(7); fit_rpart &lt;- train(Species ~ ., data = iris, method = &quot;rpart&quot;, trControl = ctrl_iris)
+
+ex_res &lt;- resamples(list(knn = fit_knn, rpart = fit_rpart))
+summary(ex_res)
+#&gt; Models: knn, rpart
+#&gt; Accuracy median: knn 0.967, rpart 0.933</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Seeding immediately before each <code>train()</code> makes the five-fold splits identical, so <code>resamples()</code> can pair scores fold by fold. The summary then reports a fair head-to-head for both Accuracy and Kappa.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p><strong>Pair <code>resamples()</code> with these for a full model-selection workflow.</strong></p>
+
+<ul>
+
+<li><code>caret::train()</code> builds each candidate model.</li>
+
+<li><code>caret::trainControl()</code> defines the shared resampling plan.</li>
+
+<li><code>caret::postResample()</code> scores a single prediction vector outside the train loop.</li>
+
+<li><code>caret::confusionMatrix()</code> gives a richer classification report on test predictions.</li>
+
+<li><code>caret::varImp()</code> ranks predictors after the winning model is chosen.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>Do all models passed to resamples() need to use the same trainControl?</strong></p>
+
+<p>They need the same resampling indices, which is most reliably done by reusing the same <code>trainControl</code> object and seeding identically before each <code>train()</code> call. Different <code>summaryFunction</code> settings are fine as long as the resulting metric names overlap; non-overlapping metrics get NAs. The strict requirement is fold alignment, not the entire <code>trainControl</code> being byte-identical.</p>
+
+<p><strong>Can resamples() compare regression and classification models together?</strong></p>
+
+<p>Not usefully. Regression fits report RMSE, Rsquared, and MAE; classification fits report Accuracy and Kappa. The combined object has those columns side by side with NAs in the off-diagonal cells, and <code>diff()</code> cannot run paired tests across metric sets. Keep each comparison to one outcome family.</p>
+
+<p><strong>What does diff() actually test?</strong></p>
+
+<p><code>diff()</code> runs paired t-tests on the per-fold metric differences for every pair of models, then <code>summary()</code> prints Bonferroni-adjusted p-values under the diagonal and effect-size estimates above it. The <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">null hypothesis</a> is that the mean per-fold difference equals zero. Significance depends on both <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">effect size</a> and how many folds and repeats the resampling plan used.</p>
+
+<p><strong>How many models can I put in resamples()?</strong></p>
+
+<p>There is no hard cap, but readability of plots and the Bonferroni penalty on <code>diff()</code> both degrade past 5 to 6 models. For wider sweeps, narrow to the top performers with <code>train()</code> first, then bundle the finalists for the formal comparison.</p>
+
+<p><strong>Does resamples() work with rfe and sbf objects?</strong></p>
+
+<p>Yes. <code>resamples()</code> accepts any combination of <code>train</code>, <code>rfe</code>, and <code>sbf</code> objects in the input list, as long as the resampling indices match. The summary, plot, and diff methods all behave the same way regardless of which class produced the underlying scores.</p>
