@@ -1,0 +1,477 @@
+---
+title: "yardstick spec() in R: Score True Negative Rate"
+description: "Use yardstick spec() in R to score the true negative rate of classifiers. See syntax, multiclass averaging, grouped scoring, sens() pairing, and pitfalls."
+keywords: "yardstick spec, spec function R, yardstick specificity, true negative rate R, tidymodels specificity, specificity metric R, yardstick spec examples"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "yardstick spec|yardstick::spec()|specificity metric|true negative rate|spec yardstick"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>yardstick spec() in R: Score True Negative Rate</h1>
+
+<p class="lead">The yardstick spec() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> returns the share of actual negatives the classifier correctly rejected, accepting a tibble of truth and prediction columns and returning a tidy one-row summary you can group, average across classes, or pair with sens() in a metric set.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>spec(df, truth, estimate)<span class="qa-cmt">                              # basic two-class call</span>
+spec(df, truth = obs, estimate = pred)<span class="qa-cmt">                 # named arguments</span>
+spec(df, class, .pred_class)<span class="qa-cmt">                           # default parsnip output</span>
+df |&gt; group_by(fold) |&gt; spec(class, .pred_class)<span class="qa-cmt">       # by resample</span>
+spec(df, class, .pred_class, estimator = &quot;macro&quot;)<span class="qa-cmt">      # multiclass macro average</span>
+spec(df, class, .pred_class, event_level = &quot;second&quot;)<span class="qa-cmt">   # flip positive class</span>
+spec_vec(truth_vec, pred_vec)<span class="qa-cmt">                          # vector interface</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is spec() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">score actual-negative rejection</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">spec(df, truth, estimate)</text><text x="125" y="126" class="branch-label">score actual-positive coverage</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">sens(df, truth, estimate)</text><text x="125" y="182" class="branch-label">score predicted-negative correctness</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">npv(df, truth, estimate)</text><text x="125" y="238" class="branch-label">average sens and spec for imbalance</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">bal_accuracy(df, truth, estimate)</text><text x="125" y="294" class="branch-label">harmonic mean with precision</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">f_meas(df, truth, estimate)</text><text x="125" y="350" class="branch-label">threshold-free ranking metric</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">roc_auc(df, truth, .pred_class_1)</text><text x="125" y="406" class="branch-label">regression model, not classification</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">rmse(df, truth, estimate)</text></svg></div>
+
+<h2>What spec() measures</h2>
+
+<p><strong>spec() answers a single question: of every real negative case, how many did the model correctly reject?</strong> You pass a data frame with observed and predicted labels, and the function returns a one-row tibble with <code>.metric</code>, <code>.estimator</code>, and <code>.estimate</code>. The estimate is true negatives over the sum of true negatives and false positives, a number between 0 and 1.</p>
+
+<p>Specificity is the headline metric whenever a <a class="auto-link" href="Type-I-and-Type-II-Errors-in-R.html" title="Type I and Type II Errors in R: Visualise the Trade-Off Between α and Power">false positive</a> is expensive. Spam filters, fraud alerts, and confirmatory drug tests all share the shape where wrongly flagging a clean case costs trust or a needless follow-up. Accuracy hides that asymmetry; spec() exposes it directly.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A model that flags nothing as positive scores 1.0 specificity.</strong> spec() ignores false negatives entirely, so it is trivially gamed by predicting the majority class. Always pair it with <code>sens()</code>.</div></div>
+
+<h2>spec() syntax and arguments</h2>
+
+<p><strong>The signature mirrors the rest of the yardstick class-metric family.</strong> The same shape works for any classifier whose predictions land in a tibble.</p>
+
+<div class="webr-container" data-block-title="spec generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">spec generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">spec(data, truth, estimate, estimator = NULL, na_rm = TRUE,
+     case_weights = NULL, event_level = &quot;first&quot;, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data</code></td>
+<td>A data frame with truth and estimate columns.</td>
+</tr>
+<tr>
+<td><code>truth</code></td>
+<td>Unquoted column name of the observed class labels (a factor).</td>
+</tr>
+<tr>
+<td><code>estimate</code></td>
+<td>Unquoted column name of the predicted class labels (a factor with matching levels).</td>
+</tr>
+<tr>
+<td><code>estimator</code></td>
+<td>Averaging mode for multiclass: <code>&quot;binary&quot;</code>, <code>&quot;macro&quot;</code>, <code>&quot;macro_weighted&quot;</code>, or <code>&quot;micro&quot;</code>. Defaults to <code>&quot;binary&quot;</code> for two-class data and <code>&quot;macro&quot;</code> for multiclass.</td>
+</tr>
+<tr>
+<td><code>na_rm</code></td>
+<td>If <code>TRUE</code>, drop rows where either column is missing before scoring.</td>
+</tr>
+<tr>
+<td><code>event_level</code></td>
+<td><code>&quot;first&quot;</code> or <code>&quot;second&quot;</code>; controls which factor level counts as the positive class. The negative class is then whichever level is not positive.</td>
+</tr>
+</tbody>
+</table>
+
+<p>Both <code>truth</code> and <code>estimate</code> must be factors with identical levels. The common slip is passing class probabilities; spec() needs labels, so feed <code>.pred_class</code> from <code>parsnip::augment()</code>, not a <code>.pred_&lt;level&gt;</code> column.</p>
+
+<h2>Score classifiers: four worked examples</h2>
+
+<p><strong>The examples below build a two-class frame and a multiclass frame so you can run spec() against both shapes.</strong> Start with a small spam-filter tibble where flagging a real email as spam is the costly mistake.</p>
+
+<div class="webr-container" data-block-title="Two-class predictions tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-class predictions tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+library(dplyr)
+
+set.seed(404)
+inbox &lt;- tibble(
+  truth = factor(sample(c(&quot;spam&quot;, &quot;ham&quot;), 200, replace = TRUE,
+                        prob = c(0.20, 0.80)),
+                 levels = c(&quot;spam&quot;, &quot;ham&quot;)),
+  predicted = factor(sample(c(&quot;spam&quot;, &quot;ham&quot;), 200, replace = TRUE,
+                            prob = c(0.30, 0.70)),
+                     levels = c(&quot;spam&quot;, &quot;ham&quot;))
+)
+head(inbox, 4)
+#&gt; # A tibble: 4 x 2
+#&gt;   truth predicted
+#&gt;   &lt;fct&gt; &lt;fct&gt;    
+#&gt; 1 ham   ham      
+#&gt; 2 ham   spam     
+#&gt; 3 ham   ham      
+#&gt; 4 spam  spam     </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 1 calls spec() with positional arguments.</strong> Because <code>&quot;spam&quot;</code> is the first factor level, yardstick treats it as positive, so spec() reports the fraction of real <code>ham</code> kept out of the spam folder.</p>
+
+<div class="webr-container" data-block-title="Two-class specificity score">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-class specificity score</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">spec(inbox, truth, predicted)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 spec    binary         0.713</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A 0.713 specificity means the filter correctly accepted 71 percent of real emails. The other 29 percent landed in spam by mistake, a false-positive rate users notice fast.</p>
+
+<p><strong>Example 2 flips the positive class with <code>event_level</code>.</strong> Setting <code>event_level = &quot;second&quot;</code> makes <code>&quot;ham&quot;</code> positive, so spec() now scores how well the model rejects real spam.</p>
+
+<div class="webr-container" data-block-title="Flip the positive class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Flip the positive class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">spec(inbox, truth, predicted, event_level = &quot;second&quot;)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 spec    binary         0.317</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Specificity drops to 0.317 because the model predicts <code>spam</code> for many real ham messages. Always state which class is positive when you report the number.</p>
+
+<p><strong>Example 3 groups scoring by resample fold.</strong> Cross-validated predictions pair with <code>group_by()</code> to give one specificity per fold without writing a loop.</p>
+
+<div class="webr-container" data-block-title="Per-fold specificity">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-fold specificity</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">folded &lt;- inbox |&gt;
+  mutate(fold = rep(paste0(&quot;fold&quot;, 1:5), each = 40))
+
+folded |&gt;
+  group_by(fold) |&gt;
+  spec(truth = truth, estimate = predicted)
+#&gt; # A tibble: 5 x 4
+#&gt;   fold  .metric .estimator .estimate
+#&gt;   &lt;chr&gt; &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 fold1 spec    binary         0.703
+#&gt; 2 fold2 spec    binary         0.750
+#&gt; 3 fold3 spec    binary         0.700
+#&gt; 4 fold4 spec    binary         0.688
+#&gt; 5 fold5 spec    binary         0.727</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 4 uses the vector interface for ad-hoc checks.</strong> <code>spec_vec()</code> accepts two factors and returns a scalar, handy inside <code>summarise()</code> or a diagnostic.</p>
+
+<div class="webr-container" data-block-title="Vector interface for quick checks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vector interface for quick checks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">spec_vec(inbox$truth, inbox$predicted)
+#&gt; [1] 0.7125</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Bundle spec with sens and bal_accuracy.</strong> <code>metric_set(sens, spec, bal_accuracy)</code> returns a reusable function that scores all three at once, the minimum honest report for an imbalanced classifier.</div></div>
+
+<h2>Multiclass averaging: macro, weighted, and micro</h2>
+
+<p><strong>spec() handles multiclass data, but the answer depends on the averaging rule.</strong> yardstick computes specificity per class (treating each in turn as positive) and combines the values.</p>
+
+<div class="webr-container" data-block-title="Multiclass prediction tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multiclass prediction tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(303)
+multi &lt;- tibble(
+  truth = factor(sample(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), 180, replace = TRUE,
+                        prob = c(0.5, 0.3, 0.2)),
+                 levels = c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;)),
+  predicted = factor(sample(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), 180, replace = TRUE,
+                            prob = c(0.45, 0.35, 0.20)),
+                     levels = c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;))
+)
+
+spec(multi, truth, predicted, estimator = &quot;macro&quot;)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 spec    macro          0.674</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Scoring under each averaging mode gives a useful comparison:</p>
+
+<div class="webr-container" data-block-title="Compare averaging modes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare averaging modes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">modes &lt;- c(&quot;macro&quot;, &quot;macro_weighted&quot;, &quot;micro&quot;)
+lapply(modes, \(m) spec(multi, truth, predicted, estimator = m)) |&gt;
+  bind_rows()
+#&gt; # A tibble: 3 x 3
+#&gt;   .metric .estimator     .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;              &lt;dbl&gt;
+#&gt; 1 spec    macro              0.674
+#&gt; 2 spec    macro_weighted     0.683
+#&gt; 3 spec    micro              0.683</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Estimator</th>
+<th>What it does</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>macro</code></td>
+<td>Unweighted mean of per-class specificity</td>
+<td>Treat every class as equally important, regardless of size</td>
+</tr>
+<tr>
+<td><code>macro_weighted</code></td>
+<td>Mean weighted by class prevalence in truth</td>
+<td>Reflect the class mix in the real population</td>
+</tr>
+<tr>
+<td><code>micro</code></td>
+<td>Pool all predictions, then compute one ratio</td>
+<td>Match the global true-negative rate across pooled outcomes</td>
+</tr>
+<tr>
+<td><code>binary</code></td>
+<td>Score one positive class only</td>
+<td>Two-class problems, set by default</td>
+</tr>
+</tbody>
+</table>
+
+<p>Imbalanced studies often report <code>macro</code> specificity so a rare class counts equally. Production dashboards prefer <code>macro_weighted</code> to track real traffic prevalence.</p>
+
+<h2>spec vs sens vs precision</h2>
+
+<p><strong>Three confusion-matrix metrics sit around specificity; the right comparison depends on which side of the matrix matters.</strong> The table sorts the overlap.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>What it scores</th>
+<th>Same as</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>spec()</code></td>
+<td>True negatives over actual negatives</td>
+<td>Specificity, true negative rate</td>
+</tr>
+<tr>
+<td><code>sens()</code></td>
+<td>True positives over actual positives</td>
+<td>Sensitivity, recall, true positive rate</td>
+</tr>
+<tr>
+<td><code>precision()</code></td>
+<td>True positives over predicted positives</td>
+<td><a class="auto-link" href="Bayes-Theorem-in-R.html" title="Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why">Positive predictive value</a> (PPV)</td>
+</tr>
+<tr>
+<td><code>npv()</code></td>
+<td>True negatives over predicted negatives</td>
+<td>Negative predictive value</td>
+</tr>
+<tr>
+<td><code>bal_accuracy()</code></td>
+<td>Mean of sens and spec</td>
+<td>Balanced accuracy</td>
+</tr>
+<tr>
+<td><code>roc_auc()</code></td>
+<td>Ranking over (1 - specificity, sensitivity)</td>
+<td>Area under the <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">ROC curve</a></td>
+</tr>
+</tbody>
+</table>
+
+<p><code>spec()</code> and <code>sens()</code> are the natural pair: spec scores the negative class, sens scores the positive class, and ROC curves trace their trade-off. Do not confuse spec() with npv(): spec conditions on truth, npv conditions on the prediction.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from scikit-learn?</strong> scikit-learn has no direct <code>specificity_score</code>. The equivalent is <code>recall_score(y_true, y_pred, pos_label=&lt;negative class&gt;)</code>, or compute it from <code>confusion_matrix()</code>. The <code>estimator</code> argument maps to scikit-learn's <code>average</code>: <code>&quot;macro&quot;</code>, <code>&quot;micro&quot;</code>, and <code>&quot;macro_weighted&quot;</code> align with <code>&quot;macro&quot;</code>, <code>&quot;micro&quot;</code>, and <code>&quot;weighted&quot;</code>.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three small mistakes account for most spec() errors.</strong></p>
+
+<p>The first is reporting high specificity without checking sensitivity. A model that calls nothing positive scores 1.0 specificity and zero sensitivity, looks great, and never raises an alarm. Always pair specificity with <code>sens()</code> before claiming progress.</p>
+
+<p>The second is forgetting to set <code>event_level</code> when the rare class is the second factor level. The order of <code>levels()</code> decides which class is positive, and a flipped order silently inverts the negative class. Confirm with <code>levels(inbox$truth)</code> before scoring.</p>
+
+<div class="webr-container" data-block-title="Fix: pin levels so positive class is unambiguous">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fix: pin levels so positive class is unambiguous</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">preds &lt;- tibble(
+  truth     = factor(c(&quot;yes&quot;, &quot;yes&quot;, &quot;no&quot;, &quot;no&quot;, &quot;yes&quot;), levels = c(&quot;yes&quot;, &quot;no&quot;)),
+  predicted = factor(c(&quot;yes&quot;, &quot;no&quot;,  &quot;no&quot;, &quot;no&quot;, &quot;yes&quot;), levels = c(&quot;yes&quot;, &quot;no&quot;))
+)
+levels(preds$truth)
+#&gt; [1] &quot;yes&quot; &quot;no&quot;
+spec(preds, truth, predicted)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 spec    binary         1.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The third pitfall is treating spec() as the inverse of recall on the same class. Specificity conditions on negative truth; recall on positive truth. They share a denominator only when you flip the positive class.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Specificity trades off against sensitivity; you cannot maximize both for free.</strong> Raising the threshold rejects more negatives (spec up) but rejects more positives too (sens down). Tune against the cost ratio of your domain, not a single score.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the built-in <code>two_class_example</code> data from yardstick. Compute the specificity score with the default positive class, then compute it again with the positive class flipped via <code>event_level = &quot;second&quot;</code>. Save the second result to <code>ex_spec_alt</code>.</p>
+<div class="webr-container" data-block-title="Your turn: flip the positive class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: flip the positive class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+data(&quot;two_class_example&quot;)
+
+# Try it: spec with flipped event level
+ex_spec_alt &lt;- # your code here
+
+ex_spec_alt
+#&gt; Expected: one row, .estimator binary, .estimate near 0.88</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+ex_spec_alt &lt;- two_class_example |&gt;
+  spec(truth = truth, estimate = predicted, event_level = &quot;second&quot;)
+ex_spec_alt
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 spec    binary         0.875</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>event_level = &quot;second&quot;</code> treats <code>Class2</code> as positive, so specificity now scores the rejection rate of real <code>Class1</code> cases. The default <code>&quot;first&quot;</code> would have scored real-<code>Class2</code> rejection instead.</p>
+
+</details>
+</section>
+
+<h2>Related yardstick metrics</h2>
+
+<p><strong>spec() is one entry in the yardstick class-metric family.</strong> Reach for these when specificity alone is not enough:</p>
+
+<ul>
+
+<li><code>sens()</code> for the positive-class catch rate, the natural counterpart to spec</li>
+
+<li><code>bal_accuracy()</code> averages sens and spec, robust to imbalance</li>
+
+<li><code>npv()</code> for predicted-negative correctness</li>
+
+<li><code>roc_auc()</code> for threshold-free rankings across the sens, spec trade-off</li>
+
+<li><code>conf_mat()</code> to see the full <a class="auto-link" href="Logistic-Regression-Exercises-in-R.html" title="Logistic Regression Exercises in R: 10 Classification Practice Problems, Solved Step-by-Step">confusion matrix</a></li>
+
+</ul>
+
+<p>For the full set, see the <a href="https://yardstick.tidymodels.org/reference/index.html">yardstick reference index</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Is spec() the same as specificity in yardstick?</strong></p>
+
+<p>Yes, <code>spec()</code> and <code>specificity()</code> are aliases that return identical numbers. Both compute true negatives over actual negatives, expose the same <code>event_level</code> and <code>estimator</code> arguments, and ship with vector cousins (<code>spec_vec()</code>, <code>specificity_vec()</code>). The short alias mirrors <code>sens()</code>; the long form reads better in clinical reports.</p>
+
+<p><strong>Why does spec() return a tibble instead of a number?</strong></p>
+
+<p>The tidy return shape is the defining yardstick convention. Every metric returns the same three columns: <code>.metric</code>, <code>.estimator</code>, and <code>.estimate</code>. That uniformity lets you <code>bind_rows()</code> multiple metric calls or chain <code>group_by() |&gt; metric()</code> without reshape code. For the scalar, call <code>spec_vec()</code> instead.</p>
+
+<p><strong>How is spec() different from precision?</strong></p>
+
+<p><code>precision()</code> asks how many predicted positives were correct (TP / predicted positives). <code>spec()</code> asks how many actual negatives were correctly rejected (TN / actual negatives). They condition on different quantities: precision conditions on the prediction, specificity on the truth. Report both whenever false positives are costly.</p>
+
+<p><strong>Why does spec() return NaN on my multiclass data?</strong></p>
+
+<p>A <code>NaN</code> specificity means at least one class has zero true negatives, so the per-class spec divides by zero. It usually shows up when a class has very small support. Switch to <code>estimator = &quot;macro_weighted&quot;</code> to drop empty classes by weight, or stratify your resample.</p>
