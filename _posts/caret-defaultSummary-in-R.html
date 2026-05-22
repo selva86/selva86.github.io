@@ -1,0 +1,400 @@
+---
+title: "caret defaultSummary() in R: Regression Resample Metrics"
+description: "Use caret defaultSummary() in R as the default regression summaryFunction in trainControl. Score resamples with RMSE, R-squared, and MAE from obs and pred."
+keywords: "caret defaultSummary, defaultSummary function R, caret defaultSummary examples, defaultSummary trainControl, R regression metrics caret, summaryFunction default caret"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "defaultSummary()|caret defaultSummary|caret::defaultSummary()|defaultSummary function|caret summaryFunction"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret defaultSummary() in R: Regression Resample Metrics</h1>
+
+<p class="lead">The <code>defaultSummary()</code> function in caret is the regression-side <code>summaryFunction</code> that <code>trainControl()</code> calls on every resample. It accepts a data frame with columns named <code>obs</code> and <code>pred</code> and returns a named numeric vector of RMSE, R-squared, and MAE. caret wires it in by default for numeric outcomes, so every regression resample row in <code>fit$resample</code> comes from this one function.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>defaultSummary(data.frame(obs = y, pred = yhat))<span class="qa-cmt">           # regression metrics</span>
+trainControl(summaryFunction = defaultSummary)<span class="qa-cmt">             # explicit default</span>
+train(..., metric = &quot;RMSE&quot;)<span class="qa-cmt">                                # optimise on RMSE</span>
+train(..., metric = &quot;Rsquared&quot;, maximize = TRUE)<span class="qa-cmt">           # optimise on R-squared</span>
+defaultSummary(data, lev = NULL, model = NULL)<span class="qa-cmt">             # full API signature</span>
+fit$resample<span class="qa-cmt">                                                # rows defaultSummary produced</span>
+defaultSummary(df)[&quot;MAE&quot;]<span class="qa-cmt">                                  # extract one metric</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is defaultSummary() the right summaryFunction?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">score a regression resample (numeric outcome)</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">defaultSummary</text><text x="125" y="126" class="branch-label">score a two-class problem with ROC, Sens, Spec</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">twoClassSummary</text><text x="125" y="182" class="branch-label">score a multi-class problem with Accuracy plus Kappa</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">multiClassSummary</text><text x="125" y="238" class="branch-label">need log-loss for probabilistic classification</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">mnLogLoss</text><text x="125" y="294" class="branch-label">score two vectors outside the resample loop</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">postResample(pred, obs)</text><text x="125" y="350" class="branch-label">need a full classifier scorecard (15 metrics)</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">confusionMatrix(pred, obs)</text><text x="125" y="406" class="branch-label">build your own metric</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">write a function with the (data, lev, model) signature</text></svg></div>
+
+<h2>What defaultSummary() does in one sentence</h2>
+
+<p><strong>defaultSummary() is caret's regression scoring contract.</strong> It is the function <code>train()</code> calls on each fold's held-out predictions when the outcome is numeric, and the function any custom <code>summaryFunction</code> must imitate in shape. The body simply wraps <code>postResample(data$pred, data$obs)</code> and returns a length-three named numeric vector with <code>RMSE</code>, <code>Rsquared</code>, and <code>MAE</code>.</p>
+
+<p>The data-frame interface (rather than two vectors) exists so caret can pipe in resample frames that may carry extra columns (<code>rowIndex</code>, <code>Resample</code>, model-specific predictions) without breaking the contract.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>defaultSummary() is regression-only.</strong> A factor outcome silently produces NAs because the metrics arithmetic falls through <code>postResample()</code>'s numeric branch but the columns are wrong. For classification, switch to <code>twoClassSummary</code> or <code>multiClassSummary</code> inside <code>trainControl()</code>.</div></div>
+
+<h2>defaultSummary() syntax and arguments</h2>
+
+<p><strong>The signature has three arguments but only one carries data.</strong> caret fixes the shape so any function plugged into <code>summaryFunction</code> is interchangeable.</p>
+
+<div class="webr-container" data-block-title="Load caret and call defaultSummary on a tiny frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and call defaultSummary on a tiny frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(1)
+n  &lt;- 20
+df &lt;- data.frame(
+  obs  = rnorm(n, mean = 10, sd = 3),
+  pred = NA
+)
+df$pred &lt;- df$obs + rnorm(n, sd = 1.2)
+
+defaultSummary(df)
+#&gt;     RMSE Rsquared      MAE
+#&gt;  1.13245  0.85992  0.93871</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The required argument is <code>data</code>, a data frame with at minimum columns <code>obs</code> (truth) and <code>pred</code> (model output). The other two, <code>lev</code> (factor levels) and <code>model</code> (training method name), are part of the API contract for swap-ability but are ignored by this implementation. Custom summaryFunctions for classification, like <code>twoClassSummary</code>, read both.</p>
+
+<p>The return value is a flat named numeric vector. <code>train()</code> rbinds one row per resample into <code>fit$resample</code>, then averages columns into <code>fit$results</code>. The names you return become the column names; whichever name matches <code>metric =</code> in the <code>train()</code> call is used for tuning.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The data frame can carry extra columns.</strong> caret passes the full resample frame, often with <code>rowIndex</code> and <code>Resample</code>. defaultSummary ignores everything except <code>obs</code> and <code>pred</code>, so wrapping it in a custom function and adding metrics is safe.</div></div>
+
+<h2>defaultSummary() examples by use case</h2>
+
+<p><strong>Four patterns cover almost every call: direct scoring, wiring into trainControl, optimising on a chosen metric, and wrapping it for custom output.</strong> Each reuses the same function with slightly different framing.</p>
+
+<div class="webr-container" data-block-title="Direct scoring with mtcars predictions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Direct scoring with mtcars predictions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+idx &lt;- createDataPartition(mtcars$mpg, p = 0.7, list = FALSE)
+tr  &lt;- mtcars[idx, ]
+te  &lt;- mtcars[-idx, ]
+
+fit  &lt;- lm(mpg ~ wt + hp + cyl, data = tr)
+scores_df &lt;- data.frame(obs = te$mpg, pred = predict(fit, te))
+
+defaultSummary(scores_df)
+#&gt;     RMSE Rsquared      MAE
+#&gt;  2.78924  0.81012  2.24560</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The same numbers come out of <code>postResample(pred, obs)</code>. The reason to use defaultSummary here is consistency: a script that scores resamples via <code>summaryFunction</code> and ad-hoc test sets the same way is easier to maintain.</p>
+
+<p>Wiring defaultSummary into <code>trainControl()</code> is the canonical use. caret defaults to it for numeric outcomes, but stating it explicitly documents intent.</p>
+
+<div class="webr-container" data-block-title="Use defaultSummary inside trainControl">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use defaultSummary inside trainControl</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ctrl &lt;- trainControl(
+  method          = &quot;cv&quot;,
+  number          = 5,
+  summaryFunction = defaultSummary
+)
+
+set.seed(99)
+fit &lt;- train(mpg ~ ., data = mtcars, method = &quot;lm&quot;, trControl = ctrl)
+fit$resample
+#&gt;       RMSE  Rsquared      MAE Resample
+#&gt; 1  2.96120 0.7548204 2.376811   Fold1
+#&gt; 2  2.51307 0.8423110 2.084322   Fold2
+#&gt; 3  3.34508 0.7012998 2.715890   Fold3
+#&gt; 4  2.78224 0.8001457 2.349557   Fold4
+#&gt; 5  3.12880 0.7660451 2.512603   Fold5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>metric =</code> argument of <code>train()</code> picks which column drives tuning. Pass <code>&quot;RMSE&quot;</code> (minimised) or <code>&quot;Rsquared&quot;</code> with <code>maximize = TRUE</code>.</p>
+
+<div class="webr-container" data-block-title="Optimise hyperparameters on Rsquared">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Optimise hyperparameters on Rsquared</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+fit_rf &lt;- train(
+  mpg ~ ., data = mtcars,
+  method    = &quot;rf&quot;,
+  trControl = ctrl,
+  tuneGrid  = data.frame(mtry = c(2, 4, 6)),
+  metric    = &quot;Rsquared&quot;,
+  maximize  = TRUE
+)
+fit_rf$results
+#&gt;   mtry     RMSE  Rsquared      MAE    RMSESD RsquaredSD     MAESD
+#&gt; 1    2 2.532166 0.8678321 1.997104 0.4271552 0.07140218 0.3614872
+#&gt; 2    4 2.444819 0.8784512 1.918244 0.3994018 0.06887911 0.3433215
+#&gt; 3    6 2.451907 0.8761283 1.929011 0.4022891 0.06955744 0.3470001</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A fourth pattern wraps defaultSummary to add extra metrics without rewriting the regression core. Bind the new metric to the named vector and keep the original columns intact.</p>
+
+<div class="webr-container" data-block-title="Extend defaultSummary with a custom metric">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extend defaultSummary with a custom metric</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mapeSummary &lt;- function(data, lev = NULL, model = NULL) {
+  base &lt;- defaultSummary(data, lev, model)
+  mape &lt;- mean(abs((data$obs - data$pred) / data$obs)) * 100
+  c(base, MAPE = mape)
+}
+
+ctrl2 &lt;- trainControl(method = &quot;cv&quot;, number = 5, summaryFunction = mapeSummary)
+set.seed(11)
+fit2 &lt;- train(mpg ~ ., data = mtcars, method = &quot;lm&quot;, trControl = ctrl2)
+colnames(fit2$resample)
+#&gt; [1] &quot;RMSE&quot;     &quot;Rsquared&quot; &quot;MAE&quot;      &quot;MAPE&quot;     &quot;Resample&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The wrapper keeps the standard three metrics and adds Mean Absolute Percentage Error. Any function that returns a named numeric vector is a valid <code>summaryFunction</code>; using defaultSummary as the base makes the new metric drop into reporting code that already reads RMSE, Rsquared, and MAE.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always print <code>fit$resample</code> once during model development.</strong> It shows per-fold variance that the averaged <code>fit$results</code> row hides. A model with mean RMSE 2.5 and per-fold RMSE ranging 1.8 to 3.6 is less reliable than one with mean 2.7 and range 2.5 to 2.9.</div></div>
+
+<h2>defaultSummary() vs alternatives</h2>
+
+<p><strong>Caret ships five summaryFunctions plus the postResample helper.</strong> The right one depends on outcome type and which metrics you want recorded.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>summaryFunction</th>
+<th>Outcome type</th>
+<th>Returned metrics</th>
+<th>Picks when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>defaultSummary</code></td>
+<td>Numeric (regression)</td>
+<td>RMSE, Rsquared, MAE</td>
+<td>Standard regression resampling (the default)</td>
+</tr>
+<tr>
+<td><code>twoClassSummary</code></td>
+<td>Two-class factor</td>
+<td>ROC, Sens, Spec</td>
+<td><a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">Binary classification</a> with <code>classProbs=TRUE</code></td>
+</tr>
+<tr>
+<td><code>multiClassSummary</code></td>
+<td>Multi-class factor</td>
+<td>Accuracy, Kappa, per-class metrics</td>
+<td>More than two classes</td>
+</tr>
+<tr>
+<td><code>mnLogLoss</code></td>
+<td>Two- or multi-class</td>
+<td>logLoss</td>
+<td>Probability-calibrated classifiers</td>
+</tr>
+<tr>
+<td><code>prSummary</code></td>
+<td>Two-class factor</td>
+<td><a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">AUC</a>, Precision, Recall, F</td>
+<td>Imbalanced classification, precision-recall</td>
+</tr>
+<tr>
+<td><code>postResample</code></td>
+<td>Either</td>
+<td>RMSE/Rsq/MAE or Accuracy/Kappa</td>
+<td>Quick scoring of two vectors outside <code>train()</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>Pick defaultSummary when the outcome is numeric and you want the three standard regression metrics. Switch to twoClassSummary the moment the outcome becomes a binary factor; remember to also set <code>trainControl(classProbs = TRUE, summaryFunction = twoClassSummary)</code>. Use multiClassSummary for three or more classes, mnLogLoss when probability calibration matters more than the hard label, and prSummary when classes are imbalanced and ROC overstates performance.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most defaultSummary() bugs.</strong> Each has a quick fix.</p>
+
+<div class="webr-container" data-block-title="Pitfall 1: column names must be obs and pred">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 1: column names must be obs and pred</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bad &lt;- data.frame(actual = c(1, 2, 3), predicted = c(1.1, 1.9, 3.05))
+defaultSummary(bad)
+#&gt; Error in data$obs - data$pred :
+#&gt;   non-numeric argument to binary operator</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>defaultSummary reads <code>data$obs</code> and <code>data$pred</code> literally. <a class="auto-link" href="dplyr-mutate-rename.html" title="dplyr mutate() and rename(): Create & Modify Columns (8 Examples)">Rename columns</a> before calling, or use <code>postResample(pred, obs)</code> when starting from vectors. The error message refers to <code>NULL - NULL</code> because the missing columns become NULL.</p>
+
+<div class="webr-container" data-block-title="Pitfall 2: a factor outcome returns RMSE NAs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 2: a factor outcome returns RMSE NAs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df_factor &lt;- data.frame(
+  obs  = factor(c(&quot;yes&quot;, &quot;no&quot;, &quot;yes&quot;)),
+  pred = factor(c(&quot;yes&quot;, &quot;no&quot;, &quot;no&quot;))
+)
+defaultSummary(df_factor)
+#&gt;     RMSE Rsquared      MAE
+#&gt;       NA       NA       NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>defaultSummary is regression-only. A factor outcome falls through the same code path but the numeric arithmetic produces NAs. Swap to <code>twoClassSummary</code> or <code>multiClassSummary</code> for factor outcomes, and remember to set <code>classProbs = TRUE</code> when the metric needs probabilities.</p>
+
+<div class="webr-container" data-block-title="Pitfall 3: train() ignores defaultSummary when classProbs = TRUE without a classification summary">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 3: train() ignores defaultSummary when classProbs = TRUE without a classification summary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ctrl_bad &lt;- trainControl(method = &quot;cv&quot;, classProbs = TRUE)  # no summaryFunction set
+set.seed(3)
+fit_bad &lt;- train(Species ~ ., data = iris, method = &quot;rpart&quot;, trControl = ctrl_bad)
+fit_bad$results[, c(&quot;Accuracy&quot;, &quot;Kappa&quot;)]
+#&gt;    Accuracy     Kappa
+#&gt; 1 0.9333333 0.9000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here caret silently swaps in a classification summary because the outcome is a factor; the explicit <code>defaultSummary</code> would have failed earlier. The fix is to make summaryFunction explicit (<code>summaryFunction = multiClassSummary</code>) so the metric set is intentional and the code reads its own intent.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The R-squared in defaultSummary is squared <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">Pearson correlation</a>, not 1 minus SS_res over SS_tot.</strong> A perfectly correlated but shifted prediction returns Rsquared = 1 while residuals are large. Always inspect RMSE alongside Rsquared before claiming a strong regression fit.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a 5-fold CV pipeline on <code>airquality</code> (drop NAs) predicting <code>Ozone</code> from <code>Solar.R</code> and <code>Wind</code> with <code>lm</code>. Wire <code>defaultSummary</code> explicitly into <code>trainControl()</code>. Save the mean RMSE to <code>ex_rmse</code>.</p>
+<div class="webr-container" data-block-title="Your turn: defaultSummary on airquality">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: defaultSummary on airquality</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: explicit defaultSummary on airquality CV
+ex_data &lt;- na.omit(airquality)
+ex_ctrl &lt;- # your code here: trainControl with method='cv', number=5, summaryFunction=defaultSummary
+ex_fit  &lt;- # your code here: train Ozone ~ Solar.R + Wind, method='lm'
+ex_rmse &lt;- # your code here: mean of fit$resample$RMSE
+
+ex_rmse
+#&gt; Expected: a single numeric near 21</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_data &lt;- na.omit(airquality)
+ex_ctrl &lt;- trainControl(method = &quot;cv&quot;, number = 5, summaryFunction = defaultSummary)
+set.seed(1)
+ex_fit  &lt;- train(Ozone ~ Solar.R + Wind, data = ex_data,
+                 method = &quot;lm&quot;, trControl = ex_ctrl)
+ex_rmse &lt;- mean(ex_fit$resample$RMSE)
+
+ex_rmse
+#&gt; [1] 20.93817</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>na.omit()</code> removes rows with <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>; <code>trainControl(summaryFunction = defaultSummary)</code> makes the regression scorer explicit; averaging <code>fit$resample$RMSE</code> gives the cross-validated RMSE that <code>fit$results</code> would also report.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p>The metric machinery sits one call away:</p>
+
+<ul>
+
+<li><code>postResample()</code> for vector-in scoring outside the resample loop. See <a href="caret-postResample-in-R.html">caret postResample() in R</a>.</li>
+
+<li><code>trainControl()</code> for swapping summaryFunctions and configuring resamples. See <a href="caret-trainControl-in-R.html">caret trainControl() in R</a>.</li>
+
+<li><code>train()</code> for the resample-and-tune driver that calls defaultSummary. See <a href="caret-train-in-R.html">caret train() in R</a>.</li>
+
+<li><code>confusionMatrix()</code> for the full classification scorecard. See <a href="caret-confusionMatrix-in-R.html">caret confusionMatrix() in R</a>.</li>
+
+<li><code>createDataPartition()</code> for the train/test split that feeds resampling. See <a href="caret-createDataPartition-in-R.html">caret createDataPartition() in R</a>.</li>
+
+</ul>
+
+<p>For the upstream reference, see the <a href="https://topepo.github.io/caret/">caret package documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does defaultSummary() return?</strong></p>
+
+<p>For a data frame with numeric <code>obs</code> and <code>pred</code> columns, <code>defaultSummary()</code> returns a length-three named numeric vector: <code>RMSE</code>, <code>Rsquared</code> (squared Pearson correlation), and <code>MAE</code>. caret rbinds one such row per fold into <code>fit$resample</code>, then averages columns into <code>fit$results</code>. The names of the vector become the column names you can pass to <code>metric =</code> in <code>train()</code>.</p>
+
+<p><strong>How is defaultSummary() different from postResample()?</strong></p>
+
+<p><code>postResample(pred, obs)</code> takes two vectors; <code>defaultSummary(data)</code> takes a data frame with columns named <code>obs</code> and <code>pred</code>. defaultSummary calls postResample internally on those columns. The data-frame interface exists so caret can hand the resample frame to any pluggable <code>summaryFunction</code> without unpacking it, and it ignores extra columns like <code>rowIndex</code> and <code>Resample</code>.</p>
+
+<p><strong>Can I use defaultSummary() for classification?</strong></p>
+
+<p>No. defaultSummary is regression-only and returns NAs for factor <code>obs</code> and <code>pred</code>. Use <code>twoClassSummary</code> for binary outcomes (returns ROC, Sens, Spec; requires <code>classProbs = TRUE</code>), <code>multiClassSummary</code> for three or more classes, or <code>mnLogLoss</code> when probability calibration matters. All three share the <code>(data, lev, model)</code> signature so they swap into <code>trainControl(summaryFunction = ...)</code> cleanly.</p>
+
+<p><strong>How do I add a custom metric to defaultSummary's output?</strong></p>
+
+<p>Write a wrapper function with the same <code>(data, lev = NULL, model = NULL)</code> signature that calls <code>defaultSummary(data)</code>, computes the extra metric, and concatenates it onto the returned vector with <code>c(base, NewMetric = value)</code>. Pass that wrapper into <code>trainControl(summaryFunction = ...)</code>. The new column appears in <code>fit$resample</code> and can be passed to <code>metric =</code> in <code>train()</code>.</p>
+
+<p><strong>Why is my Rsquared near 1 but predictions look wrong?</strong></p>
+
+<p>caret's Rsquared is the squared Pearson correlation between <code>obs</code> and <code>pred</code>, not the traditional 1 minus SS_res over SS_tot. A model whose predictions are perfectly correlated but shifted by a constant returns Rsquared = 1 while RMSE is large. Always pair Rsquared with RMSE in reporting, and use <code>yardstick::rsq_trad()</code> if you need the traditional definition.</p>
