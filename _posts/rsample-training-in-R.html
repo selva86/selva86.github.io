@@ -1,0 +1,310 @@
+---
+title: "rsample training() in R: Get the Training Set From a Split"
+description: "Extract the training rows from an rsplit object with rsample training() in R. Covers initial_split, vfold_cv folds, bootstraps, and resample workflows."
+keywords: "rsample training, training function R, rsample training examples, R training set rsample, training tidymodels, extract training data rsample"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "training()|rsample training|rsample::training()|training set|extract training data"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>rsample training() in R: Get the Training Set From a Split</h1>
+
+<p class="lead">The rsample training() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> pulls the training partition out of an rsplit object as an ordinary data frame, so you can pass it straight to any modeling call without juggling row indices.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>training(split)<span class="qa-cmt">                      # extract training rows</span>
+testing(split)<span class="qa-cmt">                       # extract testing rows</span>
+nrow(training(split))<span class="qa-cmt">                # row count of training set</span>
+split |&gt; training()<span class="qa-cmt">                  # pipe-friendly call</span>
+analysis(fold)<span class="qa-cmt">                       # same role for vfold/bootstrap</span>
+training(split) |&gt; head()<span class="qa-cmt">            # peek at the first rows</span>
+training(split)$mpg<span class="qa-cmt">                  # access a column directly</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is training() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">pull training rows from an rsplit</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">training(split)</text><text x="125" y="126" class="branch-label">pull testing rows from the same split</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">testing(split)</text><text x="125" y="182" class="branch-label">get analysis (held-in) of a CV fold</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">analysis(fold)</text><text x="125" y="238" class="branch-label">get assessment (held-out) of a CV fold</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">assessment(fold)</text><text x="125" y="294" class="branch-label">build the rsplit first</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">initial_split(df, prop = 0.8)</text><text x="125" y="350" class="branch-label">print partition sizes only</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">split</text></svg></div>
+
+<h2>What training() does</h2>
+
+<p><strong>training() returns the training subset of an rsplit object as a data frame.</strong> It is one of the smallest functions in the rsample package and one of the most used. The function takes a single argument: an rsplit object produced by <a class="auto-link" href="rsample-initial_split-in-R.html" title="rsample initial_split() in R: Make a Train/Test Split">initial_split()</a>, validation_split(), or any similar splitter. It looks up the row indices stored inside the split and returns those rows of the original data, fully materialized as a tibble.</p>
+
+<p>The reason this helper exists is that rsplit objects are not data frames. They store integer indices and a reference to the source frame, so creating a split is fast and memory-light. training() and its sibling testing() are the sanctioned way to pull the actual rows out, which keeps the rest of your modeling code honest about which half of the data it has seen.</p>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>The signature is one line.</strong> training() takes the split object and nothing else.</p>
+
+<div class="webr-container" data-block-title="training function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">training function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">training(x, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<ul>
+
+<li><strong>x</strong>: an rsplit object. Typically the return value of initial_split(), validation_split(), or an element pulled from a vfold_cv() or bootstraps() resample column.</li>
+
+<li><strong>...</strong>: reserved for method dispatch. You almost never pass anything here.</li>
+
+</ul>
+
+<p>The companion testing(x) has the same shape and returns the held-out rows. On vfold_cv and <a class="auto-link" href="broom-bootstrap-in-R.html" title="broom Bootstrap in R: Tidy Resampled Estimates">bootstrap resamples</a>, training() returns the analysis (held-in) rows of one fold; analysis(x) is an alias with identical behaviour.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pipe directly from the split when the code reads better.</strong> Writing <code>initial_split(df, prop = 0.8) |&gt; training()</code> chains the split and the extraction in one expression, useful for quick exploratory scripts where you do not need the rsplit object later.</div></div>
+
+<h2>training() examples</h2>
+
+<h3>Pull the training rows from a split</h3>
+
+<p><strong>Create a split with initial_split() and call training() to materialize the rows.</strong> The result is a regular data frame ready to feed into any model.</p>
+
+<div class="webr-container" data-block-title="Extract training rows from initial_split">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract training rows from initial_split</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rsample)
+
+set.seed(123)
+iris_split &lt;- initial_split(iris, prop = 0.75)
+iris_train &lt;- training(iris_split)
+
+nrow(iris_train)
+#&gt; [1] 112
+head(iris_train, 3)
+#&gt;     Sepal.Length Sepal.Width Petal.Length Petal.Width    Species
+#&gt; 1            5.1         3.5          1.4         0.2     setosa
+#&gt; 14           4.3         3.0          1.1         0.1     setosa
+#&gt; 67           5.6         3.0          4.5         1.5 versicolor</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Fit a model on the training portion</h3>
+
+<p><strong>training() is usually the first call after initial_split() in a tidymodels workflow.</strong> Fit on training(split), then save testing(split) for the final score.</p>
+
+<div class="webr-container" data-block-title="Fit a linear model on training data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a linear model on training data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(123)
+m_split &lt;- initial_split(mtcars, prop = 0.8)
+m_train &lt;- training(m_split)
+
+model &lt;- lm(mpg ~ wt + hp, data = m_train)
+coef(model)
+#&gt; (Intercept)          wt          hp 
+#&gt; 37.85839822 -3.91250497 -0.03177291</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Pair training() and testing() to compute holdout error</h3>
+
+<p><strong>You almost always call training() and testing() back to back.</strong> Fit the model on one, score it on the other.</p>
+
+<div class="webr-container" data-block-title="Compute holdout MSE on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute holdout MSE on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(123)
+m_split &lt;- initial_split(mtcars, prop = 0.8)
+fit  &lt;- lm(mpg ~ wt + hp, data = training(m_split))
+pred &lt;- predict(fit, newdata = testing(m_split))
+mean((testing(m_split)$mpg - pred)^2)
+#&gt; [1] 10.18243</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>training() on a vfold_cv resample</h3>
+
+<p><strong>On a cross-validation fold, training() returns the analysis (held-in) rows.</strong> This is the same as calling analysis(fold).</p>
+
+<div class="webr-container" data-block-title="Extract one CV fold training set">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract one CV fold training set</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(123)
+cv_folds &lt;- vfold_cv(iris, v = 5)
+first_fold &lt;- cv_folds$splits[[1]]
+
+nrow(training(first_fold))
+#&gt; [1] 120
+nrow(testing(first_fold))
+#&gt; [1] 30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>training() vs analysis() and testing()</h2>
+
+<p><strong>Pick the function that matches the kind of split you are unpacking.</strong> training()/testing() and analysis()/assessment() are aliases that do the same thing mechanically, but the names signal which workflow you are in.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>Use with</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>training()</code></td>
+<td>Held-in rows</td>
+<td>initial_split(), validation_split()</td>
+</tr>
+<tr>
+<td><code>testing()</code></td>
+<td>Held-out rows</td>
+<td>initial_split(), validation_split()</td>
+</tr>
+<tr>
+<td><code>analysis()</code></td>
+<td>Held-in rows</td>
+<td>vfold_cv(), bootstraps() resamples</td>
+</tr>
+<tr>
+<td><code>assessment()</code></td>
+<td>Held-out rows</td>
+<td>vfold_cv(), bootstraps() resamples</td>
+</tr>
+</tbody>
+</table>
+
+<p>The four functions are interchangeable, mechanically. testing(fold) on a vfold split returns the same rows as assessment(fold). The convention is a vocabulary cue: train and test imply the final hold-out partition; analysis and assessment imply the inner loop used for tuning. Sticking to the pair that matches the splitter you used keeps reviewers and future-you from confusing one resampling phase for another.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>training() does not own the rows; the original data frame does.</strong> rsample stores integer indices inside the rsplit and re-fetches rows from the source frame on demand. Modify the source frame between calls and training() returns the updated rows. This is why splits are cheap, and why moving the original frame between scripts can break a saved split.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most training() bugs.</strong></p>
+
+<ul>
+
+<li><strong>Calling training() before initial_split().</strong> training() does not accept a raw data frame. Pass it the rsplit object that initial_split() (or its kin) returned, not the original frame. A common error message is <code>no applicable method for &#x27;training&#x27; applied to an object of class &quot;data.frame&quot;</code>.</li>
+
+<li><strong>Forgetting that splits are pointers.</strong> Reassigning or filtering the source data frame after the split was made changes the rows that training() returns. Either freeze the source frame or rebuild the split.</li>
+
+<li><strong>Mixing training() and analysis() in the same script.</strong> Both work on any rsplit, but mixing the two pairs blurs the train/test versus analysis/assessment phases. Pick one pair per workflow.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>training() always returns a fresh data frame, not a view.</strong> Every call re-materializes the rows. Inside a loop or a <a class="auto-link" href="purrr-map-Variants.html" title="purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial">map()</a>, call training() once and assign the result to a variable; otherwise you copy the same rows on each iteration.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Split mtcars with a 70/30 ratio and a fixed seed, then save the training rows to ex_train.</p>
+<div class="webr-container" data-block-title="Your turn extract a training set">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn extract a training set</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: 70/30 split + extract training rows
+set.seed(42)
+ex_split &lt;- # your code here
+ex_train &lt;- # your code here
+
+nrow(ex_train)
+#&gt; Expected: 22</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+ex_split &lt;- initial_split(mtcars, prop = 0.70)
+ex_train &lt;- training(ex_split)
+nrow(ex_train)
+#&gt; [1] 22</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> initial_split() with prop = 0.70 sends 70 percent of mtcars' 32 rows to training. training() materializes those 22 rows as a data frame ready for modeling.</p>
+
+</details>
+</section>
+
+<h2>Related rsample functions</h2>
+
+<p><strong>training() is one half of a two-part API; these companions extend the workflow.</strong></p>
+
+<ul>
+
+<li><code>testing()</code>: extract the held-out rows from the same split object.</li>
+
+<li><code>analysis()</code> and <code>assessment()</code>: same as training() and testing() but named for CV and bootstrap workflows.</li>
+
+<li><code>initial_split()</code>: build the rsplit object that training() unpacks.</li>
+
+<li><code>vfold_cv()</code> and <code>bootstraps()</code>: build resample collections whose individual splits are unpacked the same way.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from scikit-learn?</strong> training(split) and testing(split) together replace the X_train, X_test, y_train, y_test tuple that train_test_split() returns. tidymodels keeps the rows together as a single data frame and lets you decide what is feature and what is outcome at fit time.</div></div>
+
+<h2>FAQ</h2>
+
+<p><strong>What does training() return in rsample?</strong></p>
+
+<p>training() returns a data frame containing the training rows of an rsplit object. The rsplit stores row indices and a reference to the source data; training() resolves those indices and gives you the rows back as a tibble. The result is identical in shape to the source frame, just with fewer rows.</p>
+
+<p><strong>What is the difference between training() and analysis() in rsample?</strong></p>
+
+<p>The two functions are mechanically identical. Both return the held-in rows of an rsplit object. The names are vocabulary cues: training() pairs with testing() for a single hold-out split, while analysis() pairs with assessment() for cross-validation or bootstrap resamples. Use the pair that matches the splitter you called.</p>
+
+<p><strong>Can training() be used without calling initial_split() first?</strong></p>
+
+<p>No. training() dispatches on the rsplit class, so you must produce a split first with initial_split(), validation_split(), or any other rsample splitter that returns an rsplit object. Passing a raw data frame raises a method-dispatch error.</p>
+
+<p><strong>Does training() copy the data?</strong></p>
+
+<p>Yes. Each call materializes the indexed rows into a new data frame. The rsplit itself is small because it only holds indices, but training() always builds a fresh frame. Inside a loop, call it once and reuse the result instead of re-extracting on every iteration.</p>
+
+<p><strong>How do I use training() on a vfold_cv fold?</strong></p>
+
+<p>Pull a single split out of the resample object's splits column, then call training() on it. For example, <code>training(cv_folds$splits[[1]])</code> returns the analysis rows of fold 1. This is the same value analysis() would give; pick whichever name fits your workflow vocabulary.</p>
+
+{% endraw %}
