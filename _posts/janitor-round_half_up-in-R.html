@@ -1,0 +1,339 @@
+---
+title: "janitor round_half_up() in R: Round Numbers Away From Zero"
+description: "Use janitor round_half_up() to round numeric vectors with conventional half-up rounding, not R's default banker's rounding. Digits, negatives, pitfalls."
+keywords: "janitor round_half_up, round_half_up function R, janitor round_half_up examples, R round half up, conventional rounding R, half up rounding R, banker's rounding alternative"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "round_half_up()|janitor round_half_up|janitor::round_half_up()|round half up|conventional rounding"
+auto_link_case_sensitive: true
+fr_parent: "janitor-Package-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>janitor round_half_up() in R: Round Numbers Away From Zero</h1>
+
+<p class="lead">The <code>janitor round_half_up()</code> function rounds a numeric vector using conventional half-up rounding so that exact midpoints like 2.5 always go away from zero, instead of R's default banker's rounding that sends 2.5 to 2. It is the small utility you reach for when audit, regulatory, or survey results require the rounding rule that most people expect intuitively.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>round_half_up(2.5)<span class="qa-cmt">                          # 3, not 2</span>
+round_half_up(c(0.5, 1.5, 2.5, 3.5))<span class="qa-cmt">        # 1 2 3 4</span>
+round_half_up(-2.5)<span class="qa-cmt">                         # -3, away from zero</span>
+round_half_up(0.125, digits = 2)<span class="qa-cmt">            # 0.13</span>
+round_half_up(c(1.2345, 5.6789), digits = 3)# 1.235 5.679
+round_half_up(c(NA, 1.5, 2.5))<span class="qa-cmt">              # NA 2 3</span>
+mtcars$mpg |&gt; round_half_up(digits = 1)<span class="qa-cmt">     # vectorised over a column</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is round_half_up() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">round a numeric vector with conventional half-up</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">round_half_up(x, digits = 2)</text><text x="125" y="126" class="branch-label">round a whole data frame in a tabyl chain</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">adorn_rounding(df, rounding = &quot;half up&quot;)</text><text x="125" y="182" class="branch-label">keep R's default banker's rounding</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">round(x, digits = 2)</text><text x="125" y="238" class="branch-label">explicit half-to-even on a vector</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">janitor::round_half_to_even(x, digits = 2)</text><text x="125" y="294" class="branch-label">round by significant digits, not decimals</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">signif(x, digits = 3)</text><text x="125" y="350" class="branch-label">format for display (string output)</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">formatC(x, digits = 2, format = &quot;f&quot;)</text><text x="125" y="406" class="branch-label">floor or ceiling, not nearest</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">floor(x) or ceiling(x)</text></svg></div>
+
+<h2>What round_half_up() does in one sentence</h2>
+
+<p><strong><code>round_half_up()</code> rounds a numeric vector so exact midpoints move away from zero, matching the convention taught in school.</strong> Internally it shifts the value by 0.5 plus a tiny epsilon, truncates, then restores the original sign, which sidesteps the floating-point edge cases that trip up naive implementations.</p>
+
+<p>The contrast with base R is the whole point. <code>round(2.5)</code> returns 2 (IEC 60559 banker's rounding). <code>round_half_up(2.5)</code> returns 3, restoring the rule a non-statistician expects.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>round_half_up()</code> takes a numeric vector and an integer digits argument, and returns a numeric vector of the same length.</strong> No data frame plumbing, no tidyselect, no extra arguments.</p>
+
+<div class="webr-container" data-block-title="Load janitor and inspect the signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load janitor and inspect the signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+
+args(round_half_up)
+#&gt; function (x, digits = 0) 
+#&gt; NULL</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The full signature is short:</p>
+
+<pre><code>round_half_up(x, digits = 0)</code></pre>
+
+<p><code>x</code> is a numeric vector. <code>digits</code> is the number of decimal places to keep, defaulting to 0 (integer rounding). The function preserves <code>NA</code> values, vectorises naturally, and works inside <code>dplyr::mutate()</code>, <code>sapply()</code>, or any other vectorised context. There is no <code>na.rm</code>, no <code>rounding</code> mode toggle, no second positional argument to worry about.</p>
+
+<h2>Common patterns</h2>
+
+<p><strong>Five patterns cover almost every reason to reach for <code>round_half_up()</code>.</strong> Run them in order; each block builds on the one before.</p>
+
+<h3>1. Round to an integer</h3>
+
+<p><strong>The default call rounds to the nearest integer, sending each <code>.5</code> away from zero.</strong> This is the most common use: percentages reported as whole numbers, head counts, age in years.</p>
+
+<div class="webr-container" data-block-title="Round midpoints to integers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Round midpoints to integers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(0.5, 1.5, 2.5, 3.5, 4.5)
+round_half_up(x)
+#&gt; [1] 1 2 3 4 5
+
+round(x)
+#&gt; [1] 0 2 2 4 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every midpoint in <code>x</code> rounded up under <code>round_half_up()</code>. Base R <code>round()</code> sent each to the nearest even number, which surprises readers who expected 1, 2, 3, 4, 5.</p>
+
+<h3>2. Keep decimals with the digits argument</h3>
+
+<p><strong>Pass <code>digits</code> to keep N decimal places.</strong> The same half-up rule applies at that scale.</p>
+
+<div class="webr-container" data-block-title="Round to two decimals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Round to two decimals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prices &lt;- c(19.125, 25.005, 4.575, 0.085)
+round_half_up(prices, digits = 2)
+#&gt; [1] 19.13 25.01  4.58  0.09
+
+round(prices, digits = 2)
+#&gt; [1] 19.12 25.00  4.58  0.08</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The difference shows up wherever the third decimal is exactly 5. In a financial report, the half-up result matches the rule an auditor expects.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for <code>round_half_up()</code> whenever the rounded numbers feed a report a non-technical reader will check.</strong> Survey percentages, dollar amounts, age groups, and grade boundaries all benefit from the conventional rule. Save banker's rounding for places where accumulated bias actually matters, like long simulation chains.</div></div>
+
+<h3>3. Negative numbers round away from zero</h3>
+
+<p><strong>For negatives, half-up means "away from zero", not "toward positive infinity".</strong> This matches the intuitive symmetry: 2.5 to 3 mirrors -2.5 to -3.</p>
+
+<div class="webr-container" data-block-title="Half-up on negative midpoints">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Half-up on negative midpoints</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">neg &lt;- c(-0.5, -1.5, -2.5, -3.5)
+round_half_up(neg)
+#&gt; [1] -1 -2 -3 -4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A naive <code>floor(x + 0.5)</code> implementation gets negatives wrong: it sends -0.5 to 0 and -1.5 to -1 by rounding toward positive infinity. <code>round_half_up()</code> uses <code>sign(x)</code> and <code>abs(x)</code> so the rule stays symmetric.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Do not write your own <code>floor(x + 0.5)</code> shortcut and assume it matches <code>round_half_up()</code>.</strong> It works on positive midpoints, then quietly disagrees on negative ones. The janitor implementation handles this case for you; the time you save by importing the package is the time you do not spend debugging an audit reconciliation.</div></div>
+
+<h3>4. Use it inside dplyr pipelines</h3>
+
+<p><strong><code>round_half_up()</code> is just a vector function, so it composes with <code>mutate()</code> and <code>across()</code>.</strong> This is the natural way to apply it to selected columns of a data frame.</p>
+
+<div class="webr-container" data-block-title="Round selected columns in a summary">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Round selected columns in a summary</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+mtcars |&gt;
+  group_by(cyl) |&gt;
+  summarise(
+    mpg_mean = mean(mpg),
+    hp_mean  = mean(hp),
+    .groups  = &quot;drop&quot;
+  ) |&gt;
+  mutate(across(c(mpg_mean, hp_mean), \(v) round_half_up(v, digits = 1)))
+#&gt;   cyl mpg_mean hp_mean
+#&gt;     4     26.7    82.6
+#&gt;     6     19.7   122.3
+#&gt;     8     15.1   209.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The lambda <code>\(v) round_half_up(v, digits = 1)</code> is the pattern: wrap the call so <code>across()</code> can pass the column. Without the lambda the second argument never reaches the function.</p>
+
+<h3>5. Handle NA values without surprises</h3>
+
+<p><strong><code>NA</code> propagates cleanly; no extra argument needed.</strong> This matters in real survey data where missing responses are common.</p>
+
+<div class="webr-container" data-block-title="NA stays NA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">NA stays NA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">survey &lt;- c(0.5, NA, 1.5, 2.5, NA)
+round_half_up(survey)
+#&gt; [1]  1 NA  2  3 NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>If you want NAs dropped before rounding, do it explicitly with <code>na.omit()</code> or <code>[complete.cases(.)]</code>. The function intentionally does not silently remove them.</p>
+
+<h2>Compare with alternatives</h2>
+
+<p><strong>Base R, janitor, and the formatting helpers each round in a different way.</strong> Pick by what the downstream consumer expects.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Rounds</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>janitor::round_half_up()</code></td>
+<td>Half away from zero</td>
+<td>Reports, audits, surveys, anything a non-statistician reviews</td>
+</tr>
+<tr>
+<td><code>base::round()</code></td>
+<td>Half to even (banker's)</td>
+<td>Long simulations, anywhere cumulative bias matters</td>
+</tr>
+<tr>
+<td><code>janitor::round_half_to_even()</code></td>
+<td>Half to even, vector form</td>
+<td>Explicit banker's rounding when you want the name visible</td>
+</tr>
+<tr>
+<td><code>janitor::adorn_rounding()</code></td>
+<td>Configurable, data frame input</td>
+<td>Tabyl chains and <code>adorn_*</code> pipelines</td>
+</tr>
+<tr>
+<td><code>base::signif()</code></td>
+<td>Significant digits, not decimals</td>
+<td>Scientific notation, very small or very large values</td>
+</tr>
+<tr>
+<td><code>formatC()</code> / <code>sprintf()</code></td>
+<td>Returns a character string</td>
+<td>Display only, when no further math happens</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Choose <code>round_half_up()</code> when the rounded values will be read; choose <code>round()</code> when they will be re-aggregated.</strong> Conventional rounding is correct for the reader; banker's rounding is correct for the math. Most reports want the first, most simulations want the second, and the only real mistake is using one when you should have used the other.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: assuming <code>round_half_up()</code> works on a data frame.</strong> It does not. Passing a data frame returns an error or unexpected coercion. Use <code>mutate(across(...))</code> for a data frame, or use <code>janitor::adorn_rounding()</code> for a tabyl chain.</p>
+
+<p><strong>Pitfall 2: assuming <code>round_half_up()</code> defeats floating-point error.</strong> A value like <code>0.1 + 0.2</code> is not literally 0.3 in memory, so <code>round_half_up(0.15, digits = 1)</code> can still return 0.1 in extreme cases. The function adds <code>sqrt(.Machine$double.eps)</code> to mitigate this, but it is not a guarantee.</p>
+
+<p><strong>Pitfall 3: confusing <code>round_half_up()</code> with <code>ceiling()</code>.</strong> Ceiling always rounds toward positive infinity; half-up rounds the <code>.5</code> cases only. <code>ceiling(2.1)</code> is 3, but <code>round_half_up(2.1)</code> is 2.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Take the vector <code>c(-1.5, -0.5, 0.5, 1.5, 2.5)</code> and round it with <code>round_half_up()</code>. Compare the result with base <code>round()</code>. Save the half-up result to <code>ex_rounded</code>.</p>
+<div class="webr-container" data-block-title="Your turn: compare rounding rules">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: compare rounding rules</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: half-up vs banker's on midpoints
+ex_rounded &lt;- # your code here
+
+ex_rounded
+#&gt; Expected: -2 -1 1 2 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">midpoints &lt;- c(-1.5, -0.5, 0.5, 1.5, 2.5)
+
+ex_rounded &lt;- round_half_up(midpoints)
+ex_rounded
+#&gt; [1] -2 -1  1  2  3
+
+round(midpoints)
+#&gt; [1] -2  0  0  2  2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>round_half_up()</code> rounds each midpoint away from zero, so -1.5 goes to -2 and 0.5 goes to 1. Base R <code>round()</code> uses banker's rounding, sending 0.5 to 0 and 1.5 to 2 (toward the even integer). The two rules agree on -1.5 and 2.5 here only by coincidence.</p>
+
+</details>
+</section>
+
+<h2>Related janitor functions</h2>
+
+<p><strong><code>round_half_up()</code> is one piece of the janitor rounding family.</strong> Each helper sits at a slightly different abstraction level.</p>
+
+<ul>
+
+<li><code>round_half_to_even()</code>: vector-level banker's rounding, the explicit twin of <code>round_half_up()</code></li>
+
+<li><code>adorn_rounding()</code>: data frame rounding for tabyl chains, with a <code>rounding</code> mode argument</li>
+
+<li><code>adorn_pct_formatting()</code>: format proportions as percent strings instead of numerics</li>
+
+<li><code>tabyl()</code>: build the <a class="auto-link" href="Categorical-Data-in-R.html" title="Categorical Data in R: Frequency Tables, Crosstabs & Mosaic Plots">frequency table</a> that <code>adorn_rounding()</code> polishes</li>
+
+<li><code>signif_half_up()</code>: half-up rounding by significant digits, niche but available</li>
+
+<li><code>clean_names()</code>: standardise column names before any numeric cleanup</li>
+
+</ul>
+
+<p>See the <a href="https://sfirke.github.io/janitor/reference/round_half_up.html">janitor reference on tidyverse.org</a> for the source and full argument list.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between round_half_up() and base R round()?</strong></p>
+
+<p><code>round_half_up()</code> rounds every exact midpoint away from zero, so 2.5 becomes 3 and -2.5 becomes -3. Base R <code>round()</code> uses IEC 60559 banker's rounding, which sends midpoints to the nearest even integer: 2.5 becomes 2 and 3.5 becomes 4. Both are defensible, but only <code>round_half_up()</code> matches the convention most readers learned in school. Switch when the rounded numbers will end up in a report, regulatory filing, or audit.</p>
+
+<p><strong>Does round_half_up() work on negative numbers?</strong></p>
+
+<p>Yes, and the behaviour is symmetric. Negative midpoints round away from zero: -0.5 becomes -1, -1.5 becomes -2, -2.5 becomes -3. This is what most people expect when they say "round half up" out loud, even though the literal phrase suggests rounding toward positive infinity. The janitor implementation uses <code>sign(x)</code> and <code>abs(x)</code> internally to keep the rule consistent regardless of sign.</p>
+
+<p><strong>Can I apply round_half_up() to a data frame column inside dplyr?</strong></p>
+
+<p>Yes. Wrap the call in a lambda when using <code>across()</code>: <code>mutate(across(c(col1, col2), \(v) round_half_up(v, digits = 2)))</code>. The lambda is needed so the <code>digits</code> argument reaches the function. For a single column, <code>mutate(col1 = round_half_up(col1, digits = 2))</code> is shorter.</p>
+
+<p><strong>Why does round_half_up(0.15, digits = 1) sometimes return 0.1?</strong></p>
+
+<p>Floating-point storage. The value 0.15 cannot be represented exactly in binary, so it lives in memory as something like 0.14999999999999997, which rounds down. <code>round_half_up()</code> adds <code>sqrt(.Machine$double.eps)</code> to mitigate this for typical inputs, and it succeeds for almost all real-world values, but a few pathological cases slip through. If exactness on tiny decimals matters, round at the data entry stage or use a fixed-point package like <code>Rmpfr</code>.</p>
+
+<p><strong>Is there a half-up version of signif()?</strong></p>
+
+<p>Yes, janitor ships <code>signif_half_up()</code> for half-up rounding by significant digits rather than decimal places. Reach for it when the audience expects "3 significant figures, half up" instead of "2 decimal places, half up", a common request in chemistry and engineering reports.</p>
