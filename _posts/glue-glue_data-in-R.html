@@ -1,0 +1,408 @@
+---
+title: "glue glue_data() in R: String Templates for Data Frames"
+description: "Use glue glue_data() in R to interpolate data frame columns into one string per row. Five examples, comparison with glue(), and three common pitfalls."
+keywords: "glue glue_data, glue_data function R, glue glue_data examples, R glue_data data frame, glue_data tidyverse, glue_data vs glue, string interpolation data frame R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "glue_data()|glue::glue_data()|glue glue_data|glue_data function|glue_data tidyverse"
+auto_link_case_sensitive: true
+fr_parent: "stringr-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>glue glue_data() in R: String Templates for Data Frames</h1>
+
+<p class="lead">glue glue_data() interpolates a template across every row of a data frame, returning one string per row. You name each column inside <code>{braces}</code> and glue_data() looks up the column by name and substitutes the value. It is the row-wise counterpart to glue(), built for mutate(), reports, and bulk message generation.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>glue_data(mtcars, &quot;{rownames(mtcars)}: {mpg} mpg&quot;)<span class="qa-cmt">  # one string per row</span>
+mtcars |&gt; glue_data(&quot;{mpg} mpg, {cyl} cyl&quot;)<span class="qa-cmt">         # pipe friendly</span>
+glue_data(df, &quot;Hi {name}, age {age}&quot;)<span class="qa-cmt">               # named columns</span>
+glue_data(df, &quot;{name}-{format(date, '%Y')}.csv&quot;)<span class="qa-cmt">    # expressions on columns</span>
+df |&gt; mutate(label = glue_data(cur_data(), &quot;{x}&quot;))<span class="qa-cmt">  # inside mutate</span>
+glue_data(df, &quot;{x}&quot;, .na = &quot;missing&quot;)<span class="qa-cmt">               # custom NA handling</span>
+glue_collapse(glue_data(df, &quot;{x}&quot;), sep = &quot;, &quot;)<span class="qa-cmt">     # one final string</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is glue_data() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">interpolate columns across rows</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">glue_data(df, &quot;{col1}-{col2}&quot;)</text><text x="125" y="126" class="branch-label">interpolate plain variables</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">glue(&quot;Hi {name}&quot;)</text><text x="125" y="182" class="branch-label">collapse the result to one string</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">glue_collapse(g, sep = &quot;, &quot;)</text><text x="125" y="238" class="branch-label">build a SQL statement from a row</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">glue_sql(&quot;SELECT {x}&quot;, .con = con)</text><text x="125" y="294" class="branch-label">add a row label column in a pipe</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">mutate(label = glue(&quot;{a}-{b}&quot;))</text><text x="125" y="350" class="branch-label">join a few fixed pieces</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">paste0(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;)</text></svg></div>
+
+<h2>What glue_data() does in one sentence</h2>
+
+<p><strong>glue_data() evaluates a template inside the scope of a data frame, returning one interpolated string per row.</strong> Every <code>{column}</code> slot is looked up in the data frame first, then in the calling environment, and the result is a glue vector with <code>nrow(df)</code> elements.</p>
+
+<p>This is row-wise string interpolation. You write the sentence once and glue_data() loops it across rows, so what you get back lines up with the data frame perfectly. It is the natural fit for labels, file names, and any per-row message.</p>
+
+<div class="webr-container" data-block-title="Load glue and interpolate from a data frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load glue and interpolate from a data frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(glue)
+
+df &lt;- data.frame(name = c(&quot;Ada&quot;, &quot;Bob&quot;, &quot;Cee&quot;), age = c(36, 27, 41))
+glue_data(df, &quot;{name} is {age} years old.&quot;)
+#&gt; Ada is 36 years old.
+#&gt; Bob is 27 years old.
+#&gt; Cee is 41 years old.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row of <code>df</code> produces one finished sentence, and the result keeps the row order of the input.</p>
+
+<h2>Syntax</h2>
+
+<p><strong>glue_data(.x, ..., .sep = "", .envir = <a class="auto-link" href="R-Execution-Stack.html" title="R Execution Stack: sys.call(), parent.frame() & Call Stack Internals">parent.frame()</a>, .na = "NA", .null = character()) interpolates a template across rows.</strong> The <code>.x</code> argument is the data frame (or list), <code>...</code> are the template strings, <code>.sep</code> joins multiple templates, <code>.envir</code> is the fallback scope when a <code>{name}</code> is not a column, and <code>.na</code> controls how <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> render.</p>
+
+<div class="webr-container" data-block-title="Function signature and defaults">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Function signature and defaults</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># glue_data(.x, ..., .sep = &quot;&quot;, .envir = parent.frame(),
+#          .na = &quot;NA&quot;, .null = character(), .comment = &quot;#&quot;,
+#          .literal = FALSE, .transformer = identity_transformer,
+#          .trim = TRUE)
+#
+# .x     : data frame, list, or environment to look up names in
+# ...    : template strings; {col} or {expr} is evaluated and inserted
+# .sep   : separator placed between the ... arguments
+# .envir : fallback environment when {name} is not a column of .x
+# .na    : how to render NA values, defaults to &quot;NA&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Anything inside <code>{}</code> is treated as R code evaluated against the data frame, not just a column name. That means you can compute on columns directly in the template.</p>
+
+<div class="webr-container" data-block-title="Compute on columns inside the braces">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute on columns inside the braces</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(price = c(10, 20), qty = c(3, 2))
+glue_data(df, &quot;{qty} @ ${price} = ${qty * price}&quot;)
+#&gt; 3 @ $10 = $30
+#&gt; 2 @ $20 = $40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both <code>{qty}</code>, <code>{price}</code>, and <code>{qty * price}</code> are evaluated row by row, with each column treated as a vector of length 1 inside the template scope.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>glue_data() is the data-frame-aware sibling of glue().</strong> They share every argument, but glue_data() takes a data frame as its first argument and looks up names there before checking the calling environment. If you find yourself writing <code>glue(&quot;{df$col}&quot;)</code>, switch to <code>glue_data(df, &quot;{col}&quot;)</code> for cleaner code.</div></div>
+
+<h2>Five common glue_data() scenarios</h2>
+
+<p><strong>Five patterns cover almost every real use of glue_data().</strong> Each block runs on its own, so you can paste it straight into the live console.</p>
+
+<h3>Build a row label or message per record</h3>
+
+<p><strong>The core job of glue_data() is producing one string per row of a data frame.</strong> It is ideal for labels, log lines, and email-style messages.</p>
+
+<div class="webr-container" data-block-title="One status line per row">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One status line per row</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">orders &lt;- data.frame(
+  id     = c(101, 102, 103),
+  item   = c(&quot;keyboard&quot;, &quot;mouse&quot;, &quot;monitor&quot;),
+  total  = c(49.00, 19.50, 219.00)
+)
+glue_data(orders, &quot;Order {id}: {item} for ${total}&quot;)
+#&gt; Order 101: keyboard for $49
+#&gt; Order 102: mouse for $19.5
+#&gt; Order 103: monitor for $219</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result is a length-3 glue vector aligned with the rows of <code>orders</code>, ready to print, write to a file, or feed into another function.</p>
+
+<h3>Use inside a dplyr mutate to add a label column</h3>
+
+<p><strong>glue_data() pairs with mutate() to create derived text columns.</strong> Inside a dplyr pipeline you usually use <code>glue()</code> directly because mutate already evaluates expressions in the data scope, but <code>glue_data()</code> is the explicit form when you have a stand-alone data frame.</p>
+
+<div class="webr-container" data-block-title="Add a label column via mutate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Add a label column via mutate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">suppressPackageStartupMessages(library(dplyr))
+mtcars |&gt;
+  head(3) |&gt;
+  mutate(label = glue::glue(&quot;{rownames(head(mtcars, 3))}: {mpg} mpg, {cyl} cyl&quot;)) |&gt;
+  select(label)
+#&gt;                            label
+#&gt; Mazda RX4     Mazda RX4: 21 mpg, 6 cyl
+#&gt; Mazda RX4 Wag Mazda RX4 Wag: 21 mpg, 6 cyl
+#&gt; Datsun 710    Datsun 710: 22.8 mpg, 4 cyl</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Inside <code>mutate()</code>, columns are already in scope, so <code>glue()</code> does the same job. Reach for <code>glue_data()</code> when the data frame is not the active context, like when you pass it explicitly to a helper.</p>
+
+<h3>Generate file names or paths from rows</h3>
+
+<p><strong>Row-driven file naming is a classic glue_data() use case.</strong> Combine column values into a slug-style name and write each row to its own file.</p>
+
+<div class="webr-container" data-block-title="Build per-row file paths">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build per-row file paths</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">runs &lt;- data.frame(
+  model = c(&quot;rf&quot;, &quot;gbm&quot;, &quot;lr&quot;),
+  fold  = c(1, 1, 1),
+  date  = as.Date(c(&quot;2026-05-01&quot;, &quot;2026-05-01&quot;, &quot;2026-05-01&quot;))
+)
+glue_data(runs, &quot;results/{model}_fold{fold}_{format(date, '%Y%m%d')}.rds&quot;)
+#&gt; results/rf_fold1_20260501.rds
+#&gt; results/gbm_fold1_20260501.rds
+#&gt; results/lr_fold1_20260501.rds</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>format()</code> call runs row by row, producing a consistent date stamp for every output path.</p>
+
+<h3>Handle missing values explicitly</h3>
+
+<p><strong>The <code>.na</code> argument controls how <a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">NA values</a> render.</strong> Without it, NAs print as the literal string <code>&quot;NA&quot;</code>, which can look messy in user-facing output.</p>
+
+<div class="webr-container" data-block-title="Render NA as a friendly placeholder">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Render NA as a friendly placeholder</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(name = c(&quot;Ada&quot;, NA, &quot;Cee&quot;), score = c(91, 87, NA))
+glue_data(df, &quot;{name} scored {score}&quot;, .na = &quot;unknown&quot;)
+#&gt; Ada scored 91
+#&gt; unknown scored 87
+#&gt; Cee scored unknown</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Pick a placeholder that fits the context: <code>&quot;unknown&quot;</code> for reports, <code>&quot;-&quot;</code> for tables, or <code>&quot;&quot;</code> to drop the slot.</p>
+
+<h3>Collapse the per-row vector to one string</h3>
+
+<p><strong>Pair glue_data() with glue_collapse() to fold the per-row vector into a single string.</strong> Useful for summaries, bullet lists, and prompts.</p>
+
+<div class="webr-container" data-block-title="One bullet list from many rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">One bullet list from many rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">top &lt;- data.frame(name = c(&quot;Ada&quot;, &quot;Bob&quot;, &quot;Cee&quot;), score = c(91, 87, 79))
+bullets &lt;- glue_data(top, &quot;- {name}: {score}&quot;)
+glue_collapse(bullets, sep = &quot;\n&quot;)
+#&gt; - Ada: 91
+#&gt; - Bob: 87
+#&gt; - Cee: 79</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The intermediate <code>bullets</code> vector is one row per element. <code>glue_collapse()</code> joins them with newlines into a single multi-line string ready for <code>cat()</code>.</p>
+
+<h2>glue_data() vs glue()</h2>
+
+<p><strong>Use glue_data() when the values live in a data frame; use glue() when they live as separate objects.</strong> Both functions share the same brace syntax, but their lookup rule is different.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Question</th>
+<th>glue()</th>
+<th>glue_data()</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>First argument</td>
+<td>template string</td>
+<td>data frame or list</td>
+</tr>
+<tr>
+<td>Lookup order</td>
+<td><code>.envir</code> only</td>
+<td><code>.x</code> first, then <code>.envir</code></td>
+</tr>
+<tr>
+<td>Result length</td>
+<td>length of longest brace value</td>
+<td><code>nrow(.x)</code> (always row count)</td>
+</tr>
+<tr>
+<td>Best for</td>
+<td>one-off messages</td>
+<td>row labels, reports, file names</td>
+</tr>
+<tr>
+<td>Inside <a class="auto-link" href="dplyr-mutate-rename.html" title="dplyr mutate() and rename(): Create & Modify Columns (8 Examples)">dplyr mutate</a></td>
+<td>preferred</td>
+<td>rarely needed (mutate already scopes the data)</td>
+</tr>
+</tbody>
+</table>
+
+<p>If a template references columns of a data frame, <code>glue_data()</code> is the explicit, readable choice. If it references plain variables, <code>glue()</code> is shorter.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for glue_data() the moment you write <code>df$col</code> inside a glue() template.</strong> Replacing <code>glue(&quot;{df$col}-{df$x}&quot;)</code> with <code>glue_data(df, &quot;{col}-{x}&quot;)</code> is shorter, faster, and reads like the template you would write by hand on paper.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three pitfalls account for almost every glue_data() error.</strong> Each has a one-line fix.</p>
+
+<p><strong>Passing a non-tabular object.</strong> glue_data() expects a data frame, list, or environment. <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">Atomic vectors</a> fail because the function tries to look up names inside them.</p>
+
+<div class="webr-container" data-block-title="Wrong: atomic vector lookup">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrong: atomic vector lookup</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(a = 1, b = 2)
+try(glue_data(x, &quot;{a}+{b}&quot;))
+#&gt; Error in eval(parse(text = ...)): object 'a' not found</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Convert to a list (or one-row data frame) and the same template works.</p>
+
+<div class="webr-container" data-block-title="Fix: pass a list or data frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fix: pass a list or data frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">glue_data(as.list(x), &quot;{a}+{b}&quot;)
+#&gt; 1+2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Forgetting that result length equals row count.</strong> The output is always a vector of length <code>nrow(.x)</code>, even when the template ignores some columns. If you wanted one summary string, follow up with <code>glue_collapse()</code>.</p>
+
+<p><strong>Column name shadowed by a same-named variable in scope.</strong> When <code>.x</code> has a column called <code>name</code> and the calling environment also has a variable <code>name</code>, glue_data() uses the column. That is usually the intent, but it can surprise you if you meant the outer variable. Rename one of them to remove the ambiguity.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use glue_data() to build a one-line label per row of mtcars containing the row name and miles per gallon, for the first 3 rows. Save the result to ex_labels.</p>
+<div class="webr-container" data-block-title="Your turn: label the first 3 rows of mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: label the first 3 rows of mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: label mtcars rows
+ex_labels &lt;- # your code here
+
+ex_labels
+#&gt; Expected: 3 strings like &quot;Mazda RX4: 21 mpg&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">top3 &lt;- head(mtcars, 3)
+top3$car &lt;- rownames(top3)
+ex_labels &lt;- glue_data(top3, &quot;{car}: {mpg} mpg&quot;)
+ex_labels
+#&gt; Mazda RX4: 21 mpg
+#&gt; Mazda RX4 Wag: 21 mpg
+#&gt; Datsun 710: 22.8 mpg</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Row names are not a column of mtcars, so we copy them into a <code>car</code> column first. glue_data() then looks up <code>car</code> and <code>mpg</code> in the data frame and returns one string per row.</p>
+
+</details>
+</section>
+
+<h2>Related glue functions</h2>
+
+<ul>
+
+<li>glue(): interpolate variables that live as separate objects in scope.</li>
+
+<li>glue_collapse(): fold a glue vector into a single string with a separator.</li>
+
+<li>glue_sql(): row-wise interpolation that quotes values safely for SQL.</li>
+
+<li>glue_safe(): like glue() but errors clearly when a <code>{name}</code> is missing.</li>
+
+<li><a class="auto-link" href="stringr-str_glue_data-in-R.html" title="stringr str_glue_data() in R: Interpolate From a Data Frame">str_glue_data()</a>: the stringr alias for glue_data() with identical behaviour.</li>
+
+</ul>
+
+<p>For the full reference, see the <a href="https://glue.tidyverse.org/reference/glue.html">glue package documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between glue() and glue_data() in R?</strong></p>
+
+<p>glue() looks up brace names in the calling environment only, while glue_data() looks them up in a data frame (or list) first and falls back to the environment. Use glue_data() when your values live as columns of a data frame; use glue() when they live as separate variables. They share every other argument, including <code>.sep</code>, <code>.na</code>, and the brace delimiters.</p>
+
+<p><strong>How do I use glue_data() inside a dplyr pipeline?</strong></p>
+
+<p>You can pipe a data frame straight into glue_data() with <code>df |&gt; glue_data(&quot;{col}&quot;)</code>, which returns a character vector. Inside <code>mutate()</code>, columns are already in scope, so a plain <code>glue()</code> call works there too: <code>mutate(label = glue(&quot;{col1}-{col2}&quot;))</code>. Reach for glue_data() when the pipeline returns a data frame you want to label outside of mutate().</p>
+
+<p><strong>Why does glue_data() return multiple strings instead of one?</strong></p>
+
+<p>glue_data() returns one string per row of the input data frame, so the result length always equals <code>nrow(.x)</code>. That is the function's job: produce a row-aligned vector. If you want a single combined string, pass the result to <code>glue_collapse()</code> with a separator like <code>&quot;, &quot;</code> or <code>&quot;\n&quot;</code>.</p>
+
+<p><strong>Can I use expressions like sum() or <a class="auto-link" href="base-paste-in-R.html" title="paste() and paste0() in R: Concatenate Strings">paste0()</a> inside glue_data() braces?</strong></p>
+
+<p>Yes. Anything inside <code>{}</code> is treated as R code evaluated against the data frame, so <code>{toupper(name)}</code>, <code>{round(score, 1)}</code>, and <code>{format(date, &#x27;%Y&#x27;)}</code> all work. The columns become vectors of length 1 inside each row's evaluation, so column-wise functions like <code>sum()</code> collapse correctly.</p>
+
+<p><strong>How do I handle NA values when interpolating with glue_data()?</strong></p>
+
+<p>Pass the <code>.na</code> argument to control the placeholder for missing values. The default is the literal <code>&quot;NA&quot;</code>, which prints in the template; setting <code>.na = &quot;unknown&quot;</code> or <code>.na = &quot;-&quot;</code> replaces every NA with that text. Set <code>.na = NULL</code> to keep the NA propagation behaviour where any NA in a slot returns NA for the whole string.</p>
