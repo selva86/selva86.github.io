@@ -1,0 +1,481 @@
+---
+title: "yardstick sens() in R: Score Diagnostic Sensitivity"
+description: "Use yardstick sens() in R to score the sensitivity of a classifier. See syntax, multiclass averaging, recall equivalence, event_level flips, and pitfalls."
+keywords: "yardstick sens, sens function R, yardstick sens example, sensitivity yardstick, tidymodels sensitivity, true positive rate R, sens recall yardstick"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "yardstick sens|yardstick::sens()|sens metric|sensitivity yardstick|sens recall"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>yardstick sens() in R: Score Diagnostic Sensitivity</h1>
+
+<p class="lead">The yardstick sens() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> scores sensitivity, the share of real positives a classifier flags, by accepting a tibble of observed and predicted labels and returning a tidy one-row summary you can group, flip across event levels, or combine with specificity in a metric set.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>sens(df, truth, estimate)<span class="qa-cmt">                              # basic two-class call</span>
+sens(df, truth = obs, estimate = pred)<span class="qa-cmt">                 # named arguments</span>
+sens(df, class, .pred_class)<span class="qa-cmt">                           # default parsnip output</span>
+df |&gt; group_by(site) |&gt; sens(class, .pred_class)<span class="qa-cmt">       # by clinic or batch</span>
+sens(df, class, .pred_class, estimator = &quot;macro&quot;)<span class="qa-cmt">      # multiclass macro average</span>
+sens(df, class, .pred_class, event_level = &quot;second&quot;)<span class="qa-cmt">   # flip positive class</span>
+sens_vec(truth_vec, pred_vec)<span class="qa-cmt">                          # vector interface</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is sens() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">score actual-positive coverage in a diagnostic test</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">sens(df, truth, estimate)</text><text x="125" y="126" class="branch-label">score actual-negative coverage instead</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">spec(df, truth, estimate)</text><text x="125" y="182" class="branch-label">pair sens with spec in one summary</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">metric_set(sens, spec)(df, truth, estimate)</text><text x="125" y="238" class="branch-label">weigh sens equally with spec on imbalanced data</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">bal_accuracy(df, truth, estimate)</text><text x="125" y="294" class="branch-label">prefer the ML naming convention</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">recall(df, truth, estimate)</text><text x="125" y="350" class="branch-label">need a threshold-free ranking score</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">roc_auc(df, truth, .pred_class_1)</text></svg></div>
+
+<h2>What sens() measures</h2>
+
+<p><strong>sens() answers one clinical question: of every truly positive case, what fraction did the test flag?</strong> You pass a tibble of observed and predicted labels, and yardstick returns a one-row summary with <code>.metric</code>, <code>.estimator</code>, and <code>.estimate</code>. The estimate is true positives over true positives plus false negatives, a number between 0 and 1.</p>
+
+<p>Sensitivity is the headline metric for screening and triage, where missing a positive costs more than a false alarm. A diabetes screen that misses a high-glucose patient causes more damage than one that flags a healthy patient for confirmation. Accuracy hides that asymmetry; sens() exposes it.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A test that flags every case as positive scores 1.0 sensitivity.</strong> sens() ignores false positives by construction, so it is trivially gameable on its own. Always pair it with <code>spec()</code> or <code>bal_accuracy()</code> before reporting.</div></div>
+
+<h2>sens() syntax and arguments</h2>
+
+<p><strong>The signature matches the rest of the yardstick class-metric family.</strong> The same call shape works for any classifier whose predictions land in a tibble.</p>
+
+<div class="webr-container" data-block-title="sens generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">sens generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sens(data, truth, estimate, estimator = NULL, na_rm = TRUE,
+     case_weights = NULL, event_level = &quot;first&quot;, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data</code></td>
+<td>A data frame with truth and estimate columns.</td>
+</tr>
+<tr>
+<td><code>truth</code></td>
+<td>Unquoted column name of the observed class labels (a factor).</td>
+</tr>
+<tr>
+<td><code>estimate</code></td>
+<td>Unquoted column name of the predicted class labels (a factor with matching levels).</td>
+</tr>
+<tr>
+<td><code>estimator</code></td>
+<td>Averaging mode for multiclass: <code>&quot;binary&quot;</code>, <code>&quot;macro&quot;</code>, <code>&quot;macro_weighted&quot;</code>, or <code>&quot;micro&quot;</code>. Defaults to <code>&quot;binary&quot;</code> for two-class data and <code>&quot;macro&quot;</code> for multiclass.</td>
+</tr>
+<tr>
+<td><code>na_rm</code></td>
+<td>If <code>TRUE</code>, drop rows where either column is missing before scoring.</td>
+</tr>
+<tr>
+<td><code>event_level</code></td>
+<td><code>&quot;first&quot;</code> or <code>&quot;second&quot;</code>; controls which factor level counts as the positive case.</td>
+</tr>
+</tbody>
+</table>
+
+<p>Both <code>truth</code> and <code>estimate</code> must be factors with identical levels. The most common slip is passing a class-probability column; sens() needs class labels, so feed <code>.pred_class</code> from <code>parsnip::augment()</code>, not <code>.pred_&lt;level&gt;</code>.</p>
+
+<h2>Score classifiers: four worked examples</h2>
+
+<p><strong>The examples below build a two-class diabetes-screening frame and a multiclass triage frame so you can run sens() against both shapes.</strong> Start with a small two-class tibble that simulates a kit producing labels against a confirmatory lab result.</p>
+
+<div class="webr-container" data-block-title="Two-class diagnostic tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-class diagnostic tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+library(dplyr)
+
+set.seed(715)
+diabetes &lt;- tibble(
+  lab_result = factor(sample(c(&quot;positive&quot;, &quot;negative&quot;), 240, replace = TRUE,
+                             prob = c(0.18, 0.82)),
+                      levels = c(&quot;positive&quot;, &quot;negative&quot;)),
+  kit_call   = factor(sample(c(&quot;positive&quot;, &quot;negative&quot;), 240, replace = TRUE,
+                             prob = c(0.28, 0.72)),
+                      levels = c(&quot;positive&quot;, &quot;negative&quot;))
+)
+head(diabetes, 4)
+#&gt; # A tibble: 4 x 2
+#&gt;   lab_result kit_call
+#&gt;   &lt;fct&gt;      &lt;fct&gt;   
+#&gt; 1 negative   negative
+#&gt; 2 negative   positive
+#&gt; 3 positive   negative
+#&gt; 4 negative   negative</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 1 calls sens() with positional arguments.</strong> Because <code>&quot;positive&quot;</code> is the first factor level, yardstick treats it as the positive class.</p>
+
+<div class="webr-container" data-block-title="Two-class sensitivity score">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-class sensitivity score</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sens(diabetes, lab_result, kit_call)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 sens    binary         0.302</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A 0.302 sensitivity means the kit caught 30 percent of confirmed positives, the first number any reviewer will challenge before approving it for triage.</p>
+
+<p><strong>Example 2 flips the positive class with <code>event_level</code>.</strong> Setting <code>event_level = &quot;second&quot;</code> reframes the metric around the negative class.</p>
+
+<div class="webr-container" data-block-title="Flip the positive class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Flip the positive class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sens(diabetes, lab_result, kit_call, event_level = &quot;second&quot;)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 sens    binary         0.736</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That higher number is not better, just a different question. State which class is positive whenever you report the score.</p>
+
+<p><strong>Example 3 groups scoring by clinic site.</strong> One call returns one sensitivity per site, useful when the same kit runs at multiple labs.</p>
+
+<div class="webr-container" data-block-title="Per-site sensitivity">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-site sensitivity</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sites &lt;- diabetes |&gt;
+  mutate(site = rep(c(&quot;clinic_a&quot;, &quot;clinic_b&quot;, &quot;clinic_c&quot;), each = 80))
+
+sites |&gt;
+  group_by(site) |&gt;
+  sens(truth = lab_result, estimate = kit_call)
+#&gt; # A tibble: 3 x 4
+#&gt;   site     .metric .estimator .estimate
+#&gt;   &lt;chr&gt;    &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 clinic_a sens    binary         0.353
+#&gt; 2 clinic_b sens    binary         0.250
+#&gt; 3 clinic_c sens    binary         0.308</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 4 uses the vector interface.</strong> <code>sens_vec()</code> takes two factors and returns a numeric scalar, handy inside <code>summarise()</code> or a quick QA script.</p>
+
+<div class="webr-container" data-block-title="Vector interface for quick checks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vector interface for quick checks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sens_vec(diabetes$lab_result, diabetes$kit_call)
+#&gt; [1] 0.3023256</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Bundle sens with spec in a single metric set.</strong> <code>metric_set(sens, spec)(diabetes, lab_result, kit_call)</code> returns both numbers in one tibble, which is the minimum honest report for a diagnostic test.</div></div>
+
+<h2>Multiclass averaging: macro, weighted, and micro</h2>
+
+<p><strong>sens() handles multiclass data, but the answer depends on the averaging rule.</strong> A triage system routing patients to one of three pathways needs one sensitivity score across all classes.</p>
+
+<div class="webr-container" data-block-title="Multiclass triage tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multiclass triage tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(401)
+triage &lt;- tibble(
+  truth     = factor(sample(c(&quot;urgent&quot;, &quot;routine&quot;, &quot;discharge&quot;), 210,
+                            replace = TRUE, prob = c(0.20, 0.55, 0.25)),
+                    levels = c(&quot;urgent&quot;, &quot;routine&quot;, &quot;discharge&quot;)),
+  predicted = factor(sample(c(&quot;urgent&quot;, &quot;routine&quot;, &quot;discharge&quot;), 210,
+                            replace = TRUE, prob = c(0.18, 0.60, 0.22)),
+                    levels = c(&quot;urgent&quot;, &quot;routine&quot;, &quot;discharge&quot;))
+)
+
+sens(triage, truth, predicted, estimator = &quot;macro&quot;)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 sens    macro          0.351</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Comparing every averaging mode side by side surfaces the trade-off:</p>
+
+<div class="webr-container" data-block-title="Compare averaging modes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare averaging modes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">modes &lt;- c(&quot;macro&quot;, &quot;macro_weighted&quot;, &quot;micro&quot;)
+lapply(modes, \(m) sens(triage, truth, predicted, estimator = m)) |&gt;
+  bind_rows()
+#&gt; # A tibble: 3 x 3
+#&gt;   .metric .estimator     .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;              &lt;dbl&gt;
+#&gt; 1 sens    macro              0.351
+#&gt; 2 sens    macro_weighted     0.376
+#&gt; 3 sens    micro              0.376</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Estimator</th>
+<th>What it does</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>macro</code></td>
+<td>Unweighted mean of per-class sensitivity</td>
+<td>Treat each pathway as equally important regardless of frequency</td>
+</tr>
+<tr>
+<td><code>macro_weighted</code></td>
+<td>Mean weighted by class prevalence in truth</td>
+<td>Reflect the true case mix arriving at triage</td>
+</tr>
+<tr>
+<td><code>micro</code></td>
+<td>Pool all predictions, then compute one ratio</td>
+<td>Match the global hit rate; equals accuracy under symmetric labels</td>
+</tr>
+<tr>
+<td><code>binary</code></td>
+<td>Score one positive class only</td>
+<td>Two-class diagnostic problems, set by default</td>
+</tr>
+</tbody>
+</table>
+
+<p>Clinical papers report <code>macro</code> so the rare urgent class counts as much as the common routine class. Operational dashboards favor <code>macro_weighted</code> to track real arrival mix.</p>
+
+<h2>sens vs recall vs spec</h2>
+
+<p><strong>Three function names cluster around the sens column in yardstick, and two of them return the same number.</strong> The table below sorts the overlap so reports stay consistent across audiences.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>What it scores</th>
+<th>Same as</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sens()</code></td>
+<td>True positives over actual positives</td>
+<td>recall (yardstick aliases them)</td>
+</tr>
+<tr>
+<td><code>recall()</code></td>
+<td>True positives over actual positives</td>
+<td>sensitivity, true positive rate</td>
+</tr>
+<tr>
+<td><code>spec()</code></td>
+<td>True negatives over actual negatives</td>
+<td>specificity, true negative rate</td>
+</tr>
+<tr>
+<td><code>precision()</code></td>
+<td>True positives over predicted positives</td>
+<td><a class="auto-link" href="Bayes-Theorem-in-R.html" title="Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why">positive predictive value</a></td>
+</tr>
+<tr>
+<td><code>bal_accuracy()</code></td>
+<td>Mean of sens and spec</td>
+<td><a class="auto-link" href="yardstick-bal_accuracy-in-R.html" title="yardstick bal_accuracy() in R: Score Imbalanced Classifiers">balanced accuracy</a></td>
+</tr>
+<tr>
+<td><code>j_index()</code></td>
+<td>sens + spec, 1</td>
+<td>Youden's J statistic</td>
+</tr>
+</tbody>
+</table>
+
+<p><code>sens()</code> and <code>recall()</code> return identical numbers and accept identical arguments. Use <code>sens</code> in clinical reports and <code>recall</code> in ML reports so readers do not translate.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from scikit-learn?</strong> <code>yardstick::sens()</code> corresponds to <code>sklearn.metrics.recall_score()</code> with the positive class set explicitly. The <code>estimator</code> argument maps to scikit-learn's <code>average</code> parameter: <code>&quot;macro&quot;</code>, <code>&quot;micro&quot;</code>, and <code>&quot;macro_weighted&quot;</code> line up with <code>average=&quot;macro&quot;</code>, <code>&quot;micro&quot;</code>, and <code>&quot;weighted&quot;</code>.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes cause most sens() errors in real reports.</strong></p>
+
+<p>The first is reporting high sensitivity without checking specificity. A kit that returns positive on every patient scores 1.0 sens and 0.0 spec, perfect on paper, useless in practice. Pair sens with spec in one metric set before reporting.</p>
+
+<p>The second is forgetting to pin factor levels. The order of <code>levels()</code> decides which class is positive; a flipped order silently inverts the metric. Set the positive class explicitly when you build the factor.</p>
+
+<div class="webr-container" data-block-title="Fix: pin levels so the positive class is unambiguous">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fix: pin levels so the positive class is unambiguous</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">preds &lt;- tibble(
+  truth    = factor(c(&quot;sick&quot;, &quot;sick&quot;, &quot;well&quot;, &quot;well&quot;, &quot;sick&quot;),
+                    levels = c(&quot;sick&quot;, &quot;well&quot;)),
+  estimate = factor(c(&quot;sick&quot;, &quot;well&quot;, &quot;well&quot;, &quot;well&quot;, &quot;sick&quot;),
+                    levels = c(&quot;sick&quot;, &quot;well&quot;))
+)
+levels(preds$truth)
+#&gt; [1] &quot;sick&quot; &quot;well&quot;
+sens(preds, truth, estimate)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 sens    binary         0.667</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The third pitfall is divide-by-zero on multiclass macro averaging. A class with zero positives in the <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a> contributes <code>NaN</code>, and the macro average drops to <code>NaN</code>. Switch to <code>estimator = &quot;macro_weighted&quot;</code> so empty classes drop out by weight, or stratify the resample.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Sensitivity trades off against specificity, not against precision.</strong> Pushing the decision threshold down catches more positives (sens up) but admits more false alarms (spec down). Tune the threshold against the cost ratio of missing a positive versus alarming a negative, not against a single score.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the built-in <code>two_class_example</code> data from yardstick. Compute the sensitivity with the default positive class, then compute it again with the positive class flipped via <code>event_level = &quot;second&quot;</code>. Save the second result to <code>ex_sens_alt</code>.</p>
+<div class="webr-container" data-block-title="Your turn: flip the positive class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: flip the positive class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+data(&quot;two_class_example&quot;)
+
+# Try it: sens with flipped event level
+ex_sens_alt &lt;- # your code here
+
+ex_sens_alt
+#&gt; Expected: one row, .estimator binary, .estimate near 0.79</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+ex_sens_alt &lt;- two_class_example |&gt;
+  sens(truth = truth, estimate = predicted, event_level = &quot;second&quot;)
+ex_sens_alt
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 sens    binary         0.793</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>event_level = &quot;second&quot;</code> treats <code>Class2</code> as the positive class, so sens now measures how many actual <code>Class2</code> cases the model caught. The default <code>&quot;first&quot;</code> would have scored <code>Class1</code> recovery instead.</p>
+
+</details>
+</section>
+
+<h2>Related yardstick metrics</h2>
+
+<p><strong>sens() is one entry in the yardstick class-metric family.</strong> Reach for these neighbors when sensitivity alone is not enough:</p>
+
+<ul>
+
+<li><code>spec()</code> for the negative-class catch rate</li>
+
+<li><code>bal_accuracy()</code> averages sens and spec, robust to imbalance</li>
+
+<li><code>j_index()</code> for Youden's J, the screening-summary statistic</li>
+
+<li><code>recall()</code> for the ML alias of sensitivity</li>
+
+<li><code>precision()</code> for predicted-positive correctness</li>
+
+<li><code>f_meas()</code> for the harmonic mean of precision and sens</li>
+
+<li><code>conf_mat()</code> to inspect the full <a class="auto-link" href="Logistic-Regression-Exercises-in-R.html" title="Logistic Regression Exercises in R: 10 Classification Practice Problems, Solved Step-by-Step">confusion matrix</a></li>
+
+</ul>
+
+<p>For the full set, see the <a href="https://yardstick.tidymodels.org/reference/index.html">yardstick reference index</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Is sens() the same as recall in yardstick?</strong></p>
+
+<p>Yes, both functions return identical numbers. <code>sens()</code> and <code>recall()</code> both divide true positives by actual positives and share the same <code>event_level</code> and <code>estimator</code> arguments. The two names persist because medical literature settled on "sensitivity" while ML literature settled on "recall." Use whichever your audience expects.</p>
+
+<p><strong>Why does sens() return a tibble instead of a number?</strong></p>
+
+<p>The tidy return shape is the defining yardstick convention. Every metric returns the same three columns: <code>.metric</code>, <code>.estimator</code>, and <code>.estimate</code>. That uniformity lets you <code>bind_rows()</code> multiple metric calls or pipe <code>group_by() |&gt; metric()</code> without reshape code. For a scalar, call <code>sens_vec()</code>.</p>
+
+<p><strong>How is sens() different from accuracy?</strong></p>
+
+<p><code>accuracy()</code> asks how many predictions were correct overall. <code>sens()</code> asks how many actual positives the test caught, ignoring the negative class. On imbalanced data they diverge: a kit that always predicts negative can score 95 percent accuracy with near-zero sensitivity on the rare class.</p>
+
+<p><strong>Why does sens() return NaN on my multiclass data?</strong></p>
+
+<p>A <code>NaN</code> sensitivity means the test set has zero positives for at least one class, so per-class sens divides by zero. Switch to <code>estimator = &quot;macro_weighted&quot;</code> to drop empty classes by weight, or stratify the resample so every class is represented.</p>
