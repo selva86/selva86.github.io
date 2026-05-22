@@ -1,0 +1,398 @@
+---
+title: "yardstick mae() in R: Outlier-Robust Regression Scoring"
+description: "Use yardstick mae() in R for outlier-robust regression scoring. See the syntax, four worked examples, per-fold scoring, case weights, and common pitfalls."
+keywords: "yardstick mae, mae function R, yardstick mae examples, mean absolute error R, tidymodels mae, mae metric R, robust regression error R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "mae()|yardstick mae|yardstick::mae()|mean absolute error|mae metric"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>yardstick mae() in R: Outlier-Robust Regression Scoring</h1>
+
+<p class="lead">The yardstick mae() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> returns the mean absolute error of a regression model, accepting a tibble with truth and estimate columns and producing a tidy one-row summary in the same units as the outcome, with no penalty inflation from outliers.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>mae(df, truth, estimate)<span class="qa-cmt">                          # basic call</span>
+mae(df, truth = obs, estimate = pred)<span class="qa-cmt">             # named arguments</span>
+mae(df, solubility, prediction)<span class="qa-cmt">                   # tidymodels columns</span>
+df |&gt; group_by(fold) |&gt; mae(obs, pred)<span class="qa-cmt">            # by resample</span>
+mae(df, obs, pred, na_rm = TRUE)<span class="qa-cmt">                  # drop missing rows</span>
+mae_vec(truth_vec, pred_vec)<span class="qa-cmt">                      # vector interface</span>
+mae(df, obs, pred, case_weights = w)<span class="qa-cmt">              # weighted MAE</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is mae() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label"><a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a>-robust error in outcome units</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">mae(df, truth, estimate)</text><text x="125" y="126" class="branch-label">penalise large misses more heavily</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">rmse(df, truth, estimate)</text><text x="125" y="182" class="branch-label">need a unit-free goodness-of-fit score</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">rsq(df, truth, estimate)</text><text x="125" y="238" class="branch-label">percentage error matters more than absolute</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">mape(df, truth, estimate)</text><text x="125" y="294" class="branch-label">scale-free comparison across series</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">mase(df, truth, estimate)</text><text x="125" y="350" class="branch-label">predicting classes, not numbers</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">accuracy(df, truth, estimate)</text><text x="125" y="406" class="branch-label">multi-metric report in one call</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">metrics(df, truth, estimate)</text></svg></div>
+
+<h2>How mae() scores a regression model</h2>
+
+<p><strong>mae() takes the absolute value of each residual and averages them.</strong> You pass a data frame with the observed numeric outcome and the predicted values, and the function returns a one-row tibble with <code>.metric</code>, <code>.estimator</code>, and <code>.estimate</code>. The estimate is non-negative and reads in the same units as the outcome, so an MAE of 0.5 on a solubility score means typical predictions miss by half a unit.</p>
+
+<p>Because absolute value treats a small miss and a large miss in proportion, MAE is less sensitive to outliers than RMSE. That makes it the right choice when a handful of unusual observations should not dominate the metric, and it pairs naturally with <a class="auto-link" href="Quantile-Regression-in-R.html" title="Quantile Regression in R: quantreg Package, Model Beyond the Mean">quantile regression</a> at the median.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>MAE is the average of |residual|, not the average of squared residuals.</strong> A model that minimises MAE behaves like a median predictor: it tolerates many small misses and refuses to chase outliers. RMSE behaves like a mean predictor: it punishes the rare big miss more than the many tiny ones.</div></div>
+
+<h2>mae() syntax and arguments</h2>
+
+<p><strong>The signature matches every other yardstick numeric metric.</strong> Once you know the shape, the same call works for <code>rmse()</code>, <code>rsq()</code>, <code>mape()</code>, and the rest of the regression family.</p>
+
+<div class="webr-container" data-block-title="mae generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">mae generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mae(data, truth, estimate, na_rm = TRUE, case_weights = NULL, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data</code></td>
+<td>A data frame with the truth and estimate columns.</td>
+</tr>
+<tr>
+<td><code>truth</code></td>
+<td>Unquoted column name of the observed numeric outcome.</td>
+</tr>
+<tr>
+<td><code>estimate</code></td>
+<td>Unquoted column name of the predicted numeric values.</td>
+</tr>
+<tr>
+<td><code>na_rm</code></td>
+<td>If <code>TRUE</code>, drop rows where either column is missing before scoring.</td>
+</tr>
+<tr>
+<td><code>case_weights</code></td>
+<td>Optional column of row weights for survey or importance-weighted data.</td>
+</tr>
+</tbody>
+</table>
+
+<p>Truth and estimate must both be numeric; factor, character, or logical inputs raise an error. If you fitted a classification model, reach for <code>accuracy()</code> or <code>roc_auc()</code> instead.</p>
+
+<h2>MAE in action: four worked examples</h2>
+
+<p><strong>The examples below use yardstick's built-in solubility_test data, which ships a real regression prediction set.</strong> Load the package and inspect the data first.</p>
+
+<div class="webr-container" data-block-title="Load yardstick and inspect solubility data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load yardstick and inspect solubility data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+library(dplyr)
+
+data(&quot;solubility_test&quot;)
+head(solubility_test, 4)
+#&gt; # A tibble: 4 x 2
+#&gt;   solubility prediction
+#&gt;        &lt;dbl&gt;      &lt;dbl&gt;
+#&gt; 1      0.93       0.99
+#&gt; 2      0.85       0.71
+#&gt; 3      0.17       0.18
+#&gt; 4     -0.99      -0.57</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 1 calls mae() with positional arguments.</strong> The function locates truth and estimate by position and returns the tidy summary.</p>
+
+<div class="webr-container" data-block-title="Basic mae score on solubility predictions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Basic mae score on solubility predictions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mae(solubility_test, solubility, prediction)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 mae     standard       0.524</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>.estimator</code> is <code>standard</code> because MAE has no binary or multiclass variant. The estimate of 0.524 sits in log-solubility units and is smaller than the RMSE of 0.722 on the same data, which is the expected ordering whenever residuals contain any spread.</p>
+
+<p><strong>Example 2 contrasts MAE and RMSE under an injected outlier.</strong> Adding one large miss inflates RMSE far more than MAE, which is exactly why MAE survives heavy-tailed errors.</p>
+
+<div class="webr-container" data-block-title="MAE versus RMSE when one outlier appears">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">MAE versus RMSE when one outlier appears</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">spike &lt;- solubility_test
+spike$prediction[1] &lt;- spike$prediction[1] + 10  # inject one big miss
+
+mae(spike, solubility, prediction)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 mae     standard       0.556
+
+rmse(spike, solubility, prediction)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 rmse    standard       0.917</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>MAE rises from 0.524 to 0.556 (about 6 percent), while RMSE jumps from 0.722 to 0.917 (about 27 percent). The same outlier costs RMSE roughly four times what it costs MAE.</p>
+
+<p><strong>Example 3 groups scoring by resample fold.</strong> When cross-validation predictions live in one tibble, <code>group_by()</code> plus mae returns one score per fold for instant per-resample diagnostics.</p>
+
+<div class="webr-container" data-block-title="Per-fold mae from a cross-validation tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-fold mae from a cross-validation tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">folded &lt;- solubility_test |&gt;
+  mutate(fold = rep(paste0(&quot;fold&quot;, 1:5), length.out = n()))
+
+folded |&gt;
+  group_by(fold) |&gt;
+  mae(truth = solubility, estimate = prediction)
+#&gt; # A tibble: 5 x 4
+#&gt;   fold  .metric .estimator .estimate
+#&gt;   &lt;chr&gt; &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 fold1 mae     standard       0.531
+#&gt; 2 fold2 mae     standard       0.523
+#&gt; 3 fold3 mae     standard       0.514
+#&gt; 4 fold4 mae     standard       0.527
+#&gt; 5 fold5 mae     standard       0.523</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 4 uses the vector interface for quick checks.</strong> Inside <code>map()</code> calls or unit tests, <code>mae_vec()</code> returns a plain scalar instead of a one-row tibble.</p>
+
+<div class="webr-container" data-block-title="Vector interface returns a numeric scalar">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vector interface returns a numeric scalar</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mae_vec(solubility_test$solubility, solubility_test$prediction)
+#&gt; [1] 0.5236449</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Use the vector form when you need a scalar for thresholds or unit tests; otherwise stay with the data-frame form so you can bind, group, or plot scores.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Report MAE alongside RMSE, never alone.</strong> The gap between RMSE and MAE measures how much the tail of the residual distribution moves the headline number. A widening gap across model versions usually means the tail grew, even when the typical error looks stable.</div></div>
+
+<h2>When to pick mae() over its neighbors</h2>
+
+<p><strong>MAE is the outlier-robust default in the yardstick regression family.</strong> The table below picks the metric you want when MAE is not the right fit.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Metric</th>
+<th>Best use case</th>
+<th>Limitation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mae()</code></td>
+<td>Errors in outcome units, robust to outliers</td>
+<td>Ignores whether a big error matters more than a small one</td>
+</tr>
+<tr>
+<td><code>rmse()</code></td>
+<td>Errors in outcome units, large misses matter</td>
+<td>Heavily penalises outliers</td>
+</tr>
+<tr>
+<td><code>rsq()</code></td>
+<td>Need a unit-free 0-to-1 goodness-of-fit</td>
+<td>Can mask large systematic bias</td>
+</tr>
+<tr>
+<td><code>mape()</code></td>
+<td>Communicate relative error to non-technical readers</td>
+<td>Explodes when truth is near zero</td>
+</tr>
+<tr>
+<td><code>mase()</code></td>
+<td>Compare scale-free across multiple <a class="auto-link" href="Time-Series-Analysis-With-R.html" title="Time Series Analysis with R">time series</a></td>
+<td>Requires a naive baseline forecast</td>
+</tr>
+<tr>
+<td><code>huber_loss()</code></td>
+<td>Want MAE-style robustness with smooth gradient near zero</td>
+<td>Adds a delta hyperparameter to tune</td>
+</tr>
+</tbody>
+</table>
+
+<p>A safe default is MAE as the robust headline, RMSE for outlier sensitivity, and R-squared for cross-model comparison on the same target.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three small mistakes account for most mae() failures.</strong> Each one has a one-line fix.</p>
+
+<p>The first is passing a factor column. yardstick rejects factor inputs because a factor implies classification, not regression. The fix is to cast to numeric before scoring:</p>
+
+<div class="webr-container" data-block-title="Fix cast factor predictions to numeric">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fix cast factor predictions to numeric</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bad &lt;- tibble(obs = c(1.2, 3.4, 5.6), pred = factor(c(&quot;1&quot;, &quot;3&quot;, &quot;6&quot;)))
+# mae(bad, obs, pred)  # would error
+bad &lt;- bad |&gt;
+  mutate(pred = as.numeric(as.character(pred)))
+mae(bad, obs, pred)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 mae     standard       0.333</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second pitfall is comparing MAE across different target transformations. An MAE of 0.2 on log-price and 30 on raw-price are not on the same scale. Back-transform predictions before scoring, or stick to one target representation.</p>
+
+<p>The third pitfall is silent NA handling. With <code>na_rm = TRUE</code> (the default), yardstick drops rows where either column is missing, which changes the denominator. Pre-filter the prediction frame when comparing models that handle missingness differently.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>MAE never tells you about error direction.</strong> A model with MAE of 0.5 could be systematically over-predicting by 0.5, or evenly mixing 0.5 unders and overs. Pair MAE with a residual plot or <code>mean(estimate - truth)</code> to detect bias.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the built-in <code>solubility_test</code> data. Add +5 to the first prediction, then compute both MAE and RMSE on the perturbed frame. Bind the two results into a single comparison tibble and save it to <code>ex_mae_vs_rmse</code>.</p>
+<div class="webr-container" data-block-title="Your turn MAE versus RMSE with one outlier">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn MAE versus RMSE with one outlier</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+library(dplyr)
+data(&quot;solubility_test&quot;)
+
+# Try it: compare MAE and RMSE after injecting one outlier
+ex_mae_vs_rmse &lt;- # your code here
+
+ex_mae_vs_rmse
+#&gt; Expected: 2 rows, one per metric</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">spike &lt;- solubility_test |&gt;
+  mutate(prediction = if_else(row_number() == 1, prediction + 5, prediction))
+
+ex_mae_vs_rmse &lt;- bind_rows(
+  mae(spike, solubility, prediction),
+  rmse(spike, solubility, prediction)
+)
+ex_mae_vs_rmse
+#&gt; # A tibble: 2 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 mae     standard       0.540
+#&gt; 2 rmse    standard       0.776</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> A single +5 outlier moves MAE only slightly because absolute errors are averaged linearly, while RMSE jumps because squared residuals amplify the spike. The size of the gap is a quick diagnostic for tail-heavy errors.</p>
+
+</details>
+</section>
+
+<h2>Related yardstick metrics</h2>
+
+<p><strong>mae() is one entry in the yardstick numeric-metric family.</strong> Reach for these neighbors when MAE alone is not enough:</p>
+
+<ul>
+
+<li><code>rmse()</code> for an error in outcome units that punishes large misses</li>
+
+<li><code>mape()</code> for percentage error reporting to non-technical stakeholders</li>
+
+<li><code>rsq()</code> for a unit-free 0-to-1 goodness-of-fit</li>
+
+<li><code>mase()</code> for scale-free comparison across multiple time series</li>
+
+<li><code>huber_loss()</code> for a metric that switches from MAE-style to RMSE-style at a threshold</li>
+
+<li><code>metrics()</code> to compute several regression scores in a single call</li>
+
+</ul>
+
+<p>For the full set, see the <a href="https://yardstick.tidymodels.org/reference/index.html">yardstick reference index</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is a good MAE value?</strong></p>
+
+<p>There is no universal threshold. MAE is in the units of your outcome, so a "good" value depends on the spread of that outcome. Compare MAE against the standard deviation or interquartile range of the truth column: if MAE is much smaller, the model is adding signal; if it is close, the model is barely better than predicting the median. Always interpret alongside <code>rsq()</code> and a residual plot.</p>
+
+<p><strong>How is mae() different from mean(abs(y - yhat))?</strong></p>
+
+<p>They return the same number. yardstick wraps the formula in a function that validates inputs, handles <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>, supports <code>case_weights</code>, and returns a tidy tibble that integrates with <code>metrics()</code> and <code>group_by()</code>. Use mae() everywhere for consistency with the tidymodels workflow.</p>
+
+<p><strong>Can mae() handle case weights?</strong></p>
+
+<p>Yes. Pass a <code>case_weights</code> column to mae(). Common uses are survey weights, sample weights produced by <code>parsnip::fit()</code>, or importance weights when some rows matter more than others. Weights must be non-negative; the function returns a weighted average of |residual| in the same units as the outcome.</p>
+
+<p><strong>Why does mae() return a tibble instead of a number?</strong></p>
+
+<p>The tidy return shape is the yardstick convention. Every metric returns the same three columns: <code>.metric</code>, <code>.estimator</code>, <code>.estimate</code>. That uniformity lets you <code>bind_rows()</code> calls or pipe into <code>group_by()</code> with no reshape step. Call <code>mae_vec()</code> when you only need the scalar.</p>
+
+<h2>Summary</h2>
+
+<p><strong>mae() is the outlier-robust scorecard in yardstick's regression family.</strong> Use it as the headline when residuals are heavy-tailed, partner it with <code>rmse()</code> to expose how much outliers move the number, and switch to <code>mae_vec()</code> when you need a scalar. Combined with <code>group_by()</code> it scales to any resampling scheme, and with <code>metrics()</code> it produces a clean multi-metric report.</p>
+
+{% endraw %}
