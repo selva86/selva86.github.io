@@ -1,0 +1,377 @@
+---
+title: "parsnip logistic_reg() in R: Fit Binary Classifiers"
+description: "Use parsnip logistic_reg() in R to define and fit two-class classification with the glm, glmnet, or brulee engine. Syntax, four examples, and pitfalls."
+keywords: "parsnip logistic_reg, logistic_reg function R, parsnip logistic regression, logistic regression R tidymodels, logistic_reg examples, binary classification tidymodels, glm tidymodels"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "logistic_reg()|parsnip logistic_reg|parsnip::logistic_reg()|tidymodels logistic regression|binary classification tidymodels"
+auto_link_case_sensitive: true
+fr_parent: "Logistic-Regression-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>parsnip logistic_reg() in R: Fit Binary Classifiers</h1>
+
+<p class="lead">The parsnip <code>logistic_reg()</code> function defines a two-class logistic regression model specification in tidymodels, ready to be fit with the glm, glmnet, brulee, or stan engine. It gives you one consistent interface for plain logistic regression, penalized variants, and Bayesian fits without rewriting the call.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>logistic_reg()<span class="qa-cmt">                                          # default spec, glm engine</span>
+logistic_reg() |&gt; set_engine(&quot;glm&quot;)<span class="qa-cmt">                     # base R glm under the hood</span>
+logistic_reg(penalty = 0.1) |&gt; set_engine(&quot;glmnet&quot;)<span class="qa-cmt">     # ridge / lasso / elastic net</span>
+logistic_reg(penalty = 0.1, mixture = 1) |&gt; set_engine(&quot;glmnet&quot;)<span class="qa-cmt">  # pure lasso</span>
+logistic_reg() |&gt; set_engine(&quot;stan&quot;)<span class="qa-cmt">                    # Bayesian logistic regression</span>
+spec |&gt; set_mode(&quot;classification&quot;)<span class="qa-cmt">                      # only mode logistic_reg allows</span>
+fit(spec, am ~ wt + hp, data = car_data)<span class="qa-cmt">                # train on a factor outcome</span>
+predict(fit, new_data, type = &quot;prob&quot;)<span class="qa-cmt">                   # class probabilities per row</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is logistic_reg() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">predict a yes or no outcome</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">logistic_reg() |&gt; set_engine(&quot;glm&quot;)</text><text x="125" y="126" class="branch-label">shrink coefficients toward zero</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">logistic_reg(penalty = 0.1) |&gt; set_engine(&quot;glmnet&quot;)</text><text x="125" y="182" class="branch-label">predict 3+ unordered classes</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">multinom_reg() |&gt; set_engine(&quot;nnet&quot;)</text><text x="125" y="238" class="branch-label">predict a continuous number</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">linear_reg() |&gt; set_engine(&quot;lm&quot;)</text><text x="125" y="294" class="branch-label">predict non-negative counts</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">poisson_reg() |&gt; set_engine(&quot;glm&quot;)</text><text x="125" y="350" class="branch-label">capture non-linear effects</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">rand_forest() |&gt; set_engine(&quot;ranger&quot;)</text></svg></div>
+
+<h2>What logistic_reg() does</h2>
+
+<p><strong>logistic_reg() is a model specification, not a fitted model.</strong> It records your intent to build a two-class logistic regression and the hyperparameters you want, but no data touches it until you call <code>fit()</code>. This separation lets you reuse one specification across many datasets, formulas, or resampling folds.</p>
+
+<p>Logistic <a class="auto-link" href="adv-regression-models.html" title="Advanced Regression Models">regression models</a> a binary outcome as the <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">log-odds</a> of belonging to one class given a linear combination of predictors. The fitted coefficients are interpretable on the log-odds scale, and predicted probabilities fall between 0 and 1 because the linear predictor passes through a logistic link.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The outcome must be a factor with exactly two levels.</strong> parsnip treats the second factor level as the event by default, which controls what every probability column and class metric refers to. Set levels explicitly with <code>factor(y, levels = c(&quot;no&quot;, &quot;yes&quot;))</code> so the choice is deliberate rather than alphabetical.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>logistic_reg() ships in core parsnip, so <code>library(tidymodels)</code> is enough.</strong> The default engine is <code>glm</code>, and registered engines include glmnet, brulee, stan, keras, LiblineaR, h2o, and spark. Each engine accepts a different subset of arguments, viewable through <code>show_engines(&quot;logistic_reg&quot;)</code>.</div></div>
+
+<h2>logistic_reg() syntax and arguments</h2>
+
+<p><strong>logistic_reg() takes two tuning arguments and two setup verbs.</strong> The arguments control regularization, while <code>set_engine()</code> and <code>set_mode()</code> finish the specification.</p>
+
+<div class="webr-container" data-block-title="The logistic_reg specification skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The logistic_reg specification skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+
+logistic_reg(
+  mode = &quot;classification&quot;,  # the only valid mode
+  engine = &quot;glm&quot;,           # glm (default), glmnet, brulee, stan, keras, LiblineaR
+  penalty = NULL,           # total regularization, glmnet and brulee only
+  mixture = NULL            # ridge (0) to lasso (1) blend, glmnet only
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>penalty</code> argument sets the total regularization on the same scale as <code>glmnet::glmnet()</code>'s lambda. The <code>mixture</code> argument blends ridge (<code>mixture = 0</code>) and lasso (<code>mixture = 1</code>), with values between them giving an elastic net. The default glm engine ignores both because it fits an unpenalized maximum-likelihood model.</p>
+
+<p><strong>The mode is always classification.</strong> You can pass the engine through <code>set_engine()</code> instead of the <code>engine</code> argument, which is the more common tidymodels style.</p>
+
+<h2>Fit a binary classifier: four examples</h2>
+
+<p><strong>Every example below uses a small derivative of <code>mtcars</code>.</strong> The <code>am</code> column flags automatic versus manual transmission, which is the two-class outcome. Weight and horsepower act as the predictors.</p>
+
+<h3>Example 1: Fit with the default glm engine</h3>
+
+<p><strong>Build the specification, then fit it to data.</strong> The glm engine wires up <code>stats::glm()</code> with <code>family = binomial()</code> under the hood, which is standard maximum-likelihood logistic regression.</p>
+
+<div class="webr-container" data-block-title="Fit logistic_reg on transmission type">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit logistic_reg on transmission type</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+
+car_data &lt;- mtcars
+car_data$am &lt;- factor(car_data$am, labels = c(&quot;auto&quot;, &quot;manual&quot;))
+
+log_spec &lt;- logistic_reg() |&gt;
+  set_engine(&quot;glm&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+log_fit &lt;- log_spec |&gt;
+  fit(am ~ wt + hp, data = car_data)
+
+log_fit
+#&gt; parsnip model object
+#&gt;
+#&gt; Call:  stats::glm(formula = am ~ wt + hp, family = stats::binomial, data = data)
+#&gt;
+#&gt; Coefficients:
+#&gt; (Intercept)           wt           hp
+#&gt;    18.86630     -8.08348      0.03626</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fitted object reports one coefficient per predictor on the log-odds scale. A negative wt slope means heavier cars are less likely to be manuals; a positive hp slope means high-horsepower cars lean manual.</p>
+
+<h3>Example 2: Predict class probabilities and labels</h3>
+
+<p><strong>predict() returns a tidy tibble, with the type argument controlling the shape.</strong> Without <code>type</code>, the prediction is a hard class label; <code>type = &quot;prob&quot;</code> returns one column per outcome level.</p>
+
+<div class="webr-container" data-block-title="Predict probabilities and classes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict probabilities and classes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sample_rows &lt;- car_data[c(1, 15, 31), ]
+
+predict(log_fit, new_data = sample_rows, type = &quot;prob&quot;)
+#&gt; # A tibble: 3 x 2
+#&gt;   .pred_auto .pred_manual
+#&gt;        &lt;dbl&gt;        &lt;dbl&gt;
+#&gt; 1     0.0867       0.913
+#&gt; 2     1.000        0.000165
+#&gt; 3     0.0303       0.970
+
+predict(log_fit, new_data = sample_rows)
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 manual
+#&gt; 2 auto
+#&gt; 3 manual</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each prediction column starts with <code>.pred_</code>, which avoids clashes when you bind predictions back with <code>bind_cols()</code>. The hard-class default uses a 0.5 cutoff; pass <code>type = &quot;prob&quot;</code> and threshold yourself for any other cutoff.</p>
+
+<h3>Example 3: Tidy and glance the fitted model</h3>
+
+<p><strong>Use broom helpers through parsnip to pull coefficients and fit statistics.</strong> <code>tidy()</code> returns one row per coefficient with standard errors and p-values, and <code>glance()</code> returns a one-row model summary.</p>
+
+<div class="webr-container" data-block-title="Tidy coefficients and model fit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tidy coefficients and model fit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(log_fit)
+#&gt; # A tibble: 3 x 5
+#&gt;   term        estimate std.error statistic p.value
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 (Intercept)  18.9       7.92        2.38 0.0173
+#&gt; 2 wt           -8.08      3.06       -2.64 0.00822
+#&gt; 3 hp            0.0363    0.0203      1.79 0.0741
+
+glance(log_fit)$AIC
+#&gt; [1] 19.18</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Weight is the strongest signed predictor; each extra 1000 lb multiplies the odds of being a manual by <code>exp(-8.08)</code>, about 0.0003, holding hp fixed. <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a> is the natural fit-quality number for a binomial GLM because R-squared has no clean analog on this scale.</p>
+
+<h3>Example 4: Fit a penalized model with glmnet</h3>
+
+<p><strong>Switch to glmnet for regularized coefficients.</strong> The glmnet engine needs a non-NULL <code>penalty</code>, and <code>mixture = 1</code> requests a pure lasso penalty that can shrink weak predictors to zero.</p>
+
+<div class="webr-container" data-block-title="Fit a penalized logistic regression">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a penalized logistic regression</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">glmnet_fit &lt;- logistic_reg(penalty = 0.1, mixture = 1) |&gt;
+  set_engine(&quot;glmnet&quot;) |&gt;
+  set_mode(&quot;classification&quot;) |&gt;
+  fit(am ~ wt + hp + disp, data = car_data)
+
+predict(glmnet_fit, new_data = car_data[c(1, 15, 31), ], type = &quot;prob&quot;)
+#&gt; # A tibble: 3 x 2
+#&gt;   .pred_auto .pred_manual
+#&gt;        &lt;dbl&gt;        &lt;dbl&gt;
+#&gt; 1      0.420        0.580
+#&gt; 2      0.890        0.110
+#&gt; 3      0.350        0.650</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Tune the penalty instead of guessing it.</strong> Set <code>penalty = tune()</code> in the specification, then pass it to <code>tune_grid()</code> with a resampling object like <code>vfold_cv()</code>. The framework searches a grid of penalty values and reports which one generalizes best on held-out folds.</div></div>
+
+<h2>logistic_reg() vs other parsnip models</h2>
+
+<p><strong>Pick the model by the type of outcome you are predicting.</strong> <code>logistic_reg()</code> handles exactly two classes; the alternatives below cover the other cases.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Outcome type</th>
+<th>Default engine</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>logistic_reg()</code></td>
+<td>exactly 2 classes</td>
+<td>glm</td>
+<td>Yes/no, churn, spam</td>
+</tr>
+<tr>
+<td><code>multinom_reg()</code></td>
+<td>3+ unordered classes</td>
+<td>nnet</td>
+<td>Species, product category</td>
+</tr>
+<tr>
+<td><code>linear_reg()</code></td>
+<td>continuous numeric</td>
+<td>lm</td>
+<td>Price, mpg, test score</td>
+</tr>
+<tr>
+<td><code>poisson_reg()</code></td>
+<td>non-negative counts</td>
+<td>glm</td>
+<td>Calls, defects, visits</td>
+</tr>
+<tr>
+<td><code>rand_forest()</code></td>
+<td>numeric or class</td>
+<td>ranger</td>
+<td>Non-linear effects, interactions</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>logistic_reg()</code> when the outcome is binary and you expect roughly linear effects on the log-odds scale. When the boundary between classes is strongly non-linear or interactions dominate, a tree-based model often fits better with less feature engineering.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes catch most newcomers to logistic_reg().</strong> Each one below shows the problem and the fix.</p>
+
+<p>The biggest is leaving the outcome as a 0/1 numeric column. parsnip refuses to fit a classification spec on a numeric response; convert it to a factor first.</p>
+
+<div class="webr-container" data-block-title="Outcome must be a factor for classification">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Outcome must be a factor for classification</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Wrong: parsnip errors because am is numeric 0/1
+logistic_reg() |&gt; fit(am ~ wt, data = mtcars)
+
+# Right: convert am to a factor first
+mt &lt;- mtcars
+mt$am &lt;- factor(mt$am, labels = c(&quot;auto&quot;, &quot;manual&quot;))
+logistic_reg() |&gt; fit(am ~ wt, data = mt)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second pitfall is class-label confusion. parsnip treats the SECOND factor level as the event, so factor order decides which class <code>.pred_yes</code> refers to. Set levels explicitly with <code>factor(y, levels = c(&quot;no&quot;, &quot;yes&quot;))</code>.</p>
+
+<p>The third is passing <code>penalty</code> to the glm engine. The glm engine ignores regularization, so <code>logistic_reg(penalty = 0.1) |&gt; set_engine(&quot;glm&quot;)</code> silently fits an unpenalized model. Switch to glmnet or brulee to actually apply the penalty.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Perfect separation makes glm fail silently.</strong> When one predictor perfectly splits the two classes, glm warns "fitted probabilities numerically 0 or 1 occurred" and the coefficients explode toward infinity. Move to the glmnet engine with a small <code>penalty</code> to regularize them back into a stable range.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a logistic model on <code>car_data</code> predicting <code>am</code> from <code>mpg</code> alone, then predict the class probabilities for the 15th row. Save the prediction tibble to <code>ex_pred</code>.</p>
+<div class="webr-container" data-block-title="Your turn: mpg-only logistic model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: mpg-only logistic model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: fit with mpg as the only predictor
+ex_spec &lt;- # your code here
+ex_fit  &lt;- # your code here
+ex_pred &lt;- # your code here
+
+ex_pred
+#&gt; Expected: a 1-row tibble with .pred_auto near 1 and .pred_manual near 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_spec &lt;- logistic_reg() |&gt;
+  set_engine(&quot;glm&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+ex_fit &lt;- ex_spec |&gt;
+  fit(am ~ mpg, data = car_data)
+
+ex_pred &lt;- predict(ex_fit, new_data = car_data[15, ], type = &quot;prob&quot;)
+ex_pred
+#&gt; # A tibble: 1 x 2
+#&gt;   .pred_auto .pred_manual
+#&gt;        &lt;dbl&gt;        &lt;dbl&gt;
+#&gt; 1      0.978       0.0220</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Row 15 is a Cadillac Fleetwood with <code>mpg = 10.4</code>, which is far below the dataset mean. Low-mpg cars in mtcars are almost all automatics, so the model assigns a probability near 1 to the <code>auto</code> class.</p>
+
+</details>
+</section>
+
+<h2>Related parsnip functions</h2>
+
+<p><strong>logistic_reg() works alongside the rest of the parsnip model family.</strong> These functions cover the neighboring tasks in a tidymodels project.</p>
+
+<ul>
+
+<li><code>multinom_reg()</code> defines a <a class="auto-link" href="Multinomial-Regression-With-R.html" title="Multinomial Regression with R">multinomial logistic regression</a> for three or more classes.</li>
+
+<li><code>linear_reg()</code> defines a <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression model</a> for continuous outcomes.</li>
+
+<li><code>poisson_reg()</code> defines a <a class="auto-link" href="Poisson-and-Negative-Binomial-Regression-With-R.html" title="Poisson and Negative Binomial Regression with R">Poisson regression</a> model for count outcomes.</li>
+
+<li><code>set_engine()</code> chooses the computational backend for any specification.</li>
+
+<li><code>fit()</code> trains a specification on data and returns a model object.</li>
+
+<li><code>predict()</code> generates predictions from a fitted parsnip model.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What package is logistic_reg() in?</strong></p>
+
+<p><code>logistic_reg()</code> ships in core parsnip, which loads automatically with <code>library(tidymodels)</code>. No extension package is required. The default engine is <code>stats::glm()</code> with <code>family = binomial()</code>. parsnip also registers glmnet, brulee, stan, keras, LiblineaR, h2o, and spark for specialized cases.</p>
+
+<p><strong>What is the difference between logistic_reg() and glm()?</strong></p>
+
+<p><code>glm()</code> is the base R function that fits the model; <code>logistic_reg()</code> is a tidymodels wrapper that defines a specification and dispatches to <code>glm()</code> (or another engine) when you call <code>fit()</code>. The wrapper gives one syntax that swaps between vanilla logistic, penalized, and Bayesian fits, and plays nicely with workflows and tune.</p>
+
+<p><strong>How do I fit ridge or lasso logistic regression with logistic_reg()?</strong></p>
+
+<p>Use <code>logistic_reg(penalty = ..., mixture = ...)</code> with <code>set_engine(&quot;glmnet&quot;)</code>. Set <code>mixture = 0</code> for pure ridge, <code>mixture = 1</code> for pure lasso, and values in between for an elastic net. The <code>penalty</code> argument controls shrinkage, and you can replace it with <code>tune()</code> to search over candidate values during resampling.</p>
+
+<p><strong>Why does parsnip require a factor outcome instead of 0/1?</strong></p>
+
+<p>Forcing a factor outcome makes class labels explicit and prevents parsnip from accidentally fitting a regression on a binary response. The factor level order also determines which class is treated as the event, controlling the orientation of every probability and metric downstream.</p>
+
+<p>For the full argument reference, see the <a href="https://parsnip.tidymodels.org/reference/logistic_reg.html">parsnip logistic_reg() docs</a>.</p>
