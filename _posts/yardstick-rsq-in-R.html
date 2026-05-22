@@ -1,0 +1,408 @@
+---
+title: "yardstick rsq() in R: Score Regression R-Squared"
+description: "Use yardstick rsq() in R to score regression models with R-squared. See syntax, grouped scoring, weighting, rsq_trad() differences, and common pitfalls."
+keywords: "yardstick rsq, rsq function R, yardstick rsq examples, R-squared yardstick, tidymodels rsq, rsq_trad R, R squared regression metric"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "rsq()|yardstick rsq|yardstick::rsq()|R-squared metric|coefficient of determination"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>yardstick rsq() in R: Score Regression R-Squared</h1>
+
+<p class="lead">The yardstick rsq() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> returns the R-squared of a regression model as a unit-free goodness-of-fit score, accepting a tibble with truth and estimate columns and producing a tidy one-row summary you can pipe straight into a metrics report.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>rsq(df, truth, estimate)<span class="qa-cmt">                          # basic call</span>
+rsq(df, truth = obs, estimate = pred)<span class="qa-cmt">             # named arguments</span>
+rsq(df, solubility, prediction)<span class="qa-cmt">                   # default tidymodels output</span>
+df |&gt; group_by(fold) |&gt; rsq(obs, pred)<span class="qa-cmt">            # by resample</span>
+rsq(df, obs, pred, na_rm = TRUE)<span class="qa-cmt">                  # drop missing rows</span>
+rsq_vec(truth_vec, pred_vec)<span class="qa-cmt">                      # vector interface</span>
+rsq(df, obs, pred, case_weights = w)<span class="qa-cmt">              # weighted R-squared</span>
+rsq_trad(df, obs, pred)<span class="qa-cmt">                           # 1 - SSE/SST variant</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is rsq() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">unit-free goodness-of-fit for regression</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">rsq(df, truth, estimate)</text><text x="125" y="126" class="branch-label">need 1 - SSE/SST (can go negative)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">rsq_trad(df, truth, estimate)</text><text x="125" y="182" class="branch-label">error in outcome units</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">rmse(df, truth, estimate)</text><text x="125" y="238" class="branch-label">less <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a> sensitive than rmse</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">mae(df, truth, estimate)</text><text x="125" y="294" class="branch-label">percentage error matters most</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">mape(df, truth, estimate)</text><text x="125" y="350" class="branch-label">predicting classes, not numbers</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">accuracy(df, truth, estimate)</text><text x="125" y="406" class="branch-label">multi-metric report in one call</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">metrics(df, truth, estimate)</text></svg></div>
+
+<h2>What rsq() measures</h2>
+
+<p><strong>rsq() reports the squared <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">Pearson correlation</a> between truth and estimate.</strong> You pass a data frame with the observed numeric outcome and the predicted values, and the function returns a one-row tibble with three columns: <code>.metric</code>, <code>.estimator</code>, and <code>.estimate</code>. The estimate sits between 0 and 1 for well-behaved fits, so an rsq of 0.82 means roughly 82 percent of the variance in your outcome is explained by the predictions.</p>
+
+<p>Because it is a correlation-based statistic, rsq() is invariant to a constant shift or rescale of the predictions. That is a feature when you want a pure goodness-of-fit signal, and a trap when the model is biased: a forecast that is systematically off by 10 units can still score a very high rsq. Pair rsq() with <code>rmse()</code> whenever you compare <a class="auto-link" href="adv-regression-models.html" title="Advanced Regression Models">regression models</a>, so units and <a class="auto-link" href="PCA-in-R.html" title="PCA in R: Reduce Dimensions, Visualise Structure, and Understand What prcomp() Returns">explained variance</a> both stay in view.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>rsq() is correlation-squared, not 1 - SSE/SST.</strong> It only tracks the shape of the prediction curve, not its level. A model that always predicts truth + 1000 still earns rsq = 1.0. Use rsq_trad() when bias should count against the score.</div></div>
+
+<h2>rsq() syntax and arguments</h2>
+
+<p><strong>The signature matches every other yardstick numeric metric.</strong> Once you know the shape, the same call works for <code>rmse()</code>, <code>mae()</code>, <code>mape()</code>, and the rest of the regression family.</p>
+
+<div class="webr-container" data-block-title="rsq generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">rsq generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rsq(data, truth, estimate, na_rm = TRUE, case_weights = NULL, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data</code></td>
+<td>A data frame with the truth and estimate columns.</td>
+</tr>
+<tr>
+<td><code>truth</code></td>
+<td>Unquoted column name of the observed numeric outcome.</td>
+</tr>
+<tr>
+<td><code>estimate</code></td>
+<td>Unquoted column name of the predicted numeric values.</td>
+</tr>
+<tr>
+<td><code>na_rm</code></td>
+<td>If <code>TRUE</code>, drop rows where either column is missing before scoring.</td>
+</tr>
+<tr>
+<td><code>case_weights</code></td>
+<td>Optional column of row weights for survey or importance-weighted data.</td>
+</tr>
+</tbody>
+</table>
+
+<p>Truth and estimate must both be numeric; factor, character, or logical inputs raise an error. If you fitted a classification model, reach for <code>accuracy()</code> or <code>roc_auc()</code> instead.</p>
+
+<h2>Compute R-squared: four examples</h2>
+
+<p><strong>The examples below use yardstick's built-in solubility_test data, which ships a real regression prediction set.</strong> First, load the package and inspect the data.</p>
+
+<div class="webr-container" data-block-title="Load yardstick and inspect solubility data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load yardstick and inspect solubility data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+library(dplyr)
+
+data(&quot;solubility_test&quot;)
+head(solubility_test, 4)
+#&gt; # A tibble: 4 x 2
+#&gt;   solubility prediction
+#&gt;        &lt;dbl&gt;      &lt;dbl&gt;
+#&gt; 1      0.93       0.99
+#&gt; 2      0.85       0.71
+#&gt; 3      0.17       0.18
+#&gt; 4     -0.99      -0.57</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 1 calls rsq() with positional arguments.</strong> The function picks up truth and estimate by position and returns the tidy summary.</p>
+
+<div class="webr-container" data-block-title="Basic rsq score on solubility predictions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Basic rsq score on solubility predictions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rsq(solubility_test, solubility, prediction)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 rsq     standard       0.879</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>About 88 percent of the variance in solubility is explained by the prediction curve, which is the same scale you would read off <code>summary(lm(...))$r.squared</code> on a held-out set.</p>
+
+<p><strong>Example 2 scores predictions inside a <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">group_by</a> pipeline.</strong> Pass folds, batches, or experiments through <code>group_by()</code> and yardstick returns one row per group.</p>
+
+<div class="webr-container" data-block-title="rsq per fold using group_by">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">rsq per fold using group_by</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+folded &lt;- solubility_test |&gt;
+  mutate(fold = sample(1:5, n(), replace = TRUE))
+
+folded |&gt;
+  group_by(fold) |&gt;
+  rsq(solubility, prediction)
+#&gt; # A tibble: 5 x 4
+#&gt;    fold .metric .estimator .estimate
+#&gt;   &lt;int&gt; &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1     1 rsq     standard       0.881
+#&gt; 2     2 rsq     standard       0.866
+#&gt; 3     3 rsq     standard       0.892
+#&gt; 4     4 rsq     standard       0.878
+#&gt; 5     5 rsq     standard       0.872</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The five fold estimates cluster tightly around the overall 0.879, a sign the predictions generalise evenly across the held-out subsets.</p>
+
+<p><strong>Example 3 weights rows with case_weights.</strong> Pass a numeric column of weights to upweight observations that should count more.</p>
+
+<div class="webr-container" data-block-title="Weighted rsq with case weights">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Weighted rsq with case weights</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">weighted &lt;- solubility_test |&gt;
+  mutate(w = ifelse(solubility &gt; 0, 2, 1))
+
+rsq(weighted, solubility, prediction, case_weights = w)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 rsq     standard       0.881</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Doubling the weight on positive-solubility rows nudges the score, since the correlation now leans on those observations more heavily.</p>
+
+<p><strong>Example 4 plugs rsq() into a multi-metric report.</strong> Build a metric set with <code>metric_set()</code> to score several metrics in one call.</p>
+
+<div class="webr-container" data-block-title="Multi-metric report with rsq, rmse, and mae">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multi-metric report with rsq, rmse, and mae</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">reg_metrics &lt;- metric_set(rsq, rmse, mae)
+
+reg_metrics(solubility_test, solubility, prediction)
+#&gt; # A tibble: 3 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 rsq     standard       0.879
+#&gt; 2 rmse    standard       0.722
+#&gt; 3 mae     standard       0.521</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The bundle reports all three metrics together. Reading rsq alongside rmse keeps both the explained-variance story and the residual scale in the same table.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Bind metric_set() once and reuse it across resamples.</strong> A single <code>reg_metrics</code> object plugs into <code>fit_resamples()</code>, <code>last_fit()</code>, and <code>tune_grid()</code> without re-listing metrics each call.</div></div>
+
+<h2>rsq() vs rsq_trad() and the wider regression family</h2>
+
+<p><strong>Two R-squared variants ship in yardstick, and they answer different questions.</strong> Pick the right one before you compare scores.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Metric</th>
+<th>Formula</th>
+<th>Bounds</th>
+<th>Best use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rsq()</code></td>
+<td>Squared Pearson correlation of truth and estimate</td>
+<td>0 to 1</td>
+<td>Pure goodness-of-fit; ignores bias and scale shifts</td>
+</tr>
+<tr>
+<td><code>rsq_trad()</code></td>
+<td>1 - SSE / SST</td>
+<td>Can be negative</td>
+<td>Traditional R-squared; penalises bias and bad calibration</td>
+</tr>
+<tr>
+<td><code>rmse()</code></td>
+<td>Square root of <a class="auto-link" href="Point-Estimation-in-R.html" title="Point Estimation in R: What Makes an Estimator Good? Bias, Variance, and MSE">mean squared error</a></td>
+<td>0 and up</td>
+<td>Error in outcome units; outlier-sensitive</td>
+</tr>
+<tr>
+<td><code>mae()</code></td>
+<td>Mean absolute error</td>
+<td>0 and up</td>
+<td>Error in outcome units; robust to outliers</td>
+</tr>
+<tr>
+<td><code>mape()</code></td>
+<td>Mean absolute percentage error</td>
+<td>0 and up</td>
+<td>Percentage error; undefined when truth is zero</td>
+</tr>
+</tbody>
+</table>
+
+<p>For most tidymodels workflows where you compare a calibrated model on held-out data, <code>rsq()</code> is the right default because it matches the squared correlation reported by <code>lm()</code> on training data. Switch to <code>rsq_trad()</code> when you suspect bias, when predictions live on a different scale than the truth, or when you need a score that can punish a model for being systematically off.</p>
+
+<div class="webr-container" data-block-title="rsq vs rsq_trad on a biased prediction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">rsq vs rsq_trad on a biased prediction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">biased &lt;- solubility_test |&gt; mutate(prediction = prediction + 5)
+
+rsq(biased, solubility, prediction)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 rsq     standard       0.879
+
+rsq_trad(biased, solubility, prediction)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric  .estimator .estimate
+#&gt;   &lt;chr&gt;    &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 rsq_trad standard     -27.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The bias did not move rsq() at all, but rsq_trad() collapsed to a large negative number. That gap is the whole story behind the two variants.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three rsq() failure modes catch most newcomers.</strong> Knowing them up front saves an hour of debugging silent bugs.</p>
+
+<ol>
+
+<li><strong>rsq() ignores a constant bias.</strong> Add 100 to every prediction and rsq stays put while rsq_trad() crashes. If your model is mis-calibrated, rsq() will lie to you.</li>
+
+<li><strong>Truth and estimate must be numeric.</strong> Passing a factor or character column raises <code>Error: ... must be numeric, not a &lt;factor&gt;</code>. Coerce with <code>as.numeric()</code> only when the levels are already meaningful numbers; otherwise the cast silently corrupts the score.</li>
+
+<li><strong>Constant predictions return NA, not 0.</strong> When <code>var(estimate) == 0</code>, the correlation is undefined and rsq() emits a warning plus an NA estimate. <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> out degenerate folds before averaging or your summary will be NA.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never rank tuning configurations on rsq() alone.</strong> A high rsq says the shape lines up, not that the predictions are usable. Always pair it with <code>rmse()</code> or <code>rsq_trad()</code> so a beautifully shaped but badly biased model cannot win the leaderboard.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Add a <code>group_by()</code> step to the solubility example so rsq is scored separately for the rows above and below the median solubility. Save the result to <code>ex_rsq</code>.</p>
+<div class="webr-container" data-block-title="Your turn: rsq by split">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rsq by split</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: rsq above and below median solubility
+ex_rsq &lt;- solubility_test |&gt;
+  mutate(half = # your code here
+  ) |&gt;
+  group_by(half) |&gt;
+  rsq(solubility, prediction)
+
+ex_rsq
+#&gt; Expected: 2 rows, one per half, both close to 0.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rsq &lt;- solubility_test |&gt;
+  mutate(half = ifelse(solubility &gt;= median(solubility), &quot;upper&quot;, &quot;lower&quot;)) |&gt;
+  group_by(half) |&gt;
+  rsq(solubility, prediction)
+
+ex_rsq
+#&gt; # A tibble: 2 x 4
+#&gt;   half  .metric .estimator .estimate
+#&gt;   &lt;chr&gt; &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 lower rsq     standard       0.706
+#&gt; 2 upper rsq     standard       0.685</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Splitting the data restricts the correlation to a narrower outcome range, so each half scores lower than the full-range 0.879. That collapse is the classic signal that R-squared depends on the variance of truth, not only on prediction quality.</p>
+
+</details>
+</section>
+
+<h2>Related yardstick functions</h2>
+
+<ul>
+
+<li><code>rsq_trad()</code> for the 1 - SSE / SST variant that penalises bias and can return negative scores.</li>
+
+<li><code>rmse()</code> for root mean squared error in outcome units; see <a href="yardstick-rmse-in-R.html">yardstick rmse() in R</a>.</li>
+
+<li><code>mae()</code> for mean absolute error, a less outlier-sensitive companion to rmse; see <a href="yardstick-mae-in-R.html">yardstick mae() in R</a>.</li>
+
+<li><code>mape()</code> for mean absolute percentage error when relative error matters.</li>
+
+<li><code>metric_set()</code> to bundle rsq, rmse, and mae into one reusable scoring function.</li>
+
+</ul>
+
+<p>For the full tidymodels scoring API and the canonical yardstick reference, see the <a href="https://yardstick.tidymodels.org/reference/rsq.html">tidymodels documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Is yardstick rsq() the same as base R's summary(<a class="auto-link" href="Linear-Regression.html" title="Linear Regression">lm()</a>)$r.squared?</strong></p>
+
+<p>On the <a class="auto-link" href="rsample-training-in-R.html" title="rsample training() in R: Get the Training Set From a Split">training set</a> the two match because both reduce to the squared Pearson correlation when the model has an intercept. On held-out predictions, <code>summary(lm())$r.squared</code> does not apply, while <code>rsq()</code> keeps working on any pair of truth and estimate columns. That uniform scoring API is the whole reason yardstick exists.</p>
+
+<p><strong>When should I use rsq_trad() instead of rsq()?</strong></p>
+
+<p>Use <code>rsq_trad()</code> whenever bias or scale should count against the score. The traditional formula 1 - SSE / SST punishes a model that is systematically high, low, or on a different scale. Use plain <code>rsq()</code> when you only care how well the predicted curve tracks the shape of the outcome.</p>
+
+<p><strong>Why does rsq() return NA on some resamples?</strong></p>
+
+<p><code>rsq()</code> divides by the variance of the estimate. When a resample contains predictions that are all the same value, that variance is zero, the correlation is undefined, and the function returns NA with a warning. Filter degenerate folds before averaging.</p>
+
+<p><strong>Can rsq() handle <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> in truth or estimate?</strong></p>
+
+<p>Yes. By default <code>na_rm = TRUE</code>, so any row with NA in either column is dropped before scoring. Set <code>na_rm = FALSE</code> if you want the function to error rather than silently shrink the sample.</p>
+
+<p><strong>Does rsq() work for classification models?</strong></p>
+
+<p>No. <code>rsq()</code> requires numeric truth and estimate columns. For classification, reach for <code>accuracy()</code>, <code>kap()</code>, or <code>roc_auc()</code> from the same yardstick family. The shared call shape stays familiar even though the metric is different.</p>
+
+{% endraw %}
