@@ -1,0 +1,340 @@
+---
+title: "glue glue_safe() in R: Secure Interpolation Without eval()"
+description: "Use glue glue_safe() in R for secure string interpolation using get() instead of eval(). Compare it with glue(), see five examples and common pitfalls."
+keywords: "glue glue_safe, glue_safe function R, glue glue_safe examples, R glue_safe vs glue, glue_safe untrusted input, glue safe interpolation, glue_safe envir"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "glue_safe()|glue::glue_safe()|glue glue_safe|glue_safe function|safe string interpolation"
+auto_link_case_sensitive: true
+fr_parent: "stringr-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>glue glue_safe() in R: Secure Interpolation Without eval()</h1>
+
+<p class="lead">glue glue_safe() interpolates values into a template using only <a class="auto-link" href="R-Lexical-Scoping.html" title="Lexical Scoping in R: How R Looks Up Variable Names (R Search Path)">variable lookup</a>, never expression evaluation. It is the security-conscious twin of <code>glue()</code>: braces resolve to the value of a bare name, but <code>{Sys.getenv("HOME")}</code> or any other arbitrary R code is left as a lookup that fails. Reach for it whenever the template itself comes from untrusted input.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>glue_safe(&quot;Hi {name}&quot;, name = &quot;Ada&quot;)<span class="qa-cmt">             # interpolate a named value</span>
+glue_safe(&quot;Hi {x}&quot;)<span class="qa-cmt">                               # lookup x from caller env</span>
+glue_safe(&quot;{a} of {b}&quot;, a = 3, b = 10)<span class="qa-cmt">            # multiple named values</span>
+glue_safe(&quot;{Sys.time()}&quot;)<span class="qa-cmt">                         # ERROR: not a bare name</span>
+glue_safe(&quot;Hi {who}&quot;, .envir = safe_env)<span class="qa-cmt">          # restrict to allow-list env</span>
+glue_safe(&quot;Show {{x}} literally&quot;)<span class="qa-cmt">                 # escape braces</span>
+glue(&quot;Hi {toupper(name)}&quot;)<span class="qa-cmt">                        # use glue() for expressions</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is glue_safe() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">interpolate untrusted templates without eval()</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">glue_safe(&quot;Hi {name}&quot;)</text><text x="125" y="126" class="branch-label">interpolate trusted templates with expressions</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">glue(&quot;Hi {toupper(name)}&quot;)</text><text x="125" y="182" class="branch-label">one safe row per data frame row</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code"><a class="auto-link" href="glue-glue_data-in-R.html" title="glue glue_data() in R: String Templates for Data Frames">glue_data()</a> with vetted columns only</text><text x="125" y="238" class="branch-label">build a SQL statement with quoting</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">glue_sql(&quot;SELECT {col}&quot;, .con = con)</text><text x="125" y="294" class="branch-label">collapse a vector to one string</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">glue_collapse(x, sep = &quot;, &quot;)</text><text x="125" y="350" class="branch-label">write your own restricted transformer</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">glue(template, .transformer = my_t)</text></svg></div>
+
+<h2>What glue_safe() does in one sentence</h2>
+
+<p><strong>glue_safe() interpolates a template where every {brace} resolves to the value of a bare variable name, never to the result of an R expression.</strong> You write the template once with <code>{name}</code> placeholders, hand glue_safe() the values, and it fills each placeholder by looking up that exact name in an environment.</p>
+
+<p>The word "safe" refers to security. <a class="auto-link" href="glue-glue-in-R.html" title="glue glue() in R: Interpolate Variables Into Strings">glue()</a> runs <code>eval()</code> on whatever code sits inside <code>{}</code>, which is fine when the template is yours but dangerous when the template comes from a user, a config file, or any other input you do not fully control. glue_safe() removes eval() from the loop and uses <code>get()</code> instead, so only bare names work and arbitrary code does not run.</p>
+
+<div class="webr-container" data-block-title="Load glue and interpolate a single value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load glue and interpolate a single value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(glue)
+
+name &lt;- &quot;Ada&quot;
+glue_safe(&quot;Hi {name}&quot;)
+#&gt; Hi Ada</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The function reads <code>name</code> from the calling environment and returns the filled template as a glue-class string. The result behaves like a length-1 character vector.</p>
+
+<h2>Syntax</h2>
+
+<p><strong>glue_safe(..., .envir = <a class="auto-link" href="R-Execution-Stack.html" title="R Execution Stack: sys.call(), parent.frame() & Call Stack Internals">parent.frame()</a>) interpolates a template by looking up each {brace} as a bare variable name.</strong> The dots collect template strings and optional named values to interpolate from. The <code>.envir</code> argument is the environment used for name resolution; remaining glue arguments (<code>.sep</code>, <code>.open</code>, <code>.close</code>, <code>.na</code>, <code>.null</code>, <code>.trim</code>) behave identically to <code>glue()</code>.</p>
+
+<div class="webr-container" data-block-title="Function signature and key arguments">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Function signature and key arguments</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># glue_safe(..., .envir = parent.frame())
+#
+# ...     : template string(s); also named values to interpolate from
+# .envir  : environment to look up names in, default = caller frame
+# .sep    : string placed between template parts, default &quot;&quot;
+# .open   : opening delimiter, default &quot;{&quot;
+# .close  : closing delimiter, default &quot;}&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The default <code>.envir = parent.frame()</code> matches <code>glue()</code>. If you are interpolating untrusted templates, pass an explicit allow-list environment so leaked variables in the caller cannot be referenced by a malicious template.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Security comes from <code>.envir</code>, not from glue_safe() alone.</strong> glue_safe() blocks arbitrary code, but it still lets the template name any variable visible in <code>.envir</code>. Build a fresh <code>list2env()</code> containing only the values the template is allowed to see, and pass that as <code>.envir</code>.</div></div>
+
+<h2>Common use cases</h2>
+
+<h3>1. Basic interpolation of a named value</h3>
+
+<div class="webr-container" data-block-title="Interpolate a named value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interpolate a named value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">greet &lt;- function(name) glue_safe(&quot;Hello, {name}&quot;)
+greet(&quot;Ada&quot;)
+#&gt; Hello, Ada</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>name</code> is the function's argument, so it lives in the calling frame and glue_safe() resolves it. This is the everyday usage: bare names mapped one-to-one to values, no expressions in the braces.</p>
+
+<h3>2. Block code injection from a user template</h3>
+
+<div class="webr-container" data-block-title="Compare glue vs glue_safe on hostile input">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare glue vs glue_safe on hostile input</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">template &lt;- &quot;Hi {Sys.getenv('HOME')}&quot;
+
+glue(template)
+#&gt; Hi C:/Users/you   &lt;- glue evaluates the expression
+
+result &lt;- try(glue_safe(template), silent = TRUE)
+inherits(result, &quot;try-error&quot;)
+#&gt; [1] TRUE       &lt;- glue_safe refuses; the expression is not a bare name</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>glue()</code> executes <code>Sys.getenv(&quot;HOME&quot;)</code> because <code>eval()</code> runs whatever sits in braces. <code>glue_safe()</code> throws an error because <code>Sys.getenv(&#x27;HOME&#x27;)</code> is not a bare variable name. With user-supplied templates, that difference is the line between safe and exploited.</p>
+
+<h3>3. Restrict lookup to an allow-list environment</h3>
+
+<div class="webr-container" data-block-title="Pass a fresh envir to restrict allowed names">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pass a fresh envir to restrict allowed names</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">allowed &lt;- list2env(list(name = &quot;Bob&quot;, role = &quot;admin&quot;))
+template &lt;- &quot;User {name} has role {role}&quot;
+glue_safe(template, .envir = allowed)
+#&gt; User Bob has role admin
+
+template2 &lt;- &quot;Secret: {api_key}&quot;
+try(glue_safe(template2, .envir = allowed), silent = TRUE)[1]
+#&gt; Error: object 'api_key' not found</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>allowed</code> is a tiny environment containing only <code>name</code> and <code>role</code>. Any template that references another name fails, even if that name exists in the caller frame. This is the pattern for production-safe interpolation against templates supplied by users.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The default <code>.envir</code> leaks the caller frame.</strong> If you call <code>glue_safe(user_template)</code> without <code>.envir</code>, every variable in the surrounding function is visible to the template. A user could write <code>{db_password}</code> and pull it out. Always pass an explicit <code>.envir</code> when the template is untrusted.</div></div>
+
+<h3>4. Pass values via dots instead of an envir</h3>
+
+<div class="webr-container" data-block-title="Use the dots for one-off named values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use the dots for one-off named values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">glue_safe(&quot;{a} of {b}&quot;, a = 7, b = 12)
+#&gt; 7 of 12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Named arguments in <code>...</code> are visible to the template as if they were in the lookup environment. This is convenient for short calls, though for untrusted templates an explicit <code>.envir = list2env(...)</code> is clearer about what is on the allow-list.</p>
+
+<h3>5. Vectorise over a column of inputs</h3>
+
+<div class="webr-container" data-block-title="Vectorise over a vector of names">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vectorise over a vector of names</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">users &lt;- c(&quot;Ada&quot;, &quot;Bob&quot;, &quot;Cee&quot;)
+glue_safe(&quot;User: {users}&quot;)
+#&gt; User: Ada
+#&gt; User: Bob
+#&gt; User: Cee</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>glue_safe() vectorises over its inputs the same way <code>glue()</code> does: a length-3 <code>users</code> vector produces a length-3 glue result. Pass the result to <code>glue_collapse()</code> if you want to flatten it into one summary line.</p>
+
+<h2>glue_safe() vs glue() and base R alternatives</h2>
+
+<p><strong>Pick glue_safe() whenever the template string is not authored by you.</strong> glue() is faster and supports R expressions, which makes it the default for application code where you write the templates. glue_safe() trades expression power for security; base R's <code>sprintf()</code> is even narrower and only handles positional format codes.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Evaluates code in <code>{}</code>?</th>
+<th>Vector input</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>glue_safe(t, .envir = e)</code></td>
+<td>No</td>
+<td>Yes</td>
+<td>Untrusted templates; allow-list interpolation</td>
+</tr>
+<tr>
+<td><code>glue(t)</code></td>
+<td>Yes</td>
+<td>Yes</td>
+<td>Your own templates with <code>{expression}</code> slots</td>
+</tr>
+<tr>
+<td><code>sprintf(&quot;Hi %s&quot;, x)</code></td>
+<td>No</td>
+<td>Yes</td>
+<td>Positional formatting; numeric precision</td>
+</tr>
+<tr>
+<td><code>paste0(&quot;Hi &quot;, x)</code></td>
+<td>No</td>
+<td>Yes</td>
+<td>Plain concatenation, no template syntax</td>
+</tr>
+<tr>
+<td><code>whisker::whisker.render(t, e)</code></td>
+<td>No</td>
+<td>No</td>
+<td>Logic-less Mustache-style templates</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule: if the template literal lives in your source file, use <code>glue()</code>. If it comes from a user, an environment variable, a database row, or any input outside the file, use <code>glue_safe()</code> with an explicit allow-list environment.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>glue_safe() is in glue 1.5.0 and later.</strong> Older versions of glue do not export it. If you ship code that may run against pinned older versions, fall back to a hand-written <code>gsub()</code> template or upgrade the dependency before relying on glue_safe().</div></div>
+
+<h2>Common pitfalls</h2>
+
+<ol>
+
+<li><strong>Expecting expressions to work.</strong> <code>glue_safe(&quot;{toupper(name)}&quot;)</code> fails because <code>toupper(name)</code> is not a bare name. If you need an expression, evaluate it BEFORE the glue_safe() call: <code>up &lt;- toupper(name); glue_safe(&quot;{up}&quot;)</code>. Mixing the two patterns is a frequent source of confusion when migrating from glue().</li>
+
+</ol>
+
+<ol>
+
+<li><strong>Forgetting <code>.envir</code> with user input.</strong> Calling <code>glue_safe(user_template)</code> without <code>.envir</code> leaves the caller frame as the lookup environment. If your function holds sensitive locals like API keys or database passwords, a hostile template can name them directly. Always pass <code>list2env(...)</code> for untrusted input.</li>
+
+</ol>
+
+<ol>
+
+<li><strong>Treating glue_safe() as a sanitiser for SQL or HTML.</strong> glue_safe() blocks R-code injection, not SQL or HTML injection. For SQL, use <code>glue_sql()</code> with <code>.con = con</code>; the connection drives proper identifier and string quoting. For HTML, use <code>htmltools::htmlEscape()</code> or an explicit template library.</li>
+
+</ol>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a glue_safe() call that interpolates <code>name</code> and <code>role</code> from a restricted allow-list environment. The template should be <code>&quot;User {name}: {role}&quot;</code> and the env should expose only those two names. Save the result to <code>ex_safe</code>.</p>
+<div class="webr-container" data-block-title="Your turn: safe interpolation with allow-list">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: safe interpolation with allow-list</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: glue_safe with a restricted envir
+ex_env &lt;- list2env(list(name = &quot;Ada&quot;, role = &quot;editor&quot;))
+ex_template &lt;- &quot;User {name}: {role}&quot;
+ex_safe &lt;- # your code here
+
+ex_safe
+#&gt; Expected: User Ada: editor</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_safe &lt;- glue_safe(ex_template, .envir = ex_env)
+ex_safe
+#&gt; User Ada: editor</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>list2env()</code> packages a list of allowed values into a fresh environment. Passing it as <code>.envir</code> ensures glue_safe() can resolve <code>name</code> and <code>role</code> but nothing else, even if other names exist in the calling frame.</p>
+
+</details>
+</section>
+
+<h2>Related glue functions</h2>
+
+<ul>
+
+<li><code>glue()</code> is the standard interpolation function. Use it for trusted templates that need to evaluate R expressions in braces.</li>
+
+<li><code>glue_data()</code> interpolates a template across the rows of a data frame. There is no <code>glue_data_safe()</code>, so vet column values when the template itself is user-supplied.</li>
+
+<li><code>glue_sql()</code> builds parameterised SQL with proper identifier and string quoting. Use it for any user-influenced SQL query against a <a class="auto-link" href="DBI-in-R.html" title="Connect R to Any Database: DBI + RSQLite, RPostgres, and RMySQL">DBI</a> connection.</li>
+
+<li><code>glue_collapse()</code> flattens a vector of glue strings into one. Pair it with glue_safe() to <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summarise</a> per-row interpolations into a single line.</li>
+
+<li>See the <a href="https://glue.tidyverse.org/reference/glue_safe.html">glue package reference for glue_safe()</a> for the full argument list and edge-case behaviour.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between glue() and glue_safe()?</strong></p>
+
+<p><code>glue()</code> uses <code>eval()</code> to interpret braces, so <code>{1 + 1}</code> returns 2 and <code>{Sys.time()}</code> runs the function call. <code>glue_safe()</code> uses <code>get()</code> and only resolves bare variable names; the same expressions throw an error. Use glue() in code where you control the template string, and glue_safe() when the template comes from any kind of external input.</p>
+
+<p><strong>When should I prefer glue_safe() over glue()?</strong></p>
+
+<p>Any time the template string is influenced by user input, environment variables, configuration files, or a database row. The rule of thumb: if you cannot point to the literal template string in your source file, treat it as untrusted and use glue_safe() with an explicit <code>.envir</code> argument that lists exactly which names are allowed.</p>
+
+<p><strong>Can glue_safe() return NA for missing variables?</strong></p>
+
+<p>Not by default. glue_safe() throws an error when a name in <code>{braces}</code> cannot be found in <code>.envir</code>, the same way <code>get()</code> does. Wrap calls in <code>tryCatch()</code> if you want a quiet fallback, or pre-populate the allow-list environment with <code>NA</code> values for every optional name you want the template to tolerate.</p>
+
+<p><strong>Is glue_safe() enough to prevent SQL injection?</strong></p>
+
+<p>No. glue_safe() blocks R-code injection inside templates; it does not quote SQL identifiers or string literals. For database queries, use <code>glue_sql()</code> with a DBI <code>.con</code> argument so the connection handles quoting and escaping. glue_safe() and <a class="auto-link" href="glue-glue_sql-in-R.html" title="glue glue_sql() in R: Safely Interpolate Values Into SQL">glue_sql()</a> solve different injection problems and are commonly used together.</p>
