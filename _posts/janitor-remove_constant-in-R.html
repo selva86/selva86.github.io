@@ -1,0 +1,368 @@
+---
+title: "janitor remove_constant() in R: Drop Single-Value Columns"
+description: "Use janitor remove_constant() to drop columns where every row has the same value. Covers na.rm, quiet output, model preprocessing, and remove_empty()."
+keywords: "janitor remove_constant, remove_constant function R, janitor remove_constant examples, R drop constant columns, zero variance columns R, remove_constant na.rm"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "remove_constant()|janitor remove_constant|janitor::remove_constant()|drop constant columns|zero-variance columns"
+auto_link_case_sensitive: true
+fr_parent: "janitor-Package-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>janitor remove_constant() in R: Drop Single-Value Columns</h1>
+
+<p class="lead">The <code>remove_constant()</code> function in janitor drops columns of a data frame where every row holds the same value. It clears zero-variance predictors before modeling, prunes leftover flag columns after a filter, and pairs with <code>remove_empty()</code> for a complete import cleanup.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>remove_constant(df)<span class="qa-cmt">                                  # drop all single-value cols</span>
+remove_constant(df, na.rm = TRUE)<span class="qa-cmt">                    # ignore NA in the check</span>
+remove_constant(df, quiet = FALSE)<span class="qa-cmt">                   # print removed column names</span>
+remove_constant(df, na.rm = TRUE, quiet = FALSE)<span class="qa-cmt">     # combine ignore NA and print</span>
+df |&gt; janitor::remove_constant()<span class="qa-cmt">                     # pipe-friendly</span>
+df |&gt; remove_empty() |&gt; remove_constant()<span class="qa-cmt">            # full import cleanup chain</span>
+sapply(df, \(x) length(unique(x))) == 1<span class="qa-cmt">              # manual constancy check</span>
+remove_constant(df) |&gt; ncol()<span class="qa-cmt">                        # confirm shape after pruning</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is remove_constant() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">drop columns where every value is identical</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">remove_constant(df)</text><text x="125" y="126" class="branch-label">drop columns by exact name</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">select(df, -bad_col)</text><text x="125" y="182" class="branch-label">drop fully blank columns of NA</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">remove_empty(df, which = &quot;cols&quot;)</text><text x="125" y="238" class="branch-label">drop predictors near-zero variance</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">caret::nearZeroVar()</text><text x="125" y="294" class="branch-label">drop columns by type or pattern</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">select(df, where(is.numeric))</text><text x="125" y="350" class="branch-label">keep only constant columns for an audit</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">df[, sapply(df, \(x) length(unique(x)) == 1)]</text><text x="125" y="406" class="branch-label">drop near-empty columns by threshold</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">remove_empty(df, which = &quot;cols&quot;, cutoff = 0.9)</text></svg></div>
+
+<h2>What remove_constant() does in one sentence</h2>
+
+<p><strong><code>remove_constant()</code> deletes any column whose values are all identical, returning a data frame with the same row count but fewer columns.</strong> It is the column-side companion to <code>remove_empty()</code>, targeting columns that carry zero information rather than columns that are blank.</p>
+
+<p>The function pays off in three situations. After reading configuration-shaped data from a wide spreadsheet, you often see columns like <code>survey_year = 2024</code> repeated on every row. After a <code>filter()</code> step, columns that defined the filter (<code>status == &quot;active&quot;</code>) collapse to one value. Before fitting a linear model or running PCA, zero-variance predictors trigger numerical errors. One call handles all three.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>remove_constant()</code> takes a data frame plus <code>na.rm</code> and <code>quiet</code> arguments.</strong> Both flags default to safe values for exploratory work.</p>
+
+<div class="webr-container" data-block-title="Load janitor and a constant-heavy frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load janitor and a constant-heavy frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+library(dplyr)
+
+audit &lt;- data.frame(
+  id       = 1:5,
+  status   = c(&quot;active&quot;, &quot;active&quot;, &quot;active&quot;, &quot;active&quot;, &quot;active&quot;),
+  region   = c(&quot;EU&quot;, &quot;EU&quot;, &quot;EU&quot;, &quot;EU&quot;, &quot;EU&quot;),
+  signups  = c(120, 87, 92, 145, 73),
+  archived = c(FALSE, FALSE, FALSE, FALSE, FALSE)
+)
+audit
+#&gt;   id status region signups archived
+#&gt; 1  1 active     EU     120    FALSE
+#&gt; 2  2 active     EU      87    FALSE
+#&gt; 3  3 active     EU      92    FALSE
+#&gt; 4  4 active     EU     145    FALSE
+#&gt; 5  5 active     EU      73    FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The signature is short:</p>
+
+<pre><code>remove_constant(dat, na.rm = FALSE, quiet = TRUE)</code></pre>
+
+<p>Only <code>dat</code> is required. With defaults, NAs count as a distinct value and removed columns are not announced. Flip <code>na.rm</code> to ignore <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>, and flip <code>quiet</code> to print which columns left.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Run remove_constant() right after a filter step.</strong> A <code>filter(df, region == &quot;EU&quot;)</code> makes <code>region</code> a constant in the result, but it stays in the data frame and clutters downstream summaries. A single <code>remove_constant()</code> after the filter prunes those obvious leftovers without naming them by hand.</div></div>
+
+<h2>Six everyday use cases</h2>
+
+<h3>1. Drop columns that are entirely the same value</h3>
+
+<p><strong>The default call removes any all-same column in one pass.</strong> It does not modify the row count.</p>
+
+<div class="webr-container" data-block-title="Default constant cleanup">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Default constant cleanup</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">audit |&gt;
+  remove_constant()
+#&gt;   id signups
+#&gt; 1  1     120
+#&gt; 2  2      87
+#&gt; 3  3      92
+#&gt; 4  4     145
+#&gt; 5  5      73</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three columns vanish: <code>status</code>, <code>region</code>, and <code>archived</code> each held a single value. <code>id</code> and <code>signups</code> survive because they vary.</p>
+
+<h3>2. Print which columns were dropped</h3>
+
+<p><strong>Set <code>quiet = FALSE</code> to see a one-line report.</strong> Useful inside scripts where silent column loss is confusing.</p>
+
+<div class="webr-container" data-block-title="Announce removed columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Announce removed columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">audit |&gt;
+  remove_constant(quiet = FALSE)
+#&gt; Removing 3 constant columns of data: status, region, archived.
+#&gt;   id signups
+#&gt; 1  1     120
+#&gt; 2  2      87
+#&gt; ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>3. Treat NA as a distinct value (default)</h3>
+
+<p><strong>Mixed-NA columns survive the default check because NA counts as its own value.</strong> This matters when imported data has occasional missing cells.</p>
+
+<div class="webr-container" data-block-title="NA breaks constancy by default">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">NA breaks constancy by default</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mixed &lt;- data.frame(
+  always_one = c(1, 1, 1, 1),
+  one_or_na  = c(1, NA, 1, 1),
+  all_na     = c(NA, NA, NA, NA)
+)
+remove_constant(mixed)
+#&gt;   one_or_na all_na
+#&gt; 1         1     NA
+#&gt; 2        NA     NA
+#&gt; 3         1     NA
+#&gt; 4         1     NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>always_one</code> is dropped (one value, no NAs). <code>one_or_na</code> survives because NA and 1 differ. <code>all_na</code> survives because all values are NA, which is one value, but the check sees a single distinct NA.</p>
+
+<h3>4. Ignore NA in the check</h3>
+
+<p><strong><code>na.rm = TRUE</code> strips NA before measuring constancy.</strong> Columns with one non-NA value plus NAs get dropped.</p>
+
+<div class="webr-container" data-block-title="Treat NA-mixed as constant">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Treat NA-mixed as constant</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">remove_constant(mixed, na.rm = TRUE)
+#&gt;   (none returned, all 3 collapse)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With <code>na.rm = TRUE</code>, <code>one_or_na</code> becomes constant (only 1 remains), and <code>all_na</code> becomes constant (no values remain, which counts as zero distinct). Use this mode when NAs are noise, not signal.</p>
+
+<h3>5. Chain with remove_empty() for a full import cleanup</h3>
+
+<p><strong>The pair handles both blank and constant pollution in one expression.</strong> This is the import-time recipe for spreadsheet exports.</p>
+
+<div class="webr-container" data-block-title="Full cleanup chain">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Full cleanup chain</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">audit |&gt;
+  remove_empty() |&gt;
+  remove_constant(quiet = FALSE)
+#&gt; Removing 3 constant columns of data: status, region, archived.
+#&gt;   id signups
+#&gt; 1  1     120
+#&gt; ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Order matters slightly: <code>remove_empty()</code> first prunes all-NA columns so <code>remove_constant()</code> does not waste a pass on them.</p>
+
+<h3>6. Strip zero-variance predictors before modeling</h3>
+
+<p><strong><code>lm()</code>, <code>glm()</code>, and PCA reject columns with no variance.</strong> A pre-fit cleanup avoids cryptic errors deeper in the pipeline.</p>
+
+<div class="webr-container" data-block-title="Pre-model cleanup">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pre-model cleanup</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">model_df &lt;- iris
+model_df$constant_flag &lt;- &quot;A&quot;     # simulate a polluted column
+clean_df &lt;- remove_constant(model_df, quiet = FALSE)
+#&gt; Removing 1 constant columns of data: constant_flag.
+
+fit &lt;- lm(Sepal.Length ~ ., data = clean_df)
+length(coef(fit))
+#&gt; [1] 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Without <code>remove_constant()</code>, the same <code>lm()</code> call would silently coerce <code>constant_flag</code> and inflate the design matrix, or fail outright in <code>model.matrix()</code>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A constant column carries no signal, so models cannot learn from it and inference cannot bound it.</strong> <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">Linear regression</a> hits a singular design matrix, glmnet flags it, and tree-based learners spend splits on noise. Treat <code>remove_constant()</code> as a standard preprocessing step, not an optional cleanup.</div></div>
+
+<h2>remove_constant() vs select() vs remove_empty()</h2>
+
+<p><strong>Each function targets a different kind of column problem.</strong> Picking the right one avoids over-pruning or leaving dirt behind.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Drops based on</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>remove_constant(df)</code></td>
+<td>every value identical</td>
+<td>post-filter cleanup, zero-variance pruning</td>
+</tr>
+<tr>
+<td><code>remove_empty(df, which = &quot;cols&quot;)</code></td>
+<td>every value is NA</td>
+<td>spreadsheet imports with blank padding</td>
+</tr>
+<tr>
+<td><code>select(df, -col)</code></td>
+<td>exact column name</td>
+<td>you already know what to drop</td>
+</tr>
+<tr>
+<td><code>dplyr::select(df, where(...))</code></td>
+<td>a predicate on the column</td>
+<td>type or pattern-based filtering</td>
+</tr>
+<tr>
+<td><code>caret::nearZeroVar(df)</code></td>
+<td>low variance, not just constant</td>
+<td>model preprocessing where 95% same counts</td>
+</tr>
+</tbody>
+</table>
+
+<p><code>remove_constant()</code> is the strictest of these: only fully constant columns go. Use <code>nearZeroVar()</code> when 99.5% same-value is also a problem.</p>
+
+<h2>Common pitfalls</h2>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>na.rm = FALSE</code> is the default, so a column of mostly the same value mixed with NAs survives.</strong> Many import pipelines hit this trap: a column you expect to be constant carries one NA and remains. If you want NA-tolerant pruning, set <code>na.rm = TRUE</code> explicitly.</div></div>
+
+<p>A second trap is shape assumptions downstream. Code that hard-codes column indices (<code>df[, 5]</code>) breaks after <code>remove_constant()</code> shifts positions. Address columns by name to stay safe.</p>
+
+<p>A third pitfall is grouped data frames. <code>remove_constant()</code> ungroups the result without warning. If you need the groups back, call <code>group_by()</code> again after the cleanup.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a data frame with two varying columns and one column where every row holds <code>&quot;yes&quot;</code>. Use <code>remove_constant()</code> to drop the constant, then confirm the result has 2 columns.</p>
+<div class="webr-container" data-block-title="Your turn drop the constant">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn drop the constant</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(janitor)
+ex_df &lt;- data.frame(
+  ex_id    = 1:4,
+  ex_score = c(10, 25, 13, 18),
+  ex_flag  = c(&quot;yes&quot;, &quot;yes&quot;, &quot;yes&quot;, &quot;yes&quot;)
+)
+ex_pruned &lt;- # your code here
+
+ncol(ex_pruned)
+#&gt; Expected: 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pruned &lt;- remove_constant(ex_df)
+names(ex_pruned)
+#&gt; [1] &quot;ex_id&quot;    &quot;ex_score&quot;
+ncol(ex_pruned)
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>ex_flag</code> repeats "yes" in every row, so <code>remove_constant()</code> drops it. The varying columns <code>ex_id</code> and <code>ex_score</code> are preserved.</p>
+
+</details>
+</section>
+
+<h2>Related janitor functions</h2>
+
+<ul>
+
+<li>[<code>remove_empty()</code>](janitor-remove_empty-in-R.html) drops fully NA <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">rows and columns</a>.</li>
+
+<li>[<code>get_dupes()</code>](janitor-get_dupes-in-R.html) surfaces duplicate rows before pruning.</li>
+
+<li>[<code>clean_names()</code>](janitor-clean_names-in-R.html) standardizes column names at import.</li>
+
+<li>[<code>compare_df_cols()</code>](janitor-compare_df_cols-in-R.html) compares column structures across two data frames.</li>
+
+<li>For deeper background see the <a href="janitor-Package-in-R.html">janitor package overview</a> and the <a href="https://sfirke.github.io/janitor/reference/remove_constant.html">official tidyverse reference</a>.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>Does remove_constant() work on character, factor, and logical columns the same way?</strong></p>
+
+<p>Yes. The constancy check uses <code>length(unique(x))</code> on each column, which treats every type identically. A factor with one level present in the data is constant. A logical column of all <code>FALSE</code> is constant. A character column of repeated <code>&quot;A&quot;</code> is constant. The function does not look at factor level definitions, only the values actually present in the rows.</p>
+
+<p><strong>Why does a column of all NAs survive the default call?</strong></p>
+
+<p>Because <code>na.rm = FALSE</code> counts NA as a value. A column of <code>c(NA, NA, NA)</code> has one distinct value (NA), so it is technically constant. But the function's NA detection treats this as a borderline case that <code>remove_empty()</code> is better suited to handle. Use <code>remove_empty(df, which = &quot;cols&quot;)</code> to strip all-NA columns explicitly.</p>
+
+<p><strong>Can remove_constant() be used before training a model to avoid zero-variance errors?</strong></p>
+
+<p>Yes, and this is one of its most common uses. <code>lm()</code>, <code>glm()</code>, and PCA all fail or warn on constant predictors because the design matrix becomes singular. Running <code>remove_constant(df)</code> before <code>model.matrix()</code> or any <code>~ .</code> formula avoids the trap. For models that tolerate near-constant predictors but penalize them, <code>caret::nearZeroVar()</code> is the stricter alternative.</p>
+
+<p><strong>Does remove_constant() preserve tibble and data.table classes?</strong></p>
+
+<p>For tibbles, yes: the return is a tibble. For data.tables, the function coerces to a data.frame on return, which loses data.table semantics. If you need data.table preserved, copy the relevant columns explicitly with <code>dt[, ..keep_cols]</code> after computing which columns to keep.</p>
+
+<p><strong>Is there an option to keep certain constant columns?</strong></p>
+
+<p>No built-in argument exists. The workaround is to set the columns aside before the call and rejoin them after: <code>keep &lt;- df[, &quot;must_keep&quot;]; pruned &lt;- remove_constant(df[, setdiff(names(df), &quot;must_keep&quot;)]); bind_cols(keep, pruned)</code>. For a more flexible rule, write the constancy check by hand: <code>df[, sapply(df, \(x) length(unique(x)) &gt; 1 | names(df) %in% &quot;must_keep&quot;)]</code>.</p>
