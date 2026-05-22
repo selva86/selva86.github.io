@@ -1,0 +1,434 @@
+---
+title: "caret prSummary() in R: Precision and Recall Summary Metrics"
+description: "Use caret prSummary() in R as the trainControl summaryFunction for imbalanced binary classification. Returns PR-AUC, Precision, Recall, and the F1 score."
+keywords: "caret prSummary, prSummary function R, caret prSummary examples, prSummary trainControl, caret imbalanced classification, R precision recall caret, prSummary classProbs"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "prSummary()|caret prSummary|caret::prSummary()|prSummary function|caret precision recall"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret prSummary() in R: Precision and Recall Summary Metrics</h1>
+
+<p class="lead">The <code>prSummary()</code> function in caret is the precision-recall <code>summaryFunction</code> that <code>trainControl()</code> calls on every resample when the outcome is imbalanced. It accepts a data frame with <code>obs</code>, <code>pred</code>, and class-probability columns, then returns a named vector of <code>AUC</code> (precision-recall AUC), <code>Precision</code>, <code>Recall</code>, and <code>F</code> (F1 score). Wire it into <code>trainControl()</code> with <code>classProbs = TRUE</code> when positives are rare and ROC overstates performance.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>prSummary(df, lev = levels(df$obs))<span class="qa-cmt">                              # direct call</span>
+trainControl(summaryFunction = prSummary, classProbs = TRUE)<span class="qa-cmt">     # wire-in</span>
+train(..., metric = &quot;F&quot;, maximize = TRUE)<span class="qa-cmt">                        # optimise F1</span>
+train(..., metric = &quot;AUC&quot;, maximize = TRUE)<span class="qa-cmt">                      # optimise PR-AUC</span>
+train(..., metric = &quot;Precision&quot;)<span class="qa-cmt">                                 # optimise precision</span>
+fit$resample[, c(&quot;AUC&quot;, &quot;Precision&quot;, &quot;Recall&quot;, &quot;F&quot;)]<span class="qa-cmt">             # per-fold metrics</span>
+levels(y)[1]<span class="qa-cmt">                                                     # the positive class</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is prSummary() the right summaryFunction?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">two-class problem with rare positives, want PR-AUC</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">prSummary</text><text x="125" y="126" class="branch-label">two-class problem with balanced classes, want ROC</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">twoClassSummary</text><text x="125" y="182" class="branch-label">three or more classes</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">multiClassSummary</text><text x="125" y="238" class="branch-label">regression (numeric outcome)</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">defaultSummary</text><text x="125" y="294" class="branch-label">need log-loss for probabilistic ranking</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">mnLogLoss</text><text x="125" y="350" class="branch-label">score two vectors outside the resample loop</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">postResample(pred, obs)</text><text x="125" y="406" class="branch-label">full classifier scorecard with <a class="auto-link" href="Logistic-Regression-Exercises-in-R.html" title="Logistic Regression Exercises in R: 10 Classification Practice Problems, Solved Step-by-Step">confusion matrix</a></text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">confusionMatrix(pred, obs)</text></svg></div>
+
+<h2>What prSummary() does in one sentence</h2>
+
+<p><strong>prSummary() is caret's precision-recall scoring contract.</strong> It is the <code>summaryFunction</code> you pass to <code>trainControl()</code> when the positive class is rare and the precision-recall curve carries more signal than the <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">ROC curve</a>. The body computes four numbers from <code>data$obs</code>, <code>data$pred</code>, and the probability column matching the first factor level: PR-AUC via <code>MLmetrics::PRAUC()</code>, plus <code>Precision</code>, <code>Recall</code>, and the F1 score <code>F</code> from caret's own helpers.</p>
+
+<p>The first factor level is the "positive" class. caret looks up <code>lev[1]</code> to find the matching probability column, so the order of levels in your outcome variable controls which class precision and recall are computed against.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>ROC AUC and PR AUC tell different stories on imbalanced data.</strong> A model that ranks the abundant negative class well can post a high ROC AUC while missing most positives; the precision-recall AUC that prSummary returns is sensitive to ranking on the minority class. When positives are under roughly 10 percent of rows, prefer prSummary over twoClassSummary.</div></div>
+
+<h2>prSummary() syntax and arguments</h2>
+
+<p><strong>The signature matches every caret summaryFunction.</strong> Three arguments, of which only <code>data</code> carries values.</p>
+
+<div class="webr-container" data-block-title="Load caret and call prSummary on a tiny frame">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and call prSummary on a tiny frame</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(1)
+n  &lt;- 60
+y  &lt;- factor(c(rep(&quot;pos&quot;, 12), rep(&quot;neg&quot;, 48)), levels = c(&quot;pos&quot;, &quot;neg&quot;))
+pp &lt;- ifelse(y == &quot;pos&quot;,
+             rbeta(n, 6, 2),
+             rbeta(n, 2, 6))
+df &lt;- data.frame(
+  obs  = y,
+  pred = factor(ifelse(pp &gt; 0.5, &quot;pos&quot;, &quot;neg&quot;), levels = c(&quot;pos&quot;, &quot;neg&quot;)),
+  pos  = pp,
+  neg  = 1 - pp
+)
+
+prSummary(df, lev = levels(df$obs))
+#&gt;       AUC Precision    Recall         F
+#&gt; 0.8732910 0.7142857 0.8333333 0.7692308</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments:</p>
+
+<ul>
+
+<li><code>data</code>: a data frame with <code>obs</code> (factor truth), <code>pred</code> (factor predictions), and one column per class named for that level. caret hands the resample frame in unchanged.</li>
+
+<li><code>lev</code>: a character vector of factor levels. The first element is the positive class. Pass <code>lev = levels(df$obs)</code> when calling outside <code>train()</code>.</li>
+
+<li><code>model</code>: the caret training method name. Ignored by prSummary; present only to match the API contract.</li>
+
+</ul>
+
+<p>The return is a length-four named numeric vector with <code>AUC</code>, <code>Precision</code>, <code>Recall</code>, and <code>F</code>. Any of those four names is valid for <code>metric =</code> in <code>train()</code>. <code>AUC</code> here is precision-recall AUC, not ROC AUC; the column name is reused for backwards compatibility.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The PR-AUC computation needs the MLmetrics package.</strong> Caret loads it lazily on the first prSummary call. If the package is missing, <code>AUC</code> returns <code>NA</code> while <code>Precision</code>, <code>Recall</code>, and <code>F</code> still compute. Install once with <code>install.packages(&quot;MLmetrics&quot;)</code>.</div></div>
+
+<h2>prSummary() examples by use case</h2>
+
+<p><strong>Three patterns cover the common calls: wiring into trainControl, optimising on F1 or PR-AUC, and wrapping for a custom threshold.</strong> Each reuses the same scorer with different framing.</p>
+
+<div class="webr-container" data-block-title="Use prSummary inside trainControl on imbalanced data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use prSummary inside trainControl on imbalanced data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data(GermanCredit)
+gc &lt;- GermanCredit[, c(&quot;Class&quot;, &quot;Duration&quot;, &quot;Amount&quot;, &quot;Age&quot;,
+                       &quot;InstallmentRatePercentage&quot;, &quot;NumberExistingCredits&quot;)]
+gc$Class &lt;- factor(gc$Class, levels = c(&quot;Bad&quot;, &quot;Good&quot;))
+
+ctrl &lt;- trainControl(
+  method          = &quot;cv&quot;,
+  number          = 5,
+  classProbs      = TRUE,
+  summaryFunction = prSummary
+)
+
+set.seed(42)
+fit &lt;- train(Class ~ ., data = gc, method = &quot;glm&quot;,
+             family = &quot;binomial&quot;, trControl = ctrl,
+             metric = &quot;F&quot;, maximize = TRUE)
+fit$resample[, c(&quot;AUC&quot;, &quot;Precision&quot;, &quot;Recall&quot;, &quot;F&quot;, &quot;Resample&quot;)]
+#&gt;         AUC Precision    Recall         F Resample
+#&gt; 1 0.5142537 0.4615385 0.2000000 0.2790698    Fold1
+#&gt; 2 0.5028571 0.5000000 0.1666667 0.2500000    Fold2
+#&gt; 3 0.5396825 0.5454545 0.2000000 0.2926829    Fold3
+#&gt; 4 0.4793651 0.4666667 0.2333333 0.3111111    Fold4
+#&gt; 5 0.5380952 0.4444444 0.1333333 0.2051282    Fold5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>classProbs = TRUE</code> is mandatory. Without it <code>train()</code> cannot produce the probability columns that prSummary reads, and the resample call errors before scoring.</p>
+
+<div class="webr-container" data-block-title="Tune random forest on PR-AUC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tune random forest on PR-AUC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+fit_rf &lt;- train(
+  Class ~ ., data = gc,
+  method    = &quot;rf&quot;,
+  trControl = ctrl,
+  tuneGrid  = data.frame(mtry = c(2, 3, 4)),
+  metric    = &quot;AUC&quot;,
+  maximize  = TRUE
+)
+fit_rf$results[, c(&quot;mtry&quot;, &quot;AUC&quot;, &quot;Precision&quot;, &quot;Recall&quot;, &quot;F&quot;)]
+#&gt;   mtry       AUC Precision    Recall         F
+#&gt; 1    2 0.4949619 0.3666667 0.1000000 0.1571429
+#&gt; 2    3 0.5117989 0.4333333 0.1333333 0.2037037
+#&gt; 3    4 0.5066667 0.4181818 0.1466667 0.2173913</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>metric = &quot;AUC&quot;</code> here means precision-recall AUC because the summaryFunction is prSummary. The same code with <code>summaryFunction = twoClassSummary</code> would interpret <code>&quot;AUC&quot;</code> as a typo and abort, because twoClassSummary names its ROC column <code>&quot;ROC&quot;</code> instead.</p>
+
+<div class="webr-container" data-block-title="Wrap prSummary to control the decision threshold">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrap prSummary to control the decision threshold</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prAt &lt;- function(threshold) {
+  function(data, lev = NULL, model = NULL) {
+    data$pred &lt;- factor(
+      ifelse(data[, lev[1]] &gt; threshold, lev[1], lev[2]),
+      levels = lev
+    )
+    prSummary(data, lev = lev, model = model)
+  }
+}
+
+ctrl_25 &lt;- trainControl(method = &quot;cv&quot;, number = 5,
+                        classProbs = TRUE,
+                        summaryFunction = prAt(0.25))
+
+set.seed(11)
+fit_t &lt;- train(Class ~ ., data = gc, method = &quot;glm&quot;,
+               family = &quot;binomial&quot;, trControl = ctrl_25,
+               metric = &quot;Recall&quot;, maximize = TRUE)
+fit_t$resample[, c(&quot;Precision&quot;, &quot;Recall&quot;, &quot;F&quot;)]
+#&gt;   Precision    Recall         F
+#&gt; 1 0.3137255 0.5333333 0.3950617
+#&gt; 2 0.3373494 0.5666667 0.4225589
+#&gt; 3 0.3414634 0.4666667 0.3943662
+#&gt; 4 0.3265306 0.5333333 0.4050633
+#&gt; 5 0.3076923 0.4000000 0.3478261</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The wrapper overrides <code>pred</code> from the probability column before calling prSummary, which is the right way to score at a custom threshold. Lower thresholds trade precision for recall; choose by what cost matters for your application.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Set the rare class as the first level of your outcome factor.</strong> caret reads <code>lev[1]</code> for the probability column lookup and as the positive target for precision and recall. The default alphabetical ordering rarely matches business intent. Use <code>factor(y, levels = c(&quot;positive_class&quot;, &quot;negative_class&quot;))</code> to force the order.</div></div>
+
+<h2>prSummary() vs alternatives</h2>
+
+<p><strong>Caret ships five summaryFunctions plus the postResample helper.</strong> Pick prSummary only when classes are imbalanced and the precision-recall curve is the relevant ranking.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>summaryFunction</th>
+<th>Outcome type</th>
+<th>Returned metrics</th>
+<th>Pick when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>prSummary</code></td>
+<td>Two-class factor</td>
+<td>AUC (PR), Precision, Recall, F</td>
+<td>Imbalanced binary, positives rare</td>
+</tr>
+<tr>
+<td><code>twoClassSummary</code></td>
+<td>Two-class factor</td>
+<td>ROC, Sens, Spec</td>
+<td>Roughly balanced binary, ROC is the headline</td>
+</tr>
+<tr>
+<td><code>multiClassSummary</code></td>
+<td>Multi-class factor</td>
+<td>Accuracy, Kappa, per-class metrics</td>
+<td>Three or more classes</td>
+</tr>
+<tr>
+<td><code>defaultSummary</code></td>
+<td>Numeric (regression)</td>
+<td>RMSE, Rsquared, MAE</td>
+<td>Regression</td>
+</tr>
+<tr>
+<td><code>mnLogLoss</code></td>
+<td>Two- or multi-class</td>
+<td>logLoss</td>
+<td>Probability calibration matters most</td>
+</tr>
+<tr>
+<td><code>postResample</code></td>
+<td>Either</td>
+<td>RMSE/Rsq/MAE or Accuracy/Kappa</td>
+<td>Two-vector scoring outside the resample loop</td>
+</tr>
+</tbody>
+</table>
+
+<p>The deciding test is class balance. Under 10 percent positives, prSummary; between 10 and 40 percent, both are reasonable but twoClassSummary remains the convention; above 40 percent, twoClassSummary because ROC AUC reads more cleanly. For three or more classes, multiClassSummary regardless of balance.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes cause most prSummary failures.</strong> Each has a quick fix.</p>
+
+<div class="webr-container" data-block-title="Pitfall 1: classProbs must be TRUE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 1: classProbs must be TRUE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ctrl_bad &lt;- trainControl(method = &quot;cv&quot;, number = 5,
+                         summaryFunction = prSummary)
+set.seed(3)
+fit_bad &lt;- try(train(Class ~ ., data = gc, method = &quot;glm&quot;,
+                     family = &quot;binomial&quot;, trControl = ctrl_bad,
+                     metric = &quot;F&quot;), silent = TRUE)
+substr(attr(fit_bad, &quot;condition&quot;)$message, 1, 70)
+#&gt; [1] &quot;train()'s use of ROC codes requires class probabilities. See the cla&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>prSummary reads <code>data[, lev[1]]</code> for the probability of the positive class. Without <code>classProbs = TRUE</code>, that column does not exist and <code>train()</code> aborts before scoring the first resample. Always set <code>classProbs = TRUE</code> alongside <code>summaryFunction = prSummary</code>.</p>
+
+<div class="webr-container" data-block-title="Pitfall 2: the first factor level is the positive class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 2: the first factor level is the positive class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">gc_flip &lt;- gc
+gc_flip$Class &lt;- factor(gc_flip$Class, levels = c(&quot;Good&quot;, &quot;Bad&quot;))
+
+set.seed(4)
+fit_flip &lt;- train(Class ~ ., data = gc_flip, method = &quot;glm&quot;,
+                  family = &quot;binomial&quot;, trControl = ctrl,
+                  metric = &quot;F&quot;, maximize = TRUE)
+fit_flip$resample[1, c(&quot;Precision&quot;, &quot;Recall&quot;, &quot;F&quot;)]
+#&gt;   Precision    Recall         F
+#&gt; 1 0.7714286 0.7714286 0.7714286</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With "Good" as the first level, prSummary now scores recall against the majority class and metrics look excellent while the actual problem (detecting "Bad" credit) gets ignored. Order the factor so the rare or business-critical class is first: <code>factor(y, levels = c(&quot;Bad&quot;, &quot;Good&quot;))</code>.</p>
+
+<div class="webr-container" data-block-title="Pitfall 3: AUC is NA when MLmetrics is not installed">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 3: AUC is NA when MLmetrics is not installed</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df_min &lt;- data.frame(
+  obs = y,
+  pred = factor(ifelse(pp &gt; 0.5, &quot;pos&quot;, &quot;neg&quot;), levels = c(&quot;pos&quot;, &quot;neg&quot;)),
+  pos = pp,
+  neg = 1 - pp
+)
+
+if (!requireNamespace(&quot;MLmetrics&quot;, quietly = TRUE)) {
+  prSummary(df_min, lev = c(&quot;pos&quot;, &quot;neg&quot;))
+  #&gt;       AUC Precision    Recall         F
+  #&gt;        NA 0.7142857 0.8333333 0.7692308
+} else {
+  prSummary(df_min, lev = c(&quot;pos&quot;, &quot;neg&quot;))
+}</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The PR-AUC computation calls <code>MLmetrics::PRAUC()</code>. When the package is missing, prSummary returns <code>NA</code> for <code>AUC</code> and the other three metrics still compute. Run <code>install.packages(&quot;MLmetrics&quot;)</code> once if you tune on <code>metric = &quot;AUC&quot;</code>; otherwise switch the metric to <code>&quot;F&quot;</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The column name <code>AUC</code> is precision-recall AUC, not ROC AUC.</strong> Reports that combine output from prSummary and twoClassSummary side by side will mislead readers who assume "AUC" means ROC. Rename the column in your reporting code, or document the metric explicitly in plots and tables.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a 5-fold CV pipeline on the imbalanced <code>GermanCredit</code> data predicting <code>Class</code> with <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">logistic regression</a>. Wire <code>prSummary</code> into <code>trainControl()</code> with <code>classProbs = TRUE</code> and tune on <code>F</code>. Save the mean F1 across folds to <code>ex_f1</code>.</p>
+<div class="webr-container" data-block-title="Your turn: prSummary on GermanCredit">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: prSummary on GermanCredit</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: 5-fold CV with prSummary
+data(GermanCredit)
+ex_gc &lt;- GermanCredit[, c(&quot;Class&quot;, &quot;Duration&quot;, &quot;Amount&quot;, &quot;Age&quot;)]
+ex_gc$Class &lt;- factor(ex_gc$Class, levels = c(&quot;Bad&quot;, &quot;Good&quot;))
+
+ex_ctrl &lt;- # your code here: trainControl(method='cv', number=5, classProbs=TRUE, summaryFunction=prSummary)
+ex_fit  &lt;- # your code here: train(Class ~ ., method='glm', family='binomial', metric='F')
+ex_f1   &lt;- # your code here: mean of ex_fit$resample$F
+
+ex_f1
+#&gt; Expected: a single numeric near 0.27</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data(GermanCredit)
+ex_gc &lt;- GermanCredit[, c(&quot;Class&quot;, &quot;Duration&quot;, &quot;Amount&quot;, &quot;Age&quot;)]
+ex_gc$Class &lt;- factor(ex_gc$Class, levels = c(&quot;Bad&quot;, &quot;Good&quot;))
+
+ex_ctrl &lt;- trainControl(method = &quot;cv&quot;, number = 5,
+                        classProbs = TRUE,
+                        summaryFunction = prSummary)
+set.seed(1)
+ex_fit  &lt;- train(Class ~ ., data = ex_gc, method = &quot;glm&quot;,
+                 family = &quot;binomial&quot;, trControl = ex_ctrl,
+                 metric = &quot;F&quot;, maximize = TRUE)
+ex_f1   &lt;- mean(ex_fit$resample$F)
+
+ex_f1
+#&gt; [1] 0.2706</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>classProbs = TRUE</code> produces the probability columns prSummary reads; ordering levels with <code>c(&quot;Bad&quot;, &quot;Good&quot;)</code> makes the rare "Bad" class the positive target so <code>Precision</code>, <code>Recall</code>, and <code>F</code> measure detection of bad credit. Averaging <code>fit$resample$F</code> gives the cross-validated F1.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p>The precision-recall stack sits one call away:</p>
+
+<ul>
+
+<li><code>twoClassSummary()</code> for ROC, sensitivity, specificity on balanced binary. See <a href="caret-twoClassSummary-in-R.html">caret twoClassSummary() in R</a>.</li>
+
+<li><code>multiClassSummary()</code> for three-class or more outcomes. See <a href="caret-multiClassSummary-in-R.html">caret multiClassSummary() in R</a>.</li>
+
+<li><code>defaultSummary()</code> for the regression scorer. See <a href="caret-defaultSummary-in-R.html">caret defaultSummary() in R</a>.</li>
+
+<li><code>confusionMatrix()</code> for the full classification scorecard. See <a href="caret-confusionMatrix-in-R.html">caret confusionMatrix() in R</a>.</li>
+
+<li><code>trainControl()</code> for swapping summaryFunctions and setting classProbs. See <a href="caret-trainControl-in-R.html">caret trainControl() in R</a>.</li>
+
+</ul>
+
+<p>For the upstream reference, see the <a href="https://topepo.github.io/caret/">caret package documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does prSummary() return?</strong></p>
+
+<p>For a two-class problem with <code>classProbs = TRUE</code>, <code>prSummary()</code> returns a length-four named numeric vector: <code>AUC</code> (precision-recall AUC via <code>MLmetrics::PRAUC</code>), <code>Precision</code>, <code>Recall</code>, and <code>F</code> (the F1 score). caret rbinds one row per fold into <code>fit$resample</code> and averages columns into <code>fit$results</code>. Any of the four names is valid for <code>metric =</code> in <code>train()</code>.</p>
+
+<p><strong>When should I use prSummary instead of twoClassSummary?</strong></p>
+
+<p>Switch to prSummary when the positive class is roughly under 10 percent of rows. ROC AUC under twoClassSummary is dominated by the abundant negative class, so a model that ranks the rare positives poorly can still report high AUC. Precision-recall AUC is sensitive to ranking on the minority class. For 10 to 40 percent positives, both are reasonable; above 40 percent twoClassSummary is conventional.</p>
+
+<p><strong>Why is AUC always NA in my output?</strong></p>
+
+<p>The <code>AUC</code> column comes from <code>MLmetrics::PRAUC()</code>. If the MLmetrics package is not installed, <code>prSummary()</code> returns NA for AUC and still computes Precision, Recall, and F. Install it with <code>install.packages(&quot;MLmetrics&quot;)</code> and re-run, or change <code>metric =</code> in <code>train()</code> to <code>&quot;F&quot;</code>, <code>&quot;Precision&quot;</code>, or <code>&quot;Recall&quot;</code>, all of which are computed without MLmetrics.</p>
+
+<p><strong>How do I make prSummary score against the rare class?</strong></p>
+
+<p>Order the outcome factor so the rare class is the first level: <code>factor(y, levels = c(&quot;rare_class&quot;, &quot;common_class&quot;))</code>. caret reads <code>lev[1]</code> as the positive class for the probability column lookup and for precision and recall. Alphabetical ordering rarely matches business intent, so set the levels explicitly when constructing the outcome.</p>
+
+<p><strong>Can I use prSummary with a custom decision threshold?</strong></p>
+
+<p>Yes. Wrap prSummary in a function that overwrites <code>data$pred</code> from the probability column before delegating: <code>data$pred &lt;- factor(ifelse(data[, lev[1]] &gt; 0.3, lev[1], lev[2]), levels = lev); prSummary(data, lev, model)</code>. Pass the wrapper as <code>summaryFunction</code> in <code>trainControl()</code>. Lower thresholds raise recall and lower precision; the <code>F</code> column tracks the trade-off.</p>
