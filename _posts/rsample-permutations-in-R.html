@@ -1,0 +1,395 @@
+---
+title: "rsample permutations() in R: Permutation Test Resamples"
+description: "Use rsample::permutations() to build permutation resamples in R for null distributions, p-values, and hypothesis tests. Syntax, examples, and pitfalls."
+keywords: "rsample permutations, permutations function R, rsample permutations examples, R permutation resamples, permutation test rsample, tidymodels permutations"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "permutations()|rsample permutations|rsample::permutations()|permutation resamples|permutation test"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>rsample permutations() in R: Permutation Test Resamples</h1>
+
+<p class="lead">rsample permutations() creates randomly shuffled resamples for <a class="auto-link" href="Permutation-Tests-in-R.html" title="Permutation Tests in R: Exact p-Values via Randomization">permutation tests</a> in R, letting you build a null distribution and compute p-values without parametric assumptions.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>permutations(df, permute = y, times = 1000)<span class="qa-cmt">         # null distribution</span>
+permutations(df, permute = c(a, b), times = 500)<span class="qa-cmt">    # multiple columns</span>
+permutations(df, permute = y, apparent = TRUE)<span class="qa-cmt">      # include original</span>
+analysis(perms$splits[[1]])<span class="qa-cmt">                          # one shuffled resample</span>
+map_dbl(perms$splits, ~ stat(analysis(.x)))<span class="qa-cmt">          # null statistics vector</span>
+mean(null_stats &gt;= observed)<span class="qa-cmt">                         # one-sided p-value</span>
+mean(abs(null_stats) &gt;= abs(observed))<span class="qa-cmt">               # two-sided p-value</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is permutations() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">test hypothesis with null distribution</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">permutations(df, permute = y)</text><text x="125" y="126" class="branch-label"><a class="auto-link" href="broom-bootstrap-in-R.html" title="broom Bootstrap in R: Tidy Resampled Estimates">bootstrap resamples</a> with replacement</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">bootstraps(df, times = 1000)</text><text x="125" y="182" class="branch-label">k-fold cross-validation</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">vfold_cv(df, v = 10)</text><text x="125" y="238" class="branch-label">single train and test split</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">initial_split(df, prop = 0.8)</text><text x="125" y="294" class="branch-label">time-aware rolling resamples</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">rolling_origin(df)</text><text x="125" y="350" class="branch-label">repeated random splits</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">mc_cv(df, prop = 0.8, times = 25)</text></svg></div>
+
+<h2>What permutations() does</h2>
+
+<p><strong>permutations() shuffles selected columns to break a relationship under the null.</strong> You pass a data frame, name one or more columns via <code>permute</code>, and rsample returns a set of resampled tibbles where those columns have been randomly reordered while the rest stay aligned to the original rows. Each resample is a draw from the <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">null hypothesis</a> that the permuted columns are independent of everything else.</p>
+
+<p>The output is an <code>rset</code> (resample set) with a <code>splits</code> list-column. Unlike bootstraps or <a class="auto-link" href="rsample-vfold_cv-in-R.html" title="rsample vfold_cv() in R: V-Fold Cross-Validation Splits">v-fold cross-validation</a>, every split keeps all original rows, so <code>analysis()</code> returns the full data with shuffled columns; <code>assessment()</code> does not apply.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Permutation tests are exchangeable by construction.</strong> If the null is true, every reordering is equally likely, so the observed statistic should sit somewhere typical in the simulated distribution.</div></div>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong>Four arguments control the resample set.</strong> The first two are required; the others have sensible defaults that work for most permutation tests.</p>
+
+<div class="webr-container" data-block-title="Function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">permutations(
+  data,                # data frame or tibble
+  permute,             # column(s) to shuffle, tidyselect syntax
+  times = 25,          # number of permutation resamples
+  apparent = FALSE,    # add the original (unshuffled) split
+  ...
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Type</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data</code></td>
+<td>data.frame</td>
+<td>The dataset whose rows stay intact</td>
+</tr>
+<tr>
+<td><code>permute</code></td>
+<td>tidyselect</td>
+<td>Column(s) to shuffle across rows</td>
+</tr>
+<tr>
+<td><code>times</code></td>
+<td>integer</td>
+<td>Number of permuted resamples to generate</td>
+</tr>
+<tr>
+<td><code>apparent</code></td>
+<td>logical</td>
+<td>If TRUE, append the original unshuffled data as an "Apparent" split</td>
+</tr>
+</tbody>
+</table>
+
+<p>The default <code>times = 25</code> is far too low for inference. Use 1,000 to 10,000 for usable p-values; 25 is fine for testing pipeline code.</p>
+
+<h2>permutations() examples</h2>
+
+<p><strong>Build a null distribution for a two-group mean difference.</strong> The setup compares <code>mpg</code> between automatic and manual cars in <code>mtcars</code>, then permutes the <code>am</code> column to simulate the null of no association.</p>
+
+<div class="webr-container" data-block-title="Compute the observed test statistic">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute the observed test statistic</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rsample)
+library(dplyr)
+library(purrr)
+
+observed &lt;- mtcars %&gt;%
+  group_by(am) %&gt;%
+  summarise(m = mean(mpg)) %&gt;%
+  pull(m) %&gt;%
+  diff()
+
+observed
+#&gt; [1] 7.244939</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="Generate 1,000 permutation resamples">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Generate 1,000 permutation resamples</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+perms &lt;- permutations(mtcars, permute = am, times = 1000)
+perms
+#&gt; # Permutation sampling
+#&gt; # A tibble: 1,000 x 2
+#&gt;    splits         id
+#&gt;    &lt;list&gt;         &lt;chr&gt;
+#&gt;  1 &lt;split [32/0]&gt; Permutations0001
+#&gt;  2 &lt;split [32/0]&gt; Permutations0002
+#&gt;  3 &lt;split [32/0]&gt; Permutations0003
+#&gt;  4 &lt;split [32/0]&gt; Permutations0004
+#&gt;  5 &lt;split [32/0]&gt; Permutations0005
+#&gt; # ... with 995 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="Compute the null statistic for each resample">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute the null statistic for each resample</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">null_diff &lt;- map_dbl(perms$splits, function(s) {
+  analysis(s) %&gt;%
+    group_by(am) %&gt;%
+    summarise(m = mean(mpg), .groups = &quot;drop&quot;) %&gt;%
+    pull(m) %&gt;%
+    diff()
+})
+
+summary(null_diff)
+#&gt;     Min.  1st Qu.   Median     Mean  3rd Qu.     Max.
+#&gt; -7.46875 -1.86250  0.04375  0.01923  1.93125  7.40625</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="Two-sided p-value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-sided p-value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p_value &lt;- mean(abs(null_diff) &gt;= abs(observed))
+p_value
+#&gt; [1] 0.001</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The observed gap of 7.24 mpg lands far in the tail of the null distribution, so the p-value is approximately 1/1000.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Set apparent = TRUE to get an unbiased one-sided p-value.</strong> Adding the observed data to the resample pool ensures the minimum achievable p-value is 1/(times+1) rather than 0, which matters when the null is true.</div></div>
+
+<div class="webr-container" data-block-title="Permute several columns at once">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Permute several columns at once</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(2)
+multi &lt;- permutations(mtcars, permute = c(am, cyl), times = 500)
+analysis(multi$splits[[1]]) %&gt;%
+  select(mpg, am, cyl) %&gt;%
+  head(3)
+#&gt;    mpg am cyl
+#&gt; 1 21.0  0   4
+#&gt; 2 21.0  1   8
+#&gt; 3 22.8  0   6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>am</code> and <code>cyl</code> columns are each shuffled independently across rows; <code>mpg</code> stays attached to its original row.</p>
+
+<h2>permutations() vs other resampling functions</h2>
+
+<p><strong>Use permutations() for hypothesis tests, not for model evaluation.</strong> The other rsample functions resample rows; <code>permutations()</code> resamples values inside columns.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>What it resamples</th>
+<th>Replacement</th>
+<th>Typical use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>permutations()</code></td>
+<td>One or more columns (shuffled)</td>
+<td>n/a</td>
+<td>Null distributions, p-values</td>
+</tr>
+<tr>
+<td><code>bootstraps()</code></td>
+<td>Rows</td>
+<td>Yes</td>
+<td>Standard errors, <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a></td>
+</tr>
+<tr>
+<td><code>vfold_cv()</code></td>
+<td>Rows (k folds)</td>
+<td>No</td>
+<td>k-fold cross-validation</td>
+</tr>
+<tr>
+<td><code>mc_cv()</code></td>
+<td>Rows (random splits)</td>
+<td>No</td>
+<td>Repeated holdout</td>
+</tr>
+<tr>
+<td><code>initial_split()</code></td>
+<td>Rows (one split)</td>
+<td>No</td>
+<td>Single train/test split</td>
+</tr>
+</tbody>
+</table>
+
+<p>If you want to assess a model's predictive accuracy, reach for <code>bootstraps()</code> or <code>vfold_cv()</code>. If you want to test whether two variables are associated beyond chance, reach for <code>permutations()</code>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from Python SciPy?</strong> The closest analog is <code>scipy.stats.permutation_test()</code>, but SciPy returns a p-value directly while rsample gives you the resample list and lets you compute any statistic.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Forgetting to set a seed makes results irreproducible.</strong> Permutation tests are stochastic; rerunning without <code>set.seed()</code> gives a different p-value every time. Always seed before calling <code>permutations()</code>.</p>
+
+<p><strong>Using too few permutations underestimates significance.</strong> With <code>times = 25</code>, the smallest possible p-value is 1/25 = 0.04. To detect effects at p < 0.01, you need at least 1,000 permutations; for p < 0.001, use 10,000.</p>
+
+<div class="webr-container" data-block-title="Pitfall: tiny times produces coarse p-values">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall: tiny times produces coarse p-values</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(3)
+tiny &lt;- permutations(mtcars, permute = am, times = 25)
+null_tiny &lt;- map_dbl(tiny$splits, function(s) {
+  analysis(s) %&gt;% group_by(am) %&gt;%
+    summarise(m = mean(mpg), .groups = &quot;drop&quot;) %&gt;% pull(m) %&gt;% diff()
+})
+mean(abs(null_tiny) &gt;= abs(observed))
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The p-value is 0 because 25 resamples cannot distinguish 1/25 from 0/25. Increase <code>times</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Permuting a constant or near-constant column gives no null variability.</strong> If <code>permute</code> points to a column with one unique value, every shuffle is identical, and the test has no power.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>permutations()</code> on <code>iris</code> to test whether <code>Species</code> is associated with <code>Sepal.Length</code>. Permute the <code>Species</code> column 1,000 times and compute the proportion of resamples where the difference between the largest and smallest group means is at least as extreme as the observed difference.</p>
+<div class="webr-container" data-block-title="Your turn: permutation test on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: permutation test on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rsample); library(dplyr); library(purrr)
+
+# observed range of group means
+ex_observed &lt;- iris %&gt;%
+  group_by(Species) %&gt;%
+  summarise(m = mean(Sepal.Length), .groups = &quot;drop&quot;) %&gt;%
+  summarise(range = max(m) - min(m)) %&gt;%
+  pull(range)
+
+set.seed(42)
+ex_perms &lt;- # your code here
+
+ex_p &lt;- # your code here
+ex_p
+#&gt; Expected: a value at or near 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(42)
+ex_perms &lt;- permutations(iris, permute = Species, times = 1000)
+
+ex_null &lt;- map_dbl(ex_perms$splits, function(s) {
+  analysis(s) %&gt;%
+    group_by(Species) %&gt;%
+    summarise(m = mean(Sepal.Length), .groups = &quot;drop&quot;) %&gt;%
+    summarise(range = max(m) - min(m)) %&gt;%
+    pull(range)
+})
+
+ex_p &lt;- mean(ex_null &gt;= ex_observed)
+ex_p
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Shuffling <code>Species</code> across rows breaks its tie to <code>Sepal.Length</code>. The observed range of group means is so much larger than any random reshuffle produces that no resample exceeds it, giving p approximately equal to 1/(times+1).</p>
+
+</details>
+</section>
+
+<h2>Related rsample functions</h2>
+
+<ul>
+
+<li><a href="rsample-bootstraps-in-R.html">bootstraps()</a>: resample rows with replacement for standard errors and CIs.</li>
+
+<li><a href="rsample-vfold_cv-in-R.html">vfold_cv()</a>: split into k folds for cross-validation.</li>
+
+<li><a href="rsample-mc_cv-in-R.html">mc_cv()</a>: repeated random train/test splits.</li>
+
+<li><a href="rsample-initial_split-in-R.html">initial_split()</a>: one train/test split for a final holdout.</li>
+
+<li><a href="rsample-training-in-R.html">analysis()</a>: pull the analysis (training) set from any split, including a permutation split.</li>
+
+</ul>
+
+<p>Full reference at the <a href="https://rsample.tidymodels.org/reference/permutations.html">tidymodels rsample documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between bootstraps() and permutations() in rsample?</strong></p>
+
+<p><code>bootstraps()</code> samples rows with replacement to estimate the <a class="auto-link" href="Normal-t-F-and-Chi-Squared-Distributions-in-R.html" title="Normal, t, F, and Chi-Squared in R: Understand Each Distribution and When It Arises">sampling distribution</a> of a statistic under the observed data, supporting confidence intervals and standard errors. <code>permutations()</code> shuffles specific columns to simulate the null hypothesis that those columns are independent of the rest of the data, supporting p-values and hypothesis tests. Bootstraps preserve relationships; permutations break them.</p>
+
+<p><strong>How many permutations should I use for a permutation test?</strong></p>
+
+<p>Use at least 1,000 for routine inference and 10,000 if you need precision near small p-values. The minimum reportable p-value is approximately 1/times, so 25 (the default) is only safe for code testing. Increasing <code>times</code> is cheap in rsample because each split is a list element, so default to 1,000 unless your statistic is very expensive.</p>
+
+<p><strong>Can I use rsample permutations with a <a class="auto-link" href="dplyr-ungroup-in-R.html" title="dplyr ungroup() in R: Remove Grouping Before Next Step">grouped data frame</a>?</strong></p>
+
+<p><code>permutations()</code> does not respect dplyr groups; it shuffles the selected columns across all rows regardless of any prior <code>group_by()</code>. To restrict shuffling within groups (a stratified permutation), call <code>permutations()</code> separately on each group's subset and combine the resamples manually, or use <code>dplyr::mutate()</code> with <code>sample()</code> inside a custom resample loop.</p>
+
+<p><strong>Why does rsample::permutations() return an Apparent split?</strong></p>
+
+<p>Only when you set <code>apparent = TRUE</code>. That option adds the original unshuffled data as one extra resample so the observed statistic is included in the null pool. Including the apparent split keeps p-values strictly positive and is the convention recommended by Phipson and Smyth for exact permutation tests.</p>
+
+{% endraw %}
