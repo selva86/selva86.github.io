@@ -1,0 +1,420 @@
+---
+title: "yardstick kap() in R: Cohen's Kappa for Classification"
+description: "Use yardstick kap() in R to score Cohen's Kappa for binary and multiclass classifiers in tidymodels. See syntax, grouped scoring, examples, and pitfalls."
+keywords: "yardstick kap, kap function R, yardstick kap examples, Cohen Kappa R, R classification kappa, kap tidymodels, kappa metric R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "kap()|yardstick kap|yardstick::kap()|Cohen's Kappa|kappa metric"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>yardstick kap() in R: Cohen's Kappa for Classification</h1>
+
+<p class="lead">The yardstick kap() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> computes Cohen's Kappa between observed and predicted class labels, returning a chance-corrected score in [-1, 1] and acting as the default companion to <a class="auto-link" href="yardstick-accuracy-in-R.html" title="yardstick accuracy() in R: Score Classification Models">accuracy()</a> in tidymodels.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>kap(df, truth, estimate)<span class="qa-cmt">                       # basic two-class call</span>
+kap(df, truth = obs, estimate = pred)<span class="qa-cmt">          # named arguments</span>
+kap(df, class, .pred_class)<span class="qa-cmt">                    # default parsnip output</span>
+df |&gt; group_by(fold) |&gt; kap(class, .pred_class)<span class="qa-cmt">   # by resample</span>
+kap(df, class, .pred_class, na_rm = TRUE)<span class="qa-cmt">      # drop missing rows</span>
+kap_vec(truth_vec, pred_vec)<span class="qa-cmt">                   # vector interface</span>
+kap(df, class, .pred_class, case_weights = w)<span class="qa-cmt">  # weighted scoring</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is kap() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">chance-corrected agreement, balanced or skewed</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">kap(df, truth, estimate)</text><text x="125" y="126" class="branch-label">balanced classes, equal error costs</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">accuracy(df, truth, estimate)</text><text x="125" y="182" class="branch-label">robust score on imbalanced data</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">mcc(df, truth, estimate)</text><text x="125" y="238" class="branch-label">precision-recall blend with one knob</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">f_meas(df, truth, estimate)</text><text x="125" y="294" class="branch-label">probability scores, not hard classes</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">roc_auc(df, truth, .pred_class_1)</text><text x="125" y="350" class="branch-label">ordinal ratings with weighted disagreement</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">vcd::Kappa(table(truth, est))</text></svg></div>
+
+<h2>What kap() measures</h2>
+
+<p><strong>kap() reports agreement between predictions and truth after subtracting the agreement expected by chance.</strong> The formula is <code>(po - pe) / (1 - pe)</code>, where <code>po</code> is the observed share of matching labels and <code>pe</code> is the share expected under independence given the marginal class frequencies.</p>
+
+<p>The function takes a data frame with two factor columns and returns a one-row tibble (<code>.metric</code>, <code>.estimator</code>, <code>.estimate</code>). A Kappa of 1 means perfect agreement; 0 means chance; negative values mean worse than guessing the marginals.</p>
+
+<p>Reach for kap when you want one chance-corrected number that works for two classes or many. It is <code>tune::tune_grid()</code>'s default classification metric alongside <code>accuracy()</code>, so most tidymodels users see it without naming it.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Kappa penalises easy wins.</strong> Accuracy rewards always-predict-the-majority models on imbalanced data; Kappa cancels that gain by raising the chance baseline <code>pe</code>. Two models with the same accuracy can land at very different Kappa values depending on how aligned their predictions are with the class prior.</div></div>
+
+<h2>kap() syntax and arguments</h2>
+
+<p><strong>The signature mirrors every other yardstick class metric.</strong> The same call shape works whether you score a logistic regression, a random forest, or an xgboost classifier.</p>
+
+<div class="webr-container" data-block-title="kap generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">kap generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">kap(data, truth, estimate, na_rm = TRUE, case_weights = NULL, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data</code></td>
+<td>A data frame with the truth and estimate columns.</td>
+</tr>
+<tr>
+<td><code>truth</code></td>
+<td>Unquoted column name of the observed class labels (a factor).</td>
+</tr>
+<tr>
+<td><code>estimate</code></td>
+<td>Unquoted column name of the predicted class labels (a factor with matching levels).</td>
+</tr>
+<tr>
+<td><code>na_rm</code></td>
+<td>If <code>TRUE</code>, drop rows where either column is missing before scoring.</td>
+</tr>
+<tr>
+<td><code>case_weights</code></td>
+<td>Optional column of row weights, useful for survey or class-rebalanced data.</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Currently unused; reserved for future extensions.</td>
+</tr>
+</tbody>
+</table>
+
+<p>Both <code>truth</code> and <code>estimate</code> must be factors with identical levels in the same order. yardstick picks the binary or multiclass formula from the level count, so there is no <code>estimator</code> argument to set.</p>
+
+<h2>Examples: Kappa for binary and multiclass</h2>
+
+<p><strong>The examples below score a binary problem first, then a multiclass one.</strong> Start with a deliberately imbalanced two-class data set where one label dominates.</p>
+
+<div class="webr-container" data-block-title="Build an imbalanced binary prediction tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build an imbalanced binary prediction tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+library(dplyr)
+
+set.seed(42)
+imb &lt;- tibble(
+  obs = factor(sample(c(&quot;yes&quot;, &quot;no&quot;), 200, replace = TRUE, prob = c(0.10, 0.90)),
+               levels = c(&quot;yes&quot;, &quot;no&quot;)),
+  pred = factor(sample(c(&quot;yes&quot;, &quot;no&quot;), 200, replace = TRUE, prob = c(0.05, 0.95)),
+                levels = c(&quot;yes&quot;, &quot;no&quot;))
+)
+head(imb, 4)
+#&gt; # A tibble: 4 x 2
+#&gt;   obs   pred
+#&gt;   &lt;fct&gt; &lt;fct&gt;
+#&gt; 1 no    no
+#&gt; 2 no    no
+#&gt; 3 no    yes
+#&gt; 4 no    no</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 1 contrasts accuracy with Kappa on the same imbalanced data.</strong> Accuracy looks healthy because the model agrees with the dominant class most of the time. Kappa removes that free agreement.</p>
+
+<div class="webr-container" data-block-title="Compare accuracy and Kappa on imbalanced data">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare accuracy and Kappa on imbalanced data</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">accuracy(imb, obs, pred)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric  .estimator .estimate
+#&gt;   &lt;chr&gt;    &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 accuracy binary         0.825
+
+kap(imb, obs, pred)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 kap     binary        0.0309</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Accuracy is 0.825 but Kappa is barely above zero. The 82 percent figure is inflated by correct rejections of the majority class; Kappa cancels that free agreement and exposes how little the predictor adds.</p>
+
+<p><strong>Example 2 scores a multiclass setup.</strong> For three or more classes, yardstick computes Kappa from the full K by K <a class="auto-link" href="Logistic-Regression-Exercises-in-R.html" title="Logistic Regression Exercises in R: 10 Classification Practice Problems, Solved Step-by-Step">confusion matrix</a>.</p>
+
+<div class="webr-container" data-block-title="Multiclass Kappa">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multiclass Kappa</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+multi &lt;- tibble(
+  obs = factor(sample(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), 150, replace = TRUE, prob = c(0.6, 0.3, 0.1)),
+               levels = c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;)),
+  pred = factor(sample(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), 150, replace = TRUE, prob = c(0.6, 0.3, 0.1)),
+                levels = c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;))
+)
+
+kap(multi, truth = obs, estimate = pred)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 kap     multiclass    -0.0244</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>.estimator</code> column reports <code>multiclass</code>. There is no macro vs micro switch; yardstick reduces the K by K matrix to one scalar via the Cohen formula generalised to K classes.</p>
+
+<p><strong>Example 3 groups scoring by resample fold.</strong> With CV predictions in one tibble, <code>group_by()</code> plus kap returns one score per fold.</p>
+
+<div class="webr-container" data-block-title="Per-fold Kappa">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-fold Kappa</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">folded &lt;- imb |&gt;
+  mutate(fold = rep(paste0(&quot;fold&quot;, 1:4), each = 50))
+
+folded |&gt;
+  group_by(fold) |&gt;
+  kap(truth = obs, estimate = pred)
+#&gt; # A tibble: 4 x 4
+#&gt;   fold  .metric .estimator .estimate
+#&gt;   &lt;chr&gt; &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 fold1 kap     binary        0.000
+#&gt; 2 fold2 kap     binary        0.058
+#&gt; 3 fold3 kap     binary        0.040
+#&gt; 4 fold4 kap     binary        0.027</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 4 uses the vector interface for ad-hoc checks.</strong> <code>kap_vec()</code> takes two factors directly and returns a numeric scalar instead of a tibble.</p>
+
+<div class="webr-container" data-block-title="Vector interface for quick checks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vector interface for quick checks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">kap_vec(imb$obs, imb$pred)
+#&gt; [1] 0.0309</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Use the vector form inside <code>map()</code> calls, custom tuning code, or unit tests where a tibble is overhead.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Build a default classification metric_set with both anchors.</strong> <code>class_metrics &lt;- metric_set(accuracy, kap)</code> gives the exact pair <code>tune::tune_grid()</code> uses, so <code>class_metrics(df, truth, estimate)</code> returns a two-row tibble you can <code>pivot_wider()</code> to compare runs.</div></div>
+
+<h2>kap() compared with related metrics</h2>
+
+<p><strong>Kappa sits in the chance-corrected family with mcc(), but they answer different questions.</strong> The table below summarises when to swap one for another.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Metric</th>
+<th>Best use case</th>
+<th>Limitation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>kap()</code></td>
+<td>Chance-corrected agreement, default with <code>tune()</code></td>
+<td>Sensitive to marginal class frequencies</td>
+</tr>
+<tr>
+<td><code>accuracy()</code></td>
+<td>Balanced classes, equal error costs</td>
+<td>Misleading on skewed data</td>
+</tr>
+<tr>
+<td><code>mcc()</code></td>
+<td>Single robust score on heavily imbalanced data</td>
+<td>Harder to explain than Kappa</td>
+</tr>
+<tr>
+<td><code>bal_accuracy()</code></td>
+<td>Imbalanced classes, equal cost per class</td>
+<td>Hides class-specific failure modes</td>
+</tr>
+<tr>
+<td><code>f_meas()</code></td>
+<td>Precision-recall blend, harmonic mean</td>
+<td>Equal precision and recall weighting is a choice</td>
+</tr>
+<tr>
+<td><code>j_index()</code></td>
+<td>Two-class screening, Youden's J</td>
+<td>Binary only</td>
+</tr>
+</tbody>
+</table>
+
+<p>A practical rule: report Kappa next to accuracy whenever any class drops below 30 percent, and add <code>mcc()</code> if marginals are unstable across resamples.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>yardstick kap() does not support weighted Kappa.</strong> Linear or quadratic weights for ordinal disagreement (often used in medical and survey scoring) require <code>vcd::Kappa()</code> or <code>irr::kappa2()</code>. The yardstick variant assumes all misclassifications are equally bad.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three small mistakes account for most kap() errors.</strong> Each one has a clear fix.</p>
+
+<p>The first is passing <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">character vectors</a> instead of factors. yardstick needs factors to confirm both columns share the same levels in the same order. The fix is one <code>factor()</code> call:</p>
+
+<div class="webr-container" data-block-title="Fix: convert character columns to factors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fix: convert character columns to factors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bad &lt;- tibble(obs = c(&quot;yes&quot;, &quot;no&quot;, &quot;yes&quot;, &quot;no&quot;), pred = c(&quot;yes&quot;, &quot;yes&quot;, &quot;no&quot;, &quot;no&quot;))
+# kap(bad, obs, pred)  # would error
+bad &lt;- bad |&gt;
+  mutate(across(c(obs, pred), \(x) factor(x, levels = c(&quot;yes&quot;, &quot;no&quot;))))
+kap(bad, obs, pred)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 kap     binary             0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second pitfall is reading Kappa on the accuracy scale. Landis and Koch labelled values above 0.61 as substantial and above 0.81 as almost perfect; a Kappa of 0.4 is fair, not failing. Annotate plots with this scale so accuracy-trained stakeholders do not misread it.</p>
+
+<p>The third pitfall is comparing Kappa across data sets with very different class balance. The chance baseline <code>pe</code> depends on marginal frequencies, so a Kappa of 0.5 on a balanced split is not the same evidence as 0.5 on a 95/5 split. Always report class proportions alongside.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A zero Kappa does not always mean random predictions.</strong> If the model predicts a single class for every row, observed agreement collapses to the marginal frequency, exactly the expected agreement under independence, and Kappa returns zero. Pair kap with <code>conf_mat()</code> to tell "random" apart from "single-class collapse".</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the built-in <code>hpc_cv</code> data from yardstick, which contains predictions across ten resamples for a multiclass problem. Compute Kappa per resample, then sort the result. Save the per-resample tibble to <code>ex_kap_by_fold</code>.</p>
+<div class="webr-container" data-block-title="Your turn: per-resample Kappa">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: per-resample Kappa</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+data(&quot;hpc_cv&quot;)
+
+# Try it: per-resample Kappa
+ex_kap_by_fold &lt;- # your code here
+
+ex_kap_by_fold
+#&gt; Expected: 10 rows, one per Resample value</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+ex_kap_by_fold &lt;- hpc_cv |&gt;
+  group_by(Resample) |&gt;
+  kap(truth = obs, estimate = pred)
+
+ex_kap_by_fold |&gt;
+  arrange(desc(.estimate)) |&gt;
+  head(3)
+#&gt; # A tibble: 3 x 4
+#&gt;   Resample .metric .estimator .estimate
+#&gt;   &lt;chr&gt;    &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 Fold06   kap     multiclass     0.508
+#&gt; 2 Fold02   kap     multiclass     0.502
+#&gt; 3 Fold10   kap     multiclass     0.495</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Grouping by Resample before calling kap returns one multiclass Kappa per fold. Sorting by <code>.estimate</code> surfaces the strongest fold, which you would then inspect with <code>conf_mat()</code> for class-specific patterns.</p>
+
+</details>
+</section>
+
+<h2>Related yardstick metrics</h2>
+
+<p><strong>kap() is one entry in the yardstick class-metric family.</strong> Reach for these neighbors when Kappa alone is not enough:</p>
+
+<ul>
+
+<li><code>accuracy()</code> for the raw agreement baseline you compare against</li>
+
+<li><code>mcc()</code> for a chi-square based score that holds up under extreme skew</li>
+
+<li><code>bal_accuracy()</code> for the macro-recall view of the same problem</li>
+
+<li><code>f_meas()</code> for a precision-recall blend</li>
+
+<li><code>j_index()</code> for the binary Youden's J</li>
+
+<li><code>roc_auc()</code> and <code>pr_auc()</code> for probability-based ranking metrics</li>
+
+</ul>
+
+<p>For the full set, see the <a href="https://yardstick.tidymodels.org/reference/index.html">yardstick reference index</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How is Cohen's Kappa calculated for two classes?</strong></p>
+
+<p>For <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">binary classification</a>, Kappa reads the confusion matrix to compute observed agreement <code>po</code> (rows where prediction matches truth) and expected agreement <code>pe</code> (agreement from sampling each column independently by its marginal frequency). The score is <code>(po - pe) / (1 - pe)</code>: the numerator measures chance-corrected gain, the denominator scales it to a max of 1.</p>
+
+<p><strong>When should I prefer kap() over accuracy()?</strong></p>
+
+<p>Use Kappa whenever any class is rare or the model could clear a high accuracy bar by predicting the majority class. Accuracy can sit at 95 percent while Kappa lands near zero, exposing the imbalance instantly. Tidymodels reports both by default in <code>tune_grid()</code> for that reason.</p>
+
+<p><strong>Does kap() support weighted Kappa?</strong></p>
+
+<p>No. yardstick treats every misclassification equally, which is fine for nominal labels but loses information for ordinal ratings where misclassifying "high" as "low" is worse than as "medium". For weighted Kappa use <code>vcd::Kappa()</code> or <code>irr::kappa2(..., weight = &quot;squared&quot;)</code> instead.</p>
+
+<p><strong>Can I compute Kappa from a parsnip workflow?</strong></p>
+
+<p>Yes. Pipe <code>augment()</code> output into kap. With <code>augment(fit, new_data = test)</code> the result already contains the truth column and <code>.pred_class</code>, so the call becomes <code>augment(fit, test) |&gt; kap(class, .pred_class)</code>. Replace <code>class</code> with the actual outcome column name in your data.</p>
+
+<p><strong>What does a negative Kappa mean?</strong></p>
+
+<p>A negative Kappa means the model agrees with truth less often than chance would predict from the marginals. That is rare and usually signals a flipped factor level, a wrong target column, or a model that memorised the inverse pattern. Inspect <code>conf_mat()</code> and recheck factor levels before blaming the predictor.</p>
+
+<h2>Summary</h2>
+
+<p><strong>kap() is the chance-corrected partner to accuracy() and the default classification metric in tidymodels.</strong> Read it next to accuracy whenever class balance could inflate the raw agreement, and reach for <code>mcc()</code> when you need a score less sensitive to marginal frequencies. With <code>group_by()</code> it scales to any resampling scheme; <code>metric_set(accuracy, kap)</code> is the exact pair <code>tune_grid()</code> already uses.</p>
+
+{% endraw %}
