@@ -1,0 +1,383 @@
+---
+title: "yardstick rsq_trad() in R: Traditional R-Squared Score"
+description: "Compute traditional R-squared (1 - SS_res/SS_tot) on regression predictions with yardstick rsq_trad() in R. Syntax, examples, rsq() differences, pitfalls."
+keywords: "yardstick rsq_trad, rsq_trad function R, yardstick rsq_trad examples, traditional R-squared yardstick, tidymodels rsq_trad, R rsq vs rsq_trad, 1 minus SSE over SST R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "rsq_trad()|yardstick rsq_trad|yardstick::rsq_trad()|traditional R-squared|rsq_trad metric"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>yardstick rsq_trad() in R: Traditional R-Squared Score</h1>
+
+<p class="lead">The yardstick rsq_trad() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> computes the traditional 1 - SS_res / SS_tot R-squared on regression predictions, returning a tidy one-row score that, unlike rsq(), can fall below zero whenever a model performs worse than just predicting the mean of the outcome.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>rsq_trad(df, truth, estimate)<span class="qa-cmt">                     # basic call</span>
+rsq_trad(df, truth = obs, estimate = pred)<span class="qa-cmt">        # named arguments</span>
+df |&gt; group_by(fold) |&gt; rsq_trad(obs, pred)<span class="qa-cmt">       # by resample</span>
+rsq_trad(df, obs, pred, na_rm = TRUE)<span class="qa-cmt">             # drop missing rows</span>
+rsq_trad_vec(truth_vec, pred_vec)<span class="qa-cmt">                 # vector interface</span>
+rsq_trad(df, obs, pred, case_weights = w)<span class="qa-cmt">         # weighted score</span>
+metric_set(rsq_trad, rmse)(df, obs, pred)<span class="qa-cmt">         # multi-metric bundle</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is rsq_trad() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">need 1 - SSE/SST that punishes bias</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">rsq_trad(df, truth, estimate)</text><text x="125" y="126" class="branch-label">want squared-correlation only, no bias penalty</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">rsq(df, truth, estimate)</text><text x="125" y="182" class="branch-label">error in outcome units</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">rmse(df, truth, estimate)</text><text x="125" y="238" class="branch-label">robust to outliers, in outcome units</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">mae(df, truth, estimate)</text><text x="125" y="294" class="branch-label">percentage error of truth</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">mape(df, truth, estimate)</text><text x="125" y="350" class="branch-label">agreement penalising bias and shape</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">ccc(df, truth, estimate)</text><text x="125" y="406" class="branch-label">multi-metric report in one call</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">metric_set(rsq_trad, rmse, mae)(df, obs, pred)</text></svg></div>
+
+<h2>What rsq_trad() measures</h2>
+
+<p><strong>rsq_trad() reports the traditional R-squared, defined as 1 minus the residual sum of squares over the total sum of squares.</strong> You pass a data frame with the observed numeric outcome and the predicted values, and the function returns a one-row tibble with three columns: <code>.metric</code>, <code>.estimator</code>, and <code>.estimate</code>. The estimate hits 1.0 when predictions are perfect, sits near 0 when predictions are no better than the outcome mean, and goes negative whenever predictions are actively worse than that mean baseline.</p>
+
+<p>That negative-score behaviour is the whole reason rsq_trad() exists as a separate metric. Plain rsq() reports the squared <a class="auto-link" href="Correlation-Analysis-in-R.html" title="Correlation in R: Pearson vs Spearman vs Kendall — Compute, Test, and Visualise">Pearson correlation</a>, so it stays inside <code>[0, 1]</code> no matter how badly biased a model is. rsq_trad() instead uses the textbook ordinary-least-squares formula, so a constant offset, a wrong scale, or a model that always predicts the worst-case value will all drag the score down past zero. Use it whenever bias and calibration matter, not just shape.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A negative rsq_trad() is not a bug, it is the metric working.</strong> Zero means a model ties the mean baseline. Below zero means a model loses to that baseline. Above zero means a model beats it. Trust the sign.</div></div>
+
+<h2>rsq_trad() syntax and arguments</h2>
+
+<p><strong>The signature mirrors every other numeric yardstick metric.</strong> Once the call shape is familiar, the same pattern works for <code>rmse()</code>, <code>mae()</code>, <code>mape()</code>, and the rest of the regression family.</p>
+
+<div class="webr-container" data-block-title="rsq_trad generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">rsq_trad generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rsq_trad(data, truth, estimate, na_rm = TRUE, case_weights = NULL, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data</code></td>
+<td>A data frame with the truth and estimate columns.</td>
+</tr>
+<tr>
+<td><code>truth</code></td>
+<td>Unquoted column name of the observed numeric outcome.</td>
+</tr>
+<tr>
+<td><code>estimate</code></td>
+<td>Unquoted column name of the predicted numeric values.</td>
+</tr>
+<tr>
+<td><code>na_rm</code></td>
+<td>If <code>TRUE</code>, drop rows where either column is missing before scoring.</td>
+</tr>
+<tr>
+<td><code>case_weights</code></td>
+<td>Optional column of row weights for survey or importance-weighted data.</td>
+</tr>
+</tbody>
+</table>
+
+<p>A vector flavour, <code>rsq_trad_vec()</code>, takes truth and estimate as <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">numeric vectors</a> and returns a bare double, handy inside <code>summarise()</code> or custom loops.</p>
+
+<h2>Compute traditional R-squared: four examples</h2>
+
+<p><strong>The examples below fit a small regression on mtcars, score it on held-out rows, then probe edge cases.</strong> First, load the packages and split the data.</p>
+
+<div class="webr-container" data-block-title="Load yardstick and fit a regression on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load yardstick and fit a regression on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+library(dplyr)
+
+set.seed(42)
+idx   &lt;- sample(seq_len(nrow(mtcars)), size = 22)
+train &lt;- mtcars[idx, ]
+test  &lt;- mtcars[-idx, ]
+
+fit &lt;- lm(mpg ~ wt + hp + disp, data = train)
+preds &lt;- tibble(
+  obs  = test$mpg,
+  pred = predict(fit, newdata = test)
+)
+head(preds, 4)
+#&gt; # A tibble: 4 x 2
+#&gt;     obs  pred
+#&gt;   &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1  21.0  21.5
+#&gt; 2  22.8  25.7
+#&gt; 3  18.7  18.3
+#&gt; 4  19.2  19.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 1 calls rsq_trad() on the held-out predictions.</strong> With positional arguments the function picks up <code>obs</code> as truth and <code>pred</code> as estimate.</p>
+
+<div class="webr-container" data-block-title="Basic rsq_trad on held-out mpg predictions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Basic rsq_trad on held-out mpg predictions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rsq_trad(preds, obs, pred)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric  .estimator .estimate
+#&gt;   &lt;chr&gt;    &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 rsq_trad standard       0.802</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>About 80 percent of the variance in held-out mpg is explained by the linear fit. Because predictions are roughly unbiased, this estimate sits close to what <code>rsq()</code> would report on the same pair.</p>
+
+<p><strong>Example 2 shows how a constant bias pulls rsq_trad() apart from rsq().</strong> Add 10 mpg to every prediction and rescore.</p>
+
+<div class="webr-container" data-block-title="Biased predictions push rsq_trad below zero">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Biased predictions push rsq_trad below zero</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">biased &lt;- preds |&gt; mutate(pred = pred + 10)
+
+rsq(biased, obs, pred)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric .estimator .estimate
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 rsq     standard       0.802
+
+rsq_trad(biased, obs, pred)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric  .estimator .estimate
+#&gt;   &lt;chr&gt;    &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 rsq_trad standard      -1.94</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The squared correlation does not move because the shape of the prediction curve is identical. rsq_trad() collapses to roughly -1.9 because the residuals are now much larger than the variance of the truth. That gap is the entire point of keeping both metrics in the yardstick toolbox.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>When rsq() and rsq_trad() agree, your model is well calibrated.</strong> When they diverge, the gap measures bias. Treat the difference as a free diagnostic, not just a second number on the dashboard.</div></div>
+
+<p><strong>Example 3 reaches for the vector interface.</strong> <code>rsq_trad_vec()</code> skips the tibble wrapper and returns a plain double, handy inside <code>summarise()</code>.</p>
+
+<div class="webr-container" data-block-title="Vector interface returns a single double">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vector interface returns a single double</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rsq_trad_vec(preds$obs, preds$pred)
+#&gt; [1] 0.8021
+
+preds |&gt;
+  summarise(score = rsq_trad_vec(obs, pred))
+#&gt; # A tibble: 1 x 1
+#&gt;   score
+#&gt;   &lt;dbl&gt;
+#&gt; 1 0.802</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The vector form ignores group context, so wrap it in <code>summarise()</code> if you want grouped output without leaving the data-frame interface.</p>
+
+<p><strong>Example 4 bundles rsq_trad() into a multi-metric report.</strong> <code>metric_set()</code> glues several metrics into one scoring function.</p>
+
+<div class="webr-container" data-block-title="Multi-metric report with rsq, rsq_trad, rmse, and mae">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multi-metric report with rsq, rsq_trad, rmse, and mae</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">reg_metrics &lt;- metric_set(rsq, rsq_trad, rmse, mae)
+
+reg_metrics(preds, obs, pred)
+#&gt; # A tibble: 4 x 3
+#&gt;   .metric  .estimator .estimate
+#&gt;   &lt;chr&gt;    &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 rsq      standard       0.802
+#&gt; 2 rsq_trad standard       0.802
+#&gt; 3 rmse     standard       2.41
+#&gt; 4 mae      standard       1.83</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Reading rsq and rsq_trad side by side flags calibration drift instantly. The same bundle plugs into <code>fit_resamples()</code> or <code>last_fit()</code> for tuning workflows.</p>
+
+<h2>rsq_trad() vs rsq(): when the two disagree</h2>
+
+<p><strong>Two R-squared formulas, two answers.</strong> The choice matters whenever predictions live on a different scale or with a different mean than the truth.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Behaviour</th>
+<th><code>rsq()</code></th>
+<th><code>rsq_trad()</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Formula</td>
+<td>Squared Pearson correlation</td>
+<td>1 - SSE / SST</td>
+</tr>
+<tr>
+<td>Bounds</td>
+<td>Strictly <code>[0, 1]</code></td>
+<td>Can be negative</td>
+</tr>
+<tr>
+<td>Constant bias</td>
+<td>Ignored</td>
+<td>Penalised harshly</td>
+</tr>
+<tr>
+<td>Scale shift</td>
+<td>Ignored</td>
+<td>Penalised</td>
+</tr>
+<tr>
+<td>Matches <code>summary(lm())$r.squared</code> on training data</td>
+<td>Yes</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td>Matches it on held-out data</td>
+<td>No</td>
+<td>Approximately yes</td>
+</tr>
+</tbody>
+</table>
+
+<p>For a calibrated OLS model on training data the two metrics are mathematically identical, which is why textbooks rarely distinguish them. They diverge on held-out predictions, on regularised models with shrunk coefficients, and on any case where the prediction mean drifts from the truth mean. In those situations <code>rsq_trad()</code> is the honest answer; <code>rsq()</code> is the optimistic one.</p>
+
+<p>For the squared-correlation companion metric and the standard way to call it inside tidymodels, see <a href="yardstick-rsq-in-R.html">yardstick rsq() in R</a>. For the residual-scale companions, see <a href="yardstick-rmse-in-R.html">yardstick rmse() in R</a> and <a href="yardstick-mae-in-R.html">yardstick mae() in R</a>.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three rsq_trad() failure modes trip up most newcomers.</strong> Knowing them up front saves time debugging a model that is fine and a metric that is fine but mismatched.</p>
+
+<ol>
+
+<li><strong>A negative score is informative, not broken.</strong> Below-zero values mean the predictions lose to a constant-mean baseline. The fix is the model, not the metric.</li>
+
+<li><strong>Truth and estimate must be numeric.</strong> Passing a factor or character column raises <code>Error: ... must be numeric, not a &lt;factor&gt;</code>. Coerce with <code>as.numeric()</code> only when the levels already encode numbers.</li>
+
+<li><strong>Single-row groups return NA.</strong> <code>rsq_trad()</code> needs at least two rows per group to compute <code>SS_tot</code>. <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> degenerate groups before averaging.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never average rsq_trad() across resamples without checking the spread.</strong> A single fold with a near-constant truth can produce a wildly negative score that drags the mean below the median of the remaining folds. Report the median or trim outliers before turning the bundle into one number.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Re-score the mtcars regression after deliberately biasing predictions by 5 mpg, and compare rsq_trad() before and after. Save the after-bias score to <code>ex_rsq_trad</code>.</p>
+<div class="webr-container" data-block-title="Your turn: rsq_trad before and after bias">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rsq_trad before and after bias</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: rescore with a +5 mpg bias
+biased_preds &lt;- preds |&gt;
+  mutate(pred = # your code here
+  )
+
+ex_rsq_trad &lt;- rsq_trad(biased_preds, obs, pred)
+ex_rsq_trad
+#&gt; Expected: one row, .estimate noticeably below the un-biased 0.802</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">biased_preds &lt;- preds |&gt;
+  mutate(pred = pred + 5)
+
+ex_rsq_trad &lt;- rsq_trad(biased_preds, obs, pred)
+ex_rsq_trad
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric  .estimator .estimate
+#&gt;   &lt;chr&gt;    &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 rsq_trad standard      -0.118</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Adding 5 to every prediction inflates the residual sum of squares while leaving the total sum of squares unchanged, so rsq_trad() falls from 0.802 to roughly -0.12. The same biased predictions still score rsq() at 0.802, which is the diagnostic gap that motivates keeping both metrics.</p>
+
+</details>
+</section>
+
+<h2>Related yardstick functions</h2>
+
+<ul>
+
+<li><code>rsq()</code> for the squared Pearson correlation variant that ignores bias.</li>
+
+<li><code>rmse()</code> for root <a class="auto-link" href="Point-Estimation-in-R.html" title="Point Estimation in R: What Makes an Estimator Good? Bias, Variance, and MSE">mean squared error</a> in outcome units; pairs naturally with rsq_trad().</li>
+
+<li><code>mae()</code> for mean absolute error when outliers should count less.</li>
+
+<li><code>ccc()</code> for Lin's concordance correlation, which punishes both bias and shape.</li>
+
+<li><code>metric_set()</code> to bundle rsq_trad with companions in one reusable scoring function.</li>
+
+</ul>
+
+<p>For the full yardstick reference and the canonical tidymodels scoring API, see the <a href="https://yardstick.tidymodels.org/reference/rsq_trad.html">yardstick documentation for rsq_trad</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Why does rsq_trad() return a negative number?</strong></p>
+
+<p>A negative rsq_trad() means the residual sum of squares is larger than the total sum of squares, so the predictions are worse than always guessing the mean of the truth. The number quantifies how badly the model loses to that baseline, where -1 means residuals carry twice the variance of the outcome itself. Treat it as a calibration alarm, not a software error.</p>
+
+<p><strong>When should I use rsq_trad() instead of rsq()?</strong></p>
+
+<p>Use rsq_trad() whenever bias or scale should count against the score. The traditional formula 1 - SSE / SST punishes predictions that are systematically high, low, or on a different scale, so it is the right default on held-out predictions, regularised models, and external forecasts. Reach for rsq() only when shape alone matters and a constant offset is acceptable.</p>
+
+<p><strong>Does rsq_trad() match summary(<a class="auto-link" href="Linear-Regression.html" title="Linear Regression">lm()</a>)$r.squared on training data?</strong></p>
+
+<p>Yes, exactly, provided the model has an intercept and you score on the training rows the model was fitted to. On any other data the equality breaks because the OLS identity that makes rsq() and rsq_trad() coincide no longer holds. That is why yardstick separates the two: held-out scoring needs the honest formula.</p>
+
+<p><strong>Can rsq_trad() handle <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> in truth or estimate?</strong></p>
+
+<p>Yes. By default <code>na_rm = TRUE</code>, so any row with NA in either column is dropped before scoring. Set <code>na_rm = FALSE</code> if you want the function to error rather than silently shrink the sample. The same toggle applies to <code>rsq_trad_vec()</code>.</p>
+
+{% endraw %}
