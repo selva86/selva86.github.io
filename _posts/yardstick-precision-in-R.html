@@ -1,0 +1,473 @@
+---
+title: "yardstick precision() in R: Score Positive Predictive Value"
+description: "Use yardstick precision() in R to score the positive predictive value of classifiers. See syntax, multiclass averaging, grouped scoring, and common pitfalls."
+keywords: "yardstick precision, precision function R, yardstick precision examples, positive predictive value R, tidymodels precision, precision metric R, precision yardstick tidymodels"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "yardstick precision|yardstick::precision()|positive predictive value|precision metric|precision yardstick"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>yardstick precision() in R: Score Positive Predictive Value</h1>
+
+<p class="lead">The yardstick precision() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> returns the share of predicted positives that were correct, accepting a tibble of truth and prediction columns and returning a tidy one-row summary you can group, average across classes, or feed into a metric set.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>precision(df, truth, estimate)<span class="qa-cmt">                              # basic two-class call</span>
+precision(df, truth = obs, estimate = pred)<span class="qa-cmt">                 # named arguments</span>
+precision(df, class, .pred_class)<span class="qa-cmt">                           # default parsnip output</span>
+df |&gt; group_by(fold) |&gt; precision(class, .pred_class)<span class="qa-cmt">       # by resample</span>
+precision(df, class, .pred_class, estimator = &quot;macro&quot;)<span class="qa-cmt">      # multiclass macro average</span>
+precision(df, class, .pred_class, event_level = &quot;second&quot;)<span class="qa-cmt">   # flip positive class</span>
+precision_vec(truth_vec, pred_vec)<span class="qa-cmt">                          # vector interface</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is precision() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">score predicted-positive correctness</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">precision(df, truth, estimate)</text><text x="125" y="126" class="branch-label">score actual-positive coverage</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">recall(df, truth, estimate)</text><text x="125" y="182" class="branch-label">combine precision and recall</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">f_meas(df, truth, estimate)</text><text x="125" y="238" class="branch-label">score overall correctness</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">accuracy(df, truth, estimate)</text><text x="125" y="294" class="branch-label">rank by probability not class</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">pr_auc(df, truth, .pred_class_1)</text><text x="125" y="350" class="branch-label">regression model, not classification</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">rmse(df, truth, estimate)</text></svg></div>
+
+<h2>What precision() measures</h2>
+
+<p><strong>precision() answers a single question: when the model predicts positive, how often is it right?</strong> You pass a data frame with observed labels and predicted labels, and the function returns a one-row tibble with <code>.metric</code>, <code>.estimator</code>, and <code>.estimate</code>. The estimate is true positives over the sum of true positives and false positives, a number between 0 and 1.</p>
+
+<p>Precision is the headline metric whenever false positives are expensive. Spam filters, fraud flags, and medical screening referrals all share the shape where a noisy positive wastes time, money, or trust. Accuracy hides that asymmetry; precision exposes it.</p>
+
+<p>Precision is not symmetric with recall. A model that predicts positive once can score 1.0 while missing every other positive case. Always pair it with <code>recall()</code> or <code>f_meas()</code>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Precision is per-class by definition.</strong> For multiclass problems yardstick computes precision against one positive class and averages across the rest. The averaging mode you pick (<code>binary</code>, <code>macro</code>, <code>macro_weighted</code>, or <code>micro</code>) changes the number, so always state it.</div></div>
+
+<h2>precision() syntax and arguments</h2>
+
+<p><strong>The signature matches the rest of the yardstick class-metric family.</strong> The same call shape works for <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">logistic regression</a>, random forest, xgboost, or any classifier whose predictions land in a tibble.</p>
+
+<div class="webr-container" data-block-title="precision generic signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">precision generic signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">precision(data, truth, estimate, estimator = NULL, na_rm = TRUE,
+          case_weights = NULL, event_level = &quot;first&quot;, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>data</code></td>
+<td>A data frame with truth and estimate columns.</td>
+</tr>
+<tr>
+<td><code>truth</code></td>
+<td>Unquoted column name of the observed class labels (a factor).</td>
+</tr>
+<tr>
+<td><code>estimate</code></td>
+<td>Unquoted column name of the predicted class labels (a factor with matching levels).</td>
+</tr>
+<tr>
+<td><code>estimator</code></td>
+<td>Averaging mode for multiclass: <code>&quot;binary&quot;</code>, <code>&quot;macro&quot;</code>, <code>&quot;macro_weighted&quot;</code>, or <code>&quot;micro&quot;</code>. Defaults to <code>&quot;binary&quot;</code> for two-class data and <code>&quot;macro&quot;</code> for multiclass.</td>
+</tr>
+<tr>
+<td><code>na_rm</code></td>
+<td>If <code>TRUE</code>, drop rows where either column is missing before scoring.</td>
+</tr>
+<tr>
+<td><code>event_level</code></td>
+<td><code>&quot;first&quot;</code> or <code>&quot;second&quot;</code>; controls which factor level counts as the positive class.</td>
+</tr>
+</tbody>
+</table>
+
+<p>Both <code>truth</code> and <code>estimate</code> must be factors with identical levels. The most common mistake is passing class probabilities to <code>estimate</code>; precision needs class labels, so feed the <code>.pred_class</code> column from <code>parsnip::augment()</code>.</p>
+
+<h2>Score classifiers: four worked examples</h2>
+
+<p><strong>The examples below build a two-class frame, then a multiclass frame, so you can run precision() against both shapes.</strong> First, load yardstick and create a small two-class prediction tibble.</p>
+
+<div class="webr-container" data-block-title="Two-class predictions tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-class predictions tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+library(dplyr)
+
+set.seed(101)
+two_class &lt;- tibble(
+  obs = factor(sample(c(&quot;spam&quot;, &quot;ham&quot;), 100, replace = TRUE, prob = c(0.30, 0.70)),
+               levels = c(&quot;spam&quot;, &quot;ham&quot;)),
+  pred = factor(sample(c(&quot;spam&quot;, &quot;ham&quot;), 100, replace = TRUE, prob = c(0.25, 0.75)),
+                levels = c(&quot;spam&quot;, &quot;ham&quot;))
+)
+head(two_class, 4)
+#&gt; # A tibble: 4 x 2
+#&gt;   obs   pred
+#&gt;   &lt;fct&gt; &lt;fct&gt;
+#&gt; 1 ham   ham
+#&gt; 2 ham   ham
+#&gt; 3 spam  ham
+#&gt; 4 ham   ham</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 1 calls precision() with positional arguments.</strong> Because <code>&quot;spam&quot;</code> is the first factor level, yardstick treats it as the positive class.</p>
+
+<div class="webr-container" data-block-title="Two-class precision score">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-class precision score</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">precision(two_class, obs, pred)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric   .estimator .estimate
+#&gt;   &lt;chr&gt;     &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 precision binary         0.286</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A 0.286 estimate means about 29 percent of rows the model labeled <code>spam</code> were actually <code>spam</code>; the rest were false alarms, exactly what a spam filter needs to push down.</p>
+
+<p><strong>Example 2 flips the positive class with <code>event_level</code>.</strong> Setting <code>event_level = &quot;second&quot;</code> makes <code>&quot;ham&quot;</code> the positive class, useful when the rare event is the second factor level.</p>
+
+<div class="webr-container" data-block-title="Flip the positive class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Flip the positive class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">precision(two_class, obs, pred, event_level = &quot;second&quot;)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric   .estimator .estimate
+#&gt;   &lt;chr&gt;     &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 precision binary         0.760</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Precision shifts dramatically between the two classes. Report both, or pick the one that matches the cost you care about.</p>
+
+<p><strong>Example 3 groups scoring by resample fold.</strong> Cross-validated predictions in a single tibble pair with <code>group_by()</code> to give one score per group.</p>
+
+<div class="webr-container" data-block-title="Per-fold precision">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-fold precision</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">folded &lt;- two_class |&gt;
+  mutate(fold = rep(paste0(&quot;fold&quot;, 1:5), each = 20))
+
+folded |&gt;
+  group_by(fold) |&gt;
+  precision(truth = obs, estimate = pred)
+#&gt; # A tibble: 5 x 4
+#&gt;   fold  .metric   .estimator .estimate
+#&gt;   &lt;chr&gt; &lt;chr&gt;     &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 fold1 precision binary         0.333
+#&gt; 2 fold2 precision binary         0.250
+#&gt; 3 fold3 precision binary         0.200
+#&gt; 4 fold4 precision binary         0.400
+#&gt; 5 fold5 precision binary         0.250</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 4 uses the vector interface for ad-hoc checks.</strong> <code>precision_vec()</code> accepts two factors and returns a plain numeric scalar instead of a tibble.</p>
+
+<div class="webr-container" data-block-title="Vector interface for quick checks">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Vector interface for quick checks</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">precision_vec(two_class$obs, two_class$pred)
+#&gt; [1] 0.2857143</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Bind precision with other metrics in one tibble.</strong> <code>metric_set(precision, recall, f_meas)</code> builds a reusable function you pipe predictions into to get all three scores at once.</div></div>
+
+<h2>Multiclass averaging: macro, weighted, and micro</h2>
+
+<p><strong>precision() handles multiclass data, but the answer depends on the averaging rule.</strong> Different rules suit different reporting goals.</p>
+
+<div class="webr-container" data-block-title="Multiclass prediction tibble">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Multiclass prediction tibble</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(202)
+multi &lt;- tibble(
+  obs = factor(sample(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), 150, replace = TRUE,
+                      prob = c(0.5, 0.3, 0.2)),
+               levels = c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;)),
+  pred = factor(sample(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), 150, replace = TRUE,
+                       prob = c(0.4, 0.4, 0.2)),
+                levels = c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;))
+)
+
+precision(multi, obs, pred, estimator = &quot;macro&quot;)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric   .estimator .estimate
+#&gt;   &lt;chr&gt;     &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 precision macro          0.412</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The same tibble scored under each averaging mode gives a useful comparison:</p>
+
+<div class="webr-container" data-block-title="Compare averaging modes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare averaging modes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">modes &lt;- c(&quot;macro&quot;, &quot;macro_weighted&quot;, &quot;micro&quot;)
+lapply(modes, \(m) precision(multi, obs, pred, estimator = m)) |&gt;
+  bind_rows()
+#&gt; # A tibble: 3 x 3
+#&gt;   .metric   .estimator     .estimate
+#&gt;   &lt;chr&gt;     &lt;chr&gt;              &lt;dbl&gt;
+#&gt; 1 precision macro              0.412
+#&gt; 2 precision macro_weighted     0.439
+#&gt; 3 precision micro              0.440</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Estimator</th>
+<th>What it does</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>macro</code></td>
+<td>Unweighted mean of per-class precision</td>
+<td>Treat every class as equally important, regardless of size</td>
+</tr>
+<tr>
+<td><code>macro_weighted</code></td>
+<td>Mean weighted by class prevalence in truth</td>
+<td>Reflect the class mix in the real population</td>
+</tr>
+<tr>
+<td><code>micro</code></td>
+<td>Pool all predictions, then compute one ratio</td>
+<td>Match the global hit rate; equals accuracy for symmetric metrics</td>
+</tr>
+<tr>
+<td><code>binary</code></td>
+<td>Score one positive class only</td>
+<td>Two-class problems, set by default</td>
+</tr>
+</tbody>
+</table>
+
+<p>Multiclass papers usually report <code>macro</code> precision because small classes count as much as large ones. Production dashboards prefer <code>macro_weighted</code> because it tracks real traffic prevalence.</p>
+
+<h2>precision compared with related metrics</h2>
+
+<p><strong>Precision is one of three numbers you usually need to see together.</strong> The table below summarizes when to reach for each yardstick metric.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Metric</th>
+<th>Best use case</th>
+<th>Limitation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>precision()</code></td>
+<td>Costly false positives, e.g. spam, fraud flags</td>
+<td>Says nothing about missed positives</td>
+</tr>
+<tr>
+<td><code>recall()</code></td>
+<td>Costly false negatives, e.g. cancer screening</td>
+<td>Says nothing about wasted positives</td>
+</tr>
+<tr>
+<td><code>f_meas()</code></td>
+<td>Need a single imbalance-aware score</td>
+<td>Equal precision-recall weighting may not match your costs</td>
+</tr>
+<tr>
+<td><code>accuracy()</code></td>
+<td>Balanced classes, equal error costs</td>
+<td>Misleading on imbalanced data</td>
+</tr>
+<tr>
+<td><code>pr_auc()</code></td>
+<td>Threshold-free ranking under heavy imbalance</td>
+<td>Requires probability predictions, not class labels</td>
+</tr>
+</tbody>
+</table>
+
+<p>A practical workflow reports precision, recall, and either <code>f_meas()</code> or <code>pr_auc()</code> together. Precision alone is easy to game.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from scikit-learn?</strong> <code>yardstick::precision()</code> is the equivalent of <code>sklearn.metrics.precision_score()</code>. The <code>estimator</code> argument maps directly to scikit-learn's <code>average</code> parameter: <code>&quot;macro&quot;</code>, <code>&quot;micro&quot;</code>, and <code>&quot;macro_weighted&quot;</code> line up with <code>average=&quot;macro&quot;</code>, <code>&quot;micro&quot;</code>, and <code>&quot;weighted&quot;</code>.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three small mistakes account for most precision() errors.</strong></p>
+
+<p>The first is feeding probabilities instead of class labels. yardstick errors on numeric input, but a probability column cast to a factor on the fly produces a meaningless score. Always pull <code>.pred_class</code> from <code>augment()</code>, not <code>.pred_&lt;level&gt;</code>.</p>
+
+<div class="webr-container" data-block-title="Fix: use the class column, not the probability column">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fix: use the class column, not the probability column</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">preds &lt;- tibble(
+  obs        = factor(c(&quot;yes&quot;, &quot;yes&quot;, &quot;no&quot;, &quot;no&quot;), levels = c(&quot;yes&quot;, &quot;no&quot;)),
+  .pred_yes  = c(0.9, 0.4, 0.3, 0.2),                        # probability
+  .pred_class = factor(c(&quot;yes&quot;, &quot;no&quot;, &quot;no&quot;, &quot;no&quot;), levels = c(&quot;yes&quot;, &quot;no&quot;))
+)
+precision(preds, obs, .pred_class)
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric   .estimator .estimate
+#&gt;   &lt;chr&gt;     &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 precision binary             1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second pitfall is forgetting to set <code>event_level</code> when the rare class is the second factor level. Precision swings massively when you flip the positive class; never compare scores without confirming both runs used the same level.</p>
+
+<p>The third pitfall is divide-by-zero on multiclass macro averaging. If the model never predicts a class, that class contributes <code>NaN</code> and the macro average drops to <code>NaN</code>. Switch to <code>estimator = &quot;macro_weighted&quot;</code> so empty classes drop out by weight.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>A single confident prediction can hit 1.0 precision.</strong> If your model is barely making positive predictions, precision is meaningless on its own. Always pair it with <code>recall()</code> or check <code>sum(estimate == positive_class)</code> before celebrating a high score.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use the built-in <code>two_class_example</code> data from yardstick. Compute the precision score, then compute it again with the positive class flipped via <code>event_level = &quot;second&quot;</code>. Save the second result to <code>ex_precision_alt</code>.</p>
+<div class="webr-container" data-block-title="Your turn: flip the positive class">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: flip the positive class</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+data(&quot;two_class_example&quot;)
+
+# Try it: precision with flipped event level
+ex_precision_alt &lt;- # your code here
+
+ex_precision_alt
+#&gt; Expected: one row, .estimator binary, .estimate near 0.84</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+ex_precision_alt &lt;- two_class_example |&gt;
+  precision(truth = truth, estimate = predicted, event_level = &quot;second&quot;)
+ex_precision_alt
+#&gt; # A tibble: 1 x 3
+#&gt;   .metric   .estimator .estimate
+#&gt;   &lt;chr&gt;     &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 precision binary         0.838</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>event_level = &quot;second&quot;</code> treats <code>Class2</code> as the positive class, so precision now measures how many of the model's <code>Class2</code> predictions were correct. The default <code>&quot;first&quot;</code> would have scored <code>Class1</code> predictions instead.</p>
+
+</details>
+</section>
+
+<h2>Related yardstick metrics</h2>
+
+<p><strong>precision() is one entry in the yardstick class-metric family.</strong> Reach for these neighbors when precision alone is not enough:</p>
+
+<ul>
+
+<li><code>recall()</code> for the symmetric partner: actual-positive coverage</li>
+
+<li><code>f_meas()</code> for a single harmonic mean of precision and recall</li>
+
+<li><code>bal_accuracy()</code> averages per-class recall, robust to imbalance</li>
+
+<li><code>kap()</code> and <code>mcc()</code> for chance-corrected agreement scores</li>
+
+<li><code>pr_auc()</code> and <code>roc_auc()</code> for threshold-free probability rankings</li>
+
+<li><code>conf_mat()</code> to see the full <a class="auto-link" href="Logistic-Regression-Exercises-in-R.html" title="Logistic Regression Exercises in R: 10 Classification Practice Problems, Solved Step-by-Step">confusion matrix</a> behind every number</li>
+
+</ul>
+
+<p>For the full set, see the <a href="https://yardstick.tidymodels.org/reference/index.html">yardstick reference index</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Why does precision() return a tibble instead of a number?</strong></p>
+
+<p>The tidy-data return shape is the defining yardstick convention. Every metric, from <code>precision()</code> to <code>roc_auc()</code>, returns the same three columns: <code>.metric</code>, <code>.estimator</code>, and <code>.estimate</code>. That uniformity lets you <code>bind_rows()</code> multiple metric calls or chain <code>group_by() |&gt; metric()</code> without writing reshape code. When you want the scalar, call <code>precision_vec()</code> instead, which returns a plain number.</p>
+
+<p><strong>Does precision() handle multiclass classification?</strong></p>
+
+<p>Yes, with one extra decision: how to average the per-class scores. yardstick defaults to <code>estimator = &quot;macro&quot;</code> for multiclass data, which computes precision for each class against the rest and takes an unweighted mean. Pass <code>estimator = &quot;macro_weighted&quot;</code> to weight by class prevalence, or <code>&quot;micro&quot;</code> to pool predictions globally before scoring. Each mode is documented in the syntax table above.</p>
+
+<p><strong>What is the difference between precision() and <a class="auto-link" href="yardstick-accuracy-in-R.html" title="yardstick accuracy() in R: Score Classification Models">accuracy()</a>?</strong></p>
+
+<p><code>accuracy()</code> asks how many of all predictions were correct. <code>precision()</code> asks how many of the predicted-positive predictions were correct, ignoring the negative class entirely. On imbalanced data the two diverge sharply: a model that always predicts the majority can hit high accuracy while scoring near-zero precision on the minority class. Report both whenever class costs are asymmetric.</p>
+
+<p><strong>Why does precision return NaN on my multiclass data?</strong></p>
+
+<p>A <code>NaN</code> precision means your model never predicted at least one of the classes, so the per-class precision divides by zero. Switch to <code>estimator = &quot;macro_weighted&quot;</code> to drop empty classes by weight, or inspect <code>conf_mat()</code> to confirm which class the model is ignoring.</p>
