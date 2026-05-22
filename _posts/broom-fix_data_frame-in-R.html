@@ -1,0 +1,332 @@
+---
+title: "broom fix_data_frame() in R: Rownames to Term Column"
+description: "Use broom::fix_data_frame() in R to convert a coefficient matrix into a tidy data frame, renaming the columns and lifting the rownames into a term column."
+keywords: "broom fix_data_frame, fix_data_frame R, broom tidy matrix, rownames to column R, broom coefficient matrix, broom term column, R matrix to data frame"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "fix_data_frame()|broom fix_data_frame|broom::fix_data_frame()|rownames to term column|coefficient matrix to tibble"
+auto_link_case_sensitive: true
+fr_parent: "Linear-Regression.html"
+---
+<!-- md2html:generated -->
+
+<h1>broom fix_data_frame() in R: Rownames to Term Column</h1>
+
+<p class="lead">The <code>broom::fix_data_frame()</code> helper turns a matrix or data frame with informative rownames into a tidy tibble whose first column holds those names as values. It is the small but load-bearing utility that powers every <code>tidy.lm()</code>, <code>tidy.glm()</code>, and <code>tidy.htest()</code> method inside broom.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>fix_data_frame(coef(summary(fit)))<span class="qa-cmt">                  # default term column</span>
+fix_data_frame(mat, newnames = c(&quot;est&quot;,&quot;se&quot;))<span class="qa-cmt">       # rename data columns</span>
+fix_data_frame(mat, newcol = &quot;predictor&quot;)<span class="qa-cmt">           # rename the term column</span>
+fix_data_frame(df_with_rownames)<span class="qa-cmt">                    # data frame input works</span>
+tibble::rownames_to_column(df, var = &quot;term&quot;)<span class="qa-cmt">        # modern public replacement</span>
+as_tibble(mat, rownames = &quot;term&quot;)<span class="qa-cmt">                   # tibble-native one-liner</span>
+broom:::fix_data_frame(x)<span class="qa-cmt">                           # access from broom 1.0+</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is fix_data_frame() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">promote rownames into a term column on a matrix</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">fix_data_frame(mat)</text><text x="125" y="126" class="branch-label">same job on a data frame, public API</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">tibble::rownames_to_column(df)</text><text x="125" y="182" class="branch-label">coefficient table for a fitted model</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">broom::tidy(fit)</text><text x="125" y="238" class="branch-label">one-row model summary</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">broom::glance(fit)</text><text x="125" y="294" class="branch-label">per-observation predictions</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code"><a class="auto-link" href="broom-Exercises-in-R.html" title="broom Exercises in R: 15 Practice Problems">broom::augment</a>(fit, data)</text><text x="125" y="350" class="branch-label">generic matrix to tibble</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">tibble::as_tibble(mat, rownames = &quot;term&quot;)</text><text x="125" y="406" class="branch-label">write your own tidier for a new model class</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">tidy_method = function(x) ...</text></svg></div>
+
+<h2>What fix_data_frame() does in one sentence</h2>
+
+<p><strong>fix_data_frame() takes any rectangular object with meaningful rownames and returns a tibble in which those rownames are an explicit first column.</strong> R model objects expose their coefficients as a numeric matrix where each row name is a predictor (<code>(Intercept)</code>, <code>wt</code>, <code>cyl</code>). That layout is hostile to dplyr, <a class="auto-link" href="ggplot2-Tutorial-With-R.html" title="ggplot2 Short Tutorial">ggplot2</a>, and report tooling because rownames are a side channel, not a column.</p>
+
+<p>The helper renames the data columns to broom's canonical names (<code>estimate</code>, <code>std.error</code>, <code>statistic</code>, <code>p.value</code>), prepends a <code>term</code> column built from the rownames, and drops the resulting tibble back as a data frame. Every method in broom that wraps a base-R model uses it to standardize output. As of broom 1.0+ the function lives in the package's internal <a class="auto-link" href="R-Namespaces.html" title="R Namespaces: How Packages Export Functions & Prevent Conflicts">namespace</a>, so user code reaches it via <code>broom:::fix_data_frame()</code> or the public stand-ins shown below.</p>
+
+<h2>Syntax</h2>
+
+<p><strong>fix_data_frame() has three arguments and zero hidden behavior.</strong> The first is the matrix or data frame to convert, the second renames the data columns, and the third names the rownames column.</p>
+
+<div class="webr-container" data-block-title="Load broom and inspect a coefficient matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load broom and inspect a coefficient matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(broom)
+library(dplyr)
+library(tibble)
+
+fit &lt;- lm(mpg ~ wt + cyl, data = mtcars)
+mat &lt;- coef(summary(fit))
+class(mat)
+#&gt; [1] &quot;matrix&quot; &quot;array&quot;
+rownames(mat)
+#&gt; [1] &quot;(Intercept)&quot; &quot;wt&quot;          &quot;cyl&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three arguments are:</p>
+
+<ul>
+
+<li><code>x</code>: a matrix or data frame whose rownames carry information (required)</li>
+
+<li><code>newnames</code>: a character vector of column names for the data columns; length must match <code>ncol(x)</code> (optional; default keeps existing colnames)</li>
+
+<li><code>newcol</code>: a string naming the new column built from <code>rownames(x)</code>; default <code>&quot;term&quot;</code></li>
+
+</ul>
+
+<p>The return value is a tibble (an unclassed data frame in pre-1.0 broom) with <code>newcol</code> first, followed by the renamed data columns.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>fix_data_frame() became internal in broom 1.0.0 (2020).</strong> Before that it was exported and called directly by users. Today the function still ships with broom but lives in the private namespace, so user code that needs the exact behavior must use the <code>:::</code> operator or switch to <code>tibble::rownames_to_column()</code> and <code>tibble::as_tibble(..., rownames = &quot;term&quot;)</code>.</div></div>
+
+<h2>Common patterns</h2>
+
+<h3>1. Convert a coefficient matrix to a tidy tibble</h3>
+
+<div class="webr-container" data-block-title="Promote rownames to a term column with default names">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Promote rownames to a term column with default names</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">broom:::fix_data_frame(mat)
+#&gt; # A tibble: 3 x 5
+#&gt;   term        estimate std.error statistic  p.value
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 (Intercept)   39.7      1.71      23.1   3.04e-20
+#&gt; 2 wt            -3.19     0.757     -4.22  2.22e- 4
+#&gt; 3 cyl           -1.51     0.415     -3.64  1.06e- 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first column is term, lifted straight from the matrix rownames. The next four columns are broom canonical names because the helper recognized the four-column shape produced by the summary call and applied the default labels. From here, downstream verbs in dplyr, geoms in ggplot, and report tables in gt all consume the result without rownames gymnastics.</p>
+
+<p>This is the entire reason broom uses fix_data_frame as a building block. Base R coefficient matrices store the predictor name as a rowname rather than a column, and every modern reporting tool assumes columns. Doing the lift in one tested helper rather than hand-rolling rownames extraction in every method keeps broom internally consistent.</p>
+
+<h3>2. Rename the data columns explicitly</h3>
+
+<div class="webr-container" data-block-title="Pass custom newnames to override the defaults">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pass custom newnames to override the defaults</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">broom:::fix_data_frame(
+  mat,
+  newnames = c(&quot;estimate&quot;, &quot;std_err&quot;, &quot;t_stat&quot;, &quot;pvalue&quot;)
+)
+#&gt; # A tibble: 3 x 5
+#&gt;   term        estimate std_err t_stat   pvalue
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;   &lt;dbl&gt;  &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 (Intercept)   39.7    1.71   23.1   3.04e-20
+#&gt; 2 wt            -3.19   0.757  -4.22  2.22e- 4
+#&gt; 3 cyl           -1.51   0.415  -3.64  1.06e- 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Use newnames when you want snake_case columns, or when the matrix has nonstandard headers that broom would otherwise leave untouched. The vector length must equal the number of data columns, and off-by-one errors abort with a clear length-mismatch message rather than producing a corrupted tibble. That strictness is a feature, not a bug, because silent column misalignment is the kind of error that survives review and shows up months later in a report.</p>
+
+<h3>3. Rename the term column</h3>
+
+<div class="webr-container" data-block-title="Use newcol to label the rowname column for a domain">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use newcol to label the rowname column for a domain</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">broom:::fix_data_frame(mat, newcol = &quot;predictor&quot;)
+#&gt; # A tibble: 3 x 5
+#&gt;   predictor   estimate std.error statistic  p.value
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 (Intercept)   39.7      1.71      23.1   3.04e-20
+#&gt; 2 wt            -3.19     0.757     -4.22  2.22e- 4
+#&gt; 3 cyl           -1.51     0.415     -3.64  1.06e- 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Calling the column predictor, coefficient, or feature makes downstream code more readable in reports written for non-statisticians. The default term is what the broom tidy generic always emits, so keep that name if you plan to bind tibbles from many models into one long data frame later. A simple rule covers both cases: keep the default for any tibble that will be combined with broom output elsewhere, and override only at the last step that produces a finished report.</p>
+
+<h3>4. Data-frame input passes through untouched</h3>
+
+<div class="webr-container" data-block-title="Data frames keep their structure; only rownames move">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Data frames keep their structure; only rownames move</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df &lt;- data.frame(a = 1:3, b = 4:6, row.names = c(&quot;x&quot;, &quot;y&quot;, &quot;z&quot;))
+broom:::fix_data_frame(df)
+#&gt; # A tibble: 3 x 3
+#&gt;   term      a     b
+#&gt;   &lt;chr&gt; &lt;int&gt; &lt;int&gt;
+#&gt; 1 x         1     4
+#&gt; 2 y         2     5
+#&gt; 3 z         3     6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The helper does not require a matrix. When you hand it a data frame, it copies the columns verbatim and prepends the term column, which is useful for cleaning up the output of base aggregation and summary calls that emit data frames with informative rownames. This is especially handy when working with older packages that return tables with rownames containing group labels, factor levels, or time stamps; one helper covers all of them without custom extraction code.</p>
+
+<h2>fix_data_frame() vs the modern alternatives</h2>
+
+<p><strong>The two replacements live in the <a class="auto-link" href="tibble-tibble-in-R.html" title="tibble tibble() in R: Build Tibbles Column by Column">tibble package</a> and cover the same ground.</strong> Choose based on whether you start with a matrix or a data frame.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Goal</th>
+<th>fix_data_frame()</th>
+<th>tibble alternative</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Matrix to tibble with term column</td>
+<td><code>broom:::fix_data_frame(mat)</code></td>
+<td><code>tibble::as_tibble(mat, rownames = &quot;term&quot;)</code></td>
+</tr>
+<tr>
+<td>Data frame, <a class="auto-link" href="tibble-rownames_to_column-in-R.html" title="tibble rownames_to_column() in R: Move Rownames to Column">move rownames to column</a></td>
+<td><code>broom:::fix_data_frame(df)</code></td>
+<td><code>tibble::rownames_to_column(df, &quot;term&quot;)</code></td>
+</tr>
+<tr>
+<td>Rename data columns at the same time</td>
+<td><code>newnames = c(...)</code></td>
+<td>`<a class="auto-link" href="tibble-as_tibble-in-R.html" title="tibble as_tibble() in R: Convert Objects to Tibbles">as_tibble()</a></td>
+<td>> rename(...)`</td>
+</tr>
+<tr>
+<td>Available without <code>:::</code></td>
+<td>No, internal since broom 1.0</td>
+<td>Yes, exported tibble API</td>
+</tr>
+</tbody>
+</table>
+
+<div class="webr-container" data-block-title="Equivalent one-liners with public APIs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Equivalent one-liners with public APIs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">as_tibble(mat, rownames = &quot;term&quot;)
+df |&gt; rownames_to_column(var = &quot;term&quot;) |&gt; as_tibble()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For new code, prefer the tibble verbs since they ship as part of an exported public interface and survive broom version bumps without warnings. Reach for the broom helper only when reading or maintaining package code that already depends on it, or when writing a new tidier method that should match the broom internal style.</p>
+
+<h2>Common pitfalls</h2>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Calling <code>broom::fix_data_frame()</code> without the triple colon fails on broom 1.0+.</strong> The function is no longer exported, so the public form errors with <code>&#x27;fix_data_frame&#x27; is not an exported object from &#x27;namespace:broom&#x27;</code>. Use <code>broom:::fix_data_frame()</code> for direct calls, or switch to <code>tibble::as_tibble(mat, rownames = &quot;term&quot;)</code>.</div></div>
+
+<p>A second trap: rownames silently collapse when a matrix has none. If <code>is.null(rownames(x))</code> is <code>TRUE</code>, the term column is filled with <code>NA</code>, which then breaks <code>bind_rows()</code> deduplication downstream. Always inspect <code>rownames(x)</code> before passing the matrix in.</p>
+
+<p>The third trap is <code>newnames</code> length mismatch. The function does not recycle short vectors; a length-3 <code>newnames</code> against a four-column matrix aborts with a hard error. When you do not know <code>ncol(x)</code> ahead of time, build the vector with <code>paste0(&quot;col&quot;, seq_len(ncol(x)))</code>.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit <code>lm(mpg ~ hp + wt, data = mtcars)</code>, extract the coefficient matrix, and use <code>fix_data_frame()</code> to produce a tibble whose columns are <code>term</code>, <code>estimate</code>, <code>se</code>, <code>t</code>, and <code>p</code>.</p>
+<div class="webr-container" data-block-title="Your turn: tidy a coefficient matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tidy a coefficient matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: tidy the coefficient matrix
+ex_fit &lt;- lm(mpg ~ hp + wt, data = mtcars)
+ex_mat &lt;- # your code here
+ex_tidy &lt;- # your code here
+
+ex_tidy
+#&gt; Expected: 3 rows, 5 columns starting with term</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- lm(mpg ~ hp + wt, data = mtcars)
+ex_mat &lt;- coef(summary(ex_fit))
+ex_tidy &lt;- broom:::fix_data_frame(
+  ex_mat,
+  newnames = c(&quot;estimate&quot;, &quot;se&quot;, &quot;t&quot;, &quot;p&quot;)
+)
+ex_tidy
+#&gt; # A tibble: 3 x 5
+#&gt;   term        estimate     se     t        p
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 (Intercept)   37.2    1.60  23.3  2.57e-20
+#&gt; 2 hp            -0.0318 0.00903 -3.52 1.45e- 3
+#&gt; 3 wt            -3.88   0.633 -6.13 1.12e- 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>coef(summary(fit))</code> returns a 4-column numeric matrix with predictor rownames. <code>fix_data_frame()</code> moves those rownames into a <code>term</code> column and applies your <code>newnames</code> to the four data columns in order.</p>
+
+</details>
+</section>
+
+<h2>Related broom functions</h2>
+
+<p>For day-to-day model output, the higher-level wrappers do more in one call:</p>
+
+<ul>
+
+<li><a href="broom-tidy-survival-in-R.html">tidy()</a>: one row per term with <code>estimate</code>, <code>std.error</code>, <code>statistic</code>, <code>p.value</code></li>
+
+<li><code>glance()</code>: one-row model summary with R-squared, <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a>, BIC, residual df</li>
+
+<li><code>augment()</code>: per-observation fitted values, residuals, and <a class="auto-link" href="Multivariate-Outlier-Detection-in-R.html" title="Multivariate Outlier Detection in R: Mahalanobis Distance & Influence">influence diagnostics</a></li>
+
+<li><a href="broom-tidy-kmeans-in-R.html">tidy.kmeans()</a>: cluster centers, sizes, withinss as a tibble</li>
+
+<li><a href="broom-tidy-prcomp-in-R.html">tidy.prcomp()</a>: <a class="auto-link" href="Interpreting-PCA-Results-in-R.html" title="Read PCA Output in R: What Loadings, Scores, and Variance Explained Actually Tell You">principal component loadings</a> as a tibble</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>Why was fix_data_frame() unexported?</strong></p>
+
+<p>Broom 1.0 reorganized the package around the <code>tidy()</code>, <code>glance()</code>, and <code>augment()</code> generics. The maintainers moved low-level helpers into the internal namespace so the public API would be smaller and easier to document. <code>fix_data_frame()</code> still ships with broom and is called by dozens of internal methods; only direct user calls now need the <code>:::</code> operator.</p>
+
+<p><strong>What is the difference between fix_data_frame() and tidy()?</strong></p>
+
+<p><code>tidy()</code> is a generic that dispatches on the class of its argument (<code>lm</code>, <code>glm</code>, <code>htest</code>, etc.) and applies a model-specific method. <code>fix_data_frame()</code> is one building block those methods reach for after they have already extracted the coefficient matrix. You almost never need <code>fix_data_frame()</code> directly when a tidier exists for your model.</p>
+
+<p><strong>Does fix_data_frame() preserve matrix attributes?</strong></p>
+
+<p>No. The helper coerces the input to a data frame, drops the <code>dim</code>, <code>dimnames</code>, and any custom attributes, and returns a fresh tibble. If you need to keep, say, a <code>units</code> attribute on a column, extract it first, run <code>fix_data_frame()</code>, then re-attach the attribute after the conversion.</p>
+
+<p><strong>How do I write a new tidier that uses fix_data_frame() under the hood?</strong></p>
+
+<p>Define a method like <code>tidy.myclass &lt;- function(x, ...) broom:::fix_data_frame(my_coef_matrix(x), newnames = c(&quot;estimate&quot;, &quot;std.error&quot;, &quot;statistic&quot;, &quot;p.value&quot;))</code>. Register the method with <code>S3method(tidy, myclass)</code> in the package NAMESPACE. The convention is to expose the canonical four columns so downstream broom helpers and reporting code work without per-model branches.</p>
+
+<p><strong>Can I use fix_data_frame() outside of broom?</strong></p>
+
+<p>Yes, but the public alternatives are friendlier. <code>tibble::as_tibble(mat, rownames = &quot;term&quot;)</code> covers the matrix case in one call, and <code>tibble::rownames_to_column(df, var = &quot;term&quot;)</code> covers data frames. Both are exported, both survive package updates, and both are documented in the tibble reference.</p>
