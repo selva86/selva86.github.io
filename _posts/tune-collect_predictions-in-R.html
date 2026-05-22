@@ -1,0 +1,288 @@
+---
+title: "tune collect_predictions() in R: Inspect Tuning Predictions"
+description: "Use tune collect_predictions() in R to extract out-of-fold predictions from tune_grid, fit_resamples, and last_fit. See save_pred, parameters, and pitfalls."
+keywords: "tune collect_predictions, collect_predictions function R, tune collect_predictions examples, collect_predictions tidymodels, save_pred TRUE tune, R extract tuning predictions, collect_predictions parameters"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "collect_predictions()|tune collect_predictions|tune::collect_predictions()|collect_predictions tidymodels|extract tuning predictions"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>tune collect_predictions() in R: Inspect Tuning Predictions</h1>
+
+<p class="lead">The tune collect_predictions() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> extracts out-of-fold predictions from a tune_results object, returning a tidy tibble with one row per resampled observation (per candidate) so you can plot residuals, compute custom metrics, or build ensembles.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>collect_predictions(res)<span class="qa-cmt">                                  # all candidates, averaged</span>
+collect_predictions(res, summarize = FALSE)<span class="qa-cmt">               # per-resample rows</span>
+collect_predictions(res, parameters = best)<span class="qa-cmt">               # filter to one candidate</span>
+collect_predictions(last_fit_obj)<span class="qa-cmt">                         # test set predictions</span>
+collect_predictions(res) |&gt; filter(.config == &quot;Preprocessor1_Model1&quot;)
+collect_predictions(res) |&gt; mutate(resid = Sale_Price - .pred)
+collect_predictions(cls_res) |&gt; select(.pred_class, .pred_yes, truth)</pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is collect_predictions() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">pull held-out predictions from tuning</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">collect_predictions(res)</text><text x="125" y="126" class="branch-label">get summarized metrics, not predictions</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">collect_metrics(res)</text><text x="125" y="182" class="branch-label">show the top-N candidates ranked</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">show_best(res, metric = &quot;rmse&quot;)</text><text x="125" y="238" class="branch-label">pick the single best candidate row</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">select_best(res, metric = &quot;rmse&quot;)</text><text x="125" y="294" class="branch-label">finalize and predict on a new <a class="auto-link" href="rsample-testing-in-R.html" title="rsample testing() in R: Get the Test Set From a Split">test set</a></text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">last_fit(final_wf, split)</text><text x="125" y="350" class="branch-label">raw notes from failing folds</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">collect_notes(res)</text><text x="125" y="406" class="branch-label">predictions from a fitted workflow on new data</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">predict(fit_wf, new_data)</text></svg></div>
+
+<h2>What collect_predictions() does in one sentence</h2>
+
+<p><strong>collect_predictions() unpacks the prediction column of a tune_results tibble into a flat, joinable table of held-out predictions.</strong> When <a class="auto-link" href="tune-tune_grid-in-R.html" title="tune tune_grid() in R: Hyperparameter Search on Resamples">tune_grid()</a>, fit_resamples(), <a class="auto-link" href="tune-tune_bayes-in-R.html" title="tune tune_bayes() in R: Bayesian Hyperparameter Search">tune_bayes()</a>, or last_fit() runs with <code>save_pred = TRUE</code>, each row of the returned object stores a nested list column called <code>.predictions</code>. collect_predictions() walks that column, optionally averages predictions across resamples for repeats, and returns a tibble with <code>.pred</code> (or <code>.pred_class</code> for classification), <code>.row</code>, <code>.config</code>, the candidate parameter columns, and the response variable.</p>
+
+<p>You reach for this function any time you need predictions, not metrics. Residual plots, calibration curves, custom yardstick metrics, stacking and ensembling, and per-observation error analysis all start here.</p>
+
+<h2>Save predictions during tuning</h2>
+
+<p><strong>collect_predictions() returns nothing unless predictions were saved at tune time.</strong> The save flag lives on the control object you pass to <code>tune_grid()</code>. The block below tunes an elastic net on Ames housing with predictions retained.</p>
+
+<div class="webr-container" data-block-title="Tune with save_pred enabled">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tune with save_pred enabled</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+data(ames, package = &quot;modeldata&quot;)
+ames &lt;- ames |&gt; mutate(Sale_Price = log10(Sale_Price))
+
+set.seed(1)
+split &lt;- initial_split(ames, prop = 0.8, strata = Sale_Price)
+train &lt;- training(split)
+folds &lt;- vfold_cv(train, v = 5, strata = Sale_Price)
+
+rec &lt;- recipe(Sale_Price ~ Gr_Liv_Area + Year_Built + Bldg_Type, data = train) |&gt;
+  step_dummy(all_nominal_predictors()) |&gt;
+  step_normalize(all_numeric_predictors())
+
+spec &lt;- linear_reg(penalty = tune(), mixture = tune()) |&gt; set_engine(&quot;glmnet&quot;)
+wf   &lt;- workflow() |&gt; add_recipe(rec) |&gt; add_model(spec)
+
+set.seed(2)
+res &lt;- tune_grid(
+  wf, resamples = folds, grid = 6,
+  control = control_grid(save_pred = TRUE)
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Without <code>control_grid(save_pred = TRUE)</code>, <code>.predictions</code> stays empty and <code>collect_predictions(res)</code> returns a zero-row tibble. The same flag is <code>control_resamples(save_pred = TRUE)</code> for <code>fit_resamples()</code> and <code>control_race(save_pred = TRUE)</code> for the finetune racing engines.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Saving predictions is opt-in for a reason.</strong> Each fold stores <code>nrow(fold)</code> predictions per candidate per metric_set evaluation, which can balloon memory on large grids. Enable <code>save_pred</code> deliberately on small-to-medium grids, or drop columns from the recipe before tuning if memory is tight.</div></div>
+
+<h2>collect_predictions() syntax and arguments</h2>
+
+<p><strong>The signature is short, but the <code>parameters</code> argument is the one most people miss.</strong></p>
+
+<div class="webr-container" data-block-title="collect_predictions signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">collect_predictions signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">collect_predictions(
+  x,                  # tune_results, last_fit, or fit_resamples object
+  ...,
+  summarize = TRUE,   # average duplicate predictions across repeats
+  parameters = NULL   # tibble or row that filters to one candidate
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>x</code> is the tuning result. <code>summarize = TRUE</code> averages predictions when the same observation appears in multiple repeats of a repeated CV scheme; with simple v-fold CV it has no effect because each row appears in exactly one held-out fold. <code>parameters</code> accepts a one-row tibble (typically from <code>select_best()</code>) and keeps only predictions from that candidate, which is how you turn a 6-candidate, 5-fold result into a single 1873-row tibble of one model's out-of-fold predictions.</p>
+
+<p>The four input shapes return different column sets. The table below shows what to expect.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Input type</th>
+<th>Returns</th>
+<th>Key columns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tune_grid / tune_bayes (regression)</td>
+<td>one row per held-out obs per candidate</td>
+<td><code>.pred</code>, <code>.row</code>, params, <code>.config</code>, response</td>
+</tr>
+<tr>
+<td>tune_grid / tune_bayes (classification)</td>
+<td>one row per held-out obs per candidate</td>
+<td><code>.pred_class</code>, <code>.pred_&lt;level&gt;</code>, <code>.row</code>, params, <code>.config</code>, response</td>
+</tr>
+<tr>
+<td>fit_resamples</td>
+<td>one row per held-out obs</td>
+<td><code>.pred</code>, <code>.row</code>, <code>.config</code>, response</td>
+</tr>
+<tr>
+<td>last_fit</td>
+<td>one row per test-set obs</td>
+<td><code>.pred</code> (or <code>.pred_class</code>), <code>.row</code>, response</td>
+</tr>
+</tbody>
+</table>
+
+<h2>Filter to one candidate with parameters</h2>
+
+<p><strong><code>select_best()</code> plus the <code>parameters</code> argument is the standard handoff.</strong> Pick the winning candidate on a metric, then ask collect_predictions() to return only that candidate's held-out predictions.</p>
+
+<div class="webr-container" data-block-title="Predictions from the best candidate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predictions from the best candidate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">best &lt;- select_best(res, metric = &quot;rmse&quot;)
+preds_best &lt;- collect_predictions(res, parameters = best)
+head(preds_best)
+#&gt; # A tibble: 6 x 6
+#&gt;   .pred  .row penalty mixture .config              Sale_Price
+#&gt;   &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt;   &lt;dbl&gt; &lt;chr&gt;                     &lt;dbl&gt;
+#&gt; 1  5.21    14 0.00104   0.421 Preprocessor1_Model5       5.18
+#&gt; 2  5.30    23 0.00104   0.421 Preprocessor1_Model5       5.33
+#&gt; 3  5.14    41 0.00104   0.421 Preprocessor1_Model5       5.10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Without <code>parameters</code>, you get predictions for all six candidates stacked together, which is 6 x 1873 rows. Always filter when you only care about one model.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Each prediction is held-out, so you can compute honest metrics by hand.</strong> The <code>.pred</code> column is the prediction made when that row was in the assessment fold, not the analysis fold. That makes <code>yardstick::rmse(preds_best, Sale_Price, .pred)</code> directly comparable to what <code>collect_metrics()</code> reported, with the bonus that you can swap in any custom metric or residual diagnostic.</div></div>
+
+<h2>Aggregated vs per-resample output</h2>
+
+<p><strong><code>summarize = TRUE</code> averages predictions across repeats; with simple v-fold CV the output is identical to FALSE.</strong> The difference shows up only when you use <code>vfold_cv(repeats = 5)</code> or a Monte Carlo scheme that revisits the same row.</p>
+
+<div class="webr-container" data-block-title="summarize matters for repeated CV">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">summarize matters for repeated CV</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">collect_predictions(res, summarize = TRUE)  |&gt; nrow()
+#&gt; [1] 11238
+collect_predictions(res, summarize = FALSE) |&gt; nrow()
+#&gt; [1] 11238</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both return 11,238 rows here (1,873 obs x 6 candidates) because every observation lands in exactly one held-out fold. Switch to <code>vfold_cv(repeats = 3)</code> and the FALSE form triples while the TRUE form stays at 11,238.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Join predictions back to the training data via <code>.row</code>.</strong> The <code>.row</code> column indexes into the data you passed to <code>tune_grid()</code>. <code>train |&gt; mutate(.row = row_number()) |&gt; inner_join(preds_best, by = &quot;.row&quot;)</code> gives you every original column alongside the prediction, which is what you need for grouped error analysis or to plot residuals against an unmodeled covariate.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three failure modes account for most of the friction.</strong></p>
+
+<ul>
+
+<li><strong>Forgetting <code>save_pred = TRUE</code>.</strong> Without it, <code>.predictions</code> is empty and collect_predictions() returns zero rows. The fix is at tune time, not at collect time; re-tune with <code>control_grid(save_pred = TRUE)</code>.</li>
+
+<li><strong>Skipping <code>parameters</code> and getting all candidates.</strong> Calling collect_predictions(res) on a 50-candidate grid gives a 50x table; downstream code that expects one row per observation silently averages or duplicates. Pass <code>parameters = select_best(res, metric = &quot;rmse&quot;)</code> whenever you want a single model.</li>
+
+<li><strong>Confusing <code>.row</code> with the row position in the assessment fold.</strong> <code>.row</code> indexes the FULL training tibble, not the fold. Use it to join back to <code>train</code>, not to <code>assessment(folds$splits[[1]])</code>.</li>
+
+</ul>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Pull the held-out predictions for the best RMSE candidate in <code>res</code>, compute residuals, and save the result to <code>ex_resid</code>. The tibble should include <code>Sale_Price</code>, <code>.pred</code>, and a new column <code>resid = Sale_Price - .pred</code>.</p>
+<div class="webr-container" data-block-title="Your turn: residuals for the best candidate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: residuals for the best candidate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: residuals for best candidate
+ex_resid &lt;- # your code here
+
+head(ex_resid)
+#&gt; Expected: 6 rows with Sale_Price, .pred, resid columns</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">best &lt;- select_best(res, metric = &quot;rmse&quot;)
+ex_resid &lt;- collect_predictions(res, parameters = best) |&gt;
+  mutate(resid = Sale_Price - .pred) |&gt;
+  select(Sale_Price, .pred, resid)
+
+head(ex_resid)
+#&gt; # A tibble: 6 x 3
+#&gt;   Sale_Price .pred    resid
+#&gt;        &lt;dbl&gt; &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1       5.18  5.21 -0.0341
+#&gt; 2       5.33  5.30  0.0277
+#&gt; 3       5.10  5.14 -0.0410</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>select_best()</code> returns the one-row tibble of winning hyperparameters; passing it to <code>parameters</code> filters collect_predictions() to that single model. <code>mutate()</code> adds the residual column, and <code>select()</code> trims to the three columns the prompt asked for.</p>
+
+</details>
+</section>
+
+<h2>Related tune functions</h2>
+
+<ul>
+
+<li>collect_metrics() returns summarized metrics from the same tune_results object.</li>
+
+<li>select_best() returns the winning candidate as a one-row tibble, perfect for <code>parameters</code>.</li>
+
+<li>show_best() prints the top-N candidates ranked on one metric.</li>
+
+<li>last_fit() finalizes a workflow and returns a tune_results-shaped object with test predictions.</li>
+
+<li>augment() on a fitted workflow appends <code>.pred</code> columns to new data, the post-tuning analog.</li>
+
+</ul>
+
+<p>For the official reference, see the <a href="https://tune.tidymodels.org/reference/collect_predictions.html">tune package documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Why does collect_predictions() return zero rows?</strong></p>
+
+<p>The <code>.predictions</code> list column is empty because you tuned without <code>save_pred = TRUE</code>. Re-run tune_grid() with <code>control = control_grid(save_pred = TRUE)</code>. The flag is opt-in to keep memory predictable on large grids; it costs roughly <code>nrow(train) * n_candidates * 8 bytes</code> for a regression with default metric sets.</p>
+
+<p><strong>What is the difference between collect_predictions() and predict()?</strong></p>
+
+<p>collect_predictions() gives you held-out predictions from cross-validation, made on data the model never saw during fitting. predict() gives you predictions from a single fitted model on new data, which can be train, test, or arbitrary input. Use collect_predictions() to assess generalization during tuning; use predict() (or augment()) on the final fitted workflow for deployment.</p>
+
+<p><strong>Can I use collect_predictions() with classification models?</strong></p>
+
+<p>Yes. The returned tibble includes <code>.pred_class</code> plus one <code>.pred_&lt;level&gt;</code> column per class containing predicted probabilities. Pass it to yardstick metrics like <code>roc_auc(preds, truth, .pred_yes)</code> for <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">AUC</a> or <code>conf_mat(preds, truth, .pred_class)</code> for a <a class="auto-link" href="Logistic-Regression-Exercises-in-R.html" title="Logistic Regression Exercises in R: 10 Classification Practice Problems, Solved Step-by-Step">confusion matrix</a>.</p>
+
+<p><strong>Does the parameters argument accept multiple candidates?</strong></p>
+
+<p>Yes. You can pass any tibble whose columns are a subset of the tuning parameters. Multiple rows filter to multiple candidates, which is useful for comparing the top three models or for building a stacking ensemble across the top-K rows of show_best().</p>
