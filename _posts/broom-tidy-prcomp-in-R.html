@@ -1,0 +1,353 @@
+---
+title: "broom tidy() for prcomp in R: PCA Loadings and Scores"
+description: "Tidy prcomp PCA output in R with broom::tidy(). Extract loadings, scores, and variance per PC as tidy tibbles ready for dplyr piping and ggplot2 plots."
+keywords: "broom tidy prcomp, tidy prcomp R, broom PCA R, tidy PCA output, prcomp loadings tidy, tidy.prcomp, broom principal components"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "broom::tidy()|broom tidy|tidy prcomp|tidy.prcomp|PCA loadings|principal component scores"
+auto_link_case_sensitive: true
+fr_parent: "PCA-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>broom tidy() for prcomp in R: PCA Loadings and Scores</h1>
+
+<p class="lead">The <code>broom::tidy()</code> function turns a <code>prcomp</code> object into a long-format tibble of loadings, scores, or variance-explained per principal component. It is the fastest way to pipe PCA results into <code>dplyr</code> and <code>ggplot2</code> without reaching into the fitted list.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>tidy(pc)<span class="qa-cmt">                                # loadings: variable, PC, value (default)</span>
+tidy(pc, matrix = &quot;v&quot;)<span class="qa-cmt">                  # same as default; &quot;v&quot; or &quot;rotation&quot;</span>
+tidy(pc, matrix = &quot;u&quot;)<span class="qa-cmt">                  # scores: row, PC, value</span>
+tidy(pc, matrix = &quot;d&quot;)<span class="qa-cmt">                  # variance per PC: std.dev, percent, cumulative</span>
+glance(pc)<span class="qa-cmt">                              # one row: total variance and rank</span>
+augment(pc, data = iris[, 1:4])<span class="qa-cmt">         # append .fittedPC1..k to rows</span>
+tidy(pc, matrix = &quot;d&quot;) |&gt; filter(percent &gt; 0.05)<span class="qa-cmt">    # keep PCs above 5% variance</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is <a class="auto-link" href="parsnip-tidy-fit-in-R.html" title="parsnip tidy() in R: Tidy Model Coefficients">tidy()</a> the right tool for a prcomp fit?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">long table of loadings per variable and PC</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">tidy(pc, matrix = &quot;v&quot;)</text><text x="125" y="126" class="branch-label">long table of PC scores per observation</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">tidy(pc, matrix = &quot;u&quot;)</text><text x="125" y="182" class="branch-label">variance and cumulative percent per PC</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">tidy(pc, matrix = &quot;d&quot;)</text><text x="125" y="238" class="branch-label">attach .fittedPC columns to the data</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">augment(pc, data = df)</text><text x="125" y="294" class="branch-label">2D ordination plot with ellipses</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code"><a class="auto-link" href="Correspondence-Analysis-in-R.html" title="Correspondence Analysis in R: Visualise Categorical Associations in 2D Space">factoextra</a>::fviz_pca_ind(pc)</text><text x="125" y="350" class="branch-label">variable contribution bar chart</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">factoextra::fviz_contrib(pc, &quot;var&quot;)</text><text x="125" y="406" class="branch-label">robust PCA on data with outliers</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">pcaPP::PCAproj(df)</text></svg></div>
+
+<h2>What tidy() does for prcomp in one sentence</h2>
+
+<p><strong>The tidier reshapes prcomp's matrix output into a long tibble keyed by component.</strong> A fitted prcomp object is an S3 list with separate matrix slots for the rotation (loadings), the principal component scores, and the standard deviations per PC. The tidier reshapes one slot into a long data frame so dplyr verbs and ggplot geoms work without manual matrix wrangling.</p>
+
+<p>The <code>matrix</code> argument picks the slot. The default returns loadings; pass <code>&quot;u&quot;</code> for scores or <code>&quot;d&quot;</code> for the variance summary.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>tidy.prcomp()</code> is the <a class="auto-link" href="S3-Classes-in-R.html" title="S3 Classes in R: Create, Inherit & Write Methods — Complete Tutorial">S3 method</a> broom dispatches when you call <code>tidy()</code> on a prcomp fit.</strong> Two arguments matter: the fitted object and the <code>matrix</code> shortcut that selects which slot to tidy.</p>
+
+<div class="webr-container" data-block-title="Load packages and fit prcomp on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load packages and fit prcomp on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(broom)
+library(dplyr)
+library(ggplot2)
+
+iris_x &lt;- iris[, 1:4]
+pc &lt;- prcomp(iris_x, center = TRUE, scale. = TRUE)
+class(pc)
+#&gt; [1] &quot;prcomp&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two arguments worth knowing:</p>
+
+<ul>
+
+<li><code>x</code>: the fitted <code>prcomp</code> object (required)</li>
+
+<li><code>matrix</code>: one of <code>&quot;v&quot;</code> / <code>&quot;rotation&quot;</code> / <code>&quot;variables&quot;</code> (loadings, default), <code>&quot;u&quot;</code> / <code>&quot;x&quot;</code> / <code>&quot;samples&quot;</code> / <code>&quot;scores&quot;</code> (PC scores), or <code>&quot;d&quot;</code> / <code>&quot;pcs&quot;</code> / <code>&quot;eigenvalues&quot;</code> (variance per PC)</li>
+
+</ul>
+
+<p>The aliases exist for backward compatibility. Pick the one that reads best in your code.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always pass <code>scale. = TRUE</code> to <code>prcomp()</code> when variables are measured on different scales.</strong> Without scaling, the variable with the largest variance dominates the loadings and the tidy output is misleading. Centering alone (<code>center = TRUE</code>) is not enough.</div></div>
+
+<h2>Common patterns</h2>
+
+<h3>1. Tidy the loadings (matrix = "v")</h3>
+
+<div class="webr-container" data-block-title="Tidy loadings: variable contributions per PC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tidy loadings: variable contributions per PC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(pc, matrix = &quot;v&quot;)
+#&gt; # A tibble: 16 x 3
+#&gt;    column          PC   value
+#&gt;    &lt;chr&gt;        &lt;dbl&gt;   &lt;dbl&gt;
+#&gt;  1 Sepal.Length     1  0.521
+#&gt;  2 Sepal.Length     2 -0.377
+#&gt;  3 Sepal.Length     3  0.720
+#&gt;  4 Sepal.Length     4  0.261
+#&gt;  5 Sepal.Width      1 -0.269
+#&gt;  6 Sepal.Width      2 -0.923
+#&gt;  7 Sepal.Width      3 -0.244
+#&gt;  8 Sepal.Width      4 -0.124
+#&gt;  9 Petal.Length     1  0.580
+#&gt; 10 Petal.Length     2 -0.0245
+#&gt; 11 Petal.Length     3 -0.142
+#&gt; 12 Petal.Length     4 -0.801
+#&gt; 13 Petal.Width      1  0.565
+#&gt; 14 Petal.Width      2 -0.0669
+#&gt; 15 Petal.Width      3 -0.634
+#&gt; 16 Petal.Width      4  0.524</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one (variable, PC) pair. <code>value</code> is the rotation weight, a number between -1 and 1 indicating how strongly that variable loads onto that component. For the iris fit, PC1 has positive loadings on three of the four variables, meaning it picks up overall flower size. PC2 is dominated by Sepal.Width with the opposite sign, separating wide-sepal narrow-flower observations.</p>
+
+<p>The long format pays off immediately. To rank variables by their absolute contribution to PC1, run <code>tidy(pc, matrix = &quot;v&quot;) |&gt; filter(PC == 1) |&gt; arrange(desc(abs(value)))</code>, then take the top three rows. The same one-liner is the foundation for variable-importance reporting in unsupervised pipelines.</p>
+
+<h3>2. Tidy the scores (matrix = "u")</h3>
+
+<div class="webr-container" data-block-title="Tidy scores: one row per observation per PC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tidy scores: one row per observation per PC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(pc, matrix = &quot;u&quot;)
+#&gt; # A tibble: 600 x 3
+#&gt;      row    PC    value
+#&gt;    &lt;int&gt; &lt;dbl&gt;    &lt;dbl&gt;
+#&gt;  1     1     1 -2.26
+#&gt;  2     1     2 -0.478
+#&gt;  3     1     3  0.127
+#&gt;  4     1     4  0.0241
+#&gt;  5     2     1 -2.07
+#&gt;  6     2     2  0.672
+#&gt;  7     2     3  0.234
+#&gt;  8     2     4  0.103
+#&gt;  9     3     1 -2.36
+#&gt; 10     3     2  0.341
+#&gt; # i 590 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one (observation, PC) pair. The <code>row</code> index lines up with the row number of the data you passed to <code>prcomp()</code>, so you can left-join back to the original <code>iris</code> frame on <code>row</code>. For a scatter plot of PC1 versus PC2, pivot wide on <code>PC</code> first, or use <code>augment()</code> (next section) to skip the reshape. The long shape is also right when you want facets across all PCs in a single ggplot call.</p>
+
+<h3>3. Tidy the variance summary (matrix = "d")</h3>
+
+<div class="webr-container" data-block-title="Tidy variance: std.dev, percent, cumulative per PC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tidy variance: std.dev, percent, cumulative per PC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(pc, matrix = &quot;d&quot;)
+#&gt; # A tibble: 4 x 4
+#&gt;      PC std.dev percent cumulative
+#&gt;   &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;      &lt;dbl&gt;
+#&gt; 1     1   1.71   0.730       0.730
+#&gt; 2     2   0.956  0.229       0.958
+#&gt; 3     3   0.383  0.0367      0.995
+#&gt; 4     4   0.144  0.00518     1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the scree-plot source. <code>percent</code> is the fraction of total <a class="auto-link" href="Interpreting-PCA-Results-in-R.html" title="Read PCA Output in R: What Loadings, Scores, and Variance Explained Actually Tell You">variance explained</a> by each PC, and <code>cumulative</code> is the running sum. For iris, PC1 alone captures 73 percent of the variance and the first two PCs together hit 96 percent, so a 2D plot of the first two scores carries almost all the signal. <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> on <code>cumulative</code> to pick the smallest PC subset that retains 95 percent of variance, which is the standard cutoff for dimension reduction before downstream modeling.</p>
+
+<p>The <code>std.dev</code> column equals the square root of the eigenvalue of each PC, so squaring it gives the raw eigenvalue if you ever need the Kaiser criterion (drop PCs with eigenvalue below 1 on scaled data).</p>
+
+<h3>4. Attach scores to the data with augment()</h3>
+
+<div class="webr-container" data-block-title="Augment to add .fittedPC columns to iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Augment to add .fittedPC columns to iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aug &lt;- augment(pc, data = iris)
+head(aug, 3)
+#&gt; # A tibble: 3 x 10
+#&gt;   .rownames Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+#&gt;   &lt;chr&gt;            &lt;dbl&gt;       &lt;dbl&gt;        &lt;dbl&gt;       &lt;dbl&gt; &lt;fct&gt;
+#&gt; 1 1                  5.1         3.5          1.4         0.2 setosa
+#&gt; 2 2                  4.9         3            1.4         0.2 setosa
+#&gt; 3 3                  4.7         3.2          1.3         0.2 setosa
+#&gt; # i 4 more variables: .fittedPC1 &lt;dbl&gt;, .fittedPC2 &lt;dbl&gt;, .fittedPC3 &lt;dbl&gt;,
+#&gt; #   .fittedPC4 &lt;dbl&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>augment()</code> returns the original frame with <code>.fittedPC1</code>, <code>.fittedPC2</code>, and so on appended. This is the shortcut for the common case: a wide score table joined to grouping columns, ready to feed into <code>ggplot(aug, aes(.fittedPC1, .fittedPC2, color = Species))</code>. Pass the full data frame (not just the numeric columns) to keep grouping variables for faceting.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The three matrices answer three different questions.</strong> Loadings (<code>&quot;v&quot;</code>) tell you what each PC means in terms of the original variables. Scores (<code>&quot;u&quot;</code>) tell you where each observation sits in PC space. Variance (<code>&quot;d&quot;</code>) tells you how many PCs you actually need. Choosing the right matrix is the whole skill; the tidy output is the same shape regardless of which one you pick.</div></div>
+
+<h2>tidy.prcomp() vs str(pc) and factoextra</h2>
+
+<p><strong>Three tools cover the same job from different angles.</strong> Pick by what you do next with the output.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Output type</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>str(pc)</code></td>
+<td>nested list summary</td>
+<td>Quick console inspection</td>
+</tr>
+<tr>
+<td><code>broom::tidy(pc, matrix = ...)</code></td>
+<td>long tibble</td>
+<td>dplyr piping, ggplot, joins</td>
+</tr>
+<tr>
+<td><code>factoextra::fviz_pca_biplot(pc)</code></td>
+<td>ggplot object</td>
+<td>Publication-ready biplot</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>tidy()</code> whenever the next step is code: filtering loadings, joining scores to grouping variables, building a custom <a class="auto-link" href="PCA-in-R.html" title="PCA in R: Reduce Dimensions, Visualise Structure, and Understand What prcomp() Returns">scree plot</a>. Use <code>factoextra</code> for the final figure; it does not return a tibble.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting to scale before tidying.</strong> Without <code>scale. = TRUE</code>, the loadings tibble reports raw covariance directions, not correlation directions. The variable with the largest unit hijacks PC1 even when its standardized variance is small.</p>
+
+<div class="webr-container" data-block-title="Wrong: tidy without scaling">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrong: tidy without scaling</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pc_raw &lt;- prcomp(iris_x)  # no scale.
+tidy(pc_raw, matrix = &quot;v&quot;) |&gt; filter(PC == 1)
+#&gt; # A tibble: 4 x 3
+#&gt;   column          PC  value
+#&gt;   &lt;chr&gt;        &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1 Sepal.Length     1  0.361
+#&gt; 2 Sepal.Width      1 -0.0857
+#&gt; 3 Petal.Length     1  0.857
+#&gt; 4 Petal.Width      1  0.358</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Petal.Length appears to dominate PC1 only because its raw variance is larger. The scaled fit above split the loading evenly across the three correlated size variables, which is the correct read.</p>
+
+<p><strong>Pitfall 2: confusing <code>matrix</code> aliases.</strong> <code>tidy(pc, matrix = &quot;scores&quot;)</code>, <code>matrix = &quot;u&quot;</code>, and <code>matrix = &quot;x&quot;</code> all return scores. The slot names in <code>pc</code> itself use a different convention (<code>pc$x</code> for scores, <code>pc$rotation</code> for loadings). Pick one alias and use it consistently.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>glance(pc)</code> returns only two columns and does not include <code>tot.var</code>.</strong> Unlike <code>glance.kmeans</code> or <code>glance.lm</code>, the prcomp glance method is minimal: <code>r</code> (rank of the fit) and <code>var.explained</code> is NOT returned. For variance summary use <code>tidy(pc, matrix = &quot;d&quot;)</code>, not <code>glance(pc)</code>.</div></div>
+
+<p><strong>Pitfall 3: passing a princomp fit by mistake.</strong> Base R has both <code>prcomp()</code> (SVD-based) and <code>princomp()</code> (<a class="auto-link" href="Eigenvalues-and-Eigenvectors-in-R.html" title="Eigenvalues & Eigenvectors in R: eigen(), Why They Power PCA & More">eigendecomposition</a>, legacy). <code>tidy()</code> covers both, but column conventions differ. Stick with <code>prcomp()</code> for consistent broom output.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit <code>prcomp()</code> on the four numeric columns of <code>iris</code> with scaling, then use <code>tidy()</code> to get the variance summary. Filter to the smallest set of PCs that together explain at least 95 percent of variance. Save the result to <code>ex_var</code>.</p>
+<div class="webr-container" data-block-title="Your turn: variance summary and 95-percent filter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: variance summary and 95-percent filter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: tidy variance and keep PCs up to 95% cumulative
+ex_var &lt;- # your code here
+
+ex_var
+#&gt; Expected: 2 rows; the second has cumulative &gt;= 0.95</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pc &lt;- prcomp(iris[, 1:4], center = TRUE, scale. = TRUE)
+ex_var &lt;- tidy(ex_pc, matrix = &quot;d&quot;) |&gt; filter(cumulative &lt;= 0.95 | lag(cumulative, default = 0) &lt; 0.95)
+ex_var
+#&gt; # A tibble: 2 x 4
+#&gt;      PC std.dev percent cumulative
+#&gt;   &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;      &lt;dbl&gt;
+#&gt; 1     1   1.71    0.730      0.730
+#&gt; 2     2   0.956   0.229      0.958</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>lag()</code> trick keeps the first PC that crosses the 95 percent threshold so the cumulative total actually reaches the target. A naive <code>filter(cumulative &lt;= 0.95)</code> would drop PC2 because its cumulative is already 0.958, leaving you below the goal.</p>
+
+</details>
+</section>
+
+<h2>Related broom functions for PCA</h2>
+
+<p>After mastering <code>tidy()</code> for prcomp, look at:</p>
+
+<ul>
+
+<li><code>augment.prcomp()</code>: original data with <code>.fittedPC1</code>, <code>.fittedPC2</code>, and more appended as columns</li>
+
+<li><code>glance.prcomp()</code>: one row with the rank of the decomposition</li>
+
+<li><code>tidy.princomp()</code>: same idea for <code>princomp()</code> fits (legacy eigendecomposition)</li>
+
+<li><code>factoextra::fviz_pca_var()</code>: ggplot variable-loadings plot built on broom output</li>
+
+<li><code>factoextra::fviz_eig()</code>: scree plot wrapper that consumes the same variance tibble</li>
+
+</ul>
+
+<p>For a quick loadings heatmap, pipe the <code>matrix = &quot;v&quot;</code> output into <code>ggplot2::geom_tile()</code>. See the official <a href="https://broom.tidymodels.org/reference/prcomp_tidiers.html">broom reference for prcomp tidiers</a> for the full column dictionary per matrix option.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I get PCA loadings as a <a class="auto-link" href="R-Data-Frames.html" title="R Data Frames: Every Operation You'll Need, With 10 Real Examples">data frame in R</a>?</strong></p>
+
+<p>Call <code>broom::tidy(pc, matrix = &quot;v&quot;)</code> on a fitted <code>prcomp</code> object. Each row is one (variable, PC) pair with the rotation weight in the <code>value</code> column. This is the long-format equivalent of <code>pc$rotation</code>, which is a matrix. Use the long form for ggplot or dplyr; pivot wide with <code>tidyr::pivot_wider(names_from = PC)</code> if you need the classic loadings matrix back.</p>
+
+<p><strong>What is the difference between matrix = "u", "v", and "d" in tidy.prcomp?</strong></p>
+
+<p><code>matrix = &quot;v&quot;</code> returns the loadings (default). <code>matrix = &quot;u&quot;</code> returns the principal component scores, one row per observation per PC. <code>matrix = &quot;d&quot;</code> returns the variance summary per PC. The letters come from the SVD <code>X = U D V&#x27;</code>, which is how <code>prcomp()</code> computes the PCA internally.</p>
+
+<p><strong>Can tidy() build a scree plot directly?</strong></p>
+
+<p>Not directly, but the data is one pipe away. Run <code>tidy(pc, matrix = &quot;d&quot;) |&gt; ggplot(aes(PC, percent)) + geom_col()</code> for a percent-variance scree plot. Swap <code>percent</code> for <code>cumulative</code> for the cumulative version, or use <code>factoextra::fviz_eig(pc)</code> for a publication-ready figure with reference lines.</p>
+
+<p><strong>Does tidy work with prcomp on tibbles?</strong></p>
+
+<p>Yes. <code>prcomp()</code> accepts both data frames and tibbles, and the broom method handles both identically. The output is always a tibble regardless of input class. Pass the original tibble to <code>augment()</code> to keep grouping columns.</p>
+
+<p><strong>Why does augment() return more rows than I expected?</strong></p>
+
+<p>It does not; <code>augment()</code> returns exactly as many rows as the data you pass. If you see more rows, check whether you accidentally passed <code>tidy(pc, matrix = &quot;u&quot;)</code> (rows = observations x PCs) into a downstream step expecting one row per observation. The augmented output preserves your input row count.</p>
