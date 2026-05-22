@@ -1,0 +1,360 @@
+---
+title: "caret train() in R: Fit and Tune ML Models"
+description: "Learn how caret train() in R fits, resamples, and tunes machine learning models. trainControl, tuneGrid, preProcess, predict(), and resamples examples."
+keywords: "caret train, train function R, caret train examples, R caret train models, caret train cross validation, caret train tuneGrid, caret train classification"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "train()|caret train|caret::train()|caret train function|train function in caret"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+<!-- md2html:generated -->
+
+<h1>caret train() in R: Fit and Tune ML Models</h1>
+
+<p class="lead">The <code>train()</code> function in caret fits a predictive model, resamples it to estimate out-of-sample error, and searches over a tuning grid in one call. It accepts 200+ algorithms behind a single formula interface, so swapping methods only changes one argument.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>train(y ~ ., data = df, method = &quot;lm&quot;)<span class="qa-cmt">                          # regression</span>
+train(y ~ ., data = df, method = &quot;rf&quot;)<span class="qa-cmt">                          # random forest</span>
+train(y ~ ., data = df, method = &quot;knn&quot;, tuneLength = 5)<span class="qa-cmt">         # auto-tune k</span>
+train(y ~ ., data = df, method = &quot;glmnet&quot;, tuneGrid = grid)<span class="qa-cmt">     # explicit grid</span>
+train(y ~ ., data = df, method = &quot;rf&quot;, trControl = ctrl)<span class="qa-cmt">        # custom CV</span>
+train(y ~ ., data = df, method = &quot;lm&quot;, preProcess = c(&quot;center&quot;, &quot;scale&quot;))
+predict(fit, newdata = test)<span class="qa-cmt">                                    # score new data</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is train() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">fit and tune one model with resampling</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">train(y ~ ., data = df, method = &quot;rf&quot;)</text><text x="125" y="126" class="branch-label">compare many fitted models side by side</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">resamples(list(a = fit1, b = fit2))</text><text x="125" y="182" class="branch-label">preprocess predictors before modelling</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">preProcess(df, method = &quot;...&quot;)</text><text x="125" y="238" class="branch-label">one-hot encode factor columns</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">dummyVars(~ ., data = df)</text><text x="125" y="294" class="branch-label">pick a stratified train/test split</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">createDataPartition(y, p = 0.7)</text><text x="125" y="350" class="branch-label">recursive feature elimination</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">rfe(x, y, sizes = ..., rfeControl = ...)</text></svg></div>
+
+<h2>What train() does in one sentence</h2>
+
+<p><strong><code>train()</code> is caret's universal model fitter and tuner.</strong> You hand it a formula, a data frame, and a <code>method</code> string, and it loops over a resampling scheme (bootstrap by default), fits the model with every candidate hyperparameter combination, scores each fold, and returns the configuration with the best mean metric. The returned object knows how to <code>predict()</code> on new data without any extra wiring.</p>
+
+<p>The point of <code>train()</code> is uniform syntax. The same line that fits a linear model fits a gradient boosting machine, a kNN classifier, or a neural net. You change <code>method = &quot;lm&quot;</code> to <code>method = &quot;gbm&quot;</code> and nothing else. That is why caret is still common for teaching even after tidymodels arrived.</p>
+
+<h2>train() syntax and arguments</h2>
+
+<p><strong>The core signature wraps three ideas: a model, a resampling scheme, and a tuning grid.</strong> Everything else is convenience.</p>
+
+<div class="webr-container" data-block-title="Load caret and inspect mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and inspect mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(1)
+head(mtcars[, c(&quot;mpg&quot;, &quot;hp&quot;, &quot;wt&quot;, &quot;cyl&quot;)], 3)
+#&gt;                mpg  hp    wt cyl
+#&gt; Mazda RX4     21.0 110 2.620   6
+#&gt; Mazda RX4 Wag 21.0 110 2.875   6
+#&gt; Datsun 710    22.8  93 2.320   4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The bare minimum is a formula and a method.</p>
+
+<pre><code>train(form, data, method, trControl, tuneGrid, tuneLength, preProcess, metric)</code></pre>
+
+<ul>
+
+<li><code>form</code>: a formula like <code>y ~ .</code> or an <code>x</code> matrix plus a <code>y</code> vector.</li>
+
+<li><code>data</code>: a data frame containing the columns in the formula.</li>
+
+<li><code>method</code>: a string naming one of 230+ algorithms (<code>&quot;lm&quot;</code>, <code>&quot;rf&quot;</code>, <code>&quot;knn&quot;</code>, <code>&quot;glmnet&quot;</code>, <code>&quot;xgbTree&quot;</code>, <code>&quot;gbm&quot;</code>, <code>&quot;svmRadial&quot;</code>, <code>&quot;rpart&quot;</code>, <code>&quot;nnet&quot;</code>, and many more).</li>
+
+<li><code>trControl</code>: a <code>trainControl()</code> object that defines the resampling strategy (bootstrap, k-fold CV, repeated CV, LOOCV, time slices).</li>
+
+<li><code>tuneGrid</code>: a data frame of hyperparameter combinations to try. Each row is one candidate.</li>
+
+<li><code>tuneLength</code>: integer alternative to <code>tuneGrid</code>; caret picks <code>n</code> values along each hyperparameter axis automatically.</li>
+
+<li><code>preProcess</code>: a character vector of transformations (<code>&quot;center&quot;</code>, <code>&quot;scale&quot;</code>, <code>&quot;BoxCox&quot;</code>, <code>&quot;knnImpute&quot;</code>, ...) applied inside every resampling fold.</li>
+
+<li><code>metric</code>: the score used to pick the winning tune (<code>&quot;RMSE&quot;</code> for regression, <code>&quot;Accuracy&quot;</code> or <code>&quot;ROC&quot;</code> for classification).</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Use a formula for small data and the <code>x</code>, <code>y</code> interface for large data.</strong> The formula path expands factors into a model matrix in memory; for wide data with many factors, pass a pre-built numeric matrix as <code>x</code> to skip that step and save memory.</div></div>
+
+<h2>train() examples by use case</h2>
+
+<h3>1. Fit a regression with defaults</h3>
+
+<p>The simplest call regresses mpg on three predictors. caret resamples 25 times with the bootstrap by default and prints RMSE, R-squared, and MAE.</p>
+
+<div class="webr-container" data-block-title="Train a linear regression">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Train a linear regression</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+fit_lm &lt;- train(mpg ~ hp + wt + cyl, data = mtcars, method = &quot;lm&quot;)
+fit_lm
+#&gt; Linear Regression
+#&gt;
+#&gt; 32 samples, 3 predictor
+#&gt;
+#&gt; No pre-processing
+#&gt; Resampling: Bootstrapped (25 reps)
+#&gt; Summary of sample sizes: 32, 32, 32, 32, 32, 32, ...
+#&gt; Resampling results:
+#&gt;
+#&gt;   RMSE   Rsquared  MAE
+#&gt;   2.65   0.83      2.10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>fit_lm$results</code> table holds the score for every candidate. With <code>method = &quot;lm&quot;</code> there is only one row because <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a> has no hyperparameter to tune.</p>
+
+<h3>2. Switch to k-fold cross-validation</h3>
+
+<p>The default bootstrap is fine for a quick estimate; 5- or 10-fold CV is what you actually want for reportable numbers. Override the resampling with <code>trainControl()</code>.</p>
+
+<div class="webr-container" data-block-title="Run 5-fold cross-validation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run 5-fold cross-validation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ctrl &lt;- trainControl(method = &quot;cv&quot;, number = 5)
+
+set.seed(1)
+fit_cv &lt;- train(mpg ~ hp + wt + cyl, data = mtcars,
+                method = &quot;lm&quot;, trControl = ctrl)
+fit_cv$results[, c(&quot;RMSE&quot;, &quot;Rsquared&quot;, &quot;MAE&quot;)]
+#&gt;     RMSE Rsquared      MAE
+#&gt; 1  2.626    0.853    2.122</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Use <code>method = &quot;repeatedcv&quot;</code> with a <code>repeats</code> argument when you want repeated cross-validation, or <code>method = &quot;LOOCV&quot;</code> for leave-one-out on small datasets.</p>
+
+<h3>3. Tune a hyperparameter with tuneGrid</h3>
+
+<p>For methods that have hyperparameters, supply a data frame of candidates. caret refits the model on every fold for every row of the grid and picks the row with the best mean metric.</p>
+
+<div class="webr-container" data-block-title="Tune k in a kNN classifier">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tune k in a kNN classifier</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data(iris)
+set.seed(1)
+fit_knn &lt;- train(
+  Species ~ ., data = iris, method = &quot;knn&quot;,
+  trControl = trainControl(method = &quot;cv&quot;, number = 5),
+  tuneGrid = data.frame(k = c(3, 5, 7, 9, 11))
+)
+fit_knn$bestTune
+#&gt;   k
+#&gt; 3 7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>bestTune</code> slot stores the winning row. <code>fit_knn$results</code> shows the full search. If you do not care about exact values and want caret to choose for you, use <code>tuneLength = 5</code> and skip the grid.</p>
+
+<h3>4. Preprocess inside the resampling loop</h3>
+
+<p>Pass <code>preProcess</code> directly to <code>train()</code> so the transformation is estimated inside every fold (and never leaks test statistics into training).</p>
+
+<div class="webr-container" data-block-title="Standardize predictors during training">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Standardize predictors during training</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+fit_pp &lt;- train(
+  Species ~ ., data = iris, method = &quot;knn&quot;,
+  preProcess = c(&quot;center&quot;, &quot;scale&quot;),
+  trControl = trainControl(method = &quot;cv&quot;, number = 5),
+  tuneLength = 5
+)
+predict(fit_pp, newdata = iris[c(1, 60, 130), ])
+#&gt; [1] setosa     versicolor virginica
+#&gt; Levels: setosa versicolor virginica</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>preProcess</code> inside <code>train()</code> is the safe default.</strong> Estimating means and standard deviations on the full data before splitting leaks test information into the recipe. Letting <code>train()</code> apply the recipe per fold keeps every estimate honest.</div></div>
+
+<h3>5. Compare two models with resamples()</h3>
+
+<p>After fitting several models on the <em>same</em> <code>trControl</code>, pass them to <code>resamples()</code> to get matched per-fold comparisons.</p>
+
+<div class="webr-container" data-block-title="Benchmark two classifiers on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Benchmark two classifiers on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+ctrl &lt;- trainControl(method = &quot;cv&quot;, number = 5)
+fit_rpart &lt;- train(Species ~ ., data = iris, method = &quot;rpart&quot;, trControl = ctrl)
+fit_knn2  &lt;- train(Species ~ ., data = iris, method = &quot;knn&quot;,   trControl = ctrl)
+
+res &lt;- resamples(list(rpart = fit_rpart, knn = fit_knn2))
+summary(res)$statistics$Accuracy[, c(&quot;Min.&quot;, &quot;Mean&quot;, &quot;Max.&quot;)]
+#&gt;        Min. Mean  Max.
+#&gt; rpart 0.900 0.940 0.967
+#&gt; knn   0.933 0.960 1.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Because both models saw the same folds, the comparison is paired and <code>bwplot(res)</code> or <code>diff(res)</code> lets you test whether the gap is real or noise.</p>
+
+<h2>train() vs lm() and tidymodels</h2>
+
+<p><strong><code>train()</code> is the unified caret API; <code>lm()</code> and <code>tidymodels</code> cover the cases around it.</strong> Reach for <code>lm()</code> when you only want a single linear fit with no resampling. Reach for <code>tidymodels</code> when you want a modular, pipe-friendly successor that is actively developed.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Best for</th>
+<th>Tunes hyperparameters</th>
+<th>Active development</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>train()</code></td>
+<td>one-line fit + tune + resample across 230 models</td>
+<td>Yes, via <code>tuneGrid</code> or <code>tuneLength</code></td>
+<td>Maintenance mode</td>
+</tr>
+<tr>
+<td><code>lm()</code> / <code>glm()</code></td>
+<td>a single linear or generalized linear fit</td>
+<td>No</td>
+<td>Stable base R</td>
+</tr>
+<tr>
+<td><code>tidymodels</code> (<code>workflows</code>, <code>tune</code>)</td>
+<td>modern modular pipelines and recipe-style preprocessing</td>
+<td>Yes, via <code>tune_grid()</code></td>
+<td>Yes, primary tidyverse modelling stack</td>
+</tr>
+</tbody>
+</table>
+
+<p>Pick <code>train()</code> when you want the shortest path to a tuned, resampled model in a teaching or one-off setting. Move to <code>tidymodels</code> for production pipelines where preprocessing, modelling, and tuning steps need to be composed and reused. See the official caret documentation at <a href="https://topepo.github.io/caret/">topepo.github.io/caret</a> for the full list of supported methods.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting to <code>set.seed()</code> before <code>train()</code>.</strong> caret's resampling is stochastic. Without a seed, every run returns slightly different metrics and the <code>bestTune</code> row can flip between candidates that scored close together.</p>
+
+<p><strong>Pitfall 2: passing a factor outcome to a regression method.</strong> If <code>y</code> is a factor, caret picks a classification scoring scheme; if it is numeric, it picks a regression one. A factor accidentally stored as character gets coerced silently and you train the wrong model. Always check <code>class(df$y)</code> first.</p>
+
+<p><strong>Pitfall 3: tuning on the test set.</strong> <code>train()</code> uses the data you hand it for both training and resampling. Split your data with <code>createDataPartition()</code> first, run <code>train()</code> only on the training partition, then call <code>predict()</code> on the held-out test rows.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>train()</code> runs the inner resampling on the data you pass.</strong> It does not hold out a separate test set for you. Split first with <code>createDataPartition()</code>, then fit, then evaluate on the held-out fold.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Train a 10-fold cross-validated kNN classifier on <code>iris</code>, searching <code>k</code> over <code>c(3, 5, 7, 9)</code>. Save the fitted model to <code>ex_fit</code> and report <code>ex_fit$bestTune</code>.</p>
+<div class="webr-container" data-block-title="Your turn: tune kNN on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tune kNN on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: tune kNN with 10-fold CV
+ex_fit &lt;- # your code here
+
+ex_fit$bestTune
+#&gt; Expected: a data frame with one row giving the winning k</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+ex_fit &lt;- train(
+  Species ~ ., data = iris, method = &quot;knn&quot;,
+  trControl = trainControl(method = &quot;cv&quot;, number = 10),
+  tuneGrid = data.frame(k = c(3, 5, 7, 9))
+)
+ex_fit$bestTune
+#&gt;   k
+#&gt; 3 7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>trainControl(method = &quot;cv&quot;, number = 10)</code> switches resampling to 10-fold CV. The <code>tuneGrid</code> data frame tells caret which <code>k</code> values to try; the winning row lands in <code>bestTune</code>.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p>After <code>train()</code>, these caret functions complete a typical modelling loop:</p>
+
+<ul>
+
+<li><code>trainControl()</code>: builds the resampling-and-search object passed to <code>train()</code></li>
+
+<li><code>createDataPartition()</code>: stratified train/test split for any outcome</li>
+
+<li><code>predict.train()</code>: scores new data with a fitted train object</li>
+
+<li><code>resamples()</code>: pairs multiple fitted models on the same folds for comparison</li>
+
+<li><code>varImp()</code>: model-agnostic <a class="auto-link" href="Variable-Selection-and-Importance-With-R.html" title="Feature Selection and Variable Importance">variable importance</a> for any train object</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between train() and trainControl()?</strong></p>
+
+<p><code>train()</code> fits and tunes the model; <code>trainControl()</code> only configures how that fitting happens. You build a <code>trainControl</code> object once (saying "5-fold CV, repeated 3 times, with up-sampling for class imbalance") and pass it into every <code>train()</code> call so all your models share the same resampling scheme. Keeping the control object separate is what lets <code>resamples()</code> later compare models on matched folds.</p>
+
+<p><strong>How does caret train() handle hyperparameter tuning?</strong></p>
+
+<p>For each row of <code>tuneGrid</code>, caret refits the model on every resample, scores it on the held-out fold, and averages the metric across folds. The candidate with the best mean wins and is stored in <code>bestTune</code>. If you do not supply <code>tuneGrid</code>, <code>tuneLength</code> tells caret how many points to sample along each hyperparameter axis. With neither argument, caret uses a small built-in default grid for the chosen method.</p>
+
+<p><strong>Why is my caret train() so slow?</strong></p>
+
+<p>Resampling multiplies the cost: 5-fold CV times a 10-row tune grid means 50 model fits, not one. Speed it up with <code>trainControl(allowParallel = TRUE)</code> plus a registered parallel backend, by reducing <code>number</code> or grid size during exploration, or by precomputing preprocessing once if you do not need it inside the resampling loop. A profiled tip: <code>gbm</code> and <code>rf</code> are slow per fit, <code>glmnet</code> and <code>rpart</code> are fast.</p>
+
+<p><strong>Can train() do classification and regression?</strong></p>
+
+<p>Yes. caret picks the task from the outcome's class: a factor <code>y</code> triggers classification (with <code>Accuracy</code> or <code>ROC</code> as the metric depending on <code>trainControl(classProbs = TRUE, summaryFunction = ...)</code>), and a numeric <code>y</code> triggers regression (<code>RMSE</code> by default). The same <code>method</code> strings often serve both; for example, <code>method = &quot;rf&quot;</code> fits a random forest either way and reads the outcome class to choose splits.</p>
