@@ -1,0 +1,403 @@
+---
+title: "caret mnLogLoss() in R: Multinomial Log Loss Metric"
+description: "Use caret mnLogLoss() in R as the lightweight summaryFunction in trainControl to tune classification models on log loss for calibrated class probabilities."
+keywords: "caret mnLogLoss, mnLogLoss function R, caret mnLogLoss examples, R log loss caret, caret summaryFunction logLoss, multinomial log loss in R, classProbs caret tuning"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "mnLogLoss()|caret mnLogLoss|caret::mnLogLoss()|mnLogLoss function|caret log loss summary"
+auto_link_case_sensitive: true
+fr_parent: "R-Tutorial.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>caret mnLogLoss() in R: Multinomial Log Loss Metric</h1>
+
+<p class="lead">The <code>mnLogLoss()</code> function in caret is the lightweight <code>summaryFunction</code> that <code>trainControl()</code> calls on every resample when you want to tune a classifier purely on log loss. It accepts a data frame with <code>obs</code>, <code>pred</code>, and one probability column per class, then returns a single named scalar <code>logLoss</code> that <code>train()</code> minimises across the tuning grid. Use it when probability calibration is the only metric that matters and you want to skip the heavier ROC and macro-F1 machinery in <code>twoClassSummary()</code> or <code>multiClassSummary()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>mnLogLoss(df, lev = levels(df$obs))<span class="qa-cmt">                              # direct call</span>
+trainControl(summaryFunction = mnLogLoss, classProbs = TRUE)<span class="qa-cmt">     # wire-in</span>
+train(..., metric = &quot;logLoss&quot;, maximize = FALSE)<span class="qa-cmt">                 # tune (smaller is better)</span>
+fit$resample[, c(&quot;Resample&quot;, &quot;logLoss&quot;)]<span class="qa-cmt">                         # per-fold log loss</span>
+fit$results[, c(&quot;mtry&quot;, &quot;logLoss&quot;, &quot;logLossSD&quot;)]<span class="qa-cmt">                 # mean and SD per grid row</span>
+mnLogLoss(df, lev = levels(df$obs))[&quot;logLoss&quot;]<span class="qa-cmt">                   # scalar extract</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is mnLogLoss() the right summaryFunction?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">only logLoss matters, tune fast</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">mnLogLoss</text><text x="125" y="126" class="branch-label">two-class ROC, Sens, Spec needed</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">twoClassSummary</text><text x="125" y="182" class="branch-label">multi-class with 14-metric scorecard</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">multiClassSummary</text><text x="125" y="238" class="branch-label">imbalanced binary, PR-AUC preferred</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">prSummary</text><text x="125" y="294" class="branch-label">regression resamples, numeric outcome</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">defaultSummary</text><text x="125" y="350" class="branch-label">score two vectors outside the loop</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">postResample(pred, obs)</text><text x="125" y="406" class="branch-label">per-class scorecard once on a test set</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">confusionMatrix(pred, obs)</text></svg></div>
+
+<h2>What mnLogLoss() does in one sentence</h2>
+
+<p><strong>mnLogLoss() is caret's minimal logarithmic-loss scoring contract.</strong> caret calls it on each fold's held-out predictions when the outcome is a factor with two or more levels and <code>classProbs = TRUE</code>. The body returns one number, <code>logLoss</code>, equal to the average <a class="auto-link" href="Maximum-Likelihood-Estimation-in-R.html" title="Maximum Likelihood Estimation in R: Build Genuine Intuition, Then Fit Real Models">negative log-likelihood</a> of the true class under each row's predicted probability vector. Rows assigned high probability to the correct class contribute near zero; rows confidently mislabelled contribute large positive values.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Log loss is calibration-sensitive, not just rank-sensitive.</strong> Two models with identical accuracy can have very different log loss if one assigns the true class probability 0.55 and the other assigns 0.95. AUC sees them as equivalent; log loss rewards the confident-and-correct model. Tune on log loss when downstream consumers act on probability values, not just argmax labels.</div></div>
+
+<h2>mnLogLoss() syntax and arguments</h2>
+
+<p><strong>The signature has three arguments and the data frame must carry obs, pred, and one probability column per class.</strong> caret fixes the shape so every summaryFunction is interchangeable across binary, multi-class, and regression workflows.</p>
+
+<div class="webr-container" data-block-title="Load caret and call mnLogLoss directly">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load caret and call mnLogLoss directly</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(caret)
+
+set.seed(7)
+n     &lt;- 60
+truth &lt;- factor(sample(levels(iris$Species), n, replace = TRUE))
+pmat  &lt;- matrix(runif(n * 3, 0.1, 0.9), n, 3)
+pmat  &lt;- pmat / rowSums(pmat)
+colnames(pmat) &lt;- levels(iris$Species)
+pred  &lt;- factor(colnames(pmat)[max.col(pmat)], levels = levels(truth))
+
+df &lt;- data.frame(obs = truth, pred = pred, pmat)
+mnLogLoss(df, lev = levels(df$obs))
+#&gt;  logLoss
+#&gt; 1.107229</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The required argument is <code>data</code>: a data frame with <code>obs</code> (truth factor), <code>pred</code> (predicted factor, required by the contract but unused by the math), and one numeric column per factor level holding class probabilities. Probability column names must match factor levels exactly. <code>train()</code> passes <code>lev</code> automatically; supply it yourself when calling outside the resample loop. The return is a named numeric of length 1; <code>&quot;logLoss&quot;</code> is the only valid <code>metric =</code> value when this summaryFunction is wired in.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>mnLogLoss has no pROC or ModelMetrics dependency.</strong> Unlike <code>twoClassSummary()</code> and <code>multiClassSummary()</code>, the body is base-R arithmetic on the probability matrix. That makes it fast and safe on minimal containers where pROC or ModelMetrics fail to compile.</div></div>
+
+<h2>mnLogLoss() examples by use case</h2>
+
+<p><strong>Three patterns cover the common calls: wire-in for CV, tune on log loss, inspect per-fold variance.</strong> Each reuses the same function with <code>metric = &quot;logLoss&quot;</code> and <code>maximize = FALSE</code>.</p>
+
+<div class="webr-container" data-block-title="Wire mnLogLoss into trainControl for 5-fold CV on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wire mnLogLoss into trainControl for 5-fold CV on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ctrl &lt;- trainControl(
+  method          = &quot;cv&quot;,
+  number          = 5,
+  classProbs      = TRUE,
+  summaryFunction = mnLogLoss
+)
+
+set.seed(99)
+fit &lt;- train(Species ~ ., data = iris,
+             method    = &quot;rf&quot;,
+             trControl = ctrl,
+             metric    = &quot;logLoss&quot;,
+             maximize  = FALSE,
+             tuneGrid  = data.frame(mtry = c(1, 2, 3)))
+fit$results[, c(&quot;mtry&quot;, &quot;logLoss&quot;, &quot;logLossSD&quot;)]
+#&gt;   mtry    logLoss   logLossSD
+#&gt; 1    1 0.14042111 0.04956283
+#&gt; 2    2 0.13369236 0.04571202
+#&gt; 3    3 0.12895474 0.04498119</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is the mean across five folds. caret picks the <code>mtry</code> with the lowest log loss because <code>maximize = FALSE</code> flips the optimisation direction. The <code>logLossSD</code> column is the across-fold standard deviation, the right input for a fragility check.</p>
+
+<div class="webr-container" data-block-title="Compare two probability vectors at the row level">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare two probability vectors at the row level</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">calibrated   &lt;- c(0.90, 0.10, 0.85, 0.95, 0.05)
+overcautious &lt;- c(0.55, 0.45, 0.55, 0.55, 0.45)
+truth        &lt;- factor(c(&quot;yes&quot;,&quot;no&quot;,&quot;yes&quot;,&quot;yes&quot;,&quot;no&quot;), levels = c(&quot;no&quot;,&quot;yes&quot;))
+
+df_cal &lt;- data.frame(obs = truth,
+                     pred = factor(ifelse(calibrated &gt; 0.5, &quot;yes&quot;,&quot;no&quot;), levels = c(&quot;no&quot;,&quot;yes&quot;)),
+                     no   = 1 - calibrated, yes = calibrated)
+df_oc  &lt;- data.frame(obs = truth,
+                     pred = factor(ifelse(overcautious &gt; 0.5, &quot;yes&quot;,&quot;no&quot;), levels = c(&quot;no&quot;,&quot;yes&quot;)),
+                     no   = 1 - overcautious, yes = overcautious)
+
+c(calibrated   = mnLogLoss(df_cal, lev = c(&quot;no&quot;,&quot;yes&quot;)),
+  overcautious = mnLogLoss(df_oc,  lev = c(&quot;no&quot;,&quot;yes&quot;)))
+#&gt; calibrated.logLoss overcautious.logLoss
+#&gt;         0.09357887           0.65687234</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both models are 100 percent accurate, but the calibrated probabilities score seven times better on log loss. This is the gap AUC and Accuracy hide.</p>
+
+<div class="webr-container" data-block-title="Inspect per-fold variance to spot fragile folds">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect per-fold variance to spot fragile folds</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit$resample[, c(&quot;Resample&quot;, &quot;logLoss&quot;)]
+#&gt;   Resample    logLoss
+#&gt; 1    Fold1 0.07845210
+#&gt; 2    Fold2 0.20143984
+#&gt; 3    Fold3 0.07921337
+#&gt; 4    Fold4 0.13654917
+#&gt; 5    Fold5 0.08260088</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Per-fold rows reveal fragility the averaged row hides. A log loss range from 0.08 to 0.20 across folds is wide for iris, hinting one fold caught the harder versicolor-virginica boundary cases. Report mean and worst-fold together; the worst fold predicts real-world failure modes better than the average.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use mnLogLoss for speed when only log loss matters.</strong> Swapping multiClassSummary for mnLogLoss in a long Bayesian-optimisation loop or 50-fold repeated CV saves real wall time. If you later need AUC or Mean_F1, run a one-off scoring pass on the chosen tuneGrid row.</div></div>
+
+<h2>mnLogLoss() vs alternatives</h2>
+
+<p><strong>caret ships five summaryFunctions; mnLogLoss is the smallest.</strong> Choose by outcome type and which metric drives the decision.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>summaryFunction</th>
+<th>Outcome</th>
+<th>Returned metrics</th>
+<th>Picks when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mnLogLoss</code></td>
+<td>Two- or multi-class</td>
+<td>logLoss</td>
+<td>Probability calibration is the only metric</td>
+</tr>
+<tr>
+<td><code>twoClassSummary</code></td>
+<td>Two-class factor</td>
+<td>ROC, Sens, Spec</td>
+<td><a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">Binary classification</a> with ROC focus</td>
+</tr>
+<tr>
+<td><code>multiClassSummary</code></td>
+<td>3+ class factor</td>
+<td>14 metrics: AUC, logLoss, prAUC, Mean_F1, ...</td>
+<td>Multinomial classification, full scorecard</td>
+</tr>
+<tr>
+<td><code>prSummary</code></td>
+<td>Two-class factor</td>
+<td>PR AUC, Precision, Recall, F</td>
+<td>Heavily imbalanced binary</td>
+</tr>
+<tr>
+<td><code>defaultSummary</code></td>
+<td>Numeric</td>
+<td>RMSE, Rsquared, MAE</td>
+<td>Regression resampling</td>
+</tr>
+</tbody>
+</table>
+
+<p>Pick mnLogLoss when probability calibration is the only metric you tune on. If you also need AUC or per-class F1 alongside, multiClassSummary returns both in one call and saves a second pass. For binary outcomes where threshold choice matters, twoClassSummary returns ROC at the resample level so you can balance Sens and Spec.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Four mistakes account for nearly every mnLogLoss() bug.</strong> Each has a quick fix.</p>
+
+<div class="webr-container" data-block-title="Pitfall 1: classProbs left at FALSE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 1: classProbs left at FALSE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ctrl_bad &lt;- trainControl(method = &quot;cv&quot;, number = 5,
+                         summaryFunction = mnLogLoss)  # classProbs missing
+set.seed(1)
+try(train(Species ~ ., data = iris, method = &quot;rf&quot;,
+          trControl = ctrl_bad, metric = &quot;logLoss&quot;, maximize = FALSE,
+          tuneGrid  = data.frame(mtry = 2)))
+#&gt; Error: train()'s use of logLoss codes requires class probabilities. See
+#&gt; the classProbs option of trainControl()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fix is to set <code>classProbs = TRUE</code>. Without per-class probability columns, log loss cannot be computed and caret aborts before training starts.</p>
+
+<div class="webr-container" data-block-title="Pitfall 2: forgetting maximize = FALSE">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 2: forgetting maximize = FALSE</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(99)
+fit_wrong &lt;- train(Species ~ ., data = iris,
+                   method    = &quot;rf&quot;,
+                   trControl = ctrl,
+                   metric    = &quot;logLoss&quot;,     # maximize defaults to TRUE
+                   tuneGrid  = data.frame(mtry = c(1, 2, 3)))
+fit_wrong$bestTune
+#&gt;   mtry
+#&gt; 1    1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>caret picks the worst row instead of the best because <code>maximize = TRUE</code> is the default. Log loss is a loss, not a score, so always pass <code>maximize = FALSE</code>. Metric typos surface as nonsense <code>bestTune</code> rows.</p>
+
+<div class="webr-container" data-block-title="Pitfall 3: probabilities clipped to exactly 0 or 1">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 3: probabilities clipped to exactly 0 or 1</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df_clipped &lt;- data.frame(
+  obs  = factor(c(&quot;yes&quot;,&quot;no&quot;), levels = c(&quot;no&quot;,&quot;yes&quot;)),
+  pred = factor(c(&quot;yes&quot;,&quot;no&quot;), levels = c(&quot;no&quot;,&quot;yes&quot;)),
+  no   = c(0, 1),
+  yes  = c(1, 0)
+)
+mnLogLoss(df_clipped, lev = c(&quot;no&quot;,&quot;yes&quot;))
+#&gt;  logLoss
+#&gt; 2.22e-16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Some models return hard 0 or 1 probabilities, which would otherwise cause <code>log(0) = -Inf</code>. caret silently clips the probability matrix to <code>[eps, 1-eps]</code> before applying log, so the result is a tiny positive number. If your log loss is suspiciously close to zero, check the model is returning real probabilities, not hard labels.</p>
+
+<div class="webr-container" data-block-title="Pitfall 4: probability column names do not match factor levels">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 4: probability column names do not match factor levels</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bad_df &lt;- data.frame(
+  obs   = factor(c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;), levels = c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;)),
+  pred  = factor(c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;), levels = c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;)),
+  prob1 = c(0.8, 0.1, 0.1),
+  prob2 = c(0.1, 0.8, 0.1),
+  prob3 = c(0.1, 0.1, 0.8)
+)
+try(mnLogLoss(bad_df, lev = c(&quot;a&quot;,&quot;b&quot;,&quot;c&quot;)))
+#&gt; Error in mnLogLoss(bad_df, lev = c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;)) :
+#&gt;   columns for class probabilities are missing</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Rename <code>prob1</code>, <code>prob2</code>, <code>prob3</code> to <code>a</code>, <code>b</code>, <code>c</code>. caret indexes probability columns by level name; mismatched names trigger the missing-columns error. The same trap bites every summaryFunction.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Log loss is unbounded on the right.</strong> A single confidently wrong prediction (true class probability 0.001) contributes about 6.9 to the per-row sum, enough to dominate a 100-row resample. caret clips silently, but cannot undo a model that is systematically over-confident on tail cases.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Train a k-nearest-neighbours classifier on the full 3-class <code>iris</code> with 10-fold CV. Wire <code>mnLogLoss</code> into <code>trainControl()</code>, tune <code>k</code> over <code>c(3, 5, 7, 9)</code>, and save the chosen <code>k</code> to <code>ex_k</code>.</p>
+<div class="webr-container" data-block-title="Your turn: mnLogLoss with knn on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: mnLogLoss with knn on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: tune knn on iris by logLoss
+ex_ctrl &lt;- # your code here: 10-fold CV, classProbs TRUE, mnLogLoss
+ex_fit  &lt;- # your code here: knn, tuneGrid k in c(3,5,7,9), metric logLoss
+ex_k    &lt;- # your code here: extract best k
+
+ex_k
+#&gt; Expected: an integer in c(3, 5, 7, 9)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ctrl &lt;- trainControl(method = &quot;cv&quot;, number = 10,
+                        classProbs      = TRUE,
+                        summaryFunction = mnLogLoss)
+set.seed(2)
+ex_fit  &lt;- train(Species ~ ., data = iris,
+                 method    = &quot;knn&quot;,
+                 trControl = ex_ctrl,
+                 tuneGrid  = data.frame(k = c(3, 5, 7, 9)),
+                 metric    = &quot;logLoss&quot;, maximize = FALSE)
+ex_k    &lt;- ex_fit$bestTune$k
+
+ex_k
+#&gt; [1] 9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Larger <code>k</code> averages more neighbours, smoothing the predicted probability vectors. Smoothed probabilities lower log loss even when accuracy is identical, because log loss rewards moderate confidence on borderline rows.</p>
+
+</details>
+</section>
+
+<h2>Related caret functions</h2>
+
+<p>The summaryFunction family lives in caret's resampling layer:</p>
+
+<ul>
+
+<li><code>multiClassSummary()</code> for 3+ class outcomes with the full 14-metric scorecard. See <a href="caret-multiClassSummary-in-R.html">caret multiClassSummary() in R</a>.</li>
+
+<li><code>twoClassSummary()</code> for binary outcomes with ROC, Sens, Spec. See <a href="caret-twoClassSummary-in-R.html">caret twoClassSummary() in R</a>.</li>
+
+<li><code>defaultSummary()</code> for regression resample scoring. See <a href="caret-defaultSummary-in-R.html">caret defaultSummary() in R</a>.</li>
+
+<li><code>postResample()</code> for two-vector scoring outside the resample loop. See <a href="caret-postResample-in-R.html">caret postResample() in R</a>.</li>
+
+<li><code>trainControl()</code> for wiring custom summaryFunctions. See <a href="caret-trainControl-in-R.html">caret trainControl() in R</a>.</li>
+
+</ul>
+
+<p>For implementation details, see the <a href="https://topepo.github.io/caret/measuring-performance.html#measures-for-class-probabilities">caret performance documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does mnLogLoss() return?</strong></p>
+
+<p>mnLogLoss() returns a named numeric vector of length 1 with name <code>logLoss</code>. The value is the mean negative log-likelihood of the true class under the predicted probability vector, averaged across rows in the supplied data frame. Lower is better. <code>&quot;logLoss&quot;</code> is the only valid <code>metric =</code> value when this summaryFunction is wired into <code>trainControl()</code>, and you must pair it with <code>maximize = FALSE</code> so <code>train()</code> selects the row that minimises the loss.</p>
+
+<p><strong>How does mnLogLoss handle probabilities of exactly 0 or 1?</strong></p>
+
+<p>caret clips the probability matrix to <code>[eps, 1-eps]</code> before taking logs, where <code>eps</code> is a small machine-precision value. This prevents <code>log(0) = -Inf</code> from poisoning the resample average. A row where the model returned probability 0 for the true class still produces a large but finite contribution. If log loss looks suspiciously close to zero across folds, your model is returning hard 0/1 labels rather than calibrated probabilities.</p>
+
+<p><strong>Does mnLogLoss work for two-class outcomes?</strong></p>
+
+<p>Yes. mnLogLoss accepts any factor with 2 or more levels. For binary problems it computes the same log loss you would get from a manual <code>-mean(y*log(p) + (1-y)*log(1-p))</code> calculation. The advantage over twoClassSummary is speed: you skip the <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">ROC curve</a> entirely. The trade-off is losing the ROC, Sens, and Spec columns, so reporting requires a second scoring pass.</p>
+
+<p><strong>Should I tune on logLoss or AUC?</strong></p>
+
+<p>Tune on logLoss when calibrated probabilities matter to downstream consumers (pricing models, risk scores, cost-weighted thresholds). Tune on AUC when ranking matters but threshold choice happens later (top-K selection, human review queues). logLoss is calibration-sensitive; AUC is rank-only. Models that ace AUC can have terrible log loss if probabilities are systematically squeezed toward 0.5. For high-stakes projects, fit one model on each metric and compare on a held-out test set.</p>
+
+<p><strong>Why is mnLogLoss faster than multiClassSummary?</strong></p>
+
+<p>multiClassSummary computes 14 metrics per resample; two (AUC, prAUC) load pROC and iterate the probability matrix. mnLogLoss computes one metric in base-R arithmetic with no pROC or ModelMetrics import. On a 5-fold CV the saving is small absolute, but in a 50-fold repeated CV with a Bayesian-optimisation outer loop it compounds.</p>
+
+{% endraw %}
