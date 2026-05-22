@@ -1,0 +1,333 @@
+---
+title: "broom tidy() for rstanarm in R: Tidy Bayesian Fits"
+description: "Tidy rstanarm Bayesian fits with broom.mixed::tidy(). Extract posterior medians, credible intervals, and random-effect SDs from stan_glm and stan_glmer."
+keywords: "broom tidy rstanarm, tidy stanreg, broom.mixed rstanarm, tidy stan_glm, tidy stan_glmer, rstanarm coefficients tidy, posterior intervals rstanarm"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "tidy.stanreg|broom.mixed tidy|tidy stan_glm|tidy stan_glmer|tidy rstanarm"
+auto_link_case_sensitive: true
+fr_parent: "Bayesian-Linear-Regression-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>broom tidy() for rstanarm in R: Tidy Bayesian Fits</h1>
+
+<p class="lead">The <code>broom.mixed::tidy()</code> function turns rstanarm Bayesian model objects into one-row-per-term data frames you can pipe into <code>dplyr</code>, <code>ggplot2</code>, or a report. It works on <code>stan_glm</code>, <code>stan_glmer</code>, and <code>stan_lmer</code> fits, and returns posterior medians with credible intervals in a single call.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>tidy(fit)<span class="qa-cmt">                                          # fixed-effect posterior medians</span>
+tidy(fit, conf.int = TRUE)<span class="qa-cmt">                         # add 95% credible intervals</span>
+tidy(fit, conf.int = TRUE, conf.level = 0.89)<span class="qa-cmt">      # 89% interval (McElreath default)</span>
+tidy(fit, conf.method = &quot;HPDinterval&quot;)<span class="qa-cmt">             # use HPDI instead of quantile</span>
+tidy(fit, exponentiate = TRUE)<span class="qa-cmt">                     # odds ratios for stan_glm logistic</span>
+tidy(glmer_fit, effects = &quot;ran_pars&quot;)<span class="qa-cmt">              # random-effect SDs/variances</span>
+tidy(glmer_fit, effects = &quot;ran_vals&quot;)<span class="qa-cmt">              # group-level deviations</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is <a class="auto-link" href="parsnip-tidy-fit-in-R.html" title="parsnip tidy() in R: Tidy Model Coefficients">tidy()</a> the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">coefficient table with credible intervals</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">tidy(fit, conf.int = TRUE)</text><text x="125" y="126" class="branch-label">one-row model summary (n, sigma, R2, looic)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">glance(fit)</text><text x="125" y="182" class="branch-label">per-observation fitted values or residuals</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">augment(fit, newdata = df)</text><text x="125" y="238" class="branch-label">raw posterior draws for custom summaries</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">as_draws_df(fit) or as.matrix(fit)</text><text x="125" y="294" class="branch-label">posterior predictive checks</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code"><a class="auto-link" href="brms-in-R.html" title="brms in R: Bayesian Regression Without Writing a Single Line of Stan">posterior_predict</a>(fit) then <a class="auto-link" href="Posterior-Predictive-Checks-in-R.html" title="Posterior Predictive Checks in R: The 5-Minute Way to Catch a Broken Model">bayesplot</a>::<a class="auto-link" href="Prior-Predictive-Checks-in-R.html" title="Prior Predictive Checks in R: Test Your Bayesian Model Before You Have Data">pp_check</a>()</text><text x="125" y="350" class="branch-label">forest plot of effects</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">bayesplot::mcmc_intervals(as.matrix(fit))</text></svg></div>
+
+<h2>What tidy() does for rstanarm models in one sentence</h2>
+
+<p><strong><code>tidy()</code> reshapes Bayesian model objects into rectangular data frames.</strong> A fitted <code>stan_glm</code> is an S3 object of class <code>stanreg</code> that wraps thousands of posterior draws, prior metadata, the design matrix, and the Stan fit. <code>broom.mixed::tidy()</code> extracts the <a class="auto-link" href="Bayesian-Linear-Regression-in-R.html" title="Bayesian Linear Regression in R: Get Uncertainty Estimates lm() Cannot Give You">posterior summary</a> you usually need (term, posterior median, MAD as standard error, <a class="auto-link" href="Bayesian-Statistics-in-R.html" title="Bayesian Statistics in R: Build Genuine Intuition Before Opening Stan or brms">credible interval</a> bounds) and returns a tibble with one row per term.</p>
+
+<p>For a <code>stan_glmer</code> object (a hierarchical model), <code>tidy()</code> can also return random-effect standard deviations or individual group-level deviations depending on the <code>effects</code> argument. This makes downstream plotting and reporting much easier than digging into the <code>$stanfit</code> slot by hand.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>tidy()</code> is an S3 generic dispatched on the <code>stanreg</code> class.</strong> The method lives in <code>broom.mixed</code>, not in <code>broom</code> itself, so make sure both packages are loaded.</p>
+
+<div class="webr-container" data-block-title="Load packages and fit a Bayesian linear model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load packages and fit a Bayesian linear model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rstanarm)
+library(broom.mixed)
+library(dplyr)
+
+fit &lt;- stan_glm(mpg ~ wt + cyl, data = mtcars,
+                chains = 2, iter = 1000, refresh = 0, seed = 1)
+class(fit)
+#&gt; [1] &quot;stanreg&quot; &quot;glm&quot;     &quot;lm&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The most useful arguments are:</p>
+
+<ul>
+
+<li><code>conf.int</code>: <code>TRUE</code> adds <code>conf.low</code> and <code>conf.high</code> columns from the posterior; default <code>FALSE</code></li>
+
+<li><code>conf.level</code>: <a class="auto-link" href="Bayes-Theorem-in-R.html" title="Bayes' Theorem in R: Why Medical Tests Mislead You, A Simulation That Shows Why">posterior probability</a> covered by the interval; default <code>0.90</code> in broom.mixed for stanreg</li>
+
+<li><code>conf.method</code>: <code>&quot;quantile&quot;</code> (equal-tailed CI) or <code>&quot;HPDinterval&quot;</code> (highest posterior density)</li>
+
+<li><code>effects</code>: <code>&quot;fixed&quot;</code> (default), <code>&quot;ran_pars&quot;</code> (random-effect variances), <code>&quot;ran_vals&quot;</code> (group-level deviations), or <code>&quot;varying&quot;</code> (synonym for ran_vals)</li>
+
+<li><code>exponentiate</code>: <code>TRUE</code> exponentiates the posterior summary, useful for logistic or Poisson stan_glm fits</li>
+
+</ul>
+
+<p>These cover almost every reporting use case.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Combine <code>conf.int = TRUE</code> and <code>conf.method = &quot;HPDinterval&quot;</code> for the narrowest defensible interval.</strong> The HPDI is the shortest interval containing the requested mass, so for skewed posteriors it reports a tighter, more honest range than the equal-tailed quantile interval.</div></div>
+
+<h2>Common patterns</h2>
+
+<h3>1. Fixed-effect posterior summary from stan_glm</h3>
+
+<div class="webr-container" data-block-title="Tidy a stan_glm fit with credible intervals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tidy a stan_glm fit with credible intervals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(fit, conf.int = TRUE, conf.level = 0.90)
+#&gt; # A tibble: 3 x 5
+#&gt;   term        estimate std.error conf.low conf.high
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 (Intercept)   39.7      1.69     36.9     42.4
+#&gt; 2 wt            -3.21     0.755    -4.43    -1.97
+#&gt; 3 cyl           -1.51     0.418    -2.20    -0.842</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is a predictor. The <code>estimate</code> column is the posterior median, <code>std.error</code> is the median absolute deviation (a robust analogue of the standard error), and <code>conf.low</code>/<code>conf.high</code> bound the 90% credible interval. A negative estimate with an interval entirely below zero means a credibly negative effect on <code>mpg</code>.</p>
+
+<h3>2. Odds ratios from a logistic stan_glm</h3>
+
+<div class="webr-container" data-block-title="Tidy a Bayesian logistic regression">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tidy a Bayesian logistic regression</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">log_fit &lt;- stan_glm(am ~ wt + hp, data = mtcars,
+                    family = binomial(),
+                    chains = 2, iter = 1000, refresh = 0, seed = 2)
+
+tidy(log_fit, conf.int = TRUE, exponentiate = TRUE)
+#&gt; # A tibble: 3 x 5
+#&gt;   term        estimate std.error conf.low conf.high
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 (Intercept)  3.78e+5   24.7    8.71e+1  2.62e+11
+#&gt; 2 wt           1.30e-2    1.27   3.50e-4  3.71e-1
+#&gt; 3 hp           1.04       1.02   1.01     1.09</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With <code>exponentiate = TRUE</code>, <code>estimate</code> becomes the posterior median <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">odds ratio</a>. The wide intercept interval is expected on this tiny dataset; what matters is that the <code>wt</code> interval sits below 1 (heavier cars are less likely manual) and the <code>hp</code> interval sits above 1.</p>
+
+<h3>3. Random-effect SDs from stan_glmer</h3>
+
+<div class="webr-container" data-block-title="Tidy a hierarchical Bayesian model with ran_pars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tidy a hierarchical Bayesian model with ran_pars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">glmer_fit &lt;- stan_glmer(mpg ~ wt + (1 | cyl), data = mtcars,
+                        chains = 2, iter = 1000, refresh = 0, seed = 3)
+
+tidy(glmer_fit, effects = &quot;ran_pars&quot;)
+#&gt; # A tibble: 2 x 4
+#&gt;   effect   group    term            estimate
+#&gt;   &lt;chr&gt;    &lt;chr&gt;    &lt;chr&gt;              &lt;dbl&gt;
+#&gt; 1 ran_pars cyl      sd_(Intercept)      2.41
+#&gt; 2 ran_pars Residual sd_Observation      2.59</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>effects = &quot;ran_pars&quot;</code> returns one row per variance component. Here the between-cylinder standard deviation (2.41) is similar in magnitude to the residual SD (2.59), so cylinder explains a real share of variation in <code>mpg</code> after accounting for weight.</p>
+
+<h3>4. Group-level deviations with ran_vals</h3>
+
+<div class="webr-container" data-block-title="Per-group random intercepts from stan_glmer">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Per-group random intercepts from stan_glmer</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(glmer_fit, effects = &quot;ran_vals&quot;, conf.int = TRUE)
+#&gt; # A tibble: 3 x 7
+#&gt;   effect   group level term         estimate std.error conf.low conf.high
+#&gt;   &lt;chr&gt;    &lt;chr&gt; &lt;chr&gt; &lt;chr&gt;           &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 ran_vals cyl   4     (Intercept)    2.41      1.62    -0.247     4.74
+#&gt; 2 ran_vals cyl   6     (Intercept)   -0.345     1.45    -2.65      2.04
+#&gt; 3 ran_vals cyl   8     (Intercept)   -2.07      1.81    -4.74      0.795</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one group's deviation from the global intercept, with its own credible interval. The 4-cylinder group sits about 2.4 mpg above the global mean after adjusting for weight, while the 8-cylinder group sits roughly 2.1 below.</p>
+
+<h2>tidy() vs print(fit) and posterior::summarise_draws</h2>
+
+<p><strong>Three tools cover the same job from different angles.</strong> Pick by what you do next with the output.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Output type</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>print(fit)</code></td>
+<td>printed text with median + MAD</td>
+<td>Quick console check</td>
+</tr>
+<tr>
+<td><code>broom.mixed::tidy(fit)</code></td>
+<td>tibble (data frame)</td>
+<td>dplyr piping, ggplot, custom tables</td>
+</tr>
+<tr>
+<td><code>posterior::summarise_draws(fit)</code></td>
+<td>tibble with mean, sd, ess, rhat</td>
+<td>Convergence diagnostics</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>tidy()</code> whenever the next step is code: filtering terms, joining multiple models, drawing a forest plot, or writing to CSV. Use <code>summarise_draws()</code> when you need <code>rhat</code> and <code>ess_bulk</code> columns to check that chains mixed.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> frame is the bridge between Bayesian modelling and tidyverse tooling.</strong> Once <code>tidy()</code> returns a tibble, every dplyr verb, every ggplot geom, and every <code>gt</code>/<code>flextable</code> layout works without any custom shim. This is why broom.mixed is the recommended reporting interface for rstanarm even when you also use bayesplot for diagnostics.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: loading broom instead of broom.mixed.</strong> The <code>tidy.stanreg</code> method lives in broom.mixed. If you load only broom, <code>tidy(fit)</code> falls back to the generic and may error or return an incomplete frame. Always <code>library(broom.mixed)</code> for rstanarm fits.</p>
+
+<div class="webr-container" data-block-title="Missing broom.mixed: confusing fallback">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Missing broom.mixed: confusing fallback</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">detach(&quot;package:broom.mixed&quot;, unload = TRUE)
+tidy(fit)
+#&gt; Error: no applicable method for 'tidy' applied to an object of class &quot;stanreg&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Pitfall 2: treating the credible interval as a <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence interval</a>.</strong> <code>tidy(fit, conf.int = TRUE)</code> returns a Bayesian credible interval, not a frequentist confidence interval. Report it as "90% posterior probability the parameter lies in [low, high]", not "we are 90% confident". The numerical values can be similar for a <a class="auto-link" href="Choosing-Priors-in-R.html" title="Choosing Priors in R: Why Your Bayesian Result Depends on This One Decision">flat prior</a>, but the interpretation is different.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>tidy()</code> summarises the posterior; it does not show convergence diagnostics.</strong> A perfectly tidy table can hide chains that never mixed. Always check <code>rhat</code> and <code>ess_bulk</code> with <code>posterior::summarise_draws()</code> or <code>rstanarm::prior_summary()</code> plus <code>plot(fit, &quot;trace&quot;)</code> before trusting any estimate.</div></div>
+
+<p><strong>Pitfall 3: forgetting <code>effects = &quot;ran_pars&quot;</code> for hierarchical fits.</strong> The default <code>effects = &quot;fixed&quot;</code> only returns population-level coefficients. For <code>stan_glmer</code> fits, <a class="auto-link" href="Multilevel-Models-in-R.html" title="Multilevel Models in R With brms: When Group Differences Beat Group Averages">variance components</a> and group-level deviations require explicit <code>effects</code> arguments. Calling <code>tidy(glmer_fit)</code> alone silently omits the random-effect SDs that motivated the hierarchical model in the first place.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a Bayesian linear model on <code>mtcars</code> with <code>mpg</code> as the outcome and <code>wt</code>, <code>hp</code>, and <code>cyl</code> as predictors. Use <code>tidy()</code> to produce a posterior summary with 95% credible intervals. Save the result to <code>ex_post_table</code>.</p>
+<div class="webr-container" data-block-title="Your turn: build a Bayesian coefficient table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build a Bayesian coefficient table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: tidy a stan_glm fit with 95% CI
+ex_fit &lt;- # your code here
+
+ex_post_table &lt;- # your code here
+
+ex_post_table
+#&gt; Expected: 4 rows with estimate, conf.low, conf.high columns</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- stan_glm(mpg ~ wt + hp + cyl, data = mtcars,
+                   chains = 2, iter = 1000, refresh = 0, seed = 4)
+ex_post_table &lt;- tidy(ex_fit, conf.int = TRUE, conf.level = 0.95)
+ex_post_table
+#&gt; # A tibble: 4 x 5
+#&gt;   term        estimate std.error conf.low conf.high
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 (Intercept) 38.7      1.93     34.9      42.6
+#&gt; 2 wt          -3.16     0.870    -4.83     -1.45
+#&gt; 3 hp          -0.0182   0.0136   -0.0455    0.00892
+#&gt; 4 cyl         -0.937    0.553    -2.03      0.158</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Setting <code>conf.int = TRUE</code> with <code>conf.level = 0.95</code> returns the equal-tailed 95% posterior credible interval for each coefficient. The result is a tibble ready for <code>ggplot2::geom_pointrange()</code> or <code>gt::gt()</code>.</p>
+
+</details>
+</section>
+
+<h2>Related broom.mixed functions for rstanarm</h2>
+
+<p>After mastering <code>tidy()</code>, look at:</p>
+
+<ul>
+
+<li><code>glance()</code>: one-row model summary with algorithm, sample size, <code>pss</code> (posterior sample size), <code>sigma</code>, and approximate <code>looic</code></li>
+
+<li><code>augment()</code>: per-observation fitted values and residuals from the posterior median</li>
+
+<li><code>posterior::summarise_draws()</code>: convergence-aware summary with <code>rhat</code> and <code>ess_bulk</code></li>
+
+<li><code>bayesplot::mcmc_intervals()</code>: forest plot from the same draws <code>tidy()</code> summarises</li>
+
+</ul>
+
+<p>For a credible-interval forest plot, pipe <code>tidy(fit, conf.int = TRUE)</code> into <code>ggplot2::geom_pointrange()</code> with <code>x = estimate, xmin = conf.low, xmax = conf.high, y = term</code>. Add a <code>geom_vline(xintercept = 0)</code> reference.</p>
+
+<p>See the official <a href="https://cran.r-project.org/package=broom.mixed">broom.mixed reference for stanreg methods</a> for the full argument list and additional <code>effects</code> options.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I get a 95% credible interval from a stan_glm fit?</strong></p>
+
+<p>Call <code>tidy(fit, conf.int = TRUE, conf.level = 0.95)</code>. The default <code>conf.level</code> for stanreg objects in broom.mixed is 0.90, so you must set it explicitly if you want the conventional 95% bound. The returned <code>conf.low</code> and <code>conf.high</code> are quantiles of the posterior draws unless you switch to <code>conf.method = &quot;HPDinterval&quot;</code>.</p>
+
+<p><strong>Does broom tidy work with stan_glmer hierarchical models?</strong></p>
+
+<p>Yes. By default <code>tidy(stan_glmer_fit)</code> returns only fixed effects. Add <code>effects = &quot;ran_pars&quot;</code> to get random-effect standard deviations, or <code>effects = &quot;ran_vals&quot;</code> to get one row per group-level deviation. You can also pass a vector like <code>effects = c(&quot;fixed&quot;, &quot;ran_pars&quot;)</code> to stack both in one tibble.</p>
+
+<p><strong>What is the difference between tidy(), <a class="auto-link" href="parsnip-glance-fit-in-R.html" title="parsnip glance() in R: One-Row Model Summary">glance()</a>, and augment() for rstanarm?</strong></p>
+
+<p><code>tidy()</code> returns one row per model term with posterior summaries. <code>glance()</code> returns one row total with model-level metrics like <code>sigma</code>, <code>pss</code>, and approximate <code>looic</code>. <code>augment()</code> returns one row per observation with <code>.fitted</code> and <code>.resid</code> columns based on the posterior median. All three dispatch on the <code>stanreg</code> class.</p>
+
+<p><strong>Can tidy() return individual posterior draws for plotting?</strong></p>
+
+<p>No. <code>tidy()</code> summarises the posterior to one row per term. For raw draws, use <code>as_draws_df(fit)</code> from the <a class="auto-link" href="Stan-in-R.html" title="Stan in R: Fit Your First Bayesian Model With cmdstanr in 10 Minutes">posterior package</a> or <code>as.matrix(fit)</code> from rstanarm. Those give you the full draw-by-parameter matrix needed for density plots, joint posteriors, or custom intervals.</p>
+
+<p><strong>Why does tidy() show a different intercept than print(fit)?</strong></p>
+
+<p>Both summaries use the posterior median by default, so they should agree to within Monte Carlo error. If they differ noticeably, the chains have not converged or you have re-run one of them with a different seed. Check <code>summary(fit)$summary[, &quot;Rhat&quot;]</code> to confirm Rhat is close to 1 for every parameter.</p>
