@@ -1,0 +1,375 @@
+---
+title: "dials learn_rate() in R: Tune Boosting Learning Rate"
+description: "Use dials learn_rate() in R to tune the boosting learning rate range. See log10 defaults, boost_tree examples, the trees tradeoff, and common pitfalls."
+keywords: "dials learn_rate, learn_rate function R, dials learn_rate examples, R learning rate hyperparameter, tune learn_rate tidymodels, boost_tree learn_rate, dials::learn_rate"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "learn_rate()|dials learn_rate|dials::learn_rate()|tune learn_rate|learning rate parameter"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>dials learn_rate() in R: Tune Boosting Learning Rate</h1>
+
+<p class="lead">The dials learn_rate() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> defines the numeric hyperparameter for the per-iteration shrinkage applied in boosted tree and neural network models. It defaults to a log10-transformed range of 10^-10 to 10^-1, which is the search space almost every boosting library expects.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>learn_rate()<span class="qa-cmt">                                  # default log10 range -10 to -1</span>
+learn_rate(range = c(-3, -1))<span class="qa-cmt">                 # narrower band, still log10</span>
+learn_rate(range = c(0.001, 0.3), trans = NULL)<span class="qa-cmt"> # raw scale instead of log</span>
+update(params, learn_rate = learn_rate(c(-4, -1)))<span class="qa-cmt">  # override in param set</span>
+grid_regular(learn_rate(c(-3, -1)), levels = 5)<span class="qa-cmt">     # 5 log-spaced points</span>
+boost_tree(trees = tune(), learn_rate = tune())<span class="qa-cmt">     # tune the pair together</span>
+finalize(params, train)<span class="qa-cmt">                       # no-op for learn_rate, still safe</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is learn_rate() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">tune the shrinkage in xgboost or lightgbm</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">learn_rate()</text><text x="125" y="126" class="branch-label">tune the ensemble size that pairs with it</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">trees()</text><text x="125" y="182" class="branch-label">tune individual tree depth in boosting</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">tree_depth()</text><text x="125" y="238" class="branch-label">stop boosting early when validation plateaus</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">stop_iter()</text><text x="125" y="294" class="branch-label">tune the L2 penalty on leaf weights</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">loss_reduction()</text><text x="125" y="350" class="branch-label">tune variable sampling at each split</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">mtry()</text><text x="125" y="406" class="branch-label">set the learning rate for a neural net (mlp)</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">learn_rate() (same function)</text></svg></div>
+
+<h2>What learn_rate() does in one sentence</h2>
+
+<p><strong>learn_rate() returns a dials parameter object describing the shrinkage applied to each boosting iteration or the step size used in gradient descent.</strong> It is the knob you tune when you mark <code>learn_rate = tune()</code> inside <code>boost_tree()</code>, <code>mlp()</code>, or <code>bart()</code>. Smaller values force the model to take many small steps and usually need more trees to compensate. Larger values converge faster but risk overshooting the minimum and overfitting on the residual structure.</p>
+
+<p>The function is part of the same dials family as <code>trees()</code>, <code>tree_depth()</code>, and <code>min_n()</code>. The one thing that sets it apart is the default log10 transform, which means the range you pass and the values the model actually sees live on different scales.</p>
+
+<h2>learn_rate() syntax and arguments</h2>
+
+<p><strong>The signature is two arguments with a non-obvious default.</strong></p>
+
+<div class="webr-container" data-block-title="learn_rate signature and defaults">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">learn_rate signature and defaults</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dials)
+learn_rate(range = c(-10, -1), trans = transform_log10())
+#&gt; Learning Rate (quantitative)
+#&gt; Transformer: log-10 [1e-100, Inf]
+#&gt; Range (transformed scale): [-10, -1]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>range</code></td>
+<td>Two-element numeric vector. Defaults to <code>c(-10, -1)</code> on the log10 scale, i.e. 10^-10 to 10^-1 on the natural scale.</td>
+</tr>
+<tr>
+<td><code>trans</code></td>
+<td>A transformation from the scales package. Default <code>transform_log10()</code>. Pass <code>NULL</code> to search on the raw scale instead.</td>
+</tr>
+</tbody>
+</table>
+
+<p>The return is a <code>quant_param</code> S3 object. Print it to inspect the range, call <code>value_seq()</code> to draw points, or hand it to <code>grid_*()</code> helpers.</p>
+
+<div class="webr-container" data-block-title="Inspect the parameter object">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the parameter object</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p &lt;- learn_rate(range = c(-3, -1))
+p
+#&gt; Learning Rate (quantitative)
+#&gt; Transformer: log-10 [1e-100, Inf]
+#&gt; Range (transformed scale): [-3, -1]
+
+value_seq(p, 5)
+#&gt; [1] 0.001000000 0.005623413 0.031622777 0.177827941 1.000000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The default range looks tiny but is enormous on the natural scale.</strong> <code>c(-10, -1)</code> expands to <code>[10^-10, 0.1]</code>. Few boosting problems benefit from learning rates below 0.001, so most authors tighten the range to <code>c(-3, -1)</code> (0.001 to 0.1) before tuning.</div></div>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Start with a tunable boosted tree, pair learn_rate with trees, then build a small grid.</strong></p>
+
+<div class="webr-container" data-block-title="Tunable xgboost spec with learn_rate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tunable xgboost spec with learn_rate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+data(ames, package = &quot;modeldata&quot;)
+ames &lt;- ames |&gt; mutate(Sale_Price = log10(Sale_Price))
+
+set.seed(42)
+split &lt;- initial_split(ames, prop = 0.8, strata = Sale_Price)
+train &lt;- training(split)
+
+xgb_spec &lt;- boost_tree(
+  trees      = tune(),
+  learn_rate = tune(),
+  tree_depth = 6
+) |&gt;
+  set_engine(&quot;xgboost&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+wf &lt;- workflow() |&gt;
+  add_formula(Sale_Price ~ Gr_Liv_Area + Year_Built + Bldg_Type + Neighborhood) |&gt;
+  add_model(xgb_spec)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Extract the parameter set and tighten the learn_rate range from the wide default to something practical.</p>
+
+<div class="webr-container" data-block-title="Override learn_rate range in a param set">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Override learn_rate range in a param set</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">params &lt;- extract_parameter_set_dials(wf) |&gt;
+  update(learn_rate = learn_rate(range = c(-3, -1)))
+
+params
+#&gt; Collection of 2 parameters for tuning
+#&gt;  identifier      type    object
+#&gt;       trees      trees nparam[+]
+#&gt;  learn_rate learn_rate nparam[+]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A regular grid over the pair samples five learn_rate values on a log scale and three tree counts on a linear scale.</p>
+
+<div class="webr-container" data-block-title="Regular grid over trees and learn_rate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Regular grid over trees and learn_rate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">xgb_grid &lt;- grid_regular(params, levels = c(trees = 3, learn_rate = 5))
+xgb_grid
+#&gt; # A tibble: 15 x 2
+#&gt;    trees learn_rate
+#&gt;    &lt;int&gt;      &lt;dbl&gt;
+#&gt;  1   100    0.001
+#&gt;  2  1000    0.001
+#&gt;  3  2000    0.001
+#&gt;  4   100    0.00562
+#&gt;  5  1000    0.00562
+#&gt;  6  2000    0.00562
+#&gt;  7   100    0.0316
+#&gt;  8  1000    0.0316
+#&gt;  9  2000    0.0316
+#&gt; 10   100    0.178
+#&gt; ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The grid's learn_rate column is on the natural scale, even though we passed the range on the log10 scale. dials handles the back-transform for you.</p>
+
+<div class="webr-container" data-block-title="Raw-scale variant when you do not want log">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Raw-scale variant when you do not want log</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lr_raw &lt;- learn_rate(range = c(0.01, 0.3), trans = NULL)
+value_seq(lr_raw, 4)
+#&gt; [1] 0.01000000 0.10666667 0.20333333 0.30000000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>learn_rate and trees move in opposite directions.</strong> A small learn_rate of 0.01 typically needs 1000+ trees to fit the same signal that learn_rate 0.1 catches in 200. When you tune both together, expect the optimum corner of the grid to land in the small-learn_rate + large-trees region, then trim the wasteful cells in the next refinement pass.</div></div>
+
+<h2>learn_rate() versus the raw boost_tree(learn_rate = 0.1) argument</h2>
+
+<p><strong>Pick by whether you are tuning or fitting one model.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Form</th>
+<th>What it does</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>learn_rate()</code></td>
+<td>Returns a parameter object for <a class="auto-link" href="tune-tune_grid-in-R.html" title="tune tune_grid() in R: Hyperparameter Search on Resamples">tune_grid()</a> to sample</td>
+<td>Hyperparameter tuning, parameter set construction</td>
+</tr>
+<tr>
+<td><code>boost_tree(learn_rate = 0.1)</code></td>
+<td>Fixes the rate at 0.1 for a single fit</td>
+<td>Production, after tuning has chosen a value</td>
+</tr>
+<tr>
+<td><code>boost_tree(learn_rate = tune())</code></td>
+<td>Marks the slot as tunable, leaves the range to dials</td>
+<td>Inside a workflow you will pass to tune_grid()</td>
+</tr>
+</tbody>
+</table>
+
+<p>Behind the scenes, <code>tune()</code> is a placeholder. <code>extract_parameter_set_dials()</code> walks the spec, sees the placeholder, and asks dials for the default <code>learn_rate()</code> object. You only call <code>learn_rate()</code> directly when you want to override the default range or transform.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Four mistakes catch most learn_rate tuning runs in their first iteration.</strong></p>
+
+<ol>
+
+<li><strong>Reading the default range as natural-scale.</strong> <code>c(-10, -1)</code> looks like a tiny set of rates; it is actually 10 orders of magnitude on the natural scale. A 5-point regular grid hits 10^-10, 10^-7.75, 10^-5.5, 10^-3.25, 10^-1, which is useless for any real model.</li>
+
+<li><strong>Tuning learn_rate without tuning trees.</strong> A fixed <code>trees = 100</code> plus a small learn_rate yields a model that barely moves off the intercept. Always tune the pair together, or fix trees high enough (say 1500) and use <code>stop_iter()</code> to find the right ensemble size during fit.</li>
+
+<li><strong>Mixing log and raw scales in a custom grid.</strong> A tibble grid with <code>learn_rate = c(0.001, 0.01, 0.1)</code> works only if the workflow's parameter has <code>trans = NULL</code>. If the default log10 transform is still in place, dials interprets those values as exponents and silently samples 10^0.001, 10^0.01, 10^0.1.</li>
+
+<li><strong>Calling finalize() and expecting it to do something.</strong> <code>finalize()</code> only fills in <code>unknown()</code> bounds. learn_rate has both bounds set by default, so finalize is a no-op. Harmless to call, but it is not the missing piece if your tune_grid still errors.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Different engines interpret learn_rate differently at the extremes.</strong> xgboost clamps to <code>[0, 1]</code>. lightgbm allows higher values up to 2 or 3 in practice. h2o has its own scaling. Always check the engine's accepted range before pushing the upper bound above <code>-1</code> on the log10 scale.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a tunable boost_tree on mtcars (regression on mpg), tighten learn_rate to the practical range 0.005 to 0.2 with log10 transform, and produce a regular grid with 4 learn_rate values and 3 tree counts. Print the grid.</p>
+<div class="webr-container" data-block-title="Your turn: tune learn_rate on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tune learn_rate on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: tune learn_rate on mtcars
+library(tidymodels)
+
+ex_spec &lt;- boost_tree(trees = tune(), learn_rate = tune(), tree_depth = 4) |&gt;
+  set_engine(&quot;xgboost&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+ex_wf &lt;- workflow() |&gt;
+  add_formula(mpg ~ .) |&gt;
+  add_model(ex_spec)
+
+ex_params &lt;- # your code here
+
+ex_grid &lt;- # your code here
+
+ex_grid
+#&gt; Expected: a 12-row tibble with columns trees and learn_rate</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_params &lt;- extract_parameter_set_dials(ex_wf) |&gt;
+  update(learn_rate = learn_rate(range = c(log10(0.005), log10(0.2))))
+
+ex_grid &lt;- grid_regular(ex_params, levels = c(trees = 3, learn_rate = 4))
+
+ex_grid
+#&gt; # A tibble: 12 x 2
+#&gt;    trees learn_rate
+#&gt;    &lt;int&gt;      &lt;dbl&gt;
+#&gt;  1   100    0.005
+#&gt;  2  1000    0.005
+#&gt;  3  2000    0.005
+#&gt;  4   100    0.0189
+#&gt;  5  1000    0.0189
+#&gt;  6  2000    0.0189
+#&gt;  7   100    0.0712
+#&gt;  8  1000    0.0712
+#&gt;  9  2000    0.0712
+#&gt; 10   100    0.2
+#&gt; 11  1000    0.2
+#&gt; 12  2000    0.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Wrapping the raw bounds in <code>log10()</code> keeps the parameter on the log10 scale so the four sampled values are spaced geometrically between 0.005 and 0.2. Crossed with three tree counts, the grid has 12 candidates.</p>
+
+</details>
+</section>
+
+<h2>Related tidymodels functions</h2>
+
+<p><strong>learn_rate() rarely tunes alone; the typical call lives inside a small cluster.</strong></p>
+
+<ul>
+
+<li><code>trees()</code> to set the ensemble size that pairs with it. Small learn_rate needs many trees.</li>
+
+<li><code>tree_depth()</code> to control individual tree complexity in boosting.</li>
+
+<li><code>stop_iter()</code> to halt boosting once validation stops improving, which protects you from oversized tree counts.</li>
+
+<li><code>loss_reduction()</code> to tune the minimum gain required to split a node (gamma in xgboost).</li>
+
+<li><code>extract_parameter_set_dials()</code> to pull every tunable parameter from a workflow at once.</li>
+
+<li><code>grid_regular()</code>, <code>grid_space_filling()</code>, <code>grid_max_entropy()</code> to expand the parameter set into a candidate tibble.</li>
+
+</ul>
+
+<p>External reference: the official dials documentation at <a href="https://dials.tidymodels.org/reference/learn_rate.html">dials.tidymodels.org</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is a good default learning rate for xgboost in R?</strong></p>
+
+<p>For most tabular regression and classification problems, a learn_rate between 0.01 and 0.05 paired with 500 to 2000 trees lands close to the optimum. Smaller rates like 0.005 work when the signal is subtle and you can afford the compute. Rates above 0.1 tend to overfit on small datasets and skip past the minimum on noisy data. xgboost's own default is 0.3, which is tuned for speed not accuracy; lower it before you tune anything else.</p>
+
+<p><strong>Why does learn_rate() use a log scale by default?</strong></p>
+
+<p>Because the practically useful range spans three to four orders of magnitude, from roughly 0.001 to 0.3. A linear grid would waste most candidates in the upper half of the range, where models overfit or fail to converge. A log10 grid spaces candidates geometrically, so a 5-point grid hits 0.001, 0.003, 0.01, 0.03, 0.1 instead of 0.001, 0.075, 0.15, 0.225, 0.3. The log transform makes the search efficient even when the optimal rate is close to the lower end.</p>
+
+<p><strong>How is dials learn_rate() different from setting learn_rate in xgboost directly?</strong></p>
+
+<p>dials learn_rate() builds a parameter object that tune_grid() can sample across many candidate values. Setting <code>boost_tree(learn_rate = 0.1)</code> fixes the rate at one value for a single fit. The dials version is what you reach for during hyperparameter search. The direct value is what you write into your production spec once tuning has chosen a winner.</p>
+
+<p><strong>Do I need finalize() with learn_rate() like I do with mtry()?</strong></p>
+
+<p>No. learn_rate() ships with both bounds set, so <code>is_unknown()</code> returns FALSE on both endpoints. <code>finalize()</code> only replaces unknown bounds with data-derived values, so calling it on learn_rate is harmless but does nothing. mtry() is different because its upper bound depends on the predictor count, which dials cannot know until you hand it data.</p>
+
+<p><strong>Can I tune learn_rate for a neural network instead of boosting?</strong></p>
+
+<p>Yes. <code>mlp(learn_rate = tune())</code> with <code>set_engine(&quot;keras&quot;)</code> accepts the same dials learn_rate() parameter. The default log10 range still applies, though neural networks often want a narrower band like <code>c(-4, -2)</code>. The mechanics are identical: extract the parameter set, optionally update the range, build a grid, fit through tune_grid().</p>
+
+{% endraw %}
