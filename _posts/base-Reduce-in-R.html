@@ -1,0 +1,336 @@
+---
+title: "Reduce() in R: Fold a Function Over a List or Vector"
+description: "Use base R Reduce() to fold a function across a list or vector. Covers accumulate, init, right=TRUE, and purrr::reduce, with six worked code examples."
+keywords: "Reduce in R, base Reduce, R fold function, Reduce accumulate, Reduce init, Reduce vs purrr reduce, R functional programming"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "Reduce()|base Reduce|fold function R|Reduce accumulate|R reduce function"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>Reduce() in R: Fold a Function Over a List or Vector</h1>
+
+<p class="lead">The <code>Reduce()</code> function in base R folds a binary function across a list or vector, collapsing many values into a single accumulated result. It powers running totals, list merges, and any "combine pairwise from the left" computation.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>Reduce(&quot;+&quot;, 1:5)<span class="qa-cmt">                                  # 15 (sum via fold)</span>
+Reduce(&quot;+&quot;, 1:5, accumulate = TRUE)<span class="qa-cmt">               # 1 3 6 10 15 (running totals)</span>
+Reduce(&quot;+&quot;, 1:5, accumulate = TRUE, init = 100)<span class="qa-cmt">   # 100 101 103 106 110 115</span>
+Reduce(paste, letters[1:4])<span class="qa-cmt">                       # &quot;a b c d&quot; (left fold)</span>
+Reduce(paste, letters[1:4], right = TRUE)<span class="qa-cmt">         # &quot;a b c d&quot; (right fold)</span>
+Reduce(intersect, list(1:5, 3:7, 4:10))<span class="qa-cmt">           # 4 5 (common elements)</span>
+Reduce(merge, list(df1, df2, df3))<span class="qa-cmt">                # merge many data frames</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Reduce()</a> the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">fold binary fn over a list</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">Reduce(f, x)</text><text x="125" y="126" class="branch-label">need every intermediate result</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">Reduce(f, x, accumulate = TRUE)</text><text x="125" y="182" class="branch-label">apply a fn element-wise (no folding)</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code"><a class="auto-link" href="base-lapply-in-R.html" title="lapply() in R: Apply a Function to a List or Vector">lapply()</a> or <a class="auto-link" href="base-sapply-in-R.html" title="sapply() in R: Apply a Function and Simplify the Result">sapply()</a></text><text x="125" y="238" class="branch-label">combine many data frames pairwise</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">Reduce(merge, list_of_dfs)</text><text x="125" y="294" class="branch-label">variadic function over a list</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">do.call(f, list_of_args)</text><text x="125" y="350" class="branch-label">tidyverse fold</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">purrr::reduce(x, f)</text><text x="125" y="406" class="branch-label">special-case sums or products</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">sum(), prod(), paste(collapse = )</text></svg></div>
+
+<h2>What Reduce() does in one sentence</h2>
+
+<p><strong><code>Reduce(f, x)</code> collapses the elements of <code>x</code> into a single value by applying the binary function <code>f</code> left-to-right, like <code>f(f(f(x1, x2), x3), x4)</code>.</strong> It is R's left fold, the same operation as <code>foldl</code> in Haskell or <code>functools.reduce</code> in Python.</p>
+
+<p><code>Reduce</code> belongs to base R's <a href="Functional-Programming-in-R.html">functional programming</a> toolkit (alongside <code>Map</code>, <code>Filter</code>, <code>Find</code>, <code>Position</code>, and <code>Negate</code>). It is the only base function that turns a list of values into one accumulated value by repeated pairwise combination.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>Reduce(f, x, init, accumulate = FALSE, right = FALSE)</code>. <code>f</code> is a binary function, <code>x</code> is a list or vector; <code>init</code> seeds the fold, <code>accumulate</code> returns every step, <code>right</code> flips direction.</strong></p>
+
+<div class="webr-container" data-block-title="Sum a vector via fold">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sum a vector via fold</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">Reduce(&quot;+&quot;, 1:5)
+#&gt; [1] 15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The call expands to <code>((((1 + 2) + 3) + 4) + 5)</code>. The first argument can be any binary function: a name in quotes, a function object, or an anonymous function.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Quoting an operator like <code>&quot;+&quot;</code> looks it up as a function.</strong> <code>Reduce(&quot;+&quot;, x)</code> is identical to <code>Reduce(</code>+<code>, x)</code> or <code>Reduce(function(a, b) a + b, x)</code>. Use the quoted form for arithmetic and <a class="auto-link" href="R-Logical-Operators-in-R.html" title="R Logical Operators: AND, OR, NOT (With Truth Tables)">logical operators</a>; it reads cleanest.</div></div>
+
+<h2>Six common patterns</h2>
+
+<h3>1. Fold an operator across a vector</h3>
+
+<div class="webr-container" data-block-title="Sum and product via Reduce">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Sum and product via Reduce</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">Reduce(&quot;+&quot;, 1:5)
+#&gt; [1] 15
+
+Reduce(&quot;*&quot;, 1:5)
+#&gt; [1] 120</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For sums and products specifically, <code>sum()</code> and <code>prod()</code> are faster and clearer. Use <code>Reduce</code> when the operation is not vectorized (merging, intersecting, composing).</p>
+
+<h3>2. Get every intermediate result with accumulate</h3>
+
+<div class="webr-container" data-block-title="Running totals">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Running totals</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">Reduce(&quot;+&quot;, 1:5, accumulate = TRUE)
+#&gt; [1]  1  3  6 10 15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>accumulate = TRUE</code> returns a vector of length <code>length(x)</code>, one entry per fold step. This is the <code>cumsum()</code> equivalent for arbitrary binary functions.</p>
+
+<h3>3. Seed the fold with init</h3>
+
+<div class="webr-container" data-block-title="Start the accumulator at 100">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Start the accumulator at 100</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">Reduce(&quot;+&quot;, 1:5, accumulate = TRUE, init = 100)
+#&gt; [1] 100 101 103 106 110 115</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>init</code> prepends a starting value. The output now has length <code>length(x) + 1</code>. Without <code>init</code> and with an empty <code>x</code>, <code>Reduce</code> returns <code>NULL</code>, which often crashes downstream code. Pass <code>init</code> whenever <code>x</code> might be empty.</p>
+
+<h3>4. Merge a list of data frames</h3>
+
+<div class="webr-container" data-block-title="Pairwise merge across many tables">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pairwise merge across many tables</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">df1 &lt;- data.frame(id = 1:3, a = c(10, 20, 30))
+df2 &lt;- data.frame(id = 1:3, b = c(&quot;x&quot;, &quot;y&quot;, &quot;z&quot;))
+df3 &lt;- data.frame(id = 1:3, c = c(0.1, 0.2, 0.3))
+
+Reduce(function(x, y) merge(x, y, by = &quot;id&quot;), list(df1, df2, df3))
+#&gt;   id  a b   c
+#&gt; 1  1 10 x 0.1
+#&gt; 2  2 20 y 0.2
+#&gt; 3  3 30 z 0.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the canonical use case. <code>merge</code> only takes two data frames, so any chain longer than two needs a fold. <code>dplyr::full_join</code> works the same way with <code>purrr::reduce</code>.</p>
+
+<h3>5. Intersect many sets</h3>
+
+<div class="webr-container" data-block-title="Common elements across N vectors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Common elements across N vectors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">Reduce(intersect, list(1:5, 3:7, 4:10))
+#&gt; [1] 4 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>intersect()</code> is binary. <code>Reduce(intersect, list_of_vectors)</code> finds elements present in every vector. The same pattern works with <code>union</code> for the opposite operation.</p>
+
+<h3>6. Right fold for right-associative ops</h3>
+
+<div class="webr-container" data-block-title="Left vs right fold">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Left vs right fold</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">Reduce(function(a, b) paste0(&quot;(&quot;, a, &quot;+&quot;, b, &quot;)&quot;), 1:4)
+#&gt; [1] &quot;(((1+2)+3)+4)&quot;
+
+Reduce(function(a, b) paste0(&quot;(&quot;, a, &quot;+&quot;, b, &quot;)&quot;), 1:4, right = TRUE)
+#&gt; [1] &quot;(1+(2+(3+4)))&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For associative operations like <code>+</code>, the final value is identical regardless of direction. For non-associative ones (function composition, subtraction, division, list concatenation), <code>right = TRUE</code> matters.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Reduce turns ANY binary function into an N-ary one.</strong> That is the entire point: <code>merge()</code> works on two tables, but <code>Reduce(merge, list_of_tables)</code> works on any number. <code>union()</code> joins two vectors, but <code>Reduce(union, list)</code> joins many. Whenever you need a binary primitive to apply across a collection, reach for Reduce.</div></div>
+
+<h2>Reduce vs apply family vs purrr::reduce</h2>
+
+<p><strong>Reduce is a fold; apply functions are maps.</strong> A fold collapses a sequence into one value by threading a running result through each step; a map produces one output per input independently. The table below shows where Reduce fits among related base R and purrr primitives.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Output</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Reduce(f, x)</code></td>
+<td>One value</td>
+<td>Fold (combine pairwise)</td>
+</tr>
+<tr>
+<td><code>lapply(x, f)</code></td>
+<td>List of N values</td>
+<td>Map (apply independently)</td>
+</tr>
+<tr>
+<td><code>sapply(x, f)</code></td>
+<td>Vector of N values</td>
+<td>Map with simplification</td>
+</tr>
+<tr>
+<td><code>purrr::reduce(x, f)</code></td>
+<td>One value</td>
+<td>Tidyverse fold</td>
+</tr>
+<tr>
+<td><code>purrr::accumulate(x, f)</code></td>
+<td>Vector of N values</td>
+<td>Tidyverse running fold</td>
+</tr>
+<tr>
+<td><code>do.call(f, list)</code></td>
+<td>One value</td>
+<td>Call variadic fn on a list</td>
+</tr>
+</tbody>
+</table>
+
+<p>When to use which:</p>
+
+<ul>
+
+<li>Use <code>Reduce()</code> when the operation is pairwise and the function is strictly binary.</li>
+
+<li>Use <code>lapply</code> or <code>sapply</code> when you want one result per input, not a single collapsed result.</li>
+
+<li>Use <code>purrr::reduce()</code> in tidyverse pipelines; semantics are the same as <code>Reduce</code> with a friendlier interface.</li>
+
+<li>Use <code>do.call()</code> when the function takes variable arguments natively (e.g., <code>do.call(rbind, list_of_dfs)</code>).</li>
+
+</ul>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: empty input with no init returns NULL.</strong> <code>Reduce(&quot;+&quot;, integer(0))</code> returns <code>NULL</code>, not <code>0</code>. Always pass <code>init</code> when the input might be empty: <code>Reduce(&quot;+&quot;, x, init = 0)</code>.</p>
+
+<p><strong>Pitfall 2: confusing accumulate output length.</strong> Without <code>init</code>, <code>accumulate = TRUE</code> returns <code>length(x)</code> values. With <code>init</code>, it returns <code>length(x) + 1</code>. Off-by-one bugs are common when chaining the result.</p>
+
+<p><strong>Pitfall 3: using Reduce when vectorized math exists.</strong> <code>Reduce(&quot;+&quot;, 1:1e6)</code> is much slower than <code>sum(1:1e6)</code>. Reach for <code>Reduce</code> only when no vectorized primitive exists.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The function argument order matters.</strong> <code>f(accumulator, next_element)</code> is the order in a left fold. If your function is asymmetric (e.g., <code>setdiff</code>), the first argument is the running result and the second is the next input. Get this backwards and the output silently changes meaning.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>Reduce</code> with <code>accumulate = TRUE</code> and <code>init = 1</code> to produce the running product of <code>1:5</code>. Save the result to <code>ex_running_prod</code>.</p>
+<div class="webr-container" data-block-title="Your turn: running product">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: running product</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: running product
+ex_running_prod &lt;- # your code here
+
+ex_running_prod
+#&gt; Expected: 1 1 2 6 24 120</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_running_prod &lt;- Reduce(&quot;*&quot;, 1:5, accumulate = TRUE, init = 1)
+ex_running_prod
+#&gt; [1]   1   1   2   6  24 120</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>init = 1</code> seeds the fold at 1 (the multiplicative identity). <code>accumulate = TRUE</code> returns every intermediate product. The output has length 6: the init plus one per input.</p>
+
+</details>
+</section>
+
+<h2>Related base R functional functions</h2>
+
+<p>After mastering <code>Reduce</code>, look at:</p>
+
+<ul>
+
+<li><code>Map()</code>: apply a function across multiple lists in parallel</li>
+
+<li><code>Filter()</code>: keep elements matching a predicate</li>
+
+<li><code>Find()</code> and <code>Position()</code>: first element (or index) matching a predicate</li>
+
+<li><code>Negate()</code>: invert a predicate function</li>
+
+<li><code>purrr::reduce()</code> and <code>purrr::accumulate()</code>: tidyverse equivalents</li>
+
+</ul>
+
+<p>For function composition specifically, <code>Reduce(function(f, g) function(x) f(g(x)), list_of_fns)</code> builds a single pipeline function. Most users prefer <code>magrittr::%&gt;%</code> or the native <code>|&gt;</code> pipe for composition; <code>Reduce</code> is the explicit functional form. See the <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/funprog.html">base funprog reference</a> for the full base R functional-programming family.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is Reduce() in R used for?</strong></p>
+
+<p><code>Reduce()</code> folds a binary function across a list or vector to produce a single accumulated value. Common uses include summing or multiplying a sequence, merging a list of data frames, intersecting multiple sets, and computing running totals with <code>accumulate = TRUE</code>. It is R's left-fold primitive.</p>
+
+<p><strong>What is the difference between Reduce and lapply in R?</strong></p>
+
+<p><code>lapply(x, f)</code> calls <code>f</code> on each element of <code>x</code> independently and returns a list of <code>N</code> results. <code>Reduce(f, x)</code> calls a binary <code>f</code> pairwise, threading the running result into each next call, and returns ONE final value. Use <code>lapply</code> to map; use <code>Reduce</code> to fold.</p>
+
+<p><strong>How do I use Reduce with accumulate in R?</strong></p>
+
+<p>Pass <code>accumulate = TRUE</code>: <code>Reduce(f, x, accumulate = TRUE)</code> returns every intermediate result, one per step. With an <code>init</code> value, the output length is <code>length(x) + 1</code>. This is the general-purpose <code>cumsum()</code> equivalent for any binary function.</p>
+
+<p><strong>What is the difference between Reduce and purrr::reduce?</strong></p>
+
+<p>Behavior is identical: both fold a binary function across a sequence. <code>purrr::reduce()</code> has a tidyverse-friendly signature (<code>reduce(x, f, .init = ...)</code>) and integrates cleanly with the pipe. <code>Reduce()</code> is base R with no package dependency. Use <code>purrr::reduce</code> inside tidyverse pipelines, <code>Reduce</code> everywhere else.</p>
+
+<p><strong>Can Reduce work on an empty vector?</strong></p>
+
+<p>Yes, but only if you pass <code>init</code>. <code>Reduce(f, character(0), init = &quot;&quot;)</code> returns <code>&quot;&quot;</code>. Without <code>init</code>, <code>Reduce</code> returns <code>NULL</code> on empty input, which often crashes downstream code. Always pass <code>init</code> whenever the input might be empty.</p>
