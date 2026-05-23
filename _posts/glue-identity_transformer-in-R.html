@@ -1,0 +1,337 @@
+---
+title: "glue identity_transformer() in R: Default Transformer"
+description: "Use glue identity_transformer() in R to parse and evaluate the text inside any glue() placeholder. Four custom-transformer examples plus three pitfalls."
+keywords: "glue identity_transformer, identity_transformer R, glue custom transformer, glue::identity_transformer, glue transformer function, R parse eval transformer, glue default transformer"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "glue::identity_transformer()|glue identity_transformer|identity_transformer function|glue default transformer|custom glue transformer"
+auto_link_case_sensitive: true
+fr_parent: "stringr-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>glue identity_transformer() in R: Default Transformer</h1>
+
+<p class="lead">glue identity_transformer() is the default transformer that glue() uses to turn the text inside each {placeholder} into a value. It parses the placeholder text as R code, evaluates it in the calling environment, and returns the result unchanged, which is what makes glue() behave like plain string interpolation out of the box.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>identity_transformer(&quot;x + 1&quot;, envir)<span class="qa-cmt">            # parse and evaluate one expression</span>
+glue(&quot;{x}&quot;, .transformer = identity_transformer)<span class="qa-cmt"> # explicit default transformer</span>
+glue::identity_transformer(text, envir)<span class="qa-cmt">          # namespaced call</span>
+function(text, envir) identity_transformer(text, envir)<span class="qa-cmt"> # bare passthrough wrapper</span>
+function(text, envir) format(identity_transformer(text, envir), big.mark = &quot;,&quot;)<span class="qa-cmt"> # decorate output</span>
+function(text, envir) tryCatch(identity_transformer(text, envir), error = function(e) NA)<span class="qa-cmt"> # NA-on-error</span>
+function(text, envir) toupper(identity_transformer(text, envir))<span class="qa-cmt"> # transform every value</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is identity_transformer() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">parse + eval a glue placeholder yourself</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">identity_transformer(text, envir)</text><text x="125" y="126" class="branch-label">write a custom transformer that decorates default output</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">wrap identity_transformer()</text><text x="125" y="182" class="branch-label">pass values straight in without parsing</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">glue() with no .transformer</text><text x="125" y="238" class="branch-label">safe-quote SQL identifiers</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code"><a class="auto-link" href="glue-glue_sql-in-R.html" title="glue glue_sql() in R: Safely Interpolate Values Into SQL">glue_sql()</a> with its own transformer</text><text x="125" y="294" class="branch-label">block code injection in user input</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code"><a class="auto-link" href="glue-glue_safe-in-R.html" title="glue glue_safe() in R: Secure Interpolation Without eval()">glue_safe()</a> (whitelist-checked names only)</text><text x="125" y="350" class="branch-label">format numbers inline</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">scales::label_*() inside the placeholder, no transformer needed</text></svg></div>
+
+<h2>What identity_transformer() does in one sentence</h2>
+
+<p><strong>identity_transformer() takes the raw text of a glue placeholder, parses it as R, evaluates the result in a supplied environment, and returns whatever that evaluation produced.</strong> It is the function that glue() calls once per <code>{...}</code> block when no custom <code>.transformer</code> is supplied.</p>
+
+<p>The function does not do any formatting, escaping, or <a class="auto-link" href="R-Type-Coercion.html" title="R Type Coercion: Why Your Numeric Columns Silently Turn Into Characters">type coercion</a>. Its job is the parse-and-evaluate half of "string interpolation". Decorating the result, quoting it, or guarding it against errors is left to the caller, which is why custom transformers almost always start by delegating to identity_transformer() and then add their own behavior on top.</p>
+
+<div class="webr-container" data-block-title="Load glue and call the default transformer">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load glue and call the default transformer</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(glue)
+
+x &lt;- 42
+identity_transformer(&quot;x + 1&quot;, environment())
+#&gt; [1] 43</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The string <code>&quot;x + 1&quot;</code> is parsed, then evaluated in the current environment where <code>x</code> is bound to 42. The return value is the numeric result, ready for glue() to coerce to a string and splice into the template.</p>
+
+<h2>Syntax</h2>
+
+<p><strong>identity_transformer(text, envir) takes two arguments and returns the evaluated value.</strong> There are no optional parameters, no <code>.trim</code> flag, and no separator. The function is deliberately minimal so that custom transformers can <a class="auto-link" href="R-Function-Operators.html" title="R Function Operators: Compose, Negate & Partial Application">compose</a> it.</p>
+
+<div class="webr-container" data-block-title="Function signature and behaviour">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Function signature and behaviour</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># identity_transformer(text, envir)
+#
+# text  : a single character string containing R code, exactly as it
+#         appeared inside a {...} placeholder
+# envir : an environment in which to evaluate the parsed code; for
+#         glue() this is normally the calling frame
+#
+# Returns: the value produced by eval(parse(text = text), envir)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The implementation is essentially <code>eval(parse(text = text, keep.source = FALSE), envir)</code>. That is the contract worth remembering: anything that works as a one-line R expression works inside a glue placeholder, because identity_transformer() runs the exact same parse-and-eval path R itself uses.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for identity_transformer() only when writing a custom .transformer.</strong> Plain glue() already calls it for you; you never need to call it directly in user code unless you are composing a transformer that wraps the default behavior.</div></div>
+
+<h2>Common use cases</h2>
+
+<h3>1. Explicit default transformer</h3>
+
+<div class="webr-container" data-block-title="Pass identity_transformer to glue explicitly">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pass identity_transformer to glue explicitly</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">name &lt;- &quot;Selva&quot;
+count &lt;- 7
+glue(&quot;Hi {name}, you have {count} messages.&quot;,
+     .transformer = identity_transformer)
+#&gt; Hi Selva, you have 7 messages.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is functionally identical to omitting <code>.transformer</code> entirely. The explicit form is useful when teaching the API or when a function takes a transformer parameter and you want to document "use the default".</p>
+
+<h3>2. Decorate every interpolated value</h3>
+
+<div class="webr-container" data-block-title="Format numbers with a comma separator">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Format numbers with a comma separator</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fmt_transformer &lt;- function(text, envir) {
+  value &lt;- identity_transformer(text, envir)
+  if (is.numeric(value)) format(value, big.mark = &quot;,&quot;) else value
+}
+
+revenue &lt;- 1250000
+glue(&quot;Revenue: {revenue}&quot;, .transformer = fmt_transformer)
+#&gt; Revenue: 1,250,000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every placeholder still goes through parse-and-evaluate, but the result passes through <code>format()</code> before glue() builds the final string. The pattern (delegate to identity_transformer, then post-process) is the canonical shape of a custom transformer.</p>
+
+<h3>3. Fall back to NA when an expression errors</h3>
+
+<div class="webr-container" data-block-title="Wrap identity_transformer in tryCatch">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrap identity_transformer in tryCatch</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">safe_transformer &lt;- function(text, envir) {
+  tryCatch(
+    identity_transformer(text, envir),
+    error = function(e) NA_character_
+  )
+}
+
+x &lt;- 10
+glue(&quot;x = {x}; y = {y_that_does_not_exist}&quot;,
+     .transformer = safe_transformer)
+#&gt; x = 10; y = NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Plain glue() throws an error when a placeholder references an undefined variable. Wrapping identity_transformer() in <a class="auto-link" href="R-Conditions-System.html" title="R Conditions System: message(), warning(), stop() & Custom Conditions">tryCatch()</a> turns the error into a <a class="auto-link" href="dplyr-na_if-in-R.html" title="dplyr na_if() in R: Convert a Specific Value to NA">sentinel value</a>, which is handy for templated reports where some fields may legitimately be missing.</p>
+
+<h3>4. Add a uniform string transform</h3>
+
+<div class="webr-container" data-block-title="Upper-case every interpolated value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Upper-case every interpolated value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">upper_transformer &lt;- function(text, envir) {
+  value &lt;- identity_transformer(text, envir)
+  toupper(as.character(value))
+}
+
+city &lt;- &quot;bengaluru&quot;
+state &lt;- &quot;karnataka&quot;
+glue(&quot;{city}, {state}&quot;, .transformer = upper_transformer)
+#&gt; BENGALURU, KARNATAKA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The transformer pipeline parses the placeholder, evaluates it, coerces to character, then upper-cases the result. Notice the same identity_transformer() call sits inside an otherwise unrelated wrapper, which is the whole point of exposing it as part of the public API.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Custom transformers always receive the placeholder text as a string.</strong> Even <code>{1 + 1}</code> arrives as <code>text = &quot;1 + 1&quot;</code>, not as a parsed expression. That is why identity_transformer() has to parse it before evaluating; if you forget the parse step in a hand-rolled transformer, R will try to eval a literal string and you will get back the string itself.</div></div>
+
+<h2>identity_transformer() vs other transformers</h2>
+
+<p><strong>The <a class="auto-link" href="glue-glue-in-R.html" title="glue glue() in R: Interpolate Variables Into Strings">glue package</a> ships four transformers, each with a different job, and identity_transformer() is the simplest of the four.</strong> Use it as the default, or as the inner call inside a custom transformer that adds formatting or safety.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Transformer</th>
+<th>Package call</th>
+<th>What it does</th>
+<th>Typical use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>identity_transformer(text, envir)</code></td>
+<td><code>glue::identity_transformer()</code></td>
+<td>Parses + evaluates, returns value as-is</td>
+<td>Default for <code>glue()</code>; building block for custom transformers</td>
+</tr>
+<tr>
+<td><code>sql_quote_transformer(...)</code></td>
+<td><code>glue::glue_sql()</code></td>
+<td>Quotes identifiers and values per a DB connection</td>
+<td>Safe SQL composition</td>
+</tr>
+<tr>
+<td><code>safely_transformer(...)</code></td>
+<td><code>glue::glue_safe()</code></td>
+<td>Looks up bare names only, refuses arbitrary R code</td>
+<td>Untrusted templates</td>
+</tr>
+<tr>
+<td>Your own <code>function(text, envir)</code></td>
+<td>passed via <code>.transformer</code></td>
+<td>Anything you write</td>
+<td>Custom formatting, logging, or escaping</td>
+</tr>
+</tbody>
+</table>
+
+<p>The decision rule: stick with identity_transformer() (or no <code>.transformer</code> at all) when the template is author-controlled and you trust every placeholder. Switch to glue_safe() when the template comes from user input. Switch to glue_sql() when you are building a query.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A glue transformer is a function from (text, envir) to value.</strong> Once you internalize that signature, every custom transformer in the wild becomes readable: it parses, evaluates, then either formats the result or short-circuits with an alternative. identity_transformer() is the half that does parsing and evaluation, and your code supplies the other half.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<ol>
+
+<li><strong>Forgetting to call identity_transformer() inside a custom transformer.</strong> If your transformer just returns <code>text</code>, glue() will splice the raw placeholder text (<code>&quot;x + 1&quot;</code>) into the output instead of the value. The first line of almost every custom transformer should be <code>value &lt;- identity_transformer(text, envir)</code>.</li>
+
+</ol>
+
+<ol>
+
+<li><strong>Passing the wrong environment to a direct call.</strong> When invoking identity_transformer() outside of glue(), the second argument must be an environment where the referenced variables exist. Using <code>globalenv()</code> from inside a function will not see the function's local bindings; pass <code>environment()</code> or <code>parent.frame()</code> instead.</li>
+
+</ol>
+
+<ol>
+
+<li><strong>Expecting identity_transformer() to coerce to character.</strong> It returns whatever the expression evaluates to, integer, list, data frame, anything. glue() does the character coercion afterwards via <code>as.character()</code>. If your custom transformer needs a string, coerce explicitly with <code>as.character(identity_transformer(text, envir))</code>.</li>
+
+</ol>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Write a transformer called <code>ex_round_transformer</code> that rounds numeric placeholder values to 1 decimal place, leaves non-numeric values untouched, and uses identity_transformer() for the parse-and-eval step. Pass it to glue() with the template <code>&quot;pi = {pi}; name = {&#x27;pi&#x27;}&quot;</code>.</p>
+<div class="webr-container" data-block-title="Your turn: build a rounding transformer">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build a rounding transformer</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: round numeric values, pass strings through
+ex_round_transformer &lt;- function(text, envir) {
+  # your code here
+}
+
+glue(&quot;pi = {pi}; name = {'pi'}&quot;, .transformer = ex_round_transformer)
+#&gt; Expected: pi = 3.1; name = pi</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_round_transformer &lt;- function(text, envir) {
+  value &lt;- identity_transformer(text, envir)
+  if (is.numeric(value)) round(value, 1) else value
+}
+
+glue(&quot;pi = {pi}; name = {'pi'}&quot;, .transformer = ex_round_transformer)
+#&gt; pi = 3.1; name = pi</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The transformer delegates to identity_transformer() so that <code>{pi}</code> becomes the numeric constant and <code>{&#x27;pi&#x27;}</code> becomes the character literal. The <code>is.numeric()</code> branch rounds the first; the fall-through returns the second unchanged. glue() then coerces both to strings.</p>
+
+</details>
+</section>
+
+<h2>Related glue functions</h2>
+
+<ul>
+
+<li><code>glue()</code> is the entry point that calls identity_transformer() (or your <code>.transformer</code>) once per placeholder; reach for it first whenever you need string interpolation.</li>
+
+<li><code>glue_data()</code> runs the same transformer pipeline but over each row of a data frame, which lets you template tabular output.</li>
+
+<li><code>glue_sql()</code> swaps in a SQL-quoting transformer; use it when the result will go to a database.</li>
+
+<li><code>glue_safe()</code> swaps in a transformer that only accepts bare variable names, <a class="auto-link" href="Experimental-Design-Principles-in-R.html" title="Experimental Design in R: The Three Principles That Make Results Valid and Generalisable">blocking</a> arbitrary code execution from untrusted templates.</li>
+
+<li>See the <a href="https://glue.tidyverse.org/reference/identity_transformer.html">glue::identity_transformer reference</a> for the source and the full transformer contract.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is identity_transformer() in the glue package?</strong></p>
+
+<p>identity_transformer() is the default transformer function that glue() applies to each <code>{placeholder}</code> it encounters. It parses the placeholder text as R code, evaluates it in the supplied environment, and returns the resulting value unchanged. Custom transformers almost always delegate to identity_transformer() first and then layer formatting or safety checks on top of its return value.</p>
+
+<p><strong>When should I call identity_transformer() directly?</strong></p>
+
+<p>In day-to-day glue() usage, you do not call it directly because glue() does so internally. The function becomes useful when you write a custom <code>.transformer</code>: the standard pattern is <code>function(text, envir) { value &lt;- identity_transformer(text, envir); ... }</code>. Calling it explicitly tells the next reader that your transformer is built on the default parse-and-eval semantics rather than reinventing them.</p>
+
+<p><strong>How is identity_transformer() different from glue_safe()?</strong></p>
+
+<p>identity_transformer() parses and evaluates any R expression, so <code>{1 + 1}</code> or <code>{system(&#x27;ls&#x27;)}</code> both work. glue_safe() uses a transformer that only looks up bare variable names; expressions with operators or function calls raise an error. Use glue_safe() when the template string comes from user input or any other untrusted source.</p>
+
+<p><strong>Can I chain multiple transformers?</strong></p>
+
+<p>There is no built-in chain operator, but composition works the natural way: write one transformer whose body calls another. For example, a "format then upper-case" transformer would call identity_transformer() to get the raw value, pass it through format(), then through toupper(). The transformer contract is just a function, so any composition technique you would use for regular <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">R functions</a> applies.</p>
+
+<p><strong>Why does my transformer print the literal placeholder text?</strong></p>
+
+<p>Almost always because the transformer returned <code>text</code> instead of evaluating it. glue() takes whatever the transformer returns and coerces it to character; if you skip the parse-and-eval step, you get the raw string back. Add <code>identity_transformer(text, envir)</code> as the first line of the transformer and the placeholders will resolve to values.</p>
+
+{% endraw %}
