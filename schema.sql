@@ -1,0 +1,194 @@
+-- r-statistics.co D1 schema. Apply with:
+--   wrangler d1 execute r-stats-prod --remote --file schema.sql
+--   wrangler d1 execute r-stats-dev  --remote --file schema.sql
+-- Idempotent (uses IF NOT EXISTS). Safe to re-run after a column add.
+
+-- ===== users (mirrored from Supabase Auth via webhook) =====
+CREATE TABLE IF NOT EXISTS users (
+  id            TEXT PRIMARY KEY,        -- Supabase UUID
+  email         TEXT UNIQUE NOT NULL,
+  display_name  TEXT,
+  avatar_url    TEXT,
+  handle        TEXT UNIQUE,             -- public profile slug
+  country       TEXT,                    -- ISO-2 from CF-IPCountry at signup
+  timezone      TEXT,                    -- IANA
+  created_at    INTEGER NOT NULL,
+  pro_until     INTEGER,                 -- unix ts; NULL=free; -1=lifetime
+  paddle_customer_id   TEXT,
+  razorpay_customer_id TEXT,
+  newsletter_opt_in        INTEGER DEFAULT 0,
+  newsletter_subscribed_at INTEGER,
+  public_profile           INTEGER DEFAULT 1,
+  total_xp                 INTEGER DEFAULT 0,
+  current_streak_days      INTEGER DEFAULT 0,
+  longest_streak_days      INTEGER DEFAULT 0,
+  last_active_date         TEXT,         -- YYYY-MM-DD
+  role          TEXT DEFAULT 'user',     -- 'user' | 'admin'
+  deleted_at    INTEGER                  -- GDPR soft-delete
+);
+CREATE INDEX IF NOT EXISTS idx_users_pro_until ON users(pro_until);
+CREATE INDEX IF NOT EXISTS idx_users_country   ON users(country);
+
+-- ===== subscriptions (Paddle + Razorpay mirrored) =====
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id            TEXT PRIMARY KEY,
+  provider      TEXT NOT NULL,           -- 'paddle' | 'razorpay'
+  external_id   TEXT NOT NULL,
+  user_id       TEXT NOT NULL REFERENCES users(id),
+  plan          TEXT NOT NULL,           -- 'pro_monthly' | 'pro_annual' | 'lifetime' | 'teams'
+  status        TEXT NOT NULL,           -- 'trialing' | 'active' | 'past_due' | 'canceled' | 'expired' | 'paused'
+  current_period_end INTEGER,
+  trial_end     INTEGER,
+  cancel_at_period_end INTEGER DEFAULT 0,
+  amount        INTEGER,                 -- cents
+  currency      TEXT,
+  created_at    INTEGER,
+  updated_at    INTEGER
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_subs_external ON subscriptions(provider, external_id);
+
+-- ===== reading progress =====
+CREATE TABLE IF NOT EXISTS reading_progress (
+  user_id       TEXT NOT NULL,
+  post_slug     TEXT NOT NULL,
+  scroll_pct    INTEGER,
+  last_section  TEXT,
+  read_at       INTEGER,
+  marked_read   INTEGER DEFAULT 0,
+  PRIMARY KEY (user_id, post_slug)
+);
+
+-- ===== saved posts =====
+CREATE TABLE IF NOT EXISTS saved_posts (
+  user_id   TEXT NOT NULL,
+  post_slug TEXT NOT NULL,
+  saved_at  INTEGER NOT NULL,
+  PRIMARY KEY (user_id, post_slug)
+);
+
+-- ===== exercise submissions =====
+CREATE TABLE IF NOT EXISTS exercise_attempts (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id      TEXT NOT NULL,
+  hub_slug     TEXT NOT NULL,
+  exercise_id  TEXT NOT NULL,
+  passed       INTEGER NOT NULL,
+  hints_used   INTEGER DEFAULT 0,
+  xp_awarded   INTEGER DEFAULT 0,
+  submitted_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_attempts_user ON exercise_attempts(user_id, submitted_at);
+CREATE INDEX IF NOT EXISTS idx_attempts_hub  ON exercise_attempts(hub_slug);
+
+-- ===== quiz / mastery assessments (audit-grade snapshot) =====
+CREATE TABLE IF NOT EXISTS quiz_attempts (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id       TEXT NOT NULL,
+  track         TEXT NOT NULL,
+  question_json TEXT NOT NULL,           -- full Q+A at time of attempt
+  score         INTEGER NOT NULL,
+  passed        INTEGER NOT NULL,
+  duration_seconds INTEGER,
+  submitted_at  INTEGER NOT NULL
+);
+
+-- ===== certificates =====
+CREATE TABLE IF NOT EXISTS certificates (
+  id          TEXT PRIMARY KEY,          -- public UUID for verify URL
+  user_id     TEXT NOT NULL REFERENCES users(id),
+  track       TEXT NOT NULL,
+  score       INTEGER,
+  issued_at   INTEGER NOT NULL,
+  pdf_r2_key  TEXT,
+  revoked_at  INTEGER,
+  revoke_reason TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_certs_user ON certificates(user_id);
+
+-- ===== XP ledger (single source of truth) =====
+CREATE TABLE IF NOT EXISTS xp_ledger (
+  id      INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT NOT NULL,
+  action  TEXT NOT NULL,                 -- 'exercise.passed' | 'cert.earned' | 'streak.day' | 'post.upvote'
+  ref     TEXT,
+  xp      INTEGER NOT NULL,
+  at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_xp_user_at ON xp_ledger(user_id, at);
+
+-- ===== post engagement =====
+CREATE TABLE IF NOT EXISTS post_stats (
+  post_slug    TEXT PRIMARY KEY,
+  upvotes      INTEGER DEFAULT 0,
+  share_count  INTEGER DEFAULT 0,
+  read_count   INTEGER DEFAULT 0,
+  updated_at   INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS post_votes (
+  user_id    TEXT NOT NULL,
+  post_slug  TEXT NOT NULL,
+  voted_at   INTEGER NOT NULL,
+  PRIMARY KEY (user_id, post_slug)
+);
+
+-- ===== newsletter (mirrored to Zoho) =====
+CREATE TABLE IF NOT EXISTS newsletter_subs (
+  email           TEXT PRIMARY KEY,
+  user_id         TEXT,
+  confirmed_at    INTEGER,
+  unsubscribed_at INTEGER,
+  source          TEXT,
+  legacy_id       TEXT
+);
+
+-- ===== webhook idempotency + audit =====
+CREATE TABLE IF NOT EXISTS webhook_events (
+  id           TEXT PRIMARY KEY,          -- provider event id
+  provider     TEXT NOT NULL,
+  payload_json TEXT,
+  processed_at INTEGER,
+  error_message TEXT
+);
+
+CREATE TABLE IF NOT EXISTS audit_log (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id   TEXT,
+  actor     TEXT,                         -- 'user' | 'admin' | 'system' | 'webhook'
+  action    TEXT NOT NULL,
+  ref       TEXT,
+  meta_json TEXT,
+  at        INTEGER NOT NULL
+);
+
+-- ===== sessions (for revoke + active-sessions UI) =====
+CREATE TABLE IF NOT EXISTS sessions (
+  jti        TEXT PRIMARY KEY,            -- JWT id
+  user_id    TEXT NOT NULL,
+  device     TEXT,
+  ip         TEXT,
+  user_agent TEXT,
+  created_at INTEGER NOT NULL,
+  expires_at INTEGER NOT NULL,
+  revoked_at INTEGER
+);
+
+-- ===== teams (Phase v2; ship schema now to avoid later migration) =====
+CREATE TABLE IF NOT EXISTS orgs (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  owner_user_id TEXT NOT NULL,
+  seats_purchased INTEGER NOT NULL,
+  paddle_subscription_id TEXT,
+  created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS org_members (
+  org_id    TEXT NOT NULL,
+  user_id   TEXT NOT NULL,
+  role      TEXT NOT NULL,                -- 'owner' | 'admin' | 'member'
+  joined_at INTEGER NOT NULL,
+  PRIMARY KEY (org_id, user_id)
+);
+
+-- comments table omitted: v1 uses Giscus per Section 11 decision.
