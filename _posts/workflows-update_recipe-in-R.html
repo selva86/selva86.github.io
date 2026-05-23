@@ -1,0 +1,426 @@
+---
+title: "workflows update_recipe() in R: Swap a Workflow's Recipe"
+description: "Use workflows update_recipe() in R to swap the recipes preprocessor inside an existing tidymodels workflow. Syntax, four worked examples, gotchas, and pitfalls."
+keywords: "workflows update_recipe, update_recipe function R, update_recipe workflow, tidymodels update_recipe, R update_recipe, workflows update recipe, update_recipe tidymodels examples"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "update_recipe()|workflows update_recipe|workflows::update_recipe()|swap the recipe in workflow|update the recipe"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>workflows update_recipe() in R: Swap a Workflow's Recipe</h1>
+
+<p class="lead">The workflows <code>update_recipe()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> replaces the recipes preprocessor inside a tidymodels workflow with a new recipe, while leaving the model spec untouched. Use it to A/B preprocessing strategies, iterate on feature engineering, or rebuild a workflow after recipe changes without reassembling the pipeline by hand.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>update_recipe(wf, new_rec)<span class="qa-cmt">                       # swap the recipe in place</span>
+wf |&gt; update_recipe(rec_v2)<span class="qa-cmt">                      # pipe-friendly swap</span>
+update_recipe(wf, new_rec, blueprint = bp)<span class="qa-cmt">       # swap with custom blueprint</span>
+wf |&gt; update_recipe(rec) |&gt; fit(data = df)<span class="qa-cmt">       # swap then refit</span>
+update_recipe(wf_fit, new_rec)<span class="qa-cmt">                   # resets workflow to unfitted</span>
+update_model(wf, new_spec)<span class="qa-cmt">                       # sibling verb for the model</span>
+remove_recipe(wf) |&gt; add_recipe(new_rec)<span class="qa-cmt">         # equivalent two-step path</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is update_recipe() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">swap the recipe in an existing workflow</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">update_recipe(wf, new_rec)</text><text x="125" y="126" class="branch-label">attach a recipe to an empty workflow</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">workflow() |&gt; add_recipe(rec)</text><text x="125" y="182" class="branch-label">remove the recipe and leave the slot empty</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">remove_recipe(wf)</text><text x="125" y="238" class="branch-label">swap the model spec instead</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">update_model(wf, new_spec)</text><text x="125" y="294" class="branch-label">swap recipe and model together</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">update_recipe(wf, r) |&gt; update_model(s)</text><text x="125" y="350" class="branch-label">swap a formula preprocessor</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">update_formula(wf, y ~ x1 + x2)</text></svg></div>
+
+<h2>What update_recipe() does</h2>
+
+<p><strong>update_recipe() replaces the recipe slot of a workflow with a new recipe.</strong> It returns a new workflow object with the same model spec but a different preprocessor. The original workflow is not modified; the function is pure and assignment-safe.</p>
+
+<p>The verb exists because <code>add_recipe()</code> refuses to overwrite an existing preprocessor. Once a recipe is attached, calling <code>add_recipe()</code> again raises an error. <code>update_recipe()</code> is the explicit replacement door. It is the right tool whenever the model stays the same and only the preprocessing changes, which happens often during feature-engineering iteration and when comparing recipe variants under cross-validation.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>update_recipe() always returns an unfitted workflow.</strong> Even if you call it on a fitted workflow, the returned object discards any trained parameters because the new recipe would change the fitted state. Treat the result as a fresh workflow that must be refit before predictions.</div></div>
+
+<h2>update_recipe() syntax and arguments</h2>
+
+<p><strong>update_recipe() takes a workflow, a replacement recipe, and an optional blueprint.</strong> The signature mirrors <code>add_recipe()</code>, so swapping between the two verbs is a one-word rename.</p>
+
+<div class="webr-container" data-block-title="The update_recipe argument skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The update_recipe argument skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+
+update_recipe(
+  x,                # a workflow object, fitted or unfitted
+  recipe,           # an untrained recipes object built with recipe()
+  blueprint = NULL  # a hardhat blueprint controlling indicator handling
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>x</code> argument must be a <code>workflow()</code> object that already has a recipe attached; calling <code>update_recipe()</code> on a workflow with a formula or variables preprocessor raises an error. The <code>recipe</code> argument must be an unprepped recipes object; passing a prepped recipe is rejected. The <code>blueprint</code> argument lets you override how indicators, intercepts, and <code>NA</code> handling work at prediction time, and is rarely needed.</p>
+
+<p><strong>update_recipe() is one of four workflow update verbs.</strong> They are symmetric: each one targets a different slot.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Verb</th>
+<th>Replaces</th>
+<th>When to reach for it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>update_recipe()</code></td>
+<td>The recipes preprocessor</td>
+<td>Iterate on feature engineering with the same model</td>
+</tr>
+<tr>
+<td><code>update_model()</code></td>
+<td>The parsnip model spec</td>
+<td>Compare engines or hyperparameters with the same preprocessing</td>
+</tr>
+<tr>
+<td><code>update_formula()</code></td>
+<td>A formula preprocessor</td>
+<td>Adjust predictors without touching a recipe</td>
+</tr>
+<tr>
+<td><code>update_variables()</code></td>
+<td>A variables preprocessor</td>
+<td>Swap outcome or predictor selectors</td>
+</tr>
+</tbody>
+</table>
+
+<p>Each verb is targeted: changing one slot never disturbs the others.</p>
+
+<h2>Swap recipes with update_recipe(): four examples</h2>
+
+<p><strong>Every example uses built-in mtcars and airquality datasets</strong> so the focus stays on the swap mechanics rather than on the data.</p>
+
+<h3>Example 1: Swap a minimal recipe for a normalized one</h3>
+
+<p><strong>The base case is two recipes and one update.</strong> Build the workflow once, then swap as needed.</p>
+
+<div class="webr-container" data-block-title="Build then swap with update_recipe">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build then swap with update_recipe</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_min &lt;- recipe(mpg ~ wt + hp, data = mtcars)
+
+rec_norm &lt;- recipe(mpg ~ wt + hp, data = mtcars) |&gt;
+  step_normalize(all_numeric_predictors())
+
+spec &lt;- linear_reg() |&gt; set_engine(&quot;lm&quot;)
+
+wf &lt;- workflow() |&gt;
+  add_recipe(rec_min) |&gt;
+  add_model(spec)
+
+wf_norm &lt;- update_recipe(wf, rec_norm)
+wf_norm
+#&gt; == Workflow ====================================================================
+#&gt; Preprocessor: Recipe
+#&gt; Model: linear_reg()
+#&gt;
+#&gt; -- Preprocessor ----------------------------------------------------------------
+#&gt; 1 Recipe Step
+#&gt;
+#&gt; * step_normalize()
+#&gt;
+#&gt; -- Model -----------------------------------------------------------------------
+#&gt; Linear Regression Model Specification (regression)
+#&gt;
+#&gt; Computational engine: lm</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The original <code>wf</code> still holds the minimal recipe. <code>wf_norm</code> is a separate object with the normalization step. Both can be fit independently to compare model behaviour with and without scaling.</p>
+
+<h3>Example 2: A/B compare two preprocessing strategies</h3>
+
+<p><strong>Holding the model constant and varying the recipe is the canonical use of update_recipe().</strong> It lets you isolate the effect of preprocessing on hold-out performance.</p>
+
+<div class="webr-container" data-block-title="Compare two recipes under cross-validation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare two recipes under cross-validation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_a &lt;- recipe(mpg ~ wt + hp + disp, data = mtcars) |&gt;
+  step_normalize(all_numeric_predictors())
+
+rec_b &lt;- recipe(mpg ~ wt + hp + disp, data = mtcars) |&gt;
+  step_log(disp) |&gt;
+  step_normalize(all_numeric_predictors())
+
+wf_base &lt;- workflow() |&gt;
+  add_recipe(rec_a) |&gt;
+  add_model(linear_reg() |&gt; set_engine(&quot;lm&quot;))
+
+set.seed(42)
+folds &lt;- vfold_cv(mtcars, v = 5)
+
+res_a &lt;- fit_resamples(wf_base, folds)
+res_b &lt;- fit_resamples(update_recipe(wf_base, rec_b), folds)
+
+bind_rows(
+  collect_metrics(res_a) |&gt; mutate(recipe = &quot;A: normalize only&quot;),
+  collect_metrics(res_b) |&gt; mutate(recipe = &quot;B: log(disp) + normalize&quot;)
+) |&gt;
+  filter(.metric == &quot;rmse&quot;) |&gt;
+  select(recipe, mean, std_err)
+#&gt; # A tibble: 2 x 3
+#&gt;   recipe                    mean std_err
+#&gt;   &lt;chr&gt;                    &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 A: normalize only         2.71   0.376
+#&gt; 2 B: log(disp) + normalize  2.58   0.391</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>update_recipe()</code> returns a workflow that <code>fit_resamples()</code> consumes directly. You never rebuild the model spec, so any difference in the metric is attributable to preprocessing alone.</p>
+
+<h3>Example 3: Iterate during development</h3>
+
+<p><strong>Feature engineering is a tight loop.</strong> <code>update_recipe()</code> shortens the loop by avoiding workflow reassembly.</p>
+
+<div class="webr-container" data-block-title="Iterate on recipe versions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Iterate on recipe versions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aq &lt;- airquality |&gt;
+  mutate(Month = factor(Month))
+
+wf_v1 &lt;- workflow() |&gt;
+  add_recipe(recipe(Ozone ~ Solar.R + Wind + Temp, data = aq)) |&gt;
+  add_model(linear_reg() |&gt; set_engine(&quot;lm&quot;))
+
+rec_v2 &lt;- recipe(Ozone ~ Solar.R + Wind + Temp + Month, data = aq) |&gt;
+  step_impute_median(all_numeric_predictors()) |&gt;
+  step_dummy(all_nominal_predictors())
+
+wf_v2 &lt;- update_recipe(wf_v1, rec_v2)
+
+wf_v2_fit &lt;- fit(wf_v2, data = aq)
+extract_recipe(wf_v2_fit) |&gt;
+  tidy(number = 1)
+#&gt; # A tibble: 3 x 3
+#&gt;   terms     value model
+#&gt;   &lt;chr&gt;     &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 Solar.R  205.   impute_median
+#&gt; 2 Wind       9.96 impute_median
+#&gt; 3 Temp      79.0  impute_median</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each new recipe version is a one-line swap from the prior workflow. The model spec, engine choice, and any other workflow state carries forward intact.</p>
+
+<h3>Example 4: Update on a fitted workflow resets it</h3>
+
+<p><strong>Calling update_recipe() on a fitted workflow is legal but discards the fit.</strong> This is the most common surprise.</p>
+
+<div class="webr-container" data-block-title="Fitted workflow loses its fit after update_recipe">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fitted workflow loses its fit after update_recipe</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wf_fit &lt;- fit(wf_v1, data = aq)
+
+class(wf_fit)
+#&gt; [1] &quot;workflow&quot;
+
+# The fitted workflow can predict
+predict(wf_fit, new_data = head(aq))
+#&gt; # A tibble: 6 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  44.3
+#&gt; 2  37.7
+#&gt; 3  35.1
+#&gt; 4  37.4
+#&gt; 5  NA
+#&gt; 6  29.9
+
+wf_reset &lt;- update_recipe(wf_fit, rec_v2)
+
+# After the swap, the workflow is unfitted again
+tryCatch(
+  predict(wf_reset, new_data = head(aq)),
+  error = function(e) conditionMessage(e)
+)
+#&gt; [1] &quot;Can't predict on an untrained workflow.&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The returned workflow has the new recipe attached but no trained parameters. Refit with <code>fit(wf_reset, data = aq)</code> before calling <code>predict()</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never assume update_recipe() preserves a fit.</strong> Pipelines that branch off a fitted workflow must refit after every recipe change. Forgetting the refit raises an "untrained workflow" error at predict time; tuning pipelines silently start from scratch.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three errors hit beginners the most.</strong> Each one has a one-line fix.</p>
+
+<div class="webr-container" data-block-title="Three errors and their fixes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three errors and their fixes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Pitfall 1: update_recipe on a workflow with no recipe
+wf_form &lt;- workflow() |&gt;
+  add_formula(mpg ~ wt + hp) |&gt;
+  add_model(spec)
+tryCatch(
+  update_recipe(wf_form, rec_norm),
+  error = function(e) conditionMessage(e)
+)
+#&gt; [1] &quot;The workflow does not have a recipe preprocessor.&quot;
+# Fix: use add_recipe() to attach a recipe first, OR use update_formula().
+
+# Pitfall 2: passing a prepped recipe
+rec_prepped &lt;- prep(rec_norm)
+tryCatch(
+  update_recipe(wf, rec_prepped),
+  error = function(e) conditionMessage(e)
+)
+#&gt; [1] &quot;`recipe` must not be a trained recipe.&quot;
+# Fix: pass the unprepped recipe; the workflow preps it.
+
+# Pitfall 3: chaining without assignment
+wf |&gt; update_recipe(rec_norm)
+# wf is unchanged because update_recipe() is pure.
+# Fix: wf_norm &lt;- wf |&gt; update_recipe(rec_norm)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>update_recipe()</code> and <code>remove_recipe() |&gt; add_recipe()</code> are equivalent.</strong> Use the single verb. It is faster to type, shorter to read, and signals intent: you are replacing, not detaching.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a workflow with a recipe of <code>Sepal.Length</code> predicting <code>Petal.Length</code>, then use <code>update_recipe()</code> to switch to a recipe that also includes <code>step_dummy()</code> on <code>Species</code>. Save the swapped workflow to <code>ex_wf</code>.</p>
+<div class="webr-container" data-block-title="Your turn: swap a recipe with update_recipe">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: swap a recipe with update_recipe</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: swap a basic recipe for one with dummy encoding
+library(tidymodels)
+
+ex_rec_v1 &lt;- # your code here
+ex_rec_v2 &lt;- # your code here
+
+ex_wf &lt;- # workflow then update_recipe
+
+ex_wf
+#&gt; Expected: workflow with linear_reg + 1 Recipe Step (step_dummy)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec_v1 &lt;- recipe(Petal.Length ~ Sepal.Length, data = iris)
+
+ex_rec_v2 &lt;- recipe(Petal.Length ~ Sepal.Length + Species, data = iris) |&gt;
+  step_dummy(all_nominal_predictors())
+
+ex_wf &lt;- workflow() |&gt;
+  add_recipe(ex_rec_v1) |&gt;
+  add_model(linear_reg() |&gt; set_engine(&quot;lm&quot;)) |&gt;
+  update_recipe(ex_rec_v2)
+
+ex_wf
+#&gt; == Workflow ====================================================================
+#&gt; Preprocessor: Recipe
+#&gt; Model: linear_reg()
+#&gt;
+#&gt; -- Preprocessor ----------------------------------------------------------------
+#&gt; 1 Recipe Step
+#&gt;
+#&gt; * step_dummy()</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The first recipe attaches with <code>add_recipe()</code>. The second swap happens through <code>update_recipe()</code> in the same pipeline. The result is a workflow with the upgraded recipe and the same <code>linear_reg()</code> spec.</p>
+
+</details>
+</section>
+
+<h2>Related tidymodels functions</h2>
+
+<p><strong>update_recipe() lives inside the workflows verb family.</strong> Knowing the neighbours makes recipe iteration faster.</p>
+
+<ul>
+
+<li><code>workflow()</code> creates the empty workflow that <code>update_recipe()</code> later modifies.</li>
+
+<li><code>add_recipe()</code> attaches the initial recipe to an empty workflow.</li>
+
+<li><code>remove_recipe()</code> strips the recipe out and leaves the preprocessor slot empty.</li>
+
+<li><code>update_model()</code> swaps the parsnip model spec while leaving the recipe in place.</li>
+
+<li><code>extract_recipe()</code> returns the recipe currently stored in a fitted or unfitted workflow.</li>
+
+<li><code>fit()</code> retrains the workflow after a recipe swap.</li>
+
+</ul>
+
+<p>See the <a href="https://workflows.tidymodels.org/reference/">workflows package reference</a> for the full verb family.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Does update_recipe() refit the workflow?</strong></p>
+
+<p>No. <code>update_recipe()</code> only replaces the recipe slot. Any trained parameters from a prior fit are discarded, and the returned workflow is unfitted. Call <code>fit(wf, data = ...)</code> after the swap to retrain. This separation lets you queue several updates before paying the cost of a fit, which matters during interactive feature engineering and when scripting batch comparisons across recipe variants.</p>
+
+<p><strong>What is the difference between update_recipe() and remove_recipe() then add_recipe()?</strong></p>
+
+<p>They produce the same workflow. <code>update_recipe(wf, new_rec)</code> is one verb and one allocation; <code>remove_recipe(wf) |&gt; add_recipe(new_rec)</code> is two verbs and two allocations. The single-verb form is the idiomatic choice in tidymodels code because it signals replacement intent and reads more naturally inside pipelines.</p>
+
+<p><strong>Can I use update_recipe() to add steps to an existing recipe?</strong></p>
+
+<p>Not directly. <code>update_recipe()</code> swaps the whole recipe object, not individual steps. To extend a recipe, rebuild it with the extra <code>step_*()</code> calls and pass the new object to <code>update_recipe()</code>. The recipes package itself provides no in-place mutation; the design philosophy is to construct recipes declaratively and swap them whole.</p>
+
+<p><strong>Does update_recipe() invalidate tuning results?</strong></p>
+
+<p>Yes. Tuning grids and resampled metrics are tied to the exact workflow used to produce them. Calling <code>update_recipe()</code> returns a new workflow that has not been tuned. Rerun <code>tune_grid()</code> or <code>fit_resamples()</code> on the updated workflow to get fresh results, and treat any prior <code>select_best()</code> output as invalid for the new recipe.</p>
+
+<p><strong>Can update_recipe() change the outcome variable?</strong></p>
+
+<p>Technically yes; the new recipe can declare any formula. In practice you should not change the outcome inside <code>update_recipe()</code> because doing so silently changes what the model predicts and breaks any prior metrics. Treat the outcome as fixed across recipe versions and use <code>update_recipe()</code> only for predictor-side and step-side changes.</p>
