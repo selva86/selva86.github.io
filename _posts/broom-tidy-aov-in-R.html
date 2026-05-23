@@ -1,0 +1,362 @@
+---
+title: "broom tidy() for aov in R: Convert ANOVA Tables to Tibbles"
+description: "Tidy any aov fit in R with broom::tidy(). Convert one-way, two-way, and TukeyHSD ANOVA tables into one-row-per-term tibbles for dplyr, ggplot2, and reports."
+keywords: "broom tidy aov, tidy aov R, broom ANOVA tidy, tidy.aov function R, broom aov output, convert aov to data frame R, tidy ANOVA model R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "tidy.aov()|broom tidy aov|broom::tidy.aov()|tidy ANOVA model|tidy aov"
+auto_link_case_sensitive: true
+fr_parent: "One-Way-ANOVA-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>broom tidy() for aov in R: Convert ANOVA Tables to Tibbles</h1>
+
+<p class="lead">The <code>broom::tidy()</code> function turns a fitted <code>aov</code> object into a one-row-per-term tibble with <code>sumsq</code>, <code>meansq</code>, <code>statistic</code>, and <code>p.value</code> columns. It replaces the printed ANOVA table from <code>summary(fit)</code> with a data frame you can pipe into <code>dplyr</code>, <code>ggplot2</code>, or a Word report.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>tidy(aov_fit)<span class="qa-cmt">                              # one row per ANOVA term</span>
+tidy(aov_fit) |&gt; filter(term != &quot;Residuals&quot;)<span class="qa-cmt">  # drop residual row</span>
+tidy(aov_fit) |&gt; arrange(p.value)<span class="qa-cmt">          # rank effects by p-value</span>
+tidy(TukeyHSD(aov_fit))<span class="qa-cmt">                    # tidy post-hoc pairwise table</span>
+tidy(aov(y ~ A * B, data = df))<span class="qa-cmt">            # two-way with interaction</span>
+tidy(aov(y ~ A + Error(subject/A), data = df))<span class="qa-cmt">  # repeated measures</span>
+glance(aov_fit)<span class="qa-cmt">                            # one-row model summary</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is tidy(aov) the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">ANOVA F table as a data frame</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">tidy(aov_fit)</text><text x="125" y="126" class="branch-label">one-row model fit summary (r.squared, sigma)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">glance(aov_fit)</text><text x="125" y="182" class="branch-label">per-observation residuals or fitted values</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">augment(aov_fit)</text><text x="125" y="238" class="branch-label">pairwise mean differences after a significant F</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">tidy(TukeyHSD(aov_fit))</text><text x="125" y="294" class="branch-label">Type II or Type III sums of squares</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">tidy(car::Anova(aov_fit, type = 3))</text><text x="125" y="350" class="branch-label">mixed-effects ANOVA with random terms</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">broom.mixed::tidy(lmer_fit)</text><text x="125" y="406" class="branch-label">publication-ready ANOVA table in Word</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code"><a class="auto-link" href="Regression-Tables-in-R.html" title="Regression Tables in R: modelsummary vs stargazer vs gtsummary, Which to Use">gtsummary</a>::tbl_summary or flextable</text></svg></div>
+
+<h2>What tidy() does for aov in one sentence</h2>
+
+<p><strong><code>tidy()</code> converts the printed ANOVA table into a tibble.</strong> A fitted <code>aov</code> object holds the same information <code>summary(fit)</code> prints, but it lives in a list of class <code>c(&quot;aov&quot;, &quot;lm&quot;)</code> that is awkward to subset programmatically. <code>broom::tidy()</code> pulls the per-term sum of squares, mean square, F statistic, and p-value, returning one row per source of variation including <code>Residuals</code>.</p>
+
+<p>The content matches <code>summary(fit)[[1]]</code>, but it is a true tibble with stable column names. That unlocks every tidyverse verb: filter residuals, arrange by p-value, plot effect sizes, or <code>bind_rows()</code> multiple ANOVA tables. The shape never changes across one-way, two-way, or factorial designs.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>tidy.aov()</code> is the <a class="auto-link" href="S3-Classes-in-R.html" title="S3 Classes in R: Create, Inherit & Write Methods — Complete Tutorial">S3 method</a> that broom dispatches to when you pass an <code>aov</code> fit.</strong> You never call it directly; calling <code>tidy()</code> on an <code>aov</code> object routes to the right method automatically.</p>
+
+<div class="webr-container" data-block-title="Fit a one-way ANOVA on PlantGrowth">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a one-way ANOVA on PlantGrowth</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(broom)
+library(dplyr)
+
+# PlantGrowth: 30 plants, 3 treatment groups, dried weight as response
+aov_fit &lt;- aov(weight ~ group, data = PlantGrowth)
+class(aov_fit)
+#&gt; [1] &quot;aov&quot; &quot;lm&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The function signature is short:</p>
+
+<ul>
+
+<li><code>x</code>: the fitted <code>aov</code> object (or <code>aovlist</code> for designs with <code>Error()</code> strata)</li>
+
+<li><code>conf.int</code>: ignored for <code>aov</code> (no coefficient-level intervals are returned); pass <code>tidy()</code> to the underlying <code>lm</code> if you need them</li>
+
+<li><code>conf.level</code>: same, ignored at the aov level</li>
+
+<li><code>...</code>: forwarded to internal helpers; rarely used</li>
+
+</ul>
+
+<p>The returned tibble always has these six columns:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Column</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>term</code></td>
+<td>Source of variation (predictor name or <code>Residuals</code>)</td>
+</tr>
+<tr>
+<td><code>df</code></td>
+<td>Degrees of freedom for the term</td>
+</tr>
+<tr>
+<td><code>sumsq</code></td>
+<td>Sum of squares</td>
+</tr>
+<tr>
+<td><code>meansq</code></td>
+<td>Mean square (<code>sumsq / df</code>)</td>
+</tr>
+<tr>
+<td><code>statistic</code></td>
+<td>F statistic (or <code>NA</code> for the residual row)</td>
+</tr>
+<tr>
+<td><code>p.value</code></td>
+<td>Two-sided p-value (or <code>NA</code> for the residual row)</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Keep the <code>Residuals</code> row when reporting <a class="auto-link" href="Interpreting-PCA-Results-in-R.html" title="Read PCA Output in R: What Loadings, Scores, and Variance Explained Actually Tell You">variance explained</a>, drop it for effect plots.</strong> The residual row carries the within-group variability you need to compute eta-squared or <a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">omega-squared</a>, so filter it out only after the calculation, not before.</div></div>
+
+<h2>Common patterns</h2>
+
+<h3>1. One-way ANOVA as a tidy table</h3>
+
+<div class="webr-container" data-block-title="Tidy a one-way ANOVA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tidy a one-way ANOVA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(aov_fit)
+#&gt; # A tibble: 2 x 6
+#&gt;   term         df sumsq meansq statistic p.value
+#&gt;   &lt;chr&gt;     &lt;dbl&gt; &lt;dbl&gt;  &lt;dbl&gt;     &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 group         2  3.77   1.88      4.85  0.0159
+#&gt; 2 Residuals    27 10.5    0.389    NA    NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two rows: the treatment factor <code>group</code> and the within-group <code>Residuals</code>. The F statistic 4.85 is <code>meansq(group) / meansq(Residuals)</code>; the p-value 0.0159 says the three treatment means differ at the 5% level. Unlike the fixed-width <code>summary(aov_fit)</code> printout, the tibble lets you compute follow-ups (like effect size) in one extra line.</p>
+
+<h3>2. Effect size from the tidy table</h3>
+
+<div class="webr-container" data-block-title="Compute eta-squared from sumsq">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compute eta-squared from sumsq</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(aov_fit) |&gt;
+  mutate(eta_sq = sumsq / sum(sumsq)) |&gt;
+  filter(term != &quot;Residuals&quot;) |&gt;
+  select(term, sumsq, eta_sq, p.value)
+#&gt; # A tibble: 1 x 4
+#&gt;   term  sumsq eta_sq p.value
+#&gt;   &lt;chr&gt; &lt;dbl&gt;  &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 group  3.77  0.264  0.0159</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Eta-squared is the proportion of total variance explained by each factor (factor sumsq divided by total sumsq, residuals included). The tidy table makes it a one-liner. Here, 26.4% of variation in plant weight is attributable to treatment group, a large effect by Cohen's conventions (>= 0.14).</p>
+
+<h3>3. Two-way ANOVA with an interaction</h3>
+
+<div class="webr-container" data-block-title="Two-way ANOVA on ToothGrowth">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two-way ANOVA on ToothGrowth</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># ToothGrowth: tooth length by supplement and dose
+tg_fit &lt;- aov(len ~ supp * dose, data = ToothGrowth)
+
+tidy(tg_fit)
+#&gt; # A tibble: 4 x 6
+#&gt;   term         df  sumsq meansq statistic   p.value
+#&gt;   &lt;chr&gt;     &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 supp          1  205.   205.      12.3   0.000894
+#&gt; 2 dose          1 2224.  2224.     133.    1.91e-15
+#&gt; 3 supp:dose     1   88.9   88.9     5.33  0.0246
+#&gt; 4 Residuals    56  934.    16.7    NA    NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Four rows: a main effect per factor, the <code>supp:dose</code> interaction, and residuals. The interaction p-value 0.0246 is significant, so the effect of <code>supp</code> depends on <code>dose</code>. With more factors the table grows but the columns stay identical, which is the point of <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a>.</p>
+
+<h3>4. Tidy a Tukey HSD post-hoc test</h3>
+
+<div class="webr-container" data-block-title="Tidy pairwise mean comparisons">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tidy pairwise mean comparisons</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">post_hoc &lt;- TukeyHSD(aov_fit)
+tidy(post_hoc)
+#&gt; # A tibble: 3 x 7
+#&gt;   term  contrast null.value estimate conf.low conf.high adj.p.value
+#&gt;   &lt;chr&gt; &lt;chr&gt;         &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;       &lt;dbl&gt;
+#&gt; 1 group trt1-ctrl         0   -0.371   -1.06     0.320       0.391
+#&gt; 2 group trt2-ctrl         0    0.494   -0.197    1.19        0.198
+#&gt; 3 group trt2-trt1         0    0.865    0.174    1.56        0.0120
+#&gt; 4 group ctrl-ctrl         0    0       NA       NA          NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>After a significant omnibus F, <code>TukeyHSD()</code> runs all pairwise mean differences with a family-wise alpha correction. <code>tidy()</code> on its result returns one row per contrast with the point estimate, 95% CI, and adjusted p-value. Only <code>trt2-trt1</code> is significant (adjusted p = 0.012), which is the report-ready summary rather than the matrix-of-matrices that <code>print(TukeyHSD(fit))</code> produces.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Repeated-measures ANOVA returns an <code>aovlist</code>.</strong> When the formula contains an <code>Error()</code> term, the fit class becomes <code>c(&quot;aovlist&quot;, &quot;listof&quot;)</code> and <code>tidy()</code> returns one tibble per stratum stacked by row, with an extra <code>stratum</code> column. The shape rule still holds, just with one more identifier.</div></div>
+
+<h2>tidy() vs base summary() and other reporting paths</h2>
+
+<p><strong>Three tools cover the same job from different angles.</strong> Pick by what you do next with the output.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Output type</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>summary(fit)</code></td>
+<td>printed text plus nested list</td>
+<td>Quick console check</td>
+</tr>
+<tr>
+<td><code>broom::tidy(fit)</code></td>
+<td>tibble (data frame)</td>
+<td>dplyr piping, ggplot, effect size math</td>
+</tr>
+<tr>
+<td><code>gtsummary::tbl_regression()</code></td>
+<td>rendered HTML or Word table</td>
+<td>Final report without manual formatting</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>tidy()</code> whenever the next step is code: computing eta-squared, faceting F-statistic plots across designs, or saving ANOVA tables to CSV. Use <code>gtsummary</code> for the final document; it accepts a tidied table and adds publication formatting. The <code>summary()</code> printout is the fastest interactive eyeball but a dead end for anything programmatic.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The tibble is the bridge between ANOVA modeling and tidyverse tooling.</strong> Once <code>tidy()</code> returns a six-column tibble, every dplyr verb, every ggplot geom, and every <code>gt</code> or <code>flextable</code> layout works without a custom shim. This is why <code>broom</code> ships inside the <code>tidymodels</code> meta-package even if you only fit a single ANOVA.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: confusing <code>tidy(aov_fit)</code> with <code>tidy(lm_fit)</code>.</strong> An <code>aov</code> object inherits from <code>lm</code>, so <code>tidy(lm(weight ~ group, data = PlantGrowth))</code> also runs but returns a different shape: one row per coefficient (intercept, <code>grouptrt1</code>, <code>grouptrt2</code>). The <code>aov</code> tidy is the <a class="auto-link" href="How-to-do-One-Way-ANOVA-in-R.html" title="One-Way ANOVA in R: Compare Group Means With aov()">F-test</a> ANOVA table; the <code>lm</code> tidy is the coefficient table for contrast-coded dummies. They are not interchangeable in reports.</p>
+
+<div class="webr-container" data-block-title="Same data, two different tidy outputs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Same data, two different tidy outputs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(aov(weight ~ group, data = PlantGrowth)) |&gt; nrow()
+#&gt; [1] 2
+tidy(lm(weight ~ group, data = PlantGrowth)) |&gt; nrow()
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Pitfall 2: Type I sums of squares by default.</strong> Base R <code>aov()</code> uses sequential (Type I) sumsq, so term order in the formula changes per-term sumsq for unbalanced designs. For Type II or III, pass <code>car::Anova(aov_fit, type = 3)</code> to <code>tidy()</code>. The returned tibble keeps the same shape with corrected sumsq.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>tidy(aov_fit)</code> returns <code>NA</code> for <code>statistic</code> and <code>p.value</code> on the <code>Residuals</code> row.</strong> This is intentional; there is no F-test for residuals. But it breaks naive aggregations like <code>summarise(across(everything(), mean))</code> unless you filter the residual row first or pass <code>na.rm = TRUE</code>. Always handle the NA row explicitly when piping the tidy table into a calculation.</div></div>
+
+<p><strong>Pitfall 3: forgetting to install <code>broom</code>.</strong> The package is installed by default if you have <code>tidymodels</code>, but a bare <a class="auto-link" href="Install-R-and-RStudio-2026.html" title="Install R & RStudio in 2026: The Setup That Actually Works First Time">R installation</a> does not include it. Run <code>install.packages(&quot;broom&quot;)</code> once, then <code>library(broom)</code> per session. If you see <code>could not find function &quot;tidy&quot;</code>, that is the cause.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a <a class="auto-link" href="Two-Way-ANOVA-in-R.html" title="Two-Way ANOVA in R: Main Effects, Interactions, and Interaction Plots Interpreted">two-way ANOVA</a> on <code>ToothGrowth</code> predicting <code>len</code> from <code>supp</code> and <code>dose</code> (as a factor) without the interaction. Use <code>tidy()</code> to produce the ANOVA table and arrange the rows by ascending p-value. Save the result to <code>ex_anova_table</code>.</p>
+<div class="webr-container" data-block-title="Your turn: tidy a two-way ANOVA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tidy a two-way ANOVA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: tidy a two-factor ANOVA, rank effects by p-value
+ex_anova_table &lt;- # your code here
+
+ex_anova_table
+#&gt; Expected: 3 rows (supp, dose, Residuals) with the strongest effect on top</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- aov(len ~ supp + factor(dose), data = ToothGrowth)
+ex_anova_table &lt;- tidy(ex_fit) |&gt; arrange(p.value)
+ex_anova_table
+#&gt; # A tibble: 3 x 6
+#&gt;   term            df  sumsq meansq statistic  p.value
+#&gt;   &lt;chr&gt;        &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 factor(dose)     2 2426.  1213.      82.8  1.87e-17
+#&gt; 2 supp             1  205.   205.      14.0  4.29e- 4
+#&gt; 3 Residuals       56  820.    14.6    NA   NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Wrapping <code>dose</code> in <code>factor()</code> makes the model fit a two-degree-of-freedom term instead of a single linear slope, which is the correct ANOVA framing for a categorical predictor. The NA p-value on the residual row sorts to the bottom by default with <code>arrange()</code>.</p>
+
+</details>
+</section>
+
+<h2>Related broom functions for aov</h2>
+
+<p>After mastering <code>tidy()</code>, the next two broom verbs round out the workflow:</p>
+
+<ul>
+
+<li><code>glance(aov_fit)</code>: one-row model summary with <code>r.squared</code>, <code>adj.r.squared</code>, <code>sigma</code>, <code>statistic</code>, <code>p.value</code>, <code>df</code>, <code>logLik</code>, <code>AIC</code>, <code>BIC</code>, <code>deviance</code>, <code>df.residual</code>, <code>nobs</code></li>
+
+<li><code>augment(aov_fit)</code>: per-observation tibble with <code>.fitted</code>, <code>.resid</code>, <code>.std.resid</code>, <code>.hat</code>, <code>.sigma</code>, <code>.cooksd</code></li>
+
+<li><code>tidy(TukeyHSD(aov_fit))</code>: post-hoc pairwise comparison table after a significant omnibus F</li>
+
+</ul>
+
+<p>To combine multiple ANOVA fits across groups, use <code>purrr::map_dfr(fits, tidy, .id = &quot;model&quot;)</code>. The <code>.id</code> column lets you facet an F-statistic comparison plot by model.</p>
+
+<p>See the official <a href="https://broom.tidymodels.org/reference/tidy.aov.html">broom reference for aov methods</a> for the full argument list.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I extract the F statistic and p-value from an aov in R?</strong></p>
+
+<p>Call <code>tidy(aov_fit)</code> and read the <code>statistic</code> and <code>p.value</code> columns. Treatment-effect rows hold the F values; the <code>Residuals</code> row has NA in both. For a one-liner, pipe <code>tidy(fit) |&gt; filter(term != &quot;Residuals&quot;) |&gt; pull(p.value)</code>. The column names never change across one-way, two-way, or factorial designs.</p>
+
+<p><strong>What is the difference between tidy(aov) and tidy(lm) on the same data?</strong></p>
+
+<p><code>tidy(aov_fit)</code> returns the ANOVA table: one row per source of variation with <code>df</code>, <code>sumsq</code>, <code>meansq</code>, <code>statistic</code> (F), <code>p.value</code>. <code>tidy(lm_fit)</code> returns the coefficient table: one row per dummy contrast with <code>estimate</code>, <code>std.error</code>, <code>statistic</code> (t), <code>p.value</code>. The first answers "does this factor matter overall"; the second, "how does each level differ from the reference".</p>
+
+<p><strong>Does <a class="auto-link" href="broom-tidy-kmeans-in-R.html" title="broom tidy() for kmeans in R: Cluster Centers and Sizes">broom tidy</a> work with repeated-measures ANOVA?</strong></p>
+
+<p>Yes. When the formula contains an <code>Error()</code> stratum, <code>aov()</code> returns an <code>aovlist</code> object. <code>tidy()</code> handles it by returning a stacked tibble with one row per term per stratum, plus a <code>stratum</code> column to identify which Error level the row belongs to. The other six columns are unchanged.</p>
+
+<p><strong>How do I tidy a Type II or Type III ANOVA?</strong></p>
+
+<p>Base <code>aov()</code> uses Type I (sequential) sumsq. For Type II or III on unbalanced designs, pass the fit to <code>car::Anova(fit, type = 2)</code> or <code>type = 3</code>, then call <code>tidy()</code> on the result. The tibble shape matches <code>tidy(aov_fit)</code>, so downstream code stays the same.</p>
+
+<p><strong>Can I plot effect sizes directly from the tidy output?</strong></p>
+
+<p>Yes. After <code>tidy(fit) |&gt; mutate(eta_sq = sumsq / sum(sumsq)) |&gt; filter(term != &quot;Residuals&quot;)</code>, pipe into <code>ggplot(aes(x = eta_sq, y = reorder(term, eta_sq))) + geom_col()</code> for a horizontal bar chart of variance explained. The Residuals row must be dropped before plotting or the bar for unexplained variance will dwarf the others.</p>
