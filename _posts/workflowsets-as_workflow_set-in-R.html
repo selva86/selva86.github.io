@@ -1,0 +1,352 @@
+---
+title: "workflowsets as_workflow_set() in R: Wrap Workflow Lists"
+description: "Use workflowsets as_workflow_set() in R to convert a named list of workflows into a workflow_set. Syntax, four examples, validation rules, and pitfalls."
+keywords: "workflowsets as_workflow_set, as_workflow_set function R, workflowsets as_workflow_set examples, R tidymodels as_workflow_set, convert workflows to workflow_set, workflow_set from list, tidymodels workflow_set"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "as_workflow_set()|workflowsets as_workflow_set|workflowsets::as_workflow_set()|convert workflows to workflow set|build workflow set from list"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>workflowsets as_workflow_set() in R: Wrap Workflow Lists</h1>
+
+<p>The workflowsets <code>as_workflow_set()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> converts a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> of pre-built <code>workflow</code> objects into a single <code>workflow_set</code> tibble, so you can fit, tune, and rank a hand-picked collection of models with the same one-line calls that <code>workflow_set()</code> enables for combinatorial designs.</p>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>as_workflow_set(lr = wf_lr)<span class="qa-cmt">                          # one workflow, one row</span>
+as_workflow_set(lr = wf_lr, rf = wf_rf)<span class="qa-cmt">              # multiple named workflows</span>
+as_workflow_set(!!!list_of_wfs)<span class="qa-cmt">                      # splice a named list</span>
+as_workflow_set(simple = wf1, tuned = wf2)<span class="qa-cmt">           # mix tunable and fixed</span>
+res &lt;- as_workflow_set(lr = wf_lr) |&gt; workflow_map()<span class="qa-cmt"> # then fit or resample</span>
+bind_rows(set_a, set_b)<span class="qa-cmt">                              # combine two sets (not as_workflow_set)</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is as_workflow_set() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">wrap an existing named list of workflows</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">as_workflow_set(lr = wf_lr, rf = wf_rf)</text><text x="125" y="126" class="branch-label">build a set from preprocessor x model combinations</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">workflow_set(preproc, models)</text><text x="125" y="182" class="branch-label">add a fresh workflow to an existing set</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">bind_rows(set, as_workflow_set(new = wf))</text><text x="125" y="238" class="branch-label">fit or resample every workflow in the set</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">workflow_map(set, &quot;fit_resamples&quot;, resamples = folds)</text><text x="125" y="294" class="branch-label">rank workflows after tuning</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">rank_results(set, rank_metric = &quot;rmse&quot;)</text><text x="125" y="350" class="branch-label">pull one workflow back out by id</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">extract_workflow(set, id = &quot;lr&quot;)</text></svg></div>
+
+<h2>What as_workflow_set() does in one sentence</h2>
+
+<p><strong>as_workflow_set() wraps existing workflows into the workflow_set container.</strong> You pass one or more named <code>workflow</code> objects and receive a tibble with one row per workflow, ready to be piped into <code>workflow_map()</code> for fitting or tuning across the same resamples. The companion function <code>workflow_set()</code> builds rows from a preprocessor crossing a model list; <code>as_workflow_set()</code> skips that crossing and lets you assemble a hand-curated lineup directly.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Available since workflowsets 1.0.0.</strong> Earlier releases shipped only <code>workflow_set()</code>. If <code>as_workflow_set</code> is unknown to your session, run <code>update.packages(&quot;workflowsets&quot;)</code> before continuing.</div></div>
+
+<h2>as_workflow_set() syntax and arguments</h2>
+
+<p><strong>The signature accepts a dynamic dots list of named workflows.</strong> Every element of <code>...</code> must be a <code>workflow</code> object and every argument must be named, since names become the <code>wflow_id</code> column used for joining metrics, predictions, and ranks downstream.</p>
+
+<div class="webr-container" data-block-title="Signature and a minimal call">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Signature and a minimal call</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(workflows)
+library(workflowsets)
+library(parsnip)
+
+# Signature
+# as_workflow_set(...)
+# ...        named workflow objects; names become wflow_id
+
+# Build one workflow, then wrap it
+wf_lr &lt;- workflow() |&gt;
+  add_model(linear_reg() |&gt; set_engine(&quot;lm&quot;)) |&gt;
+  add_formula(mpg ~ disp + hp)
+
+set1 &lt;- as_workflow_set(lr_simple = wf_lr)
+set1
+#&gt; # A workflow set/tibble: 1 x 4
+#&gt;   wflow_id  info             option    result    
+#&gt;   &lt;chr&gt;     &lt;list&gt;           &lt;list&gt;    &lt;list&gt;    
+#&gt; 1 lr_simple &lt;tibble [1 x 4]&gt; &lt;opts[0]&gt; &lt;list [0]&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The returned object inherits from <code>tbl_df</code> so any tibble verb works on it, and from <code>workflow_set</code> so workflowsets verbs like <code>workflow_map()</code> and <code>rank_results()</code> dispatch correctly.</p>
+
+<h2>Four examples of as_workflow_set() in action</h2>
+
+<p><strong>Example 1: wrap two complete workflows for a head-to-head fit.</strong></p>
+
+<div class="webr-container" data-block-title="Wrap two workflows side by side">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrap two workflows side by side</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rsample)
+
+set.seed(1)
+splits &lt;- initial_split(mtcars, prop = 0.75)
+train  &lt;- training(splits)
+folds  &lt;- vfold_cv(train, v = 3)
+
+wf_lr &lt;- workflow() |&gt;
+  add_model(linear_reg() |&gt; set_engine(&quot;lm&quot;)) |&gt;
+  add_formula(mpg ~ disp + hp + wt)
+
+wf_rf &lt;- workflow() |&gt;
+  add_model(rand_forest(mode = &quot;regression&quot;) |&gt; set_engine(&quot;ranger&quot;)) |&gt;
+  add_formula(mpg ~ disp + hp + wt)
+
+set_two &lt;- as_workflow_set(lr = wf_lr, rf = wf_rf)
+nrow(set_two)
+#&gt; [1] 2
+set_two$wflow_id
+#&gt; [1] &quot;lr&quot; &quot;rf&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 2: splice a programmatically built list with <code>!!!</code>.</strong> When you assemble workflows in a loop or <code>purrr::map()</code>, the result is a list. The bang-bang-bang operator from rlang splices that list into the dots so each element becomes a named argument.</p>
+
+<div class="webr-container" data-block-title="Splice a named list into the set">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Splice a named list into the set</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rlang)
+
+wf_list &lt;- list(
+  lr_disp = workflow() |&gt; add_model(linear_reg()) |&gt; add_formula(mpg ~ disp),
+  lr_hp   = workflow() |&gt; add_model(linear_reg()) |&gt; add_formula(mpg ~ hp),
+  lr_wt   = workflow() |&gt; add_model(linear_reg()) |&gt; add_formula(mpg ~ wt)
+)
+
+set_spliced &lt;- as_workflow_set(!!!wf_list)
+set_spliced$wflow_id
+#&gt; [1] &quot;lr_disp&quot; &quot;lr_hp&quot;   &quot;lr_wt&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 3: pipe straight into <code>workflow_map()</code> to fit on resamples.</strong> A wrapped set behaves identically to a set built by <code>workflow_set()</code>, so the standard fitting verbs apply.</p>
+
+<div class="webr-container" data-block-title="Fit every workflow on the same resamples">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit every workflow on the same resamples</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tune)
+library(yardstick)
+
+res &lt;- set_two |&gt;
+  workflow_map(
+    &quot;fit_resamples&quot;,
+    seed = 42,
+    resamples = folds,
+    metrics   = metric_set(rmse, rsq),
+    verbose   = FALSE
+  )
+
+rank_results(res, rank_metric = &quot;rmse&quot;)[, c(&quot;wflow_id&quot;, &quot;.metric&quot;, &quot;mean&quot;)]
+#&gt; # A tibble: 4 x 3
+#&gt;   wflow_id .metric  mean
+#&gt;   &lt;chr&gt;    &lt;chr&gt;   &lt;dbl&gt;
+#&gt; 1 lr       rmse     2.74
+#&gt; 2 lr       rsq      0.81
+#&gt; 3 rf       rmse     2.91
+#&gt; 4 rf       rsq      0.79</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Example 4: extend an existing set instead of rebuilding it.</strong> Use <code>bind_rows()</code> to combine two workflow sets; <code>as_workflow_set()</code> itself does not append to a set.</p>
+
+<div class="webr-container" data-block-title="Append a third workflow to an existing set">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Append a third workflow to an existing set</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wf_extra &lt;- workflow() |&gt;
+  add_model(linear_reg() |&gt; set_engine(&quot;lm&quot;)) |&gt;
+  add_formula(mpg ~ disp * hp)
+
+set_three &lt;- bind_rows(set_two, as_workflow_set(lr_interact = wf_extra))
+set_three$wflow_id
+#&gt; [1] &quot;lr&quot;          &quot;rf&quot;          &quot;lr_interact&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Name workflows by their identifying contrast.</strong> Good ids read as labels in plots: <code>lr_basic</code>, <code>lr_poly</code>, <code>rf_500_trees</code>. Avoid numeric suffixes like <code>wf1</code>, <code>wf2</code>; they reduce a rank table to a guessing game when you revisit it weeks later.</div></div>
+
+<h2>as_workflow_set() compared with workflow_set() and bind_rows</h2>
+
+<p><strong>Pick the constructor that matches how your workflows came into being.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Input</th>
+<th>Use when</th>
+<th>Row count</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>as_workflow_set()</code></td>
+<td>Named workflow objects (via <code>...</code>)</td>
+<td>You already built complete workflows by hand or in a loop</td>
+<td>Number of inputs</td>
+</tr>
+<tr>
+<td><code>workflow_set()</code></td>
+<td>A list of preprocessors and a list of model specs</td>
+<td>You want every preprocessor x model combination</td>
+<td>preprocessors x models</td>
+</tr>
+<tr>
+<td><code>bind_rows()</code> (on sets)</td>
+<td>Two or more <code>workflow_set</code> tibbles</td>
+<td>You need to merge sets built at different times</td>
+<td>Sum of input rows</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>workflow_set()</code> does the crossing; <code>as_workflow_set()</code> does the wrapping.</strong> Reach for <code>workflow_set()</code> when you want a grid of preprocessor times model. Reach for <code>as_workflow_set()</code> when each workflow is already its own thing and you only need them collected so tuning verbs can sweep through them.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Unnamed arguments fail loudly.</strong> <code>as_workflow_set()</code> requires every dot to be named because the names become <code>wflow_id</code> values used by every downstream join.</p>
+
+<div class="webr-container" data-block-title="Unnamed argument triggers an error">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Unnamed argument triggers an error</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">try(as_workflow_set(wf_lr))
+#&gt; Error in `as_workflow_set()`: All elements of `...` must be named.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Non-workflow inputs are rejected.</strong> Passing a raw <code>parsnip</code> model spec or a <code>recipe</code> instead of a full <code>workflow</code> raises an error rather than silently coercing.</p>
+
+<div class="webr-container" data-block-title="Only workflow objects are accepted">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Only workflow objects are accepted</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">try(as_workflow_set(broken = linear_reg()))
+#&gt; Error in `as_workflow_set()`: All elements of `...` must be workflows.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Duplicate ids overwrite silently in some pipelines.</strong> Reusing the same name across two <code>as_workflow_set()</code> calls and then <code>bind_rows</code>-ing the results leaves you with two rows sharing one <code>wflow_id</code>. <code>workflow_map()</code> will run both, but <code>rank_results()</code> then treats them as different configurations of the same model. Always sweep names with <code>make.unique()</code> before binding sets that may collide.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build two regression workflows on <code>mtcars</code> (a basic linear model and a polynomial term), wrap them with <code>as_workflow_set()</code>, and store the result in <code>ex_set</code>.</p>
+<div class="webr-container" data-block-title="Your turn: wrap two workflows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: wrap two workflows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: build and wrap
+ex_wf_basic &lt;- # your code here
+ex_wf_poly  &lt;- # your code here
+ex_set      &lt;- # your code here
+
+ex_set$wflow_id
+#&gt; Expected: &quot;basic&quot; &quot;poly&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_wf_basic &lt;- workflow() |&gt;
+  add_model(linear_reg() |&gt; set_engine(&quot;lm&quot;)) |&gt;
+  add_formula(mpg ~ disp)
+
+ex_wf_poly &lt;- workflow() |&gt;
+  add_model(linear_reg() |&gt; set_engine(&quot;lm&quot;)) |&gt;
+  add_formula(mpg ~ poly(disp, 2))
+
+ex_set &lt;- as_workflow_set(basic = ex_wf_basic, poly = ex_wf_poly)
+ex_set$wflow_id
+#&gt; [1] &quot;basic&quot; &quot;poly&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Each argument name becomes the <code>wflow_id</code> for that row, so <code>basic</code> and <code>poly</code> show up as the labels you can later filter, rank, or plot by.</p>
+
+</details>
+</section>
+
+<h2>Related workflowsets and tidymodels functions</h2>
+
+<ul>
+
+<li><a href="workflowsets-workflow_set-in-R.html">workflow_set()</a> builds a set from preprocessor crossed with model lists.</li>
+
+<li><a href="workflowsets-workflow_map-in-R.html">workflow_map()</a> fits or tunes every workflow in a set across one resample object.</li>
+
+<li><a href="workflowsets-rank_results-in-R.html">rank_results()</a> sorts a fitted set by a chosen metric.</li>
+
+<li><a href="workflows-workflow-in-R.html">workflow()</a> is the single-model object that <code>as_workflow_set()</code> wraps.</li>
+
+<li><a href="workflows-extract_workflow-in-R.html">extract_workflow()</a> pulls a named workflow back out of a set.</li>
+
+</ul>
+
+<p>For the canonical reference, see the <a href="https://workflowsets.tidymodels.org/reference/as_workflow_set.html">workflowsets package site</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between as_workflow_set() and workflow_set()?</strong></p>
+
+<p><code>workflow_set()</code> takes a list of preprocessors and a list of model specs and returns the cross-product (every preprocessor paired with every model). <code>as_workflow_set()</code> takes workflows that are already complete and wraps them into the same <code>workflow_set</code> container without any combinatorial step. Use the first for grids; use the second for hand-picked lineups.</p>
+
+<p><strong>Can I add a new workflow to an existing workflow_set?</strong></p>
+
+<p>Not directly with <code>as_workflow_set()</code>. Wrap the new workflow as a one-row set, then combine: <code>bind_rows(existing, as_workflow_set(new_id = new_wf))</code>. The resulting tibble keeps the <code>workflow_set</code> class so verbs like <code>workflow_map()</code> and <code>rank_results()</code> continue to work.</p>
+
+<p><strong>Why does as_workflow_set() require named arguments?</strong></p>
+
+<p>Names become the <code>wflow_id</code> column, the join key used by <code>workflow_map()</code>, <code>collect_metrics()</code>, <code>rank_results()</code>, and every other workflowsets verb. Without names the join would have nothing to grip and most downstream calls would fail with a missing-column error.</p>
+
+<p><strong>Can I pass a parsnip model spec instead of a full workflow?</strong></p>
+
+<p>No. <code>as_workflow_set()</code> validates each input with <code>is_workflow()</code> and aborts on anything else. Wrap your model spec in <code>workflow() |&gt; add_model(spec) |&gt; add_formula(y ~ .)</code> first, then pass the result.</p>
+
+<p><strong>How do I splice a list of workflows built by purrr::map()?</strong></p>
+
+<p>Use the rlang splice operator <code>!!!</code>. If <code>wf_list</code> is a named list of workflows, <code>as_workflow_set(!!!wf_list)</code> unpacks it so each element becomes a separate named argument. This is the cleanest way to feed programmatically constructed workflows into a set.</p>
