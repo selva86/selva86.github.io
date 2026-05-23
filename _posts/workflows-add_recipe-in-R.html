@@ -1,0 +1,398 @@
+---
+title: "workflows add_recipe() in R: Attach a Preprocessing Recipe"
+description: "Use workflows add_recipe() in R to attach a recipes preprocessor to a tidymodels workflow. Syntax, four worked examples, leakage protection, and pitfalls."
+keywords: "workflows add_recipe, add_recipe function R, add_recipe workflow, tidymodels add_recipe, R add_recipe, workflows add recipe, add_recipe tidymodels examples"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "add_recipe()|workflows add_recipe|workflows::add_recipe()|add a recipe to workflow|attach a recipe"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>workflows add_recipe() in R: Attach a Preprocessing Recipe</h1>
+
+<p class="lead">The workflows <code>add_recipe()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> attaches a recipes object to a tidymodels workflow as the preprocessor. The recipe stays with the workflow, so resampling, tuning, and prediction all re-estimate the same preprocessing steps on each fold and keep data leakage out of the pipeline.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>add_recipe(wf, rec)<span class="qa-cmt">                                  # attach a recipe to a workflow</span>
+workflow() |&gt; add_recipe(rec) |&gt; add_model(spec)<span class="qa-cmt">     # full workflow in one pipe</span>
+add_recipe(wf, rec, blueprint = bp)<span class="qa-cmt">                  # custom hardhat blueprint</span>
+update_recipe(wf, new_rec)<span class="qa-cmt">                           # swap the recipe in place</span>
+remove_recipe(wf)<span class="qa-cmt">                                    # detach the recipe</span>
+extract_recipe(wf_fit)<span class="qa-cmt">                               # pull the trained recipe back</span>
+extract_recipe(wf_fit, estimated = FALSE)<span class="qa-cmt">            # pull the untrained recipe</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is add_recipe() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">attach a recipes preprocessor to a workflow</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">workflow() |&gt; add_recipe(rec)</text><text x="125" y="126" class="branch-label">attach a formula instead, no preprocessing</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">workflow() |&gt; add_formula(mpg ~ wt + hp)</text><text x="125" y="182" class="branch-label">attach raw variables, no preprocessing</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">workflow() |&gt; add_variables(mpg, c(wt, hp))</text><text x="125" y="238" class="branch-label">replace an attached recipe in place</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">update_recipe(wf, new_rec)</text><text x="125" y="294" class="branch-label">detach the recipe entirely</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">remove_recipe(wf)</text><text x="125" y="350" class="branch-label">prep and bake by hand outside a workflow</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">rec |&gt; prep() |&gt; bake(new_data = df)</text></svg></div>
+
+<h2>What add_recipe() does</h2>
+
+<p><strong>add_recipe() registers a recipes object as the preprocessor of a workflow.</strong> It does not run the recipe. It only records the recipe in the workflow's preprocessor slot, the same way <code>add_model()</code> records a parsnip spec in the model slot. The actual <code>prep()</code> and <code>bake()</code> calls happen later, when you call <code>fit()</code>, <code>fit_resamples()</code>, or <code>tune_grid()</code> on the workflow.</p>
+
+<p>This is the plumbing trick at the centre of tidymodels. By keeping the recipe inside the workflow, the workflow re-estimates the recipe on the training half of each resample and re-applies it to the held out half. Means, standard deviations, dummy levels, and <a class="auto-link" href="Interpreting-PCA-Results-in-R.html" title="Read PCA Output in R: What Loadings, Scores, and Variance Explained Actually Tell You">PCA loadings</a> are learned from training rows only, never from validation rows. Hand-rolled pipelines that call <code>prep()</code> once on the full data leak <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summary statistics</a> into every fold; <code>add_recipe()</code> removes that risk by construction.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A workflow with a recipe is one object that knows both what to compute and what to learn.</strong> The recipe describes data prep, the parsnip spec describes the model, and the workflow binds them so resampling and prediction stay in sync. You never need to remember to <code>bake()</code> new data before <code>predict()</code>; the workflow does it for you.</div></div>
+
+<h2>add_recipe() syntax and arguments</h2>
+
+<p><strong>add_recipe() takes a workflow, a recipe, and an optional blueprint.</strong> The signature is short, and most users never touch the blueprint argument.</p>
+
+<div class="webr-container" data-block-title="The add_recipe argument skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The add_recipe argument skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+
+add_recipe(
+  x,                # a workflow object
+  recipe,           # an untrained recipes object built with recipe()
+  blueprint = NULL  # a hardhat blueprint controlling indicator handling
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>x</code> argument must be a <code>workflow()</code> object, usually piped in from <code>workflow()</code>. The <code>recipe</code> argument must be an unprepped recipes object; pass the raw output of <code>recipe()</code> plus any <code>step_*()</code> calls, not a prepped recipe. The <code>blueprint</code> argument is a <code>hardhat::default_recipe_blueprint()</code> object that controls how predictors with <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>, indicator variables, and intercepts are handled at prediction time; the default usually does the right thing.</p>
+
+<p><strong>add_recipe() returns a new workflow.</strong> The function is pure: it does not mutate its input. You always need to assign the result back to a variable or chain it into another pipe step.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The recipe is stored, not run.</strong> Calling <code>add_recipe()</code> is cheap because nothing is computed. The recipe is held alongside the model spec until the workflow is fit. If you want to inspect what the recipe will do before training, call <code>prep()</code> and <code>bake()</code> on the recipe directly, outside the workflow.</div></div>
+
+<p><strong>add_recipe() is one of three preprocessor verbs in the workflows package.</strong> Knowing when to reach for each one is half the battle.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Verb</th>
+<th>Preprocessor input</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>add_recipe()</code></td>
+<td>A <code>recipe()</code> object with steps</td>
+<td>Anything beyond a one-line formula (impute, scale, encode, PCA)</td>
+</tr>
+<tr>
+<td><code>add_formula()</code></td>
+<td>A model formula like <code>y ~ x1 + x2</code></td>
+<td>Lightweight workflow, no transformation needed</td>
+</tr>
+<tr>
+<td><code>add_variables()</code></td>
+<td>Outcome and predictor column names</td>
+<td>Engines that refuse formulas (XGBoost matrix input)</td>
+</tr>
+</tbody>
+</table>
+
+<p>Pick <code>add_recipe()</code> whenever the preprocessing must be re-estimated on each resample, which is most production cases.</p>
+
+<h2>Build workflows with add_recipe(): four examples</h2>
+
+<p><strong>Every example below uses the built-in mtcars and airquality datasets</strong> so the focus stays on the workflow rather than on the data.</p>
+
+<h3>Example 1: Normalize numeric predictors</h3>
+
+<p><strong>Centering and scaling predictors is the canonical use case for a recipe.</strong> It takes two recipe steps and one <code>add_recipe()</code> call.</p>
+
+<div class="webr-container" data-block-title="Normalize then fit linear regression">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Normalize then fit linear regression</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_norm &lt;- recipe(mpg ~ wt + hp + disp, data = mtcars) |&gt;
+  step_normalize(all_numeric_predictors())
+
+lin_spec &lt;- linear_reg() |&gt; set_engine(&quot;lm&quot;)
+
+wf_norm &lt;- workflow() |&gt;
+  add_recipe(rec_norm) |&gt;
+  add_model(lin_spec)
+
+wf_norm
+#&gt; == Workflow ====================================================================
+#&gt; Preprocessor: Recipe
+#&gt; Model: linear_reg()
+#&gt;
+#&gt; -- Preprocessor ----------------------------------------------------------------
+#&gt; 1 Recipe Step
+#&gt;
+#&gt; * step_normalize()
+#&gt;
+#&gt; -- Model -----------------------------------------------------------------------
+#&gt; Linear Regression Model Specification (regression)
+#&gt;
+#&gt; Computational engine: lm</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The workflow now stores both the recipe and the spec. Calling <code>fit(wf_norm, data = mtcars)</code> first estimates the means and standard deviations of <code>wt</code>, <code>hp</code>, and <code>disp</code>, applies the standardization, then fits the <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a> on the transformed columns.</p>
+
+<h3>Example 2: One-hot encode a categorical predictor</h3>
+
+<p><strong>Recipes shines when you mix transformation types.</strong> Here <code>step_dummy()</code> converts the factor <code>cyl</code> into indicator columns before the model sees them.</p>
+
+<div class="webr-container" data-block-title="Dummy encode then logistic regression">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Dummy encode then logistic regression</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mt &lt;- mtcars |&gt;
+  mutate(cyl = factor(cyl),
+                am  = factor(am))
+
+rec_dummy &lt;- recipe(am ~ mpg + wt + cyl, data = mt) |&gt;
+  step_dummy(all_nominal_predictors())
+
+log_spec &lt;- logistic_reg() |&gt; set_engine(&quot;glm&quot;)
+
+wf_dummy &lt;- workflow() |&gt;
+  add_recipe(rec_dummy) |&gt;
+  add_model(log_spec)
+
+wf_dummy_fit &lt;- fit(wf_dummy, data = mt)
+predict(wf_dummy_fit, new_data = head(mt))
+#&gt; # A tibble: 6 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 1
+#&gt; 2 1
+#&gt; 3 1
+#&gt; 4 0
+#&gt; 5 0
+#&gt; 6 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Notice that <code>predict()</code> works on the raw <code>mt</code> data with <code>cyl</code> still a factor. The workflow re-applies <code>step_dummy()</code> automatically; you never call <code>bake()</code> by hand.</p>
+
+<h3>Example 3: Impute missing values, then dummy encode</h3>
+
+<p><strong>Recipe steps run in the order you declare them.</strong> This matters for imputation: impute before any step that fails on <code>NA</code>, then encode.</p>
+
+<div class="webr-container" data-block-title="Impute, encode, then linear regression">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Impute, encode, then linear regression</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">aq &lt;- airquality |&gt;
+  mutate(Month = factor(Month))
+
+rec_full &lt;- recipe(Ozone ~ Solar.R + Wind + Temp + Month, data = aq) |&gt;
+  step_impute_median(all_numeric_predictors()) |&gt;
+  step_dummy(all_nominal_predictors())
+
+wf_full &lt;- workflow() |&gt;
+  add_recipe(rec_full) |&gt;
+  add_model(linear_reg() |&gt; set_engine(&quot;lm&quot;))
+
+wf_full_fit &lt;- fit(wf_full, data = aq)
+
+extract_recipe(wf_full_fit) |&gt;
+  tidy(number = 1)
+#&gt; # A tibble: 3 x 3
+#&gt;   terms     value model
+#&gt;   &lt;chr&gt;     &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 Solar.R  205.   impute_median
+#&gt; 2 Wind       9.96 impute_median
+#&gt; 3 Temp      79.0  impute_median</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>extract_recipe()</code> pulls the trained recipe back out of the fitted workflow, and <code>tidy()</code> shows the learned medians. Those medians were computed only from rows passed to <code>fit()</code>, so they are safe to use under cross-validation.</p>
+
+<h3>Example 4: add_recipe() vs the workflow constructor</h3>
+
+<p><strong>The constructor argument and the verb form behave identically.</strong> Prefer the verb form because it reads like a pipeline.</p>
+
+<div class="webr-container" data-block-title="Two ways to wire the same workflow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two ways to wire the same workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_min &lt;- recipe(mpg ~ wt, data = mtcars)
+spec    &lt;- linear_reg() |&gt; set_engine(&quot;lm&quot;)
+
+wf_a &lt;- workflow() |&gt;
+  add_recipe(rec_min) |&gt;
+  add_model(spec)
+
+wf_b &lt;- workflow(preprocessor = rec_min, spec = spec)
+
+identical(wf_a$pre$actions, wf_b$pre$actions)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both objects fit and predict the same way. The verb form is what every tidymodels vignette uses, and it scales better when you reach for <code>update_recipe()</code> or <code>update_model()</code> later.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>A workflow holds exactly one preprocessor and one untrained recipe.</strong> These are the three errors you will hit while learning <code>add_recipe()</code>.</p>
+
+<div class="webr-container" data-block-title="Three errors and their fixes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three errors and their fixes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Pitfall 1: two preprocessors in one workflow
+workflow() |&gt;
+  add_recipe(rec_norm) |&gt;
+  add_formula(mpg ~ wt + hp)
+#&gt; Error in `add_formula()`: A recipe action has already been added.
+#&gt; Fix: pick one. add_recipe() OR add_formula(), never both.
+
+# Pitfall 2: passing a prepped recipe
+rec_prepped &lt;- prep(rec_norm)
+workflow() |&gt;
+  add_recipe(rec_prepped)
+#&gt; Error in `add_recipe()`: `recipe` must not be a trained recipe.
+#&gt; Fix: pass the unprepped recipe; the workflow preps it for you.
+
+# Pitfall 3: outcome name in recipe disagrees with data
+rec_typo &lt;- recipe(MPG ~ wt, data = mtcars)
+workflow() |&gt; add_recipe(rec_typo) |&gt; add_model(spec) |&gt; fit(mtcars)
+#&gt; Error in `fit()`: object 'MPG' not found
+#&gt; Fix: use lowercase mpg, matching the column in mtcars.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never pass a prepped recipe to add_recipe().</strong> The workflow re-estimates the recipe inside <code>fit()</code> on each resample. Passing a prepped recipe defeats leakage protection and is rejected outright by modern versions of workflows.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a workflow that uses a recipe to apply <code>step_log()</code> to <code>Sepal.Length</code>, dummy-encodes <code>Species</code>, then fits a linear regression of <code>Petal.Length</code>. Save the fitted workflow to <code>ex_fit</code>.</p>
+<div class="webr-container" data-block-title="Your turn: log transform with add_recipe">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: log transform with add_recipe</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: log transform then linear regression
+library(tidymodels)
+
+ex_rec &lt;- # your code here
+
+ex_fit &lt;- # your code here
+
+predict(ex_fit, new_data = head(iris))
+#&gt; Expected: tibble with 6 .pred values around 1.3 to 1.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec &lt;- recipe(Petal.Length ~ Sepal.Length + Species, data = iris) |&gt;
+  step_log(Sepal.Length) |&gt;
+  step_dummy(all_nominal_predictors())
+
+ex_fit &lt;- workflow() |&gt;
+  add_recipe(ex_rec) |&gt;
+  add_model(linear_reg() |&gt; set_engine(&quot;lm&quot;)) |&gt;
+  fit(data = iris)
+
+predict(ex_fit, new_data = head(iris))
+#&gt; # A tibble: 6 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  1.42
+#&gt; 2  1.39
+#&gt; 3  1.35
+#&gt; 4  1.37
+#&gt; 5  1.42
+#&gt; 6  1.50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>step_log()</code> applies a natural-log transform to the named column. <code>step_dummy()</code> then one-hot encodes <code>Species</code> because linear regression cannot consume a factor directly. Wrapping both steps in <code>add_recipe()</code> ensures <code>predict()</code> re-applies them to new rows automatically.</p>
+
+</details>
+</section>
+
+<h2>Related tidymodels functions</h2>
+
+<p><strong>add_recipe() rarely appears alone.</strong> These are the functions you will use alongside it.</p>
+
+<ul>
+
+<li><code>workflow()</code> creates the empty workflow that <code>add_recipe()</code> updates.</li>
+
+<li><code>recipe()</code> builds the recipes object that <code>add_recipe()</code> expects.</li>
+
+<li><code>add_model()</code> attaches the parsnip spec that pairs with the recipe.</li>
+
+<li><code>update_recipe()</code> swaps the recipe inside an existing workflow.</li>
+
+<li><code>extract_recipe()</code> pulls the trained recipe out of a fitted workflow.</li>
+
+<li><code>remove_recipe()</code> detaches the recipe entirely.</li>
+
+</ul>
+
+<p>See the <a href="https://workflows.tidymodels.org/reference/">workflows package reference</a> for the full verb family.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Does add_recipe() prep the recipe?</strong></p>
+
+<p>No. <code>add_recipe()</code> only stores the recipe in the workflow's preprocessor slot. Estimation happens inside <code>fit()</code>, <code>fit_resamples()</code>, or <code>tune_grid()</code>, which call <code>prep()</code> internally on the training data of each split. This is intentional: it is what gives the workflow its leakage-safe behaviour across resamples and why the workflow object is the right unit of work for cross-validation.</p>
+
+<p><strong>Can I use add_recipe() and add_formula() in the same workflow?</strong></p>
+
+<p>No. A workflow can hold only one preprocessor. Stacking <code>add_recipe()</code> and <code>add_formula()</code> raises an error. Choose <code>add_recipe()</code> when you want named transformation steps and want preprocessing to be re-estimated on each resample. Choose <code>add_formula()</code> when a one-line model formula is enough and you need no preprocessing.</p>
+
+<p><strong>How do I inspect what the recipe did inside the fitted workflow?</strong></p>
+
+<p>Call <code>extract_recipe(wf_fit)</code> on the fitted workflow. The returned recipe is trained, so <code>tidy()</code> on individual steps reveals the learned values, such as means from <code>step_normalize()</code> or medians from <code>step_impute_median()</code>. Pass <code>estimated = FALSE</code> if you want the original, untrained recipe back instead of the fitted one.</p>
+
+<p><strong>Is add_recipe() different from <a class="auto-link" href="recipes-recipe-in-R.html" title="recipes recipe() in R: Build a Preprocessing Blueprint">recipes::recipe()</a>?</strong></p>
+
+<p>Yes. <code>recipe()</code> constructs the recipes object. <code>add_recipe()</code> attaches that object to a workflow. The two functions live in different packages (recipes and workflows) and serve different roles. You always build the recipe first, then attach it to a workflow with <code>add_recipe()</code> before adding a model spec.</p>
+
+<p><strong>How do I update a recipe attached to a workflow?</strong></p>
+
+<p>Use <code>update_recipe(wf, new_recipe)</code>. This replaces the existing recipe without touching the model spec or refitting anything. Calling <code>add_recipe()</code> a second time on the same workflow fails because the preprocessor slot is already filled, so the workflows team built <code>update_recipe()</code> as the explicit replacement verb.</p>
+
+{% endraw %}
