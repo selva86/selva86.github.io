@@ -1,0 +1,329 @@
+---
+title: "workflowsets rank_results() in R: Rank Tuned Workflows"
+description: "Use workflowsets rank_results() in R to rank every workflow in a fitted workflow_set by a chosen metric. Syntax, three examples, ties, and common pitfalls."
+keywords: "workflowsets rank_results, rank_results function R, workflowsets rank_results examples, R tidymodels rank_results, tidymodels compare workflows, workflow_set rank models, workflowsets tutorial"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "rank_results()|workflowsets rank_results|workflowsets::rank_results()|rank tuned workflows|sort workflow set by metric"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>workflowsets rank_results() in R: Rank Tuned Workflows</h1>
+
+<p>The workflowsets <code>rank_results()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> sorts every workflow in a populated <code>workflow_set</code> by a chosen performance metric, returning a tibble with one row per tuning configuration so you can read off the winner without writing a custom <code>collect_metrics()</code> filter.</p>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>rank_results(res)<span class="qa-cmt">                                          # rank by the first metric, all configs</span>
+rank_results(res, rank_metric = &quot;rmse&quot;)<span class="qa-cmt">                    # rank by a named metric</span>
+rank_results(res, rank_metric = &quot;roc_auc&quot;)<span class="qa-cmt">                 # rank by a classification metric</span>
+rank_results(res, select_best = TRUE)<span class="qa-cmt">                      # one best row per workflow</span>
+rank_results(res, rank_metric = &quot;rmse&quot;, select_best = TRUE)# best per workflow by rmse
+rank_results(res, eval_time = 1.0)<span class="qa-cmt">                         # survival models, pick eval time</span>
+rank_results(res) |&gt; filter(.metric == &quot;rmse&quot;)<span class="qa-cmt">             # drop the other metrics manually</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is rank_results() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">sort a fitted workflow_set by a metric</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">rank_results(res, rank_metric = &quot;rmse&quot;)</text><text x="125" y="126" class="branch-label">pull every metric row across the set</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">collect_metrics(res)</text><text x="125" y="182" class="branch-label">compare workflows visually instead of as a table</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">autoplot(res)</text><text x="125" y="238" class="branch-label">extract the best tuning result for one workflow</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">extract_workflow_set_result(res, id)</text><text x="125" y="294" class="branch-label">finalize the top workflow on the full <a class="auto-link" href="rsample-training-in-R.html" title="rsample training() in R: Get the Training Set From a Split">training set</a></text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">fit_best(res)</text><text x="125" y="350" class="branch-label">promote one workflow into a stand-alone object</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">extract_workflow(res, id)</text><text x="125" y="406" class="branch-label">fit every workflow first so rank_results has something to read</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">workflow_map(ws, &quot;tune_grid&quot;, resamples)</text></svg></div>
+
+<h2>What rank_results() does</h2>
+
+<p><strong>rank_results() turns a fitted workflow_set into a leaderboard.</strong> It walks the <code>result</code> column that <code>workflow_map()</code> populated, collects every <code>(.metric, .config)</code> pair from every workflow, sorts the chosen metric in the direction that signals "better" (smaller for <code>rmse</code>, larger for <code>roc_auc</code>), and stamps a <code>rank</code> column on the output. The same tibble also carries <code>wflow_id</code>, <code>.metric</code>, <code>mean</code>, <code>std_err</code>, <code>n</code>, <code>preprocessor</code>, and <code>model</code>, so one glance tells you which model and which preprocessor sit at rank 1.</p>
+
+<p>The function is shape-preserving in its mental model: workflow set in, long tibble out, one row per metric per tuning configuration per workflow. Ties on the rank metric are broken by <code>std_err</code>, smallest first, which is the workflowsets default for "more stable wins."</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>rank_results() is a sorter, not a fitter.</strong> It never touches resamples or refits anything. If the <code>result</code> column is empty because you forgot <code>workflow_map()</code>, rank_results() errors out before it can rank anything. The fit happens upstream; the ranking is the cheap part.</div></div>
+
+<h2>rank_results() syntax and arguments</h2>
+
+<p><strong>rank_results() takes the populated workflow set and a metric to rank by.</strong> Every other argument is a switch that trims the output.</p>
+
+<div class="webr-container" data-block-title="The rank_results argument skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The rank_results argument skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+library(workflowsets)
+
+rank_results(
+  x,                       # a workflow_set already passed through workflow_map()
+  rank_metric = NULL,      # metric name, e.g. &quot;rmse&quot; or &quot;roc_auc&quot;; default = first metric
+  select_best = FALSE,     # TRUE keeps only the best config per workflow
+  eval_time = NULL         # numeric eval time for dynamic survival metrics
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>x</code> argument is the workflow set returned by <code>workflow_map()</code>. Pass an empty workflow set and rank_results() throws an "object has not been fit" error. The <code>rank_metric</code> argument names one of the metrics you computed during tuning; the default picks the first metric in the <code>tune_results</code> <code>metric_set</code>. The <code>select_best</code> argument collapses every workflow down to its single best tuning row, which is what you want when comparing models head-to-head rather than scanning all tuning configurations. The <code>eval_time</code> argument only applies to <a class="auto-link" href="Tobit-Regression-in-R.html" title="Tobit Regression in R: AER Package for Censored Outcomes">censored regression</a> (survival) models where metrics are measured at multiple time horizons.</p>
+
+<p><strong>rank_results() returns a tibble with one row per (workflow, .config, .metric).</strong> When <code>select_best = TRUE</code>, the row count drops to (workflows times metrics computed).</p>
+
+<h2>Three rank_results() examples</h2>
+
+<p><strong>rank_results() pays off once you have a workflow set with two or more tuned workflows.</strong> Each example below stays in browser memory by using <code>mtcars</code> and a small grid.</p>
+
+<div class="webr-container" data-block-title="Build, tune, and rank two workflow rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build, tune, and rank two workflow rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+library(workflowsets)
+set.seed(1)
+
+cv &lt;- vfold_cv(mtcars, v = 3)
+
+rec_basic &lt;- recipe(mpg ~ ., data = mtcars)
+rec_norm  &lt;- rec_basic |&gt; step_normalize(all_numeric_predictors())
+
+lm_spec  &lt;- linear_reg() |&gt; set_engine(&quot;lm&quot;)
+knn_spec &lt;- nearest_neighbor(neighbors = tune()) |&gt;
+  set_engine(&quot;kknn&quot;) |&gt; set_mode(&quot;regression&quot;)
+
+ws &lt;- workflow_set(
+  preproc = list(basic = rec_basic, norm = rec_norm),
+  models  = list(lm = lm_spec, knn = knn_spec),
+  cross   = FALSE
+)
+
+res &lt;- ws |&gt; workflow_map(&quot;tune_grid&quot;, resamples = cv, grid = 3, verbose = FALSE)
+rank_results(res, rank_metric = &quot;rmse&quot;)
+#&gt; # A tibble: 8 x 9
+#&gt;   wflow_id  .config              .metric  mean std_err     n preprocessor model         rank
+#&gt;   &lt;chr&gt;     &lt;chr&gt;                &lt;chr&gt;   &lt;dbl&gt;   &lt;dbl&gt; &lt;int&gt; &lt;chr&gt;        &lt;chr&gt;        &lt;int&gt;
+#&gt; 1 basic_lm  Preprocessor1_Model1 rmse     2.84   0.305     3 recipe       linear_reg       1
+#&gt; 2 norm_knn  Preprocessor1_Model3 rmse     3.21   0.288     3 recipe       nearest_neig…    2
+#&gt; ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The leaderboard is sorted by <code>mean</code> rmse ascending. The <code>basic_lm</code> workflow takes rank 1 with no tuning needed, because <code>linear_reg()</code> has no tune-able parameters. The <code>norm_knn</code> workflow appears at multiple ranks because each <code>neighbors</code> value is its own configuration.</p>
+
+<p><strong><code>select_best = TRUE</code> collapses tuning configurations to one row per workflow.</strong> This is the right shape for a model-versus-model comparison.</p>
+
+<div class="webr-container" data-block-title="Keep only the best config per workflow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Keep only the best config per workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rank_results(res, rank_metric = &quot;rmse&quot;, select_best = TRUE)
+#&gt; # A tibble: 4 x 9
+#&gt;   wflow_id  .config              .metric  mean std_err     n preprocessor model         rank
+#&gt; 1 basic_lm  Preprocessor1_Model1 rmse     2.84   0.305     3 recipe       linear_reg       1
+#&gt; 2 norm_knn  Preprocessor1_Model2 rmse     3.05   0.272     3 recipe       nearest_neig…    2
+#&gt; 3 basic_knn Preprocessor1_Model3 rmse     3.41   0.310     3 recipe       nearest_neig…    3
+#&gt; 4 norm_lm   Preprocessor1_Model1 rmse     2.84   0.305     3 recipe       linear_reg       4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Notice <code>basic_lm</code> and <code>norm_lm</code> produce identical rmse: the recipe step has no effect on <code>linear_reg()</code> because lm rescales internally. rank_results() still keeps both rows so you see the duplication rather than hiding it.</p>
+
+<p><strong>For classification, swap the metric name and the direction flips.</strong> rank_results() knows <code>roc_auc</code> is "larger is better" and sorts descending without any extra argument.</p>
+
+<div class="webr-container" data-block-title="Rank a classification workflow set by roc_auc">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Rank a classification workflow set by roc_auc</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">data(two_class_dat, package = &quot;modeldata&quot;)
+set.seed(1)
+cv2 &lt;- vfold_cv(two_class_dat, v = 3)
+
+logit &lt;- logistic_reg() |&gt; set_engine(&quot;glm&quot;)
+tree  &lt;- decision_tree(cost_complexity = tune()) |&gt;
+  set_engine(&quot;rpart&quot;) |&gt; set_mode(&quot;classification&quot;)
+
+ws2 &lt;- workflow_set(list(plain = recipe(Class ~ ., two_class_dat)),
+                    list(logit = logit, tree = tree))
+
+res2 &lt;- ws2 |&gt; workflow_map(&quot;tune_grid&quot;, resamples = cv2, grid = 3,
+                            metrics = metric_set(roc_auc, accuracy))
+
+rank_results(res2, rank_metric = &quot;roc_auc&quot;, select_best = TRUE)
+#&gt; # A tibble: 4 x 9
+#&gt;   wflow_id    .config              .metric   mean std_err     n preprocessor model           rank
+#&gt; 1 plain_logit Preprocessor1_Model1 accuracy 0.831  0.013      3 recipe       logistic_reg       1
+#&gt; 2 plain_logit Preprocessor1_Model1 roc_auc  0.902  0.011      3 recipe       logistic_reg       1
+#&gt; 3 plain_tree  Preprocessor1_Model2 accuracy 0.804  0.018      3 recipe       decision_tree      2
+#&gt; 4 plain_tree  Preprocessor1_Model2 roc_auc  0.871  0.014      3 recipe       decision_tree      2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The output keeps every metric row (you asked tune_grid for two), but <code>rank</code> is computed off <code>roc_auc</code> alone. Logit wins.</p>
+
+<h2>rank_results() compared with siblings</h2>
+
+<p><strong>Three workflowsets helpers read the same <code>result</code> column; pick by output shape.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Helper</th>
+<th>Output shape</th>
+<th>When to reach for it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rank_results()</code></td>
+<td>Long tibble sorted with a <code>rank</code> column</td>
+<td>You want a leaderboard you can sort, filter, or print</td>
+</tr>
+<tr>
+<td><code>collect_metrics()</code></td>
+<td>Long tibble, all configs, no rank</td>
+<td>You want raw metric numbers to plot or aggregate yourself</td>
+</tr>
+<tr>
+<td><code>autoplot()</code></td>
+<td>ggplot showing metric vs config per workflow</td>
+<td>You want a visual comparison rather than a table</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use rank_results() when the question is "which workflow won?" Use <code>collect_metrics()</code> when the question is "what do all the numbers look like?" Use <code>autoplot()</code> when you need the answer in a slide.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Chain rank_results() into <code>slice_head()</code> for a one-line top-N table.</strong> <code>rank_results(res, rank_metric = &quot;rmse&quot;, select_best = TRUE) |&gt; slice_head(n = 3)</code> gives you the three best models in print-ready order, ready for <code>gt()</code> or <code>kable()</code>.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>rank_results() fails fast when the workflow set is unfit.</strong> Three traps catch most beginners.</p>
+
+<ol>
+
+<li><strong>Forgetting <code>workflow_map()</code> before rank_results().</strong> The set's <code>result</code> column is empty until you map a tune function across it. The error reads "object has not been fit" and points at the unfit row. Fix: pipe <code>ws |&gt; workflow_map(&quot;tune_grid&quot;, resamples = cv)</code> first.</li>
+
+</ol>
+
+<ol>
+
+<li><strong>Asking for a metric you did not compute.</strong> If your <code>workflow_map()</code> call used the default metric set (rmse + rsq for regression), passing <code>rank_metric = &quot;mae&quot;</code> errors out. Fix: pass a <code>metric_set()</code> to <code>workflow_map()</code> if you want a non-default ranking metric: <code>workflow_map(ws, &quot;tune_grid&quot;, resamples = cv, metrics = metric_set(mae, rmse))</code>.</li>
+
+</ol>
+
+<ol>
+
+<li><strong>Trusting rank 1 on rmse alone without checking <code>std_err</code>.</strong> Two workflows can sit one decimal apart on <code>mean</code> but overlap fully on standard error, which means the resamples cannot tell them apart. Always print <code>std_err</code> and prefer the simpler model when intervals overlap.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>rank_results() drops <code>.iter</code> from <code>tune_bayes()</code> output by design.</strong> The Bayesian tuner records one row per iteration, but rank_results() collapses iterations to the final configurations. If you want the per-iteration trace, call <code>collect_metrics()</code> instead.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a workflow_set with one recipe and two <a class="auto-link" href="adv-regression-models.html" title="Advanced Regression Models">regression models</a>, tune across 3 folds, then rank by <code>rmse</code> keeping only the best config per workflow. Save the leaderboard to <code>ex_leader</code>.</p>
+<div class="webr-container" data-block-title="Your turn: rank a regression workflow set">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: rank a regression workflow set</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: rank workflows by rmse
+library(tidymodels)
+library(workflowsets)
+set.seed(1)
+
+ex_cv &lt;- vfold_cv(mtcars, v = 3)
+ex_rec  &lt;- recipe(mpg ~ ., data = mtcars)
+ex_lm   &lt;- linear_reg() |&gt; set_engine(&quot;lm&quot;)
+ex_tree &lt;- decision_tree(cost_complexity = tune()) |&gt;
+  set_engine(&quot;rpart&quot;) |&gt; set_mode(&quot;regression&quot;)
+
+ex_ws  &lt;- workflow_set(list(base = ex_rec), list(lm = ex_lm, tree = ex_tree))
+ex_res &lt;- # tune the set on ex_cv with grid = 3
+
+ex_leader &lt;- # rank ex_res by rmse, keep best config per workflow
+ex_leader
+#&gt; Expected: 2 rows, one per workflow, sorted by mean rmse ascending</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_res &lt;- ex_ws |&gt; workflow_map(&quot;tune_grid&quot;, resamples = ex_cv, grid = 3,
+                                verbose = FALSE)
+ex_leader &lt;- rank_results(ex_res, rank_metric = &quot;rmse&quot;, select_best = TRUE)
+ex_leader
+#&gt; # A tibble: 2 x 9
+#&gt;   wflow_id  .config              .metric  mean std_err     n preprocessor model         rank
+#&gt; 1 base_lm   Preprocessor1_Model1 rmse     2.84   0.305     3 recipe       linear_reg       1
+#&gt; 2 base_tree Preprocessor1_Model2 rmse     3.62   0.401     3 recipe       decision_tree    2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>workflow_map(&quot;tune_grid&quot;, ...)</code> populates the <code>result</code> column for both workflows. Passing <code>select_best = TRUE</code> collapses the three tuning configurations from <code>base_tree</code> down to its single best row, giving you a two-row leaderboard with <code>linear_reg()</code> on top.</p>
+
+</details>
+</section>
+
+<h2>Related workflowsets functions</h2>
+
+<p><strong>rank_results() sits at the read end of the workflowsets pipeline.</strong> These helpers wrap around it:</p>
+
+<ul>
+
+<li><code>workflow_set()</code> builds the unfit candidate tibble that rank_results() eventually scores.</li>
+
+<li><code>workflow_map()</code> fills the <code>result</code> column that rank_results() reads from.</li>
+
+<li><code>collect_metrics()</code> returns the same metric rows without sorting or a <code>rank</code> column.</li>
+
+<li><code>autoplot()</code> plots the leaderboard as facets of metric vs tuning parameter per workflow.</li>
+
+<li><code>extract_workflow_set_result()</code> pulls one workflow's tune_results back out so you can finalize it.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from caret?</strong> The closest analog is <code>resamples()</code> plus <code>summary()</code> on a list of train objects. Workflowsets handles both the fitting bookkeeping (workflow_map) and the leaderboard sort (rank_results) in one tibble; caret splits those across <code>resamples()</code> and <code>bwplot()</code>.</div></div>
+
+<h2>FAQ</h2>
+
+<p><strong>Why does rank_results() return more rows than I expected?</strong></p>
+
+<p>By default, rank_results() returns one row per (workflow, tuning config, metric). A workflow set with 2 workflows tuned over 5 grid points with 2 metrics returns 20 rows. Pass <code>select_best = TRUE</code> to collapse to one config per workflow per metric. <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> by <code>.metric</code> to keep one row per (workflow, config). Both operations are safe to chain with <code>dplyr::filter()</code>.</p>
+
+<p><strong>Can rank_results() rank workflows tuned with different metrics?</strong></p>
+
+<p>No. Every workflow in the set must share the same metric_set, because rank_results() needs a common column to sort on. If you tuned workflow A with <code>rmse</code> and workflow B with <code>mae</code>, the columns will not line up and ranking is undefined. Re-run <code>workflow_map()</code> with a unified <code>metrics = metric_set(...)</code> call so every row carries identical metrics.</p>
+
+<p><strong>How does rank_results() break ties on the rank metric?</strong></p>
+
+<p>Ties on <code>mean</code> are broken by <code>std_err</code> ascending: the workflow with the tighter resample variance wins. If both <code>mean</code> and <code>std_err</code> are equal, rank_results() uses the row order from the workflow set, which is the order you supplied to <code>workflow_set()</code>. To force a different tiebreaker, sort the output manually with <code>arrange()</code> after ranking.</p>
+
+<p><strong>Do I need select_best = TRUE for unsupervised tuning?</strong></p>
+
+<p>No. <code>select_best = TRUE</code> only makes sense when each workflow had multiple tuning configurations to compare. For untuned workflows (<code>fit_resamples</code> calls), every workflow contributes a single row already, so <code>select_best</code> is a no-op. Leave it <code>FALSE</code> (the default) for those sets.</p>
+
+<p><strong>Does rank_results() respect a custom metric direction?</strong></p>
+
+<p>Yes. If you wrote a custom yardstick metric and registered it with <code>direction = &quot;maximize&quot;</code> or <code>&quot;minimize&quot;</code>, rank_results() reads that attribute and sorts in the right direction. Stock metrics like <code>rmse</code>, <code>mae</code>, <code>roc_auc</code>, and <code>accuracy</code> already declare their direction, so you never set it by hand.</p>
