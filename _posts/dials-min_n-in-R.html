@@ -1,0 +1,368 @@
+---
+title: "dials min_n() in R: Tune Minimum Node Size for Tree Models"
+description: "Use dials min_n() in R to set the minimum-node-size search range for tidymodels tree models. Defaults, engine mappings, regression vs classification tips."
+keywords: "dials min_n, min_n function R, dials min_n examples, tidymodels min_n hyperparameter, tune min_n random forest, min_n decision tree R, dials min_n range"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "min_n()|dials min_n|dials::min_n()|minimum node size|tune min_n"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>dials min_n() in R: Tune Minimum Node Size for Tree Models</h1>
+
+<p class="lead">The dials min_n() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> defines the integer hyperparameter for the minimum number of data points a node must hold before it can be split further. It ships finalized with a default range of 2 to 40, so you can drop it straight into a tuning grid without calling finalize() first.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>min_n()<span class="qa-cmt">                                       # default range 2L to 40L</span>
+min_n(range = c(5L, 50L))<span class="qa-cmt">                     # explicit wider band</span>
+min_n(trans = transform_log2())<span class="qa-cmt">               # log-scaled node-size search</span>
+update(params, min_n = min_n(c(2L, 25L)))<span class="qa-cmt">     # override in a param set</span>
+grid_regular(min_n(c(2L, 30L)), levels = 6)<span class="qa-cmt">   # candidate node sizes</span>
+rand_forest(min_n = tune(), mtry = tune())<span class="qa-cmt">    # tune RF leaf size and mtry</span>
+boost_tree(min_n = tune(), tree_depth = tune())<span class="qa-cmt"> # boost: depth + node size</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is min_n() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">tune the minimum node size that stops splitting</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">min_n()</text><text x="125" y="126" class="branch-label">tune the maximum depth of a single tree</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">tree_depth()</text><text x="125" y="182" class="branch-label">tune the cost-complexity pruning parameter</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">cost_complexity()</text><text x="125" y="238" class="branch-label">tune predictors sampled at each split in a forest</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">mtry()</text><text x="125" y="294" class="branch-label">tune the number of trees in the ensemble</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">trees()</text><text x="125" y="350" class="branch-label">tune the boosting shrinkage per round</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">learn_rate()</text><text x="125" y="406" class="branch-label">finalize a data-dependent range like mtry</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">finalize(params, train_x)</text></svg></div>
+
+<h2>What min_n() does in one sentence</h2>
+
+<p><strong>min_n() returns a dials parameter object describing the minimum sample count a node must hold to remain splittable, not a numeric value.</strong> It is the knob you tune when you mark <code>min_n = tune()</code> inside <code>rand_forest()</code>, <code>decision_tree()</code>, <code>boost_tree()</code>, <code>bag_tree()</code>, or <code>bart()</code>. Small min_n grows tall trees that fit training noise; large min_n prunes splits early and biases toward simpler trees.</p>
+
+<p>The function sits next to <code>trees()</code>, <code>tree_depth()</code>, <code>mtry()</code>, and <code>learn_rate()</code> in the dials family. Its upper bound does not depend on training data, so the default <code>c(2L, 40L)</code> is usable without finalize.</p>
+
+<h2>min_n() syntax and arguments</h2>
+
+<p><strong>The signature is two arguments and no surprises.</strong></p>
+
+<div class="webr-container" data-block-title="min_n signature and defaults">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">min_n signature and defaults</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dials)
+min_n(range = c(2L, 40L), trans = NULL)
+#&gt; Minimal Node Size (quantitative)
+#&gt; Range: [2, 40]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>range</code></td>
+<td>Two-element integer vector. Default <code>c(2L, 40L)</code>. Widen for noisy data, narrow for clean signal. Use larger ranges on big datasets where deeper trees stay stable.</td>
+</tr>
+<tr>
+<td><code>trans</code></td>
+<td>Optional scales transformation. Use <code>transform_log2()</code> to sweep node sizes 2, 4, 8, 16, 32 with even resolution rather than burning grid points on adjacent integers.</td>
+</tr>
+</tbody>
+</table>
+
+<p>The return is a <code>quant_param</code> S3 object with class <code>c(&quot;quant_param&quot;, &quot;param&quot;)</code>. Print it to inspect, call <code>value_seq()</code> to draw points, or pass it to a <code>grid_*()</code> helper to expand a search space.</p>
+
+<div class="webr-container" data-block-title="Inspect the parameter object">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the parameter object</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p &lt;- min_n(range = c(2L, 30L))
+p
+#&gt; Minimal Node Size (quantitative)
+#&gt; Range: [2, 30]
+
+value_seq(p, 5)
+#&gt; [1]  2  9 16 23 30</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Integer flag matters.</strong> dials samples on integers and coerces doubles silently, so <code>range = c(2, 30)</code> works but <code>c(2.5, 30.5)</code> quietly truncates. The <code>L</code> suffix makes integer intent explicit and prevents grid drift on engines that error on doubles.</div></div>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Random forests, boosted trees, and stand-alone CARTs all take min_n(), but the sensible ranges differ sharply.</strong></p>
+
+<p>Random forests treat min_n as the primary complexity knob. The classic Breiman defaults are 1 for classification and 5 for regression, encouraging fully grown trees. tidymodels widens this for tuning because optimal node size depends on dataset size.</p>
+
+<div class="webr-container" data-block-title="Random forest with min_n and mtry tuned">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Random forest with min_n and mtry tuned</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+data(ames, package = &quot;modeldata&quot;)
+ames &lt;- ames |&gt; mutate(Sale_Price = log10(Sale_Price))
+
+set.seed(42)
+split &lt;- initial_split(ames, prop = 0.8, strata = Sale_Price)
+train &lt;- training(split)
+
+rf_spec &lt;- rand_forest(
+  mtry  = tune(),
+  min_n = tune(),
+  trees = 500
+) |&gt;
+  set_engine(&quot;ranger&quot;) |&gt;
+  set_mode(&quot;regression&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="Build a forest-friendly grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a forest-friendly grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rf_params &lt;- extract_parameter_set_dials(rf_spec) |&gt;
+  update(
+    mtry  = mtry(c(5L, 25L)),
+    min_n = min_n(c(2L, 40L))
+  )
+
+set.seed(1)
+grid_rf &lt;- grid_space_filling(rf_params, size = 8)
+head(grid_rf)
+#&gt; # A tibble: 6 x 2
+#&gt;    mtry min_n
+#&gt;   &lt;int&gt; &lt;int&gt;
+#&gt; 1     5    34
+#&gt; 2     8     7
+#&gt; 3    11    23
+#&gt; 4    14    12
+#&gt; 5    17    40
+#&gt; 6    20    18</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Boosted trees use min_n to slow down each round. xgboost calls it <code>min_child_weight</code>; lightgbm calls it <code>min_data_in_leaf</code>. tidymodels translates min_n to whichever name the engine expects.</p>
+
+<div class="webr-container" data-block-title="Boosted tree spec with min_n and tree_depth">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Boosted tree spec with min_n and tree_depth</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">xgb_spec &lt;- boost_tree(
+  min_n      = tune(),
+  tree_depth = tune(),
+  trees      = 500,
+  learn_rate = 0.05
+) |&gt;
+  set_engine(&quot;xgboost&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+xgb_params &lt;- extract_parameter_set_dials(xgb_spec) |&gt;
+  update(
+    min_n      = min_n(c(5L, 50L)),
+    tree_depth = tree_depth(c(3L, 8L))
+  )
+
+grid_xgb &lt;- grid_regular(xgb_params, levels = c(min_n = 4, tree_depth = 3))
+head(grid_xgb, 3)
+#&gt; # A tibble: 3 x 2
+#&gt;   min_n tree_depth
+#&gt;   &lt;int&gt;      &lt;int&gt;
+#&gt; 1     5          3
+#&gt; 2    20          3
+#&gt; 3    35          3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>min_n is the load-bearing knob for random forests.</strong> In forests, tree_depth() is usually redundant because individual trees are grown deep on purpose; what controls fit is how aggressively each tree subdivides. min_n caps that. In boosted trees the roles flip: tree_depth() leads and min_n() backs it up. Picking the right knob to tune first saves grid-search budget.</div></div>
+
+<h2>min_n() versus tree_depth() and cost_complexity()</h2>
+
+<p><strong>Three knobs cap how complex a single tree can get; they apply in different ways.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Knob</th>
+<th>What it controls</th>
+<th>How it caps complexity</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>min_n()</code></td>
+<td>Minimum samples needed to consider a split</td>
+<td>Stops splits when a node holds too few rows to justify branching. Engine-portable.</td>
+</tr>
+<tr>
+<td><code>tree_depth()</code></td>
+<td>Maximum levels from root to leaf</td>
+<td>Hard ceiling on tree height. Stops splits beyond depth N.</td>
+</tr>
+<tr>
+<td><code>cost_complexity()</code></td>
+<td>Penalty on tree size during pruning</td>
+<td>Prunes back after fitting; bigger penalty = smaller final tree. rpart-only.</td>
+</tr>
+</tbody>
+</table>
+
+<p>For random forests, min_n() does almost all the work: each tree grows until splits run out of qualifying nodes, so the leaf-size floor sets the <a class="auto-link" href="Point-Estimation-in-R.html" title="Point Estimation in R: What Makes an Estimator Good? Bias, Variance, and MSE">bias-variance tradeoff</a> directly. For boosted trees, tree_depth() and min_n() cooperate, capping height and partition size in parallel. For <a class="auto-link" href="parsnip-decision_tree-in-R.html" title="parsnip decision_tree() in R: Build Tree-Based Models">decision_tree()</a> with rpart, all three matter: tree_depth() and min_n() cap the unpruned tree, then cost_complexity() prunes it back.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Four mistakes account for most surprising min_n() tuning outcomes.</strong></p>
+
+<ol>
+
+<li><strong>Using min_n = 1 in random forests on noisy data.</strong> A node-size floor of 1 lets each tree memorize training rows. The forest still generalizes through bagging, but variance stays high. Lift the lower bound to 5 or 10 when out-of-fold scores are unstable.</li>
+
+<li><strong>Treating min_n as engine-agnostic when it is not.</strong> rpart has TWO related arguments (<code>minsplit</code> and <code>minbucket</code>); ranger has <code>min.node.size</code>; randomForest has <code>nodesize</code>. tidymodels maps min_n to the dominant one per engine, but the EFFECTIVE behavior differs slightly. Check <code>parsnip::translate()</code> to see the actual mapping.</li>
+
+<li><strong>Tuning min_n() without scaling the range to dataset size.</strong> A min_n of 40 on a 200-row dataset wipes out splits; on a 200,000-row dataset it is barely a constraint. Set the upper bound to roughly 1 to 5 percent of training rows.</li>
+
+<li><strong>Forgetting that classification and regression have different sensible floors.</strong> Classification can split down to 1 because pure leaves still vote correctly. Regression with min_n = 1 produces leaves whose prediction is a single observation, inflating variance. Lift the regression floor to 5 or higher.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>rpart minsplit defaults to 20, NOT 2.</strong> When you fit <code>decision_tree() |&gt; set_engine(&quot;rpart&quot;)</code> without tuning min_n, rpart applies its own default of <code>minsplit = 20</code>, meaning nodes with fewer than 20 rows are never split. If your <a class="auto-link" href="rsample-training-in-R.html" title="rsample training() in R: Get the Training Set From a Split">training set</a> is small (say 200 rows), this default alone caps tree depth even when tree_depth() permits more. Either set min_n explicitly via <code>set_args(min_n = 2)</code> or include min_n() in your tuning grid.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a tunable random forest spec for the diamonds dataset, set the min_n range to 5 to 50 and mtry range to 3 to 8, then produce a 6-candidate space-filling grid. Print the grid.</p>
+<div class="webr-container" data-block-title="Your turn: tune min_n and mtry">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tune min_n and mtry</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: build a random-forest grid
+library(tidymodels)
+data(diamonds, package = &quot;ggplot2&quot;)
+
+ex_spec &lt;- rand_forest(min_n = tune(), mtry = tune(), trees = 300) |&gt;
+  set_engine(&quot;ranger&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+ex_params &lt;- # your code here
+
+ex_grid &lt;- # your code here
+
+ex_grid
+#&gt; Expected: a 6-row tibble with columns mtry and min_n</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_params &lt;- extract_parameter_set_dials(ex_spec) |&gt;
+  update(
+    mtry  = mtry(c(3L, 8L)),
+    min_n = min_n(c(5L, 50L))
+  )
+
+set.seed(1)
+ex_grid &lt;- grid_space_filling(ex_params, size = 6)
+
+ex_grid
+#&gt; # A tibble: 6 x 2
+#&gt;    mtry min_n
+#&gt;   &lt;int&gt; &lt;int&gt;
+#&gt; 1     3    41
+#&gt; 2     4    14
+#&gt; 3     5    27
+#&gt; 4     6     5
+#&gt; 5     7    50
+#&gt; 6     8    23</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>update()</code> overrides the default ranges for both parameters in the extracted set. <code>grid_space_filling()</code> spreads six candidates so mtry steps through integer levels and min_n fills the range with maximum spread between adjacent candidates.</p>
+
+</details>
+</section>
+
+<h2>Related tidymodels functions</h2>
+
+<p><strong>min_n() rarely flies solo; it lives inside a short, predictable pipeline.</strong></p>
+
+<ul>
+
+<li><code>mtry()</code> to tune the predictors sampled per split in a forest.</li>
+
+<li><code>tree_depth()</code> to set the maximum depth of a single tree.</li>
+
+<li><code>trees()</code> to tune the ensemble size alongside per-tree complexity.</li>
+
+<li><code>cost_complexity()</code> to tune rpart pruning after min_n caps splitting.</li>
+
+<li><code>learn_rate()</code> to tune the boosting shrinkage when each tree is shallow.</li>
+
+<li><code>extract_parameter_set_dials()</code> to pull every tunable parameter from a workflow at once.</li>
+
+<li><code>update()</code> to override one parameter range inside a parameter set.</li>
+
+<li><code>grid_regular()</code>, <code>grid_random()</code>, <code>grid_space_filling()</code> to materialize candidate tibbles.</li>
+
+<li><code>tune_grid()</code> to fit each candidate across resamples and rank them.</li>
+
+<li><code>parsnip::translate()</code> to inspect how min_n maps to the engine-level argument.</li>
+
+</ul>
+
+<p>External reference: the official dials documentation at <a href="https://dials.tidymodels.org/reference/min_n.html">dials.tidymodels.org</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is a good min_n for a random forest?</strong></p>
+
+<p>For random forests on tabular data, a min_n range of 5 to 25 covers most well-tuned models. The classic Breiman defaults of 1 (classification) and 5 (regression) are baselines, not optima; tuning typically lands between 5 and 20 once dataset noise is accounted for. On large datasets (100k+ rows), candidates up to 50 or 100 become reasonable because deeper trees on richer data still generalize. Always pair min_n tuning with <a class="auto-link" href="Random-Forest-Exercises-in-R.html" title="Random Forest Exercises in R: 20 Practice Problems">mtry tuning</a>, as the two interact strongly.</p>
+
+<p><strong>How does min_n() differ from min_child_weight in xgboost?</strong></p>
+
+<p><code>dials::min_n()</code> is the parameter object describing the search range for the minimum-node-size hyperparameter. <code>xgboost</code>'s <code>min_child_weight</code> is the engine-level setting that consumes a single numeric value at fit time and represents the minimum sum of instance hessians per child rather than a raw row count. tidymodels translates <code>min_n = tune()</code> in <code>boost_tree()</code> to repeated <code>min_child_weight = N</code> calls inside xgboost. The values are close but not identical when xgboost uses non-default loss weighting.</p>
+
+<p><strong>Why does dials min_n() not need finalize() like mtry()?</strong></p>
+
+<p>Because the upper end of a sensible node-size range does not depend on the training data shape. Even with millions of rows, min_n = 40 is rarely a binding constraint. dials therefore ships min_n() with a concrete default of <code>c(2L, 40L)</code>, which is finalized at construction and ready to feed into <code>grid_regular()</code> without further setup. mtry() differs because its upper bound is the number of predictors, which is dataset-dependent.</p>
+
+<p><strong>Should I tune min_n() and tree_depth() together?</strong></p>
+
+<p>Yes for boosted trees; usually no for random forests. In boosting, depth and min_n jointly cap each round's complexity, so tuning both helps the search find the right knob mix. In forests, min_n is load-bearing and tree_depth is usually redundant; tuning both burns budget on combinations that fit nearly identical trees. Tune min_n with mtry in forests, and min_n with tree_depth in boosted ensembles.</p>
+
+{% endraw %}
