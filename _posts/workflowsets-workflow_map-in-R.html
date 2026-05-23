@@ -1,0 +1,350 @@
+---
+title: "workflowsets workflow_map() in R: Fit All Workflows at Once"
+description: "Use workflowsets workflow_map() in R to fit, tune, and rank every workflow in a set on the same resamples with one call. Syntax, examples, and pitfalls."
+keywords: "workflowsets workflow_map, workflow_map function R, workflowsets workflow_map examples, R tidymodels workflow_map, workflow_map tune_grid, workflow_map fit_resamples, workflowsets tutorial"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "workflow_map()|workflowsets workflow_map|workflowsets::workflow_map()|fit every workflow in a set|map over a workflow set"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>workflowsets workflow_map() in R: Fit All Workflows at Once</h1>
+
+<p>The workflowsets <code>workflow_map()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> fits, resamples, or tunes every workflow in a <code>workflow_set()</code> on the same resamples in one call, returning the set with a populated <code>result</code> column you can rank with <code>rank_results()</code> and plot with <code>autoplot()</code>.</p>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>workflow_map(ws, &quot;fit_resamples&quot;, resamples = folds)<span class="qa-cmt">              # fit each workflow on resamples</span>
+workflow_map(ws, &quot;tune_grid&quot;, resamples = folds, grid = 5)<span class="qa-cmt">         # tune each workflow with grid search</span>
+workflow_map(ws, &quot;tune_bayes&quot;, resamples = folds, iter = 10)<span class="qa-cmt">       # Bayesian tune each workflow</span>
+workflow_map(ws, &quot;tune_grid&quot;, resamples = folds, verbose = TRUE)<span class="qa-cmt">   # log progress per workflow</span>
+workflow_map(ws, &quot;tune_grid&quot;, resamples = folds, seed = 1)<span class="qa-cmt">         # fix the seed for reproducibility</span>
+workflow_map(ws, &quot;tune_grid&quot;, resamples = folds, control = ctrl)<span class="qa-cmt">   # pass tune_grid control</span>
+rank_results(res, rank_metric = &quot;rmse&quot;, select_best = TRUE)<span class="qa-cmt">        # rank the populated set</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is workflow_map() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">fit/tune every workflow in a workflow_set</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">workflow_map(ws, &quot;tune_grid&quot;, resamples)</text><text x="125" y="126" class="branch-label">fit one workflow on resamples</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">fit_resamples(wf, resamples)</text><text x="125" y="182" class="branch-label">tune one workflow with a grid</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">tune_grid(wf, resamples, grid)</text><text x="125" y="238" class="branch-label">build the set of candidate workflows first</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">workflow_set(preprocs, models)</text><text x="125" y="294" class="branch-label">rank fitted workflows after mapping</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">rank_results(res, rank_metric = &quot;rmse&quot;)</text><text x="125" y="350" class="branch-label">pull one fitted result back out</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">extract_workflow_set_result(res, id)</text><text x="125" y="406" class="branch-label">visualize tuning curves across the set</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">autoplot(res)</text></svg></div>
+
+<h2>What workflow_map() does</h2>
+
+<p><strong>workflow_map() applies one fitting function to every row of a workflow set.</strong> It iterates over the <code>info</code> column of a <code>workflow_set</code> tibble, runs the function you named (<code>&quot;fit_resamples&quot;</code>, <code>&quot;tune_grid&quot;</code>, or <code>&quot;tune_bayes&quot;</code>) on each candidate, and stores each fit's tune result in the <code>result</code> column. The set goes in, the same set comes out, with the empty <code>result</code> column now filled.</p>
+
+<p>The mental model is map-over-a-tibble. The workflowsets package keeps the bookkeeping (which preprocessor, which model spec, which id) and <code>workflow_map()</code> does the fitting. You never call <code>fit_resamples()</code> or <code>tune_grid()</code> directly on a workflow set; you name the function as a string and let the map handle the loop.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>workflow_map() is a setter, not a getter.</strong> It populates the <code>result</code> column in place and returns the whole tibble, so you can pipe straight into <code>rank_results()</code> or <code>collect_metrics()</code>. You do not get a list of fits back; you get a workflow set with results attached row by row.</div></div>
+
+<h2>workflow_map() syntax and arguments</h2>
+
+<p><strong>workflow_map() takes a workflow set and the name of a tune function.</strong> Everything else passes through to that function via <code>...</code>.</p>
+
+<div class="webr-container" data-block-title="The workflow_map argument skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The workflow_map argument skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+library(workflowsets)
+
+workflow_map(
+  object,                       # a workflow_set built with workflow_set()
+  fn = &quot;tune_grid&quot;,             # &quot;fit_resamples&quot;, &quot;tune_grid&quot;, or &quot;tune_bayes&quot;
+  verbose = FALSE,              # print progress as each workflow runs
+  seed = sample.int(1e4, 1),    # fixed seed makes the whole map reproducible
+  ...                           # extra args passed to fn (resamples, grid, control, metrics)
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>object</code> argument is the unfit workflow set. The <code>fn</code> argument is a character string naming a function from the tune package; passing the function itself does not work. The <code>seed</code> argument is set once before the loop runs, so every workflow sees the same RNG state and bootstrap order. Everything in <code>...</code> is forwarded to <code>fn</code>, which is how you supply <code>resamples</code>, <code>grid</code>, <code>metrics</code>, and <code>control</code> without listing them in the <code>workflow_map()</code> signature.</p>
+
+<p><strong>workflow_map() returns the input workflow set with <code>result</code> populated.</strong> Each row's <code>result</code> is a <code>tune_results</code> or <code>resample_results</code> object that <code>rank_results()</code>, <code>collect_metrics()</code>, <code>collect_predictions()</code>, and <code>autoplot()</code> know how to read.</p>
+
+<h2>Three examples of workflow_map() in action</h2>
+
+<p><strong>workflow_map() pays off when you want every candidate scored on the same resamples in one call.</strong> The examples below all use <code>mtcars</code> so they run quickly in the browser.</p>
+
+<div class="webr-container" data-block-title="Build a workflow set with two recipes and two models">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a workflow set with two recipes and two models</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+library(workflowsets)
+set.seed(1)
+
+data(mtcars)
+mtcars$cyl &lt;- factor(mtcars$cyl)
+
+rec_base &lt;- recipe(mpg ~ ., data = mtcars)
+rec_norm &lt;- recipe(mpg ~ ., data = mtcars) |&gt; step_normalize(all_numeric_predictors())
+
+lm_spec &lt;- linear_reg() |&gt; set_engine(&quot;lm&quot;)
+rf_spec &lt;- rand_forest(mode = &quot;regression&quot;, trees = 200) |&gt; set_engine(&quot;ranger&quot;)
+
+ws &lt;- workflow_set(
+  preproc = list(base = rec_base, norm = rec_norm),
+  models  = list(lm = lm_spec, rf = rf_spec)
+)
+ws
+#&gt; # A workflow set/tibble: 4 x 4
+#&gt;   wflow_id info             option    result    
+#&gt;   &lt;chr&gt;    &lt;list&gt;           &lt;list&gt;    &lt;list&gt;    
+#&gt; 1 base_lm  &lt;tibble [1 x 4]&gt; &lt;opts[0]&gt; &lt;list [0]&gt;
+#&gt; 2 base_rf  &lt;tibble [1 x 4]&gt; &lt;opts[0]&gt; &lt;list [0]&gt;
+#&gt; 3 norm_lm  &lt;tibble [1 x 4]&gt; &lt;opts[0]&gt; &lt;list [0]&gt;
+#&gt; 4 norm_rf  &lt;tibble [1 x 4]&gt; &lt;opts[0]&gt; &lt;list [0]&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The set is four rows of unfit workflows. The <code>result</code> column is empty list-columns, ready to be filled.</p>
+
+<p><strong>Example 1, fit_resamples across the set.</strong> Use this when no model has hyperparameters to tune.</p>
+
+<div class="webr-container" data-block-title="workflow_map with fit_resamples on five folds">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">workflow_map with fit_resamples on five folds</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">folds &lt;- vfold_cv(mtcars, v = 5)
+
+res_fit &lt;- ws |&gt;
+  workflow_map(&quot;fit_resamples&quot;, resamples = folds, seed = 1)
+
+res_fit
+#&gt; # A workflow set/tibble: 4 x 4
+#&gt;   wflow_id info             option    result   
+#&gt;   &lt;chr&gt;    &lt;list&gt;           &lt;list&gt;    &lt;list&gt;   
+#&gt; 1 base_lm  &lt;tibble [1 x 4]&gt; &lt;opts[2]&gt; &lt;rsmp[+]&gt;
+#&gt; 2 base_rf  &lt;tibble [1 x 4]&gt; &lt;opts[2]&gt; &lt;rsmp[+]&gt;
+#&gt; 3 norm_lm  &lt;tibble [1 x 4]&gt; &lt;opts[2]&gt; &lt;rsmp[+]&gt;
+#&gt; 4 norm_rf  &lt;tibble [1 x 4]&gt; &lt;opts[2]&gt; &lt;rsmp[+]&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>result</code> column now shows <code>&lt;rsmp[+]&gt;</code>, meaning each row holds a populated <code>resample_results</code> object.</p>
+
+<p><strong>Example 2, tune_grid across the set.</strong> Use this when some models have tunable parameters; non-tunable workflows fall back to a single fit per fold.</p>
+
+<div class="webr-container" data-block-title="workflow_map with tune_grid, grid = 5">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">workflow_map with tune_grid, grid = 5</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rf_tune &lt;- rand_forest(mode = &quot;regression&quot;, trees = 200, mtry = tune()) |&gt; set_engine(&quot;ranger&quot;)
+
+ws_tune &lt;- workflow_set(
+  preproc = list(base = rec_base),
+  models  = list(lm = lm_spec, rf = rf_tune)
+)
+
+res_tune &lt;- ws_tune |&gt;
+  workflow_map(&quot;tune_grid&quot;, resamples = folds, grid = 5, verbose = FALSE, seed = 1)
+
+rank_results(res_tune, rank_metric = &quot;rmse&quot;, select_best = TRUE)
+#&gt; # A tibble: 4 x 9
+#&gt;   wflow_id .config       .metric  mean std_err     n preprocessor model        rank
+#&gt;   &lt;chr&gt;    &lt;chr&gt;         &lt;chr&gt;   &lt;dbl&gt;   &lt;dbl&gt; &lt;int&gt; &lt;chr&gt;        &lt;chr&gt;       &lt;int&gt;
+#&gt; 1 base_rf  Preprocessor~ rmse     2.65   0.343     5 recipe       rand_forest     1
+#&gt; 2 base_rf  Preprocessor~ rsq      0.832  0.046     5 recipe       rand_forest     1
+#&gt; 3 base_lm  Preprocessor~ rmse     2.97   0.388     5 recipe       linear_reg      2
+#&gt; 4 base_lm  Preprocessor~ rsq      0.798  0.056     5 recipe       linear_reg      2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>rank_results()</code> collapses the populated set into one tibble sorted by the metric you name. <code>select_best = TRUE</code> keeps only the best configuration per workflow.</p>
+
+<p><strong>Example 3, autoplot across all candidates.</strong> Pipe the fitted set straight into a plot.</p>
+
+<div class="webr-container" data-block-title="Visualize ranked metrics across the workflow set">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Visualize ranked metrics across the workflow set</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">autoplot(res_tune, rank_metric = &quot;rmse&quot;, metric = &quot;rmse&quot;, select_best = TRUE)
+#&gt; ggplot object: one point per workflow, error bars from resample std_err, ordered by rmse</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The plot shows each workflow as a point with <a class="auto-link" href="Communicating-Uncertainty.html" title="Communicating Uncertainty: Don't Mislead Your Audience with Data Viz">error bars</a>, ordered by the rank metric. Hover, save, or <a class="auto-link" href="R-Function-Operators.html" title="R Function Operators: Compose, Negate & Partial Application">compose</a> it into a multi-panel report like any ggplot.</p>
+
+<h2>workflow_map() compared with alternatives</h2>
+
+<p><strong>workflow_map() replaces a manual loop over fit_resamples() or <a class="auto-link" href="tune-tune_grid-in-R.html" title="tune tune_grid() in R: Hyperparameter Search on Resamples">tune_grid()</a> calls.</strong> Pick by how many candidates you have.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>What it does</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fit_resamples(wf, resamples)</code></td>
+<td>Cross-validate one workflow</td>
+<td>Single candidate, no tuning</td>
+</tr>
+<tr>
+<td><code>tune_grid(wf, resamples, grid)</code></td>
+<td>Tune one workflow</td>
+<td>Single candidate with tunable args</td>
+</tr>
+<tr>
+<td><code>workflow_map(ws, &quot;fit_resamples&quot;, resamples)</code></td>
+<td>Cross-validate every workflow in a set</td>
+<td>2+ candidates, no tuning</td>
+</tr>
+<tr>
+<td><code>workflow_map(ws, &quot;tune_grid&quot;, resamples, grid)</code></td>
+<td>Tune every workflow in the set</td>
+<td>2+ candidates, some tunable</td>
+</tr>
+<tr>
+<td>Manual <code>lapply()</code> over a list of workflows</td>
+<td>Roll your own loop</td>
+<td>Almost never; workflow_map handles bookkeeping</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>workflow_map()</code> whenever you have two or more candidates you want to score on the same resamples. The set keeps the comparison fair (same folds, same seed, same metrics) without you wiring it up by hand.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Coming from caret?</strong> <code>workflow_map()</code> is the workflowsets answer to <code>caretEnsemble</code> or a manual <code>caret::train()</code> loop. caret returned a list of fits; workflowsets returns a tibble with the fits stored in a list-column, which keeps the downstream verbs (<code>rank_results</code>, <code>collect_metrics</code>, <code>autoplot</code>) uniform.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most workflow_map() errors.</strong></p>
+
+<p>The first is forgetting that <code>resamples</code> belongs in <code>...</code>, not in the workflow_map signature. Calling <code>workflow_map(ws, &quot;tune_grid&quot;)</code> with no resamples passes nothing to <code>tune_grid()</code> and errors with "argument 'resamples' is missing." The fix is to always pass <code>resamples = folds</code> (and <code>grid</code> if tuning) as named arguments in the <code>...</code> slot.</p>
+
+<p>The second is mixing tunable and non-tunable workflows under <code>fn = &quot;tune_grid&quot;</code>. The non-tunable ones still work; tune treats them as a one-row grid and returns a single resample fit. That is usually fine, but the output shape for those rows differs from a real tuned row, so beware when downstream code assumes every result has tunable parameters.</p>
+
+<p>The third is non-reproducible runs. <code>workflow_map(ws, &quot;tune_grid&quot;, resamples = folds)</code> picks a fresh seed each call. To get the same numbers next time, pass <code>seed = &lt;integer&gt;</code> explicitly. Setting <code>set.seed()</code> outside the call does not lock in the result column because the map resets the RNG internally before fitting.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Calling workflow_map() with the function itself fails.</strong> <code>workflow_map(ws, tune_grid, ...)</code> errors because the <code>fn</code> argument expects a character string. Pass <code>&quot;tune_grid&quot;</code> quoted; the dispatch happens inside workflowsets.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Map <code>fit_resamples()</code> across a workflow set with one linear model and one decision tree on <code>mtcars</code>. Use 3-fold cross-validation and rank by rmse.</p>
+<div class="webr-container" data-block-title="Your turn: fit_resamples across two models">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: fit_resamples across two models</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: workflow_map with fit_resamples
+library(tidymodels)
+library(workflowsets)
+
+ex_rec &lt;- recipe(mpg ~ ., data = mtcars)
+ex_lm &lt;- linear_reg() |&gt; set_engine(&quot;lm&quot;)
+ex_dt &lt;- decision_tree(mode = &quot;regression&quot;) |&gt; set_engine(&quot;rpart&quot;)
+
+ex_ws &lt;- # your code here, build a workflow_set
+ex_folds &lt;- vfold_cv(mtcars, v = 3)
+
+ex_res &lt;- # your code here, run workflow_map on ex_ws
+rank_results(ex_res, rank_metric = &quot;rmse&quot;, select_best = TRUE)
+#&gt; Expected: 4 rows (2 workflows x 2 metrics, ranked)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ws &lt;- workflow_set(
+  preproc = list(base = ex_rec),
+  models  = list(lm = ex_lm, dt = ex_dt)
+)
+
+ex_res &lt;- ex_ws |&gt;
+  workflow_map(&quot;fit_resamples&quot;, resamples = ex_folds, seed = 1)
+
+rank_results(ex_res, rank_metric = &quot;rmse&quot;, select_best = TRUE)
+#&gt; # A tibble: 4 x 9
+#&gt;   wflow_id .config       .metric  mean std_err     n preprocessor model           rank
+#&gt;   &lt;chr&gt;    &lt;chr&gt;         &lt;chr&gt;   &lt;dbl&gt;   &lt;dbl&gt; &lt;int&gt; &lt;chr&gt;        &lt;chr&gt;          &lt;int&gt;
+#&gt; 1 base_lm  Preprocessor~ rmse    2.97  0.412       3 recipe       linear_reg         1
+#&gt; 2 base_dt  Preprocessor~ rmse    3.62  0.521       3 recipe       decision_tree      2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>workflow_set()</code> builds the unfit candidates, <code>workflow_map()</code> fits each on the same 3 folds, and <code>rank_results()</code> collapses the populated <code>result</code> column into a ranked tibble.</p>
+
+</details>
+</section>
+
+<h2>Related workflowsets and tidymodels functions</h2>
+
+<p><strong>workflow_map() sits in the middle of a small but tightly coupled toolset.</strong> Each function below has a dedicated job, and the four together cover the full set-then-fit-then-rank loop.</p>
+
+<ul>
+
+<li><code>workflow_set()</code> builds the candidate tibble that <code>workflow_map()</code> consumes; see <a href="workflowsets-workflow_set-in-R.html">workflowsets workflow_set in R</a>.</li>
+
+<li><code>rank_results()</code> ranks the populated workflow set by a metric.</li>
+
+<li><code>tune_grid()</code> is the per-workflow tuner that <code>workflow_map()</code> calls under <code>fn = &quot;tune_grid&quot;</code>.</li>
+
+<li><code>fit_resamples()</code> is the per-workflow resampler that <code>workflow_map()</code> calls under <code>fn = &quot;fit_resamples&quot;</code>.</li>
+
+<li><code>autoplot()</code> for <code>workflow_set</code> plots ranked metrics with error bars.</li>
+
+</ul>
+
+<p>External reference: <a href="https://workflowsets.tidymodels.org/">workflowsets package documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does workflow_map() do in R?</strong></p>
+
+<p><code>workflow_map()</code> applies one fitting function (<code>fit_resamples</code>, <code>tune_grid</code>, or <code>tune_bayes</code>) to every workflow in a <code>workflow_set</code> and stores each fit's tune result in the set's <code>result</code> column. You name the function as a character string and pass that function's arguments (<code>resamples</code>, <code>grid</code>, <code>metrics</code>, <code>control</code>) via <code>...</code>. The set goes in unfit and comes out with the result column populated, ready to feed into <code>rank_results()</code>, <code>collect_metrics()</code>, or <code>autoplot()</code>.</p>
+
+<p><strong>How do I fit every workflow in a workflow set on the same resamples?</strong></p>
+
+<p>Pipe the set into <code>workflow_map(&quot;fit_resamples&quot;, resamples = your_folds, seed = 1)</code>. The string <code>&quot;fit_resamples&quot;</code> tells workflow_map which tune function to dispatch to per row. The <code>resamples</code> argument forwards to each call. The <code>seed</code> argument fixes the RNG so every workflow sees the same fold order. The return value is the same workflow set with each row's <code>result</code> slot filled with a <code>resample_results</code> object.</p>
+
+<p><strong>What is the difference between workflow_map() and tune_grid()?</strong></p>
+
+<p><code>tune_grid()</code> tunes one workflow at a time. <code>workflow_map()</code> is the loop that calls <code>tune_grid()</code> (or <code>fit_resamples()</code>, or <code>tune_bayes()</code>) once per row of a workflow set. Use <code>tune_grid()</code> directly when you have a single candidate workflow; use <code>workflow_map()</code> when you have two or more candidates and want them scored on identical resamples with consistent metrics in one call.</p>
+
+<p><strong>Can workflow_map() run in parallel?</strong></p>
+
+<p>Yes, register a parallel backend with the <code>future</code> package before calling it. <code>library(future); plan(multisession)</code> enables parallel resampling across folds; the gains are largest when each workflow has many folds or a wide tuning grid. The workflowsets package respects the same parallel hooks as <code>tune_grid()</code> itself.</p>
+
+<p><strong>How do I get reproducible results from workflow_map()?</strong></p>
+
+<p>Pass <code>seed = &lt;integer&gt;</code> to <code>workflow_map()</code>. The seed is set once before the loop, so every workflow sees the same bootstrap order and the same fold order. Calling <code>set.seed()</code> outside the call does not lock the result column because <code>workflow_map()</code> resets the RNG internally before fitting.</p>
