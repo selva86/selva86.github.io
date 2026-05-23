@@ -1,0 +1,396 @@
+---
+title: "tune finalize_workflow() in R: Lock In Best Hyperparameters"
+description: "tune finalize_workflow() in R substitutes tuned parameter values into a tunable workflow, producing a fittable pipeline ready for last_fit() or fit()."
+keywords: "tune finalize_workflow, finalize_workflow function R, tune finalize_workflow examples, finalize_workflow tidymodels, R hyperparameter tuning finalize, tune package finalize_workflow, finalize_model vs finalize_workflow"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "finalize_workflow()|tune finalize_workflow|tune::finalize_workflow()|finalize workflow with tuned parameters|finalize tuned workflow"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>tune finalize_workflow() in R: Lock In Best Hyperparameters</h1>
+
+<p class="lead">The tune <code>finalize_workflow()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> takes a workflow that still contains <code>tune()</code> placeholders and substitutes them with the winning parameter values returned by <code>select_best()</code>. The output is a regular workflow ready for <code>last_fit()</code> or a final <code>fit()</code> on the full training data.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>finalize_workflow(wf, best_params)<span class="qa-cmt">                       # standard finalization</span>
+finalize_workflow(wf, select_best(tune_res, &quot;rmse&quot;))<span class="qa-cmt">     # inline pick + finalize</span>
+finalize_workflow(wf, tibble(mtry = 4, trees = 500))<span class="qa-cmt">     # manual parameter row</span>
+finalize_workflow(wf, best_params) |&gt; last_fit(split)<span class="qa-cmt">    # finalize and last_fit</span>
+finalize_workflow(wf, best_params) |&gt; fit(data = train)<span class="qa-cmt">  # finalize and full fit</span>
+finalize_model(spec, best_params)<span class="qa-cmt">                        # bare spec sibling</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is finalize_workflow() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">finalize a tuned workflow with best params</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">finalize_workflow(wf, best_params)</text><text x="125" y="126" class="branch-label">finalize a bare model spec (no recipe)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">finalize_model(spec, best_params)</text><text x="125" y="182" class="branch-label">finalize a bare recipe (no model)</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">finalize_recipe(rec, best_params)</text><text x="125" y="238" class="branch-label">pick the best params first</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">select_best(tune_res, metric = &quot;rmse&quot;)</text><text x="125" y="294" class="branch-label">train and score the test split in one go</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">last_fit(final_wf, split)</text><text x="125" y="350" class="branch-label">train on the full <a class="auto-link" href="rsample-training-in-R.html" title="rsample training() in R: Get the Training Set From a Split">training set</a> only</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">fit(final_wf, data = train)</text></svg></div>
+
+<h2>What finalize_workflow() does in one sentence</h2>
+
+<p><strong>finalize_workflow() swaps every tune() placeholder for a concrete value.</strong> Hand it a workflow that was built with <code>tune()</code> markers on model or recipe arguments, plus a one-row tibble of parameter values from <code>select_best()</code>, and you get back the same workflow with those <code>tune()</code> markers replaced by the picked numbers. The returned workflow is fully specified, so <code>fit()</code> and <code>last_fit()</code> accept it without any further setup.</p>
+
+<p>The function does not retrain or score anything by itself. It is a parameter substitution step that sits between tuning and the final fit, separating <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">model selection</a> from model training.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Tuning produces parameters; finalization produces a usable workflow.</strong> A tune_results object is a leaderboard, not a model. <code>finalize_workflow()</code> is the bridge that turns the winning row into a workflow you can train. Skip this step and <code>last_fit()</code> errors because the workflow still contains unresolved <code>tune()</code> calls.</div></div>
+
+<h2>finalize_workflow() syntax and arguments</h2>
+
+<p><strong>finalize_workflow() takes exactly two arguments and returns a workflow.</strong> Both arguments are positional and required.</p>
+
+<div class="webr-container" data-block-title="The finalize_workflow argument skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The finalize_workflow argument skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">finalize_workflow(
+  x,           # a workflow containing tune() placeholders
+  parameters   # a 1-row tibble of parameter values (from select_best)
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>x</code> argument is the tunable workflow you originally passed to <code>tune_grid()</code> or <code>tune_bayes()</code>. The <code>parameters</code> argument is a single-row tibble whose column names match the tunable arguments inside the workflow. Calling <code>select_best()</code> returns exactly this shape, so the two functions chain naturally.</p>
+
+<p>For a bare model spec (no preprocessor wrapped in a workflow), reach for <code>finalize_model()</code>. For a bare recipe (no model), use <code>finalize_recipe()</code>. The call shape is identical; only the target object changes.</p>
+
+<h2>Use finalize_workflow() in four scenarios</h2>
+
+<p><strong>Every example below runs on built-in R data so the tuning, selection, and finalization chain reproduces in one session.</strong> A small random forest on <code>mtcars</code> keeps each tune fast.</p>
+
+<h3>Example 1: Finalize a random forest workflow with select_best()</h3>
+
+<p><strong>Tune mtry and trees, pick the best row, then finalize the workflow.</strong> The result is a workflow with concrete numbers instead of <code>tune()</code> placeholders.</p>
+
+<div class="webr-container" data-block-title="Tune, pick, and finalize a random forest">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tune, pick, and finalize a random forest</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+set.seed(42)
+
+cars_split &lt;- initial_split(mtcars, prop = 0.75)
+cars_train &lt;- training(cars_split)
+
+rf_spec &lt;- rand_forest(mtry = tune(), trees = tune()) |&gt;
+  set_engine(&quot;ranger&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+rf_wf &lt;- workflow() |&gt;
+  add_formula(mpg ~ .) |&gt;
+  add_model(rf_spec)
+
+folds   &lt;- vfold_cv(cars_train, v = 3)
+rf_grid &lt;- expand.grid(mtry = c(2, 4, 6), trees = c(100, 500))
+
+rf_res &lt;- tune_grid(rf_wf, resamples = folds, grid = rf_grid,
+                    metrics = metric_set(rmse, rsq))
+
+best_rf  &lt;- select_best(rf_res, metric = &quot;rmse&quot;)
+final_wf &lt;- finalize_workflow(rf_wf, best_rf)
+
+final_wf
+#&gt; == Workflow ============================================================
+#&gt; Preprocessor: Formula
+#&gt; Model: rand_forest()
+#&gt;
+#&gt; -- Preprocessor --------------------------------------------------------
+#&gt; mpg ~ .
+#&gt;
+#&gt; -- Model ---------------------------------------------------------------
+#&gt; Random Forest Model Specification (regression)
+#&gt;
+#&gt; Main Arguments:
+#&gt;   mtry = 4
+#&gt;   trees = 500
+#&gt;
+#&gt; Computational engine: ranger</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Notice how the model block now shows <code>mtry = 4</code> and <code>trees = 500</code> instead of <code>mtry = tune()</code> and <code>trees = tune()</code>. The workflow is ready to fit. <code>finalize_workflow()</code> reads the column names of <code>best_rf</code>, finds matching <code>tune()</code> markers inside the workflow, and substitutes them in place; the <code>.config</code> column from <code>select_best()</code> is silently ignored.</p>
+
+<h3>Example 2: Finalize and run last_fit() in one chain</h3>
+
+<p><strong>Pair finalize_workflow() with last_fit() to train on the full training set and score the test split.</strong> This is the canonical end-of-tuning pattern.</p>
+
+<div class="webr-container" data-block-title="Finalize, then last_fit on the test split">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Finalize, then last_fit on the test split</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">final_fit &lt;- finalize_workflow(rf_wf, best_rf) |&gt;
+  last_fit(cars_split)
+
+collect_metrics(final_fit)
+#&gt; # A tibble: 2 x 4
+#&gt;   .metric .estimator .estimate .config
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 rmse    standard       3.10  Preprocessor1_Model1
+#&gt; 2 rsq    standard       0.741 Preprocessor1_Model1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>last_fit()</code> consumes the finalized workflow, trains it on the training split, and scores the test split. Calling <code>collect_metrics()</code> on the result returns the held-out test metrics, the number you report. The pipe-chained form makes the intent explicit: take the tunable workflow, substitute the winning parameters, then train and score on the test split in one step.</p>
+
+<h3>Example 3: Finalize with a manually constructed parameter tibble</h3>
+
+<p><strong>You can hand finalize_workflow() any one-row tibble whose columns match the tunable arguments.</strong> This is useful when you want to refit at a specific operating point rather than the tuner's pick.</p>
+
+<div class="webr-container" data-block-title="Finalize with hand-picked parameters">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Finalize with hand-picked parameters</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">my_params &lt;- tibble(mtry = 3, trees = 250)
+
+manual_wf &lt;- finalize_workflow(rf_wf, my_params)
+manual_fit &lt;- fit(manual_wf, data = cars_train)
+
+manual_fit |&gt;
+  extract_fit_parsnip() |&gt;
+  pluck(&quot;fit&quot;) |&gt;
+  pluck(&quot;num.trees&quot;)
+#&gt; [1] 250</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The column names of <code>my_params</code> must match the tunable arguments exactly. Extra columns are ignored; missing columns cause an error. This manual path is the same one <code>select_best()</code> walks under the hood: it constructs a tibble with the right shape and hands it to <code>finalize_workflow()</code>. The manual route is useful when you want to refit at a runner-up combination, reproduce a model from a saved config file, or sanity-check the pipeline at a known-good point.</p>
+
+<h3>Example 4: Finalize a classification workflow</h3>
+
+<p><strong>The call shape is identical for classification.</strong> Switch the model and metric; everything else stays the same.</p>
+
+<div class="webr-container" data-block-title="Finalize a classification workflow by ROC AUC">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Finalize a classification workflow by ROC AUC</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cars_cls &lt;- mtcars
+cars_cls$am &lt;- factor(cars_cls$am, labels = c(&quot;auto&quot;, &quot;manual&quot;))
+
+cls_spec &lt;- logistic_reg(penalty = tune(), mixture = tune()) |&gt;
+  set_engine(&quot;glmnet&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+cls_wf &lt;- workflow() |&gt;
+  add_formula(am ~ mpg + hp + wt) |&gt;
+  add_model(cls_spec)
+
+cls_folds &lt;- vfold_cv(cars_cls, v = 3)
+cls_grid  &lt;- expand.grid(penalty = c(0.001, 0.01, 0.1),
+                         mixture = c(0, 0.5, 1))
+
+cls_res &lt;- tune_grid(cls_wf, resamples = cls_folds, grid = cls_grid,
+                     metrics = metric_set(roc_auc, accuracy))
+
+best_cls &lt;- select_best(cls_res, metric = &quot;roc_auc&quot;)
+final_cls_wf &lt;- finalize_workflow(cls_wf, best_cls)
+#&gt; Workflow now has penalty = 0.01 and mixture = 0.5 substituted in.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The pattern reads identically: tune, select, finalize. Only the model spec and the metric change between regression and classification problems. The substitution mechanics inside <code>finalize_workflow()</code> are agnostic to the model family; the same chain extends unchanged to survival and censored-<a class="auto-link" href="adv-regression-models.html" title="Advanced Regression Models">regression models</a>.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Save the finalized workflow as a separate object before fitting.</strong> Keeping <code>final_wf</code> around lets you refit on new data, inspect the resolved arguments with <code>extract_spec_parsnip()</code>, or serialize the recipe alongside the model without re-running the tuner.</div></div>
+
+<h2>Compare finalize_workflow() with finalize_model() and finalize_recipe()</h2>
+
+<p><strong>The three finalize verbs do the same job on different objects.</strong> Pick the one whose input shape matches what you tuned.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Operates on</th>
+<th>Returns</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>finalize_workflow()</code></td>
+<td>a workflow with <code>tune()</code> markers</td>
+<td>finalized workflow</td>
+<td>Tuning included model and recipe steps</td>
+</tr>
+<tr>
+<td><code>finalize_model()</code></td>
+<td>a bare model spec</td>
+<td>finalized spec</td>
+<td>Tuning only model hyperparameters</td>
+</tr>
+<tr>
+<td><code>finalize_recipe()</code></td>
+<td>a bare recipe</td>
+<td>finalized recipe</td>
+<td>Tuning only preprocessing parameters</td>
+</tr>
+<tr>
+<td><code>finalize_workflow()</code> (with manual tibble)</td>
+<td>any workflow</td>
+<td>finalized workflow</td>
+<td>You want to refit at a chosen point</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for <code>finalize_workflow()</code> first; it is the only verb that handles both a recipe and a model together. When in doubt, follow the shape of the object you tuned: a workflow goes to <code>finalize_workflow()</code>, a bare model spec to <code>finalize_model()</code>, a bare recipe to <code>finalize_recipe()</code>. Mixing them returns an error pointing at the mismatch, so the wrong choice surfaces immediately.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three finalize_workflow() mistakes account for most stuck pipelines.</strong> Each shows the symptom and the fix.</p>
+
+<p>The first is passing a <code>show_best()</code> result instead of a <code>select_best()</code> result. <code>show_best()</code> returns the parameters plus mean, std_err, n, and <code>.config</code>. The extra columns confuse <code>finalize_workflow()</code>, which expects only parameter columns and <code>.config</code>.</p>
+
+<div class="webr-container" data-block-title="select_best, not show_best, feeds finalize_workflow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">select_best, not show_best, feeds finalize_workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Wrong: show_best returns metric columns that finalize_workflow does not expect
+finalize_workflow(rf_wf, show_best(rf_res, n = 1, metric = &quot;rmse&quot;))
+#&gt; Error: Some required parameter columns are missing or extra columns found.
+
+# Right: select_best returns parameters only
+finalize_workflow(rf_wf, select_best(rf_res, metric = &quot;rmse&quot;))</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second is forgetting the <code>tune()</code> markers on the workflow. If the workflow was built without <code>tune()</code> placeholders, there is nothing to finalize, and the call errors with <code>no tunable parameters</code>. The third is feeding parameters with wrong column names, often from a manual tibble. The column names must match the tunable arguments exactly, case included.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>finalize_workflow() does not validate the parameter values themselves.</strong> A typo like <code>trees = -5</code> finalizes silently; the error surfaces later when the underlying engine refuses the value. Always sanity-check the printed workflow before fitting.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Tune a <code>decision_tree()</code> spec on <code>mtcars</code> over <code>tree_depth</code> values 3, 5, and 7, pick the best row, then finalize the workflow. Save the finalized workflow to <code>ex_final_wf</code>.</p>
+<div class="webr-container" data-block-title="Your turn: finalize a decision tree workflow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: finalize a decision tree workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: tune, select, finalize a decision tree
+library(tidymodels)
+set.seed(123)
+
+dt_spec &lt;- decision_tree(tree_depth = tune()) |&gt;
+  set_engine(&quot;rpart&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+dt_wf &lt;- workflow() |&gt;
+  add_formula(mpg ~ .) |&gt;
+  add_model(dt_spec)
+
+dt_folds &lt;- vfold_cv(mtcars, v = 3)
+dt_grid  &lt;- tibble(tree_depth = c(3, 5, 7))
+
+dt_res &lt;- tune_grid(dt_wf, resamples = dt_folds, grid = dt_grid,
+                    metrics = metric_set(rmse))
+
+ex_final_wf &lt;- # your code here
+
+ex_final_wf
+#&gt; Expected: a workflow with tree_depth resolved to a concrete number</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_best     &lt;- select_best(dt_res, metric = &quot;rmse&quot;)
+ex_final_wf &lt;- finalize_workflow(dt_wf, ex_best)
+
+ex_final_wf
+#&gt; == Workflow ====================================
+#&gt; Model: decision_tree()
+#&gt;
+#&gt; Main Arguments:
+#&gt;   tree_depth = 5
+#&gt;
+#&gt; Computational engine: rpart</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>select_best()</code> returns a one-row tibble with the winning <code>tree_depth</code>. Passing it to <code>finalize_workflow()</code> substitutes that value into the workflow, replacing the <code>tune()</code> placeholder so <code>fit()</code> or <code>last_fit()</code> can run.</p>
+
+</details>
+</section>
+
+<h2>Related tune and workflows functions</h2>
+
+<p><strong>finalize_workflow() sits between selection and final fit.</strong> These siblings cover the steps on either side.</p>
+
+<ul>
+
+<li><code>select_best()</code> returns the one-row parameter tibble that feeds <code>finalize_workflow()</code>.</li>
+
+<li><code>finalize_model()</code> does the same substitution on a bare model spec.</li>
+
+<li><code>finalize_recipe()</code> does the same substitution on a bare recipe.</li>
+
+<li><code>last_fit()</code> trains the finalized workflow on the training split and scores the test split.</li>
+
+<li><code>fit()</code> trains the finalized workflow on whatever data you pass.</li>
+
+<li><code>extract_spec_parsnip()</code> pulls the resolved model spec out of the finalized workflow.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between finalize_workflow() and finalize_model()?</strong></p>
+
+<p><code>finalize_workflow()</code> operates on a workflow that wraps a recipe and a model together; <code>finalize_model()</code> operates on a bare model spec without a workflow. The call shape is identical and both substitute <code>tune()</code> markers with values from a one-row parameter tibble. Choose <code>finalize_workflow()</code> when your tuning target includes a recipe step. Choose <code>finalize_model()</code> when you tune only the model hyperparameters in isolation.</p>
+
+<p><strong>Does finalize_workflow() refit the model?</strong></p>
+
+<p>No. <code>finalize_workflow()</code> only substitutes the tuned parameter values into the workflow; it does not fit anything. To train the finalized workflow, pass the result to <code>fit(final_wf, data = train)</code> or to <code>last_fit(final_wf, split)</code> for the combined train-and-score pattern. Skipping the fit step leaves a workflow with parameters but no trained model.</p>
+
+<p><strong>Can I pass a manually constructed tibble to finalize_workflow()?</strong></p>
+
+<p>Yes. Any one-row tibble whose column names match the tunable arguments works. This is useful for refitting at a runner-up combination, a value loaded from a config file, or a known-good point during debugging. The column names must match the <code>tune()</code> arguments exactly; extra columns are ignored, missing columns cause an error. The reference docs at <a href="https://tune.tidymodels.org/">tune.tidymodels.org</a> describe the contract.</p>
+
+<p><strong>What if my workflow has no tune() markers at all?</strong></p>
+
+<p><code>finalize_workflow()</code> errors because there is nothing to substitute. The workflow is already concrete and you can call <code>fit()</code> on it directly. Use <code>finalize_workflow()</code> only when at least one model or recipe argument is wrapped in <code>tune()</code>. To check whether a workflow has tunable parameters, call <code>extract_parameter_set_dials(wf)</code> and look for non-empty output.</p>
+
+{% endraw %}
