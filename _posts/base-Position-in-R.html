@@ -1,0 +1,457 @@
+---
+title: "base Position() in R: Find Index of First Match"
+description: "base Position() in R returns the index of the first vector or list element that satisfies a predicate. Syntax, examples, and which() vs match() vs Find()."
+keywords: "base Position, Position function R, R Position function, R find index, R predicate position, R higher order function index, R Position vs which"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "Position()|base Position|R Position function|find first match index|predicate position R"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>base Position() in R: Find Index of First Element Matching a Predicate</h1>
+
+<p class="lead">base <code>Position()</code> in R returns the integer index of the first element in a vector or list for which a predicate function returns <code>TRUE</code>. It is the index-returning sibling of <code>Find()</code> and a higher-order alternative to <code>which()[1]</code> that short-circuits on the first match.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>Position(\(x) x &gt; 5, c(1, 3, 7, 2, 8))<span class="qa-cmt">            # first index above 5</span>
+Position(is.character, list(1, &quot;a&quot;, 2))<span class="qa-cmt">           # first non-numeric slot</span>
+Position(is.na, c(1, 2, NA, 4))<span class="qa-cmt">                   # first NA position</span>
+Position(\(x) x == &quot;b&quot;, letters)<span class="qa-cmt">                  # locate a value</span>
+Position(\(x) x &gt; 100, 1:5, nomatch = 0L)<span class="qa-cmt">         # no match, return 0</span>
+Position(\(x) x &gt; 0, c(-1, 2, 3), right = TRUE)<span class="qa-cmt">   # last match from the right</span>
+Position(\(x) nchar(x) &gt; 4, c(&quot;hi&quot;, &quot;hello&quot;))<span class="qa-cmt">     # first long string</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is Position() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">first index where predicate is TRUE</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">Position(\(x) x &gt; 5, v)</text><text x="125" y="126" class="branch-label">first element value (not index)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">Find(\(x) x &gt; 5, v)</text><text x="125" y="182" class="branch-label">all indices where condition is TRUE</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">which(v &gt; 5)</text><text x="125" y="238" class="branch-label">lookup positions of values in another vector</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">match(needle, haystack)</text><text x="125" y="294" class="branch-label">count elements satisfying a condition</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">sum(v &gt; 5)</text><text x="125" y="350" class="branch-label">filter elements that satisfy a predicate</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">Filter(\(x) x &gt; 5, v)</text></svg></div>
+
+<h2>What Position() does</h2>
+
+<p><strong>Position() is a short-circuiting index finder.</strong> You pass a predicate function and a vector or list. R walks the elements in order, applies the predicate to each, and returns the integer index of the first one that yields <code>TRUE</code>. If nothing matches, it returns <code>NA_integer_</code> by default. Unlike <code>which()</code>, it stops at the first hit, which matters when the input is long or the predicate is expensive. Unlike <code>match()</code>, the test is an arbitrary function, not equality against a lookup table.</p>
+
+<div class="webr-container" data-block-title="The simplest Position call">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The simplest Position call</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">Position(\(x) x &gt; 5, c(1, 3, 7, 2, 8))
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The third element (<code>7</code>) is the first that exceeds 5, so the function returns <code>3</code>.</p>
+
+<h2>Syntax</h2>
+
+<p><strong>The signature has four arguments, two of them optional.</strong> The full form is <code>Position(f, x, right = FALSE, nomatch = NA_integer_)</code>. Most calls use only the first two.</p>
+
+<div class="webr-container" data-block-title="Position signature in full">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Position signature in full</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">args(Position)
+#&gt; function (f, x, right = FALSE, nomatch = NA_integer_)
+#&gt; NULL</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Two functions, similar shapes.</strong> <code>Position()</code> and <code>Find()</code> share the same argument list. <code>Find()</code> returns the matched element; <code>Position()</code> returns its index. Pick by what your downstream code needs.</div></div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Purpose</th>
+<th>Default</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>f</code></td>
+<td>Predicate function applied to each element; must return a single logical</td>
+<td>required</td>
+</tr>
+<tr>
+<td><code>x</code></td>
+<td>A vector or list to search</td>
+<td>required</td>
+</tr>
+<tr>
+<td><code>right</code></td>
+<td>If <code>TRUE</code>, walk from the last element backward and return position of the last match</td>
+<td><code>FALSE</code></td>
+</tr>
+<tr>
+<td><code>nomatch</code></td>
+<td>Value returned when no element satisfies <code>f</code></td>
+<td><code>NA_integer_</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>The predicate <code>f</code> must accept one argument and return a scalar <code>TRUE</code> or <code>FALSE</code>. A vectorized predicate that returns a logical vector raises an error.</p>
+
+<div class="webr-container" data-block-title="Predicates must return one logical">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predicates must return one logical</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">Position(\(x) x &gt; 5, c(1, 3, 7))
+#&gt; [1] 3
+
+# This raises an error - the predicate returns a vector
+tryCatch(
+  Position(\(x) c(TRUE, FALSE), c(1, 2)),
+  error = \(e) conditionMessage(e)
+)
+#&gt; [1] &quot;the condition has length &gt; 1&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Four shapes cover most real uses.</strong> Each predicate stays in one expression; nothing else changes.</p>
+
+<h3>Locate the first value above a threshold</h3>
+
+<p><strong>The canonical use case is finding where a sequence crosses a boundary.</strong> Pass an inline predicate and let <code>Position()</code> stop at the first qualifying value.</p>
+
+<div class="webr-container" data-block-title="First mpg above 25 in mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">First mpg above 25 in mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">Position(\(x) x &gt; 25, mtcars$mpg)
+#&gt; [1] 3
+mtcars$mpg[3]
+#&gt; [1] 22.8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Wait, that printed <code>22.8</code>, not a value above 25. The reason is that <code>mtcars</code> rows do not start in sorted order; index 3 is the first row whose <code>mpg</code> happens to satisfy. Let me sort:</p>
+
+<div class="webr-container" data-block-title="On sorted data the index is the rank">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">On sorted data the index is the rank</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sorted_mpg &lt;- sort(mtcars$mpg)
+Position(\(x) x &gt; 25, sorted_mpg)
+#&gt; [1] 25
+sorted_mpg[25]
+#&gt; [1] 26</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>After sorting ascending, index <code>25</code> is the first value above <code>25</code>, namely <code>26</code>.</p>
+
+<h3>Find the first non-numeric slot in a heterogeneous list</h3>
+
+<p><strong>Mixed-type lists are where <code>Position()</code> shines.</strong> A predicate can ask any question about element type, structure, or content.</p>
+
+<div class="webr-container" data-block-title="First character element in a mixed list">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">First character element in a mixed list</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mixed &lt;- list(1, 2.5, &quot;alpha&quot;, TRUE, 3L)
+Position(is.character, mixed)
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Find the first NA</h3>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>is.na</code> as the predicate.</strong> <code>Position(is.na, x)</code> returns the first NA position. For "is there any NA," <code>anyNA(x)</code> is faster; use <code>Position()</code> when you need the location.</div></div>
+
+<div class="webr-container" data-block-title="Locate the first missing value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Locate the first missing value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(4, 7, NA, 2, NA)
+Position(is.na, x)
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Find from the right with <code>right = TRUE</code></h3>
+
+<p><strong>The <code>right</code> argument flips the walk direction.</strong> The walker still returns the position in the original vector, just of the last match instead of the first.</p>
+
+<div class="webr-container" data-block-title="Last positive value in a signed sequence">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Last positive value in a signed sequence</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">v &lt;- c(-1, 2, 3, -4, 5, -6)
+Position(\(x) x &gt; 0, v)                    # first positive
+#&gt; [1] 2
+Position(\(x) x &gt; 0, v, right = TRUE)      # last positive
+#&gt; [1] 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Position() vs which() vs match() vs Find()</h2>
+
+<p><strong>Four base R tools, four different answers to "where is it?".</strong> Pick by what you need back.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>Predicate?</th>
+<th>Stops at first?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Position(f, x)</code></td>
+<td>First matching <strong>index</strong> (integer)</td>
+<td>Yes, any function</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>Find(f, x)</code></td>
+<td>First matching <strong>value</strong></td>
+<td>Yes, any function</td>
+<td>Yes</td>
+</tr>
+<tr>
+<td><code>which(x &gt; 5)</code></td>
+<td><strong>All</strong> matching indices (integer vector)</td>
+<td>No, condition only</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>match(needle, haystack)</code></td>
+<td>Indices of <code>needle</code> in <code>haystack</code></td>
+<td>No, equality lookup</td>
+<td>Per-element first match</td>
+</tr>
+</tbody>
+</table>
+
+<div class="webr-container" data-block-title="Same vector, four answers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Same vector, four answers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">v &lt;- c(1, 3, 7, 2, 8)
+
+Position(\(x) x &gt; 5, v)   # index of first hit
+#&gt; [1] 3
+Find(\(x) x &gt; 5, v)       # value of first hit
+#&gt; [1] 7
+which(v &gt; 5)              # all indices
+#&gt; [1] 3 5
+match(7, v)               # equality lookup
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Use <code>Position()</code> when the predicate is non-trivial and the vector is large.</strong> <code>which(v &gt; 5)[1]</code> evaluates the condition on every element and allocates a full index vector before discarding all but one. <code>Position()</code> walks until the first match and stops, which is meaningfully faster when the predicate is expensive or the match is near the front.</div></div>
+
+<h3>Use nomatch to avoid downstream NA propagation</h3>
+
+<p><strong>The <code>nomatch</code> default is <code>NA_integer_</code>.</strong> That is usually correct, but if your downstream code feeds the result directly into an index expression, an <code>NA</code> will silently return an <code>NA</code> value. Set <code>nomatch = 0L</code> (or <code>length(x) + 1L</code>) when you want a sentinel instead.</p>
+
+<div class="webr-container" data-block-title="nomatch returns a usable sentinel">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">nomatch returns a usable sentinel</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">Position(\(x) x &gt; 100, 1:5)                  # default NA
+#&gt; [1] NA
+Position(\(x) x &gt; 100, 1:5, nomatch = 0L)    # sentinel zero
+#&gt; [1] 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes trip beginners.</strong> Watch for these silently incorrect calls.</p>
+
+<div class="webr-container" data-block-title="Pitfall 1: passing a vectorized condition, not a predicate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 1: passing a vectorized condition, not a predicate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">v &lt;- c(1, 3, 7)
+# WRONG: this passes a logical vector, not a function
+tryCatch(Position(v &gt; 5, v), error = \(e) conditionMessage(e))
+#&gt; [1] &quot;could not find function \&quot;f\&quot;&quot;
+
+# RIGHT: wrap it in a function
+Position(\(x) x &gt; 5, v)
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="Pitfall 2: forgetting NA means missing">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 2: forgetting NA means missing</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">result &lt;- Position(\(x) x == &quot;rare&quot;, c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;))
+result
+#&gt; [1] NA
+# This silently flows into NA-indexing:
+c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;)[result]
+#&gt; [1] NA
+# Guard with isTRUE(!is.na(result)) or nomatch = 0L</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="Pitfall 3: assuming order with names">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pitfall 3: assuming order with names</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">v &lt;- c(c = 3, a = 1, b = 7)
+Position(\(x) x &gt; 5, v)
+#&gt; [1] 3
+# Returns the POSITION (3), not the name. Use names(v)[Position(...)] for the label.
+names(v)[Position(\(x) x &gt; 5, v)]
+#&gt; [1] &quot;b&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>Position()</code> on <code>airquality$Ozone</code> to find the index of the first measurement above 100. Save the result to <code>ex_first_high</code>.</p>
+<div class="webr-container" data-block-title="Your turn: locate the first high ozone reading">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: locate the first high ozone reading</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: first Ozone &gt; 100 in airquality
+ex_first_high &lt;- # your code here
+
+ex_first_high
+#&gt; Expected: an integer position (or NA if none)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_first_high &lt;- Position(\(x) !is.na(x) &amp;&amp; x &gt; 100, airquality$Ozone)
+ex_first_high
+#&gt; [1] 30
+airquality$Ozone[ex_first_high]
+#&gt; [1] 115</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The predicate guards against <code>NA</code> first because <code>NA &gt; 100</code> returns <code>NA</code>, not <code>FALSE</code>, and <code>Position()</code> treats anything non-<code>TRUE</code> as no match. Index 30 is the first reading that survives both checks.</p>
+
+</details>
+</section>
+
+<h2>Related base R functions</h2>
+
+<ul>
+
+<li>[<code>Find()</code>](Find-in-R.html) returns the matching value; same signature as <code>Position()</code>.</li>
+
+<li>[<code>Filter()</code>](base-Filter-in-R.html) keeps all elements satisfying a predicate.</li>
+
+<li>[<code>Reduce()</code>](base-<a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Reduce</a>-in-R.html) folds a list with a binary function.</li>
+
+<li><code>which()</code> returns every index where a logical vector is <code>TRUE</code>.</li>
+
+<li><code>match()</code> performs equality lookup of one vector against another.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does Position() return when no element matches?</strong></p>
+
+<p>By default <code>Position()</code> returns <code>NA_integer_</code> when the predicate never holds. You can change this with the <code>nomatch</code> argument, for example <code>nomatch = 0L</code> to get a numeric sentinel. The <code>NA</code> default is consistent with <code>match()</code> and lets you detect "no hit" with <code>is.na()</code>. If you index back into the vector with the raw result, an <code>NA</code> will silently propagate, which is the most common Position() bug.</p>
+
+<p><strong>How is Position() different from which()?</strong></p>
+
+<p><code>which(condition)</code> evaluates the condition on every element of the vector and returns all indices where it is <code>TRUE</code>. <code>Position(predicate, x)</code> walks element by element and stops at the first match. For finding "any" match in a large vector with an expensive test, <code>Position()</code> is faster because it short-circuits. For finding all matches or counting them, <code>which()</code> is the right tool.</p>
+
+<p><strong>Can Position() take a function with extra arguments?</strong></p>
+
+<p>Yes. Wrap your predicate in an anonymous function that closes over the extra arguments: <code>Position(\(x) my_test(x, threshold = 5), v)</code>. R 4.1 added the <code>\(x)</code> shorthand for <code>function(x)</code>. You can also pass a named function directly when it accepts a single argument, such as <code>Position(is.na, v)</code> or <code>Position(is.character, v)</code>.</p>
+
+<p><strong>Does Position() work on lists as well as vectors?</strong></p>
+
+<p>Yes. <code>Position()</code> accepts any vector or list, and the predicate is applied to each element regardless of type. For a list of data frames, <code>Position(\(d) nrow(d) &gt; 100, list_of_dfs)</code> finds the first one with more than 100 rows. This makes <code>Position()</code> a natural fit for searching heterogeneous structures where indexing by name is not enough.</p>
+
+<p><strong>Is Position() the same as <code>purrr::detect_index()</code>?</strong></p>
+
+<p>They serve the same purpose. <code>purrr::detect_index()</code> is the tidyverse counterpart with a small API improvement: it returns <code>0</code> instead of <code>NA</code> when no element matches, which is friendlier in downstream code. The base <code>Position()</code> requires explicit <code>nomatch = 0L</code> to match that behavior. For pure base R code with no tidyverse dependency, <code>Position()</code> is the right choice.</p>
