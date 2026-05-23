@@ -1,0 +1,387 @@
+---
+title: "vapply() in R: Type-Safe Apply With Guaranteed Output"
+description: "Use base R vapply() to apply a function with a type-safe output template. Covers FUN.VALUE, NA handling, vapply vs sapply, pitfalls, and five real examples."
+keywords: "vapply in R, vapply vs sapply, base R vapply, vapply FUN.VALUE, R type-safe apply, vapply examples, vapply numeric(1)"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "vapply()|base vapply|vapply function|type-safe apply|FUN.VALUE"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>vapply() in R: Type-Safe Apply With Guaranteed Output</h1>
+
+<p class="lead">The <code>vapply()</code> function in base R applies a function to each element of a list or vector while enforcing a TEMPLATE for the expected output type and length. It is the safer, production-ready sibling of <code>sapply()</code> that errors loudly instead of silently changing shape.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>vapply(1:5, sqrt, numeric(1))<span class="qa-cmt">                        # scalar numeric per call</span>
+vapply(1:5, function(x) x^2, double(1))<span class="qa-cmt">              # explicit double scalar</span>
+vapply(letters[1:3], toupper, character(1))<span class="qa-cmt">          # scalar character per call</span>
+vapply(1:4, function(x) c(x, x^2), numeric(2))<span class="qa-cmt">       # length-2 vector per call</span>
+vapply(list(1:3, 4:6), range, numeric(2))<span class="qa-cmt">            # min/max pair per element</span>
+vapply(1:5, is.numeric, logical(1))<span class="qa-cmt">                  # logical scalar per call</span>
+vapply(x, fn, numeric(1), USE.NAMES = FALSE)<span class="qa-cmt">         # drop result names</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is vapply() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">apply fn, want type-safe vector or matrix</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">vapply()</text><text x="125" y="126" class="branch-label">apply fn, want flexible auto-simplification</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code"><a class="auto-link" href="base-sapply-in-R.html" title="sapply() in R: Apply a Function and Simplify the Result">sapply()</a></text><text x="125" y="182" class="branch-label">apply fn, always want a list back</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code"><a class="auto-link" href="base-lapply-in-R.html" title="lapply() in R: Apply a Function to a List or Vector">lapply()</a></text><text x="125" y="238" class="branch-label">apply fn pairwise across two or more vectors</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">mapply()</text><text x="125" y="294" class="branch-label">apply fn over matrix rows or columns</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">apply()</text><text x="125" y="350" class="branch-label">functional-programming style with type checks</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">purrr::<a class="auto-link" href="purrr-map-Variants.html" title="purrr map() Variants: map, map2, imap, pmap — The Complete Tutorial">map_dbl</a>, map_chr, map_lgl</text><text x="125" y="406" class="branch-label">aggregate by a grouping factor</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">tapply()</text></svg></div>
+
+<h2>What vapply() does in one sentence</h2>
+
+<p><strong><code>vapply(X, FUN, FUN.VALUE)</code> calls FUN on each element of X and checks that every result matches the type and length of FUN.VALUE.</strong> If a call returns a different type or length, vapply throws an error instead of returning a list silently.</p>
+
+<p>This guarantee is the whole point. Where sapply() can hand you a numeric vector today and a list tomorrow because one element changed shape, vapply locks the contract up front and fails fast when reality diverges.</p>
+
+<h2>Syntax and arguments</h2>
+
+<p><strong><code>vapply(X, FUN, FUN.VALUE, ..., USE.NAMES = TRUE)</code> requires four arguments by name.</strong> X is a list or vector; FUN is the function applied to each element; FUN.VALUE is the template prototype for the expected return value.</p>
+
+<div class="webr-container" data-block-title="Apply with a numeric scalar template">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Apply with a numeric scalar template</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">vapply(1:5, function(x) x^2, numeric(1))
+#&gt; [1]  1  4  9 16 25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The template <code>numeric(1)</code> says "every call must return one numeric value." If even one call returns a length-2 vector or a character, vapply errors before producing any output.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Purpose</th>
+<th>Common values</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>X</code></td>
+<td>Input list or vector</td>
+<td><code>1:10</code>, <code>list(a=1, b=2)</code>, <code>letters</code></td>
+</tr>
+<tr>
+<td><code>FUN</code></td>
+<td>Function applied to each element</td>
+<td><code>sqrt</code>, <code>function(x) x^2</code>, <code>is.numeric</code></td>
+</tr>
+<tr>
+<td><code>FUN.VALUE</code></td>
+<td>Type and length template</td>
+<td><code>numeric(1)</code>, <code>character(1)</code>, <code>logical(1)</code>, <code>numeric(2)</code></td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Extra args passed to FUN</td>
+<td><code>na.rm = TRUE</code> for <code>mean</code></td>
+</tr>
+<tr>
+<td><code>USE.NAMES</code></td>
+<td>Carry input names to output</td>
+<td><code>TRUE</code> (default), <code>FALSE</code> to drop</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Read FUN.VALUE as a contract, not a hint.</strong> <code>numeric(1)</code> means EXACTLY one numeric per call. To allow a length-3 numeric output, write <code>numeric(3)</code>. To allow integers and floats interchangeably, use <code>numeric(1)</code> (which accepts both, since integers coerce to double).</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Scalar numeric output per element</h3>
+
+<div class="webr-container" data-block-title="Squareroot with type safety">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Squareroot with type safety</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">vapply(c(4, 9, 16, 25), sqrt, numeric(1))
+#&gt; [1] 2 3 4 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Identical output to <code>sapply(c(4,9,16,25), sqrt)</code>, but vapply guarantees the return is always a length-4 numeric vector. The template is the safety net.</p>
+
+<h3>2. Scalar character output</h3>
+
+<div class="webr-container" data-block-title="Uppercase each letter">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Uppercase each letter</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">vapply(c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;), toupper, character(1))
+#&gt;   a   b   c
+#&gt; &quot;A&quot; &quot;B&quot; &quot;C&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Use <code>character(1)</code> when each call returns one string. Names are preserved by default from the input vector.</p>
+
+<h3>3. Vector output of fixed length (becomes a matrix)</h3>
+
+<div class="webr-container" data-block-title="Return min and max per list element">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Return min and max per list element</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">vapply(list(1:5, 6:10, c(100, 200)), range, numeric(2))
+#&gt;      [,1] [,2] [,3]
+#&gt; [1,]    1    6  100
+#&gt; [2,]    5   10  200</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When FUN.VALUE has length > 1, vapply assembles a matrix with one column per input element. The template <code>numeric(2)</code> locks every call to return exactly 2 numerics.</p>
+
+<h3>4. Logical predicate per element</h3>
+
+<div class="webr-container" data-block-title="Test which elements are numeric">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Test which elements are numeric</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mixed &lt;- list(1, &quot;x&quot;, TRUE, 2.5, NA)
+vapply(mixed, is.numeric, logical(1))
+#&gt; [1]  TRUE FALSE FALSE  TRUE FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A <code>logical(1)</code> template is the standard pattern for predicate functions. The result is always a clean logical vector, never a list.</p>
+
+<h3>5. Pass extra arguments to FUN</h3>
+
+<div class="webr-container" data-block-title="Mean with na.rm forwarded through ...">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean with na.rm forwarded through ...</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">xs &lt;- list(c(1, 2, NA), c(4, 5, 6), c(NA, NA, 7))
+vapply(xs, mean, numeric(1), na.rm = TRUE)
+#&gt; [1] 1.5 5.0 7.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Anything after FUN.VALUE flows into FUN as additional named arguments. Here <code>na.rm = TRUE</code> reaches <code>mean()</code> for every call.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>vapply is a TYPE CHECK at the boundary of your data and your function.</strong> It does the same work as sapply, then asserts the result shape matches what you promised. Treat the FUN.VALUE template as a runtime test, not as decoration.</div></div>
+
+<h2>vapply() vs sapply(), lapply(), and mapply()</h2>
+
+<p><strong>Each member of the apply family trades safety for convenience differently.</strong> The table below shows when vapply is preferred.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Output type</th>
+<th>Type-checked?</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vapply()</code></td>
+<td>Vector or matrix, fixed by FUN.VALUE</td>
+<td>YES, errors on mismatch</td>
+<td>Production code, package internals, reusable utilities</td>
+</tr>
+<tr>
+<td><code>sapply()</code></td>
+<td>Auto-simplified vector, matrix, or list</td>
+<td>NO, silently returns list on mismatch</td>
+<td>Interactive exploration where output shape is obvious</td>
+</tr>
+<tr>
+<td><code>lapply()</code></td>
+<td>Always a list</td>
+<td>N/A, no simplification</td>
+<td>Inputs return varying shapes; want list for further processing</td>
+</tr>
+<tr>
+<td><code>mapply()</code></td>
+<td>Multivariate apply across multiple vectors</td>
+<td>NO</td>
+<td>FUN takes multiple arguments and each comes from a parallel vector</td>
+</tr>
+</tbody>
+</table>
+
+<p>The mental model: write <code>vapply()</code> in any code that another person, future you, or a unit test will read. Use <code>sapply()</code> only at the REPL.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>sapply()</code> can silently return a list when one input deviates.</strong> If your function usually returns a scalar but occasionally returns NULL, sapply hands back a list and downstream code that expected a vector breaks far from the cause. <code>vapply()</code> would have errored at the call site, with a clear message about which element broke the contract.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three vapply errors trip up most beginners.</strong> Understanding the message saves debugging time.</p>
+
+<h3>Pitfall 1: FUN.VALUE shape does not match returned values</h3>
+
+<p><strong>Length mismatches throw a clear error citing the offending element.</strong> This is the most common vapply failure for users coming from sapply.</p>
+
+<div class="webr-container" data-block-title="Length mismatch errors loudly">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Length mismatch errors loudly</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># vapply(1:3, function(x) c(x, x^2), numeric(1))
+#&gt; Error in vapply(1:3, function(x) c(x, x^2), numeric(1)) :
+#&gt;   values must be length 1, but FUN(X[[1]]) result is length 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The function returned 2 values per call but the template promised 1. Fix by writing <code>numeric(2)</code>.</p>
+
+<h3>Pitfall 2: Type coercion is not allowed</h3>
+
+<p><strong>Vapply checks the exact storage mode of each result, not the broader numeric category.</strong> Mixing integer and double templates with double and integer outputs triggers an error.</p>
+
+<div class="webr-container" data-block-title="Integer vs double matters here">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Integer vs double matters here</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># vapply(c(&quot;1&quot;, &quot;2&quot;), as.numeric, integer(1))
+#&gt; Error in vapply(c(&quot;1&quot;, &quot;2&quot;), as.numeric, integer(1)) :
+#&gt;   values must be type 'integer', but FUN(X[[1]]) result is type 'double'</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>as.numeric</code> returns doubles, not integers, even when the string parses to a whole number. Use <code>numeric(1)</code> or <code>double(1)</code> instead of <code>integer(1)</code>.</p>
+
+<h3>Pitfall 3: Empty input returns a zero-length vector of the template type</h3>
+
+<p><strong>Empty inputs do not error; vapply returns an empty result of the templated type.</strong> This is consistent with the apply family but often surprises new users.</p>
+
+<div class="webr-container" data-block-title="Empty input behavior">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Empty input behavior</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">vapply(integer(0), sqrt, numeric(1))
+#&gt; numeric(0)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Vapply on an empty input does NOT error; it returns an empty vector of the template type. This is correct behavior but surprises users who expect an error. Always pair with <code>length(X) &gt; 0</code> guards when zero-length input is unexpected.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>vapply()</code> on the built-in <code>iris</code> dataset to compute the mean of each numeric column. Save the result to <code>ex_means</code>.</p>
+<div class="webr-container" data-block-title="Your turn: column means with vapply">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: column means with vapply</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: column means of iris numeric columns
+ex_means &lt;- # your code here
+
+ex_means
+#&gt; Expected: 4 named numerics for Sepal.Length, Sepal.Width, Petal.Length, Petal.Width</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_means &lt;- vapply(iris[, 1:4], mean, numeric(1))
+ex_means
+#&gt; Sepal.Length  Sepal.Width Petal.Length  Petal.Width
+#&gt;     5.843333     3.057333     3.758000     1.199333</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>iris[, 1:4]</code> is a data frame, which behaves as a list of column vectors. <code>vapply()</code> iterates over the four numeric columns, calls <code>mean()</code> on each, and the <code>numeric(1)</code> template guarantees one numeric per column. Names come from the column names.</p>
+
+</details>
+</section>
+
+<h2>Related apply functions in R</h2>
+
+<ul>
+
+<li><a href="base-sapply-in-R.html">base sapply</a>: the auto-simplifying sibling without type checks.</li>
+
+<li><a href="base-lapply-in-R.html">base lapply</a>: always returns a list, no simplification.</li>
+
+<li><a href="base-mapply-in-R.html">base mapply</a>: apply across multiple vectors in parallel.</li>
+
+<li><a href="base-apply-in-R.html">base apply</a>: <a class="auto-link" href="base-apply-in-R.html" title="apply() in R: Apply a Function Over Matrix Rows or Columns">apply over rows</a> or columns of a matrix.</li>
+
+<li><a href="Functional-Programming-in-R.html">Functional Programming in R</a>: the broader hub covering apply, <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Reduce</a>, Filter, and Map.</li>
+
+</ul>
+
+<p>External reference: the <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/lapply.html">R Language Definition on vapply</a> covers the full argument signature on the same page as lapply and sapply.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between vapply and sapply in R?</strong></p>
+
+<p><code>vapply()</code> requires a FUN.VALUE template that locks the expected output type and length, and errors if any call returns a different shape. <code>sapply()</code> tries to simplify the result automatically and silently falls back to a list if the function returns inconsistent shapes. Use vapply in production code where output shape must be predictable; use sapply at the REPL for quick exploration.</p>
+
+<p><strong>Why is vapply faster than sapply?</strong></p>
+
+<p><code>vapply()</code> is marginally faster because it pre-allocates the output container using the FUN.VALUE template, skipping the type-detection logic that sapply runs after each call. The speedup is real but small (often 5 to 15 percent on tight loops over short vectors). The bigger win is correctness, not speed.</p>
+
+<p><strong>What does numeric(1) mean as the FUN.VALUE in vapply?</strong></p>
+
+<p><code>numeric(1)</code> is a zero-filled length-1 numeric vector that serves as a TEMPLATE. It tells vapply: "every call to FUN must return exactly one numeric value." The actual zero is never used; only the type (double) and length (1) are checked against each FUN result. Common templates are <code>numeric(1)</code>, <code>character(1)</code>, <code>logical(1)</code>, and <code>integer(1)</code>.</p>
+
+<p><strong>Can vapply return a matrix?</strong></p>
+
+<p>Yes. When FUN.VALUE has length greater than 1, vapply assembles results into a matrix with one column per input element. For example, <code>vapply(list(1:5, 6:10), range, numeric(2))</code> returns a 2-by-2 matrix where row 1 is the min and row 2 is the max for each input list element.</p>
+
+<p><strong>Does vapply work with <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">NA values</a>?</strong></p>
+
+<p><code>vapply()</code> does not <a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">handle NA</a> specially; it passes elements through to FUN as-is. If your function returns NA, that NA flows into the result, which is still considered to match a <code>numeric(1)</code> template because <code>NA_real_</code> is of type double. To skip NAs inside FUN, pass <code>na.rm = TRUE</code> through the <code>...</code> argument as you would with sapply.</p>
