@@ -1,0 +1,366 @@
+---
+title: "Mode in R: Find the Most Common Value With Base R"
+description: "Find the statistical mode in R using base R. tabulate() with which.max() returns the most common value. Covers ties, factors, NA handling, 5 worked examples."
+keywords: "mode in R, statistical mode R, most common value R, find mode R, R mode function, mode of a vector R, multimodal R, mode by group R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "statistical mode in R|find the mode in R|most common value in R|mode of a vector|R mode function"
+auto_link_case_sensitive: false
+fr_parent: "Descriptive-Statistics-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>Mode in R: Find the Most Common Value With Base R</h1>
+
+<p class="lead">The mode in R is the value that appears most often in a vector, but base R has no built-in function for it. The standard recipe is <code>unique(x)[which.max(tabulate(match(x, unique(x))))]</code>, which works for numeric, character, and factor data.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>mode_val(x)<span class="qa-cmt">                                # custom function (define below)</span>
+unique(x)[which.max(tabulate(match(x, unique(x))))]<span class="qa-cmt">   # one liner, base R only</span>
+names(which.max(table(x)))<span class="qa-cmt">                 # via table() (returns character)</span>
+unique(x)[tabulate(match(x, unique(x))) == max(tabulate(match(x, unique(x))))]<span class="qa-cmt">   # all ties</span>
+mode_val(x[!is.na(x)])<span class="qa-cmt">                     # mode ignoring NA</span>
+mode_val(mtcars$cyl)<span class="qa-cmt">                       # mode of a data frame column</span>
+DescTools::Mode(x)<span class="qa-cmt">                         # CRAN alternative (handles ties)</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is the statistical mode the right summary?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">most common value in a vector</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">unique(x)[which.max(tabulate(match(x, unique(x))))]</text><text x="125" y="126" class="branch-label">middle value (robust to outliers)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">median(x)</text><text x="125" y="182" class="branch-label">arithmetic average</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">mean(x)</text><text x="125" y="238" class="branch-label">frequency of every value</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">table(x)</text><text x="125" y="294" class="branch-label">storage type of an object (not statistical)</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">typeof(x) or class(x)</text><text x="125" y="350" class="branch-label">most common category in a factor</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">names(which.max(table(f)))</text><text x="125" y="406" class="branch-label">top N most common values</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">head(sort(table(x), decreasing = TRUE), 5)</text></svg></div>
+
+<h2>What the mode means in R</h2>
+
+<p><strong>The statistical mode is the value with the highest frequency in a vector.</strong> Unlike the mean and median, it works on numeric, character, factor, and logical data, because frequency does not require a numeric scale.</p>
+
+<p>A vector can have one mode (unimodal), two modes (bimodal), or none (every value unique). Base R has no function that returns the statistical mode directly; the built-in <code>mode()</code> does something completely different.</p>
+
+<h2>Why mode() in R does not do what you expect</h2>
+
+<p><strong>Base R's <code>mode()</code> function returns the internal storage type, not the most common value.</strong> This is the single most common source of confusion when newcomers search for "mode in R".</p>
+
+<div class="webr-container" data-block-title="What base R mode() actually returns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">What base R mode() actually returns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(1, 2, 2, 3, 3, 3, 4)
+mode(x)
+#&gt; [1] &quot;numeric&quot;
+
+mode(c(&quot;a&quot;, &quot;b&quot;, &quot;b&quot;))
+#&gt; [1] &quot;character&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The function tells you the storage category ("numeric", "character", "list", "function", and so on), the same family of answers as <code>typeof()</code> and <code>class()</code>. To find the most common value, you need a different recipe.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>mode()</code> is a holdover from S, R's predecessor.</strong> It existed before R formalized the type system, and it survives for backward compatibility. For type introspection prefer <code>typeof()</code> (which returns more specific values like "double" and "integer") or <code>class()</code> (which respects <a class="auto-link" href="S3-Classes-in-R.html" title="S3 Classes in R: Create, Inherit & Write Methods — Complete Tutorial">S3 dispatch</a>).</div></div>
+
+<h2>The base R recipe in three lines</h2>
+
+<p><strong>The one-liner combines <code>unique()</code>, <code>match()</code>, <code>tabulate()</code>, and <code>which.max()</code>.</strong> Each function does one job: enumerate distinct values, label every observation with its index in that enumeration, count labels, then pick the most frequent.</p>
+
+<div class="webr-container" data-block-title="Statistical mode in one line">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Statistical mode in one line</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(1, 2, 2, 3, 3, 3, 4)
+unique(x)[which.max(tabulate(match(x, unique(x))))]
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For repeated use, wrap it in a function. This is the version most R users keep in their utility script.</p>
+
+<div class="webr-container" data-block-title="A reusable mode() function for any vector type">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">A reusable mode() function for any vector type</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mode_val &lt;- function(v) {
+  uniq &lt;- unique(v)
+  uniq[which.max(tabulate(match(v, uniq)))]
+}
+
+mode_val(c(1, 2, 2, 3, 3, 3, 4))
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The function works on any atomic vector type because <code>tabulate()</code> counts indices, not values, so the underlying scale does not matter.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>tabulate(match(v, unique(v)))</code> is the trick.</strong> <code>match()</code> replaces every value with its position in <code>unique(v)</code>, turning the vector into integer codes 1, 2, 3, and so on. <code>tabulate()</code> then counts how often each code appears. <code>which.max()</code> returns the position of the largest count, and the matching value comes from <code>unique(v)</code>. This pattern reappears in <code>factor()</code>, <code>cut()</code>, and <code>as.integer()</code> of a factor.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Mode of a numeric vector</h3>
+
+<p><strong>Use <code>mode_val()</code> directly on any numeric vector.</strong> Integer and double inputs return a value of the same type.</p>
+
+<div class="webr-container" data-block-title="Mode of an integer vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mode of an integer vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ages &lt;- c(22, 24, 24, 25, 27, 24, 30)
+mode_val(ages)
+#&gt; [1] 24</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The function returns 24 because it occurs three times, more than any other value. If you also need the count, wrap with <code>max(tabulate(match(ages, unique(ages))))</code>.</p>
+
+<h3>2. Mode of a character vector</h3>
+
+<p><strong>Strings work the same way.</strong> This is useful for finding the most common category in a survey response or label column.</p>
+
+<div class="webr-container" data-block-title="Most common category in a character vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Most common category in a character vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">responses &lt;- c(&quot;yes&quot;, &quot;no&quot;, &quot;yes&quot;, &quot;maybe&quot;, &quot;yes&quot;, &quot;no&quot;)
+mode_val(responses)
+#&gt; [1] &quot;yes&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For a tabular view of all categories ranked by frequency, use <code>sort(table(responses), decreasing = TRUE)</code> instead.</p>
+
+<h3>3. Mode of a factor</h3>
+
+<p><strong>Factors return a factor element, not a level index.</strong> This is the right behavior when the result feeds into another factor operation.</p>
+
+<div class="webr-container" data-block-title="Mode of a factor variable">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mode of a factor variable</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cyl_factor &lt;- factor(mtcars$cyl)
+mode_val(cyl_factor)
+#&gt; [1] 8
+#&gt; Levels: 4 6 8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The most common cylinder count in <code>mtcars</code> is 8 (14 cars), beating 4 (11 cars) and 6 (7 cars). The result keeps the factor's levels so it can be used as a <a class="auto-link" href="Dummy-Variables-in-R.html" title="Dummy Variables in R: What lm() Does With Factor Predictors Under the Hood">reference category</a> in a model.</p>
+
+<h3>4. Multiple modes (ties)</h3>
+
+<p><strong>A vector can have several values tied for most common.</strong> The one-line recipe returns only the first; to return all modes, compare counts against their maximum.</p>
+
+<div class="webr-container" data-block-title="Return every value tied for most common">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Return every value tied for most common</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(1, 2, 2, 3, 3, 4)
+counts &lt;- tabulate(match(x, unique(x)))
+unique(x)[counts == max(counts)]
+#&gt; [1] 2 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both 2 and 3 appear twice. The standard <code>mode_val()</code> returns whichever is first in <code>unique(x)</code>, which is data-order-dependent. For multimodal data, use the all-ties recipe or <code>DescTools::Mode(x)</code>, which handles ties as a documented behavior.</p>
+
+<h3>5. NA handling</h3>
+
+<p><strong><code>NA</code> values can become the mode if they are common enough.</strong> Unlike <code>mean()</code> and <code>median()</code>, there is no <code>na.rm</code> argument because the recipe is custom; you have to drop NAs yourself before calling it.</p>
+
+<div class="webr-container" data-block-title="Drop NA before computing the mode">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop NA before computing the mode</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(2, 2, 3, NA, NA, NA)
+mode_val(x)
+#&gt; [1] NA
+
+mode_val(x[!is.na(x)])
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Without filtering, the function returns <code>NA</code> because it occurs three times. The filtered version returns the most common non-missing value. Always check for this when the answer is unexpectedly <code>NA</code>.</p>
+
+<h2>mode vs mean vs median vs table</h2>
+
+<p><strong>Each summary answers a different question about the distribution.</strong> The table below shows which to reach for in each scenario.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>What it returns</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mode_val(x)</code></td>
+<td>Most common value</td>
+<td>Categorical or discrete data, modal categories</td>
+</tr>
+<tr>
+<td><code>mean(x)</code></td>
+<td>Arithmetic average</td>
+<td>Symmetric numeric data with no outliers</td>
+</tr>
+<tr>
+<td><code>median(x)</code></td>
+<td>Middle value</td>
+<td>Skewed numeric data, robust center</td>
+</tr>
+<tr>
+<td><code>table(x)</code></td>
+<td>Frequency of every value</td>
+<td>When you need the full distribution, not just the top</td>
+</tr>
+<tr>
+<td><code>sort(table(x), decreasing = TRUE)</code></td>
+<td>Ranked frequencies</td>
+<td>Top N most common values</td>
+</tr>
+<tr>
+<td><code>DescTools::Mode(x)</code></td>
+<td>Modes plus ties</td>
+<td>When ties are expected and meaningful</td>
+</tr>
+</tbody>
+</table>
+
+<p>For continuous data the mode is often meaningless because no value repeats; bin with <code>cut()</code> first. For ordinal or <a class="auto-link" href="Categorical-Data-in-R.html" title="Categorical Data in R: Frequency Tables, Crosstabs & Mosaic Plots">categorical data</a>, the mode is the natural center.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: confusing <code>mode()</code> with the statistical mode.</strong> Calling <code>mode(x)</code> on your data returns "numeric" or "character", never a frequency. The recipe above is what users almost always want.</p>
+
+<p><strong>Pitfall 2: ignoring ties.</strong> <code>which.max()</code> returns only the first maximum, so <code>mode_val(c(1, 1, 2, 2))</code> returns 1, not both. If ties matter (multimodal distributions, A/B tests with equal counts), use the all-ties recipe or switch to <code>DescTools::Mode()</code>.</p>
+
+<p><strong>Pitfall 3: counting <code>NA</code> as a value.</strong> The recipe treats <code>NA</code> like any distinct value, so it can win the count and silently return <code>NA</code>. <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter</a> with <code>x[!is.na(x)]</code> first.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The recipe is order-dependent for ties.</strong> <code>unique(x)</code> preserves first appearance, so <code>mode_val(c(2, 2, 3, 3))</code> returns 2 while <code>mode_val(c(3, 3, 2, 2))</code> returns 3. This is not random, but it can look that way if your data order changes between runs. For deterministic ties pick a sorted variant: <code>sort(unique(x))[which.max(tabulate(match(x, sort(unique(x)))))]</code>.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Find the most common cylinder count in the <code>mtcars</code> dataset. Save the result to <code>ex_mode_cyl</code>.</p>
+<div class="webr-container" data-block-title="Your turn: mode of mtcars$cyl">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: mode of mtcars$cyl</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Use the mode_val() function defined earlier
+ex_mode_cyl &lt;- # your code here
+
+ex_mode_cyl
+#&gt; Expected: 8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mode_val &lt;- function(v) {
+  uniq &lt;- unique(v)
+  uniq[which.max(tabulate(match(v, uniq)))]
+}
+
+ex_mode_cyl &lt;- mode_val(mtcars$cyl)
+ex_mode_cyl
+#&gt; [1] 8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>mtcars$cyl</code> contains 11 fours, 7 sixes, and 14 eights. The recipe returns 8 because it has the highest frequency. The same call on <code>mtcars$gear</code> returns 3 (15 cars), confirming the function works on any numeric column.</p>
+
+</details>
+</section>
+
+<h2>Related base R summary functions</h2>
+
+<p>After mastering the statistical mode recipe, look at:</p>
+
+<ul>
+
+<li><code>mean()</code>: arithmetic average for symmetric data</li>
+
+<li><code>median()</code>: middle value, robust to outliers</li>
+
+<li><code>table()</code>: full frequency distribution of a vector</li>
+
+<li><code>tabulate()</code>: integer-only fast counter used inside the mode recipe</li>
+
+<li><code>which.max()</code> and <code>which.min()</code>: position of the max or min in a vector</li>
+
+<li><code>summary()</code>: five-number summary plus mean for numeric data</li>
+
+</ul>
+
+<p>For full descriptive statistics workflow, see the <a href="Descriptive-Statistics-in-R.html">descriptive statistics guide</a>. For ranked frequency tables with custom sort, see <code>dplyr::count(x, sort = TRUE)</code>. The official base R reference for <code>tabulate()</code> is the <a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/tabulate.html">R help page</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Is there a mode <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a>?</strong></p>
+
+<p>Yes and no. Base R has <code>mode()</code>, but it returns the internal storage type (<code>&quot;numeric&quot;</code>, <code>&quot;character&quot;</code>, <code>&quot;list&quot;</code>), not the most common value. There is no base-R function for the statistical mode. The community standard recipe is <code>unique(x)[which.max(tabulate(match(x, unique(x))))]</code>, often wrapped in a custom <code>mode_val()</code> function. CRAN packages <code>DescTools</code> (<code>Mode()</code>) and <code>modeest</code> (<code>mfv()</code>) provide drop-in alternatives that also handle ties.</p>
+
+<p><strong>How do I find the most common value in a <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">vector in R</a>?</strong></p>
+
+<p>Use <code>unique(x)[which.max(tabulate(match(x, unique(x))))]</code>. The recipe enumerates distinct values with <code>unique()</code>, maps every observation to an integer code with <code>match()</code>, counts the codes with <code>tabulate()</code>, and picks the code with the highest count via <code>which.max()</code>. The matching value comes back from indexing <code>unique(x)</code>. The pattern works on numeric, character, factor, and logical vectors.</p>
+
+<p><strong>How do I compute the mode in R while ignoring <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a>?</strong></p>
+
+<p>Filter the vector before calling the recipe: <code>mode_val(x[!is.na(x)])</code>. There is no <code>na.rm</code> argument because the recipe is custom, not a built-in. <code>NA</code> is treated as a distinct value by <code>unique()</code> and <code>match()</code>, so it can dominate the count and silently return <code>NA</code> as the answer. Always check with <code>any(is.na(x))</code> before summarizing real-world data.</p>
+
+<p><strong>How do I find the mode by group in R?</strong></p>
+
+<p>Use <code>aggregate(x ~ group, data = df, FUN = mode_val)</code> after defining the helper. For example, <code>aggregate(cyl ~ gear, mtcars, mode_val)</code> returns the most common cylinder count per gear value. The tidyverse equivalent is <code>dplyr::summarise(mode_val(cyl), .by = gear)</code>. Combine multiple keys with <code>+</code> in the formula.</p>
+
+<p><strong>Can a vector have more than one mode in R?</strong></p>
+
+<p>Yes. A bimodal vector has two values tied for highest frequency; the basic recipe returns only the first because <code>which.max()</code> breaks ties by position. To return all modes, compute the counts once and compare to their max: <code>counts &lt;- tabulate(match(x, unique(x))); unique(x)[counts == max(counts)]</code>. This returns a vector of every value tied for most common, useful for multimodal distributions, <a class="auto-link" href="AB-Testing-in-R.html" title="A/B Testing in R: Plan Your Sample Size, Analyse Correctly, and Know When to Stop">A/B test</a> ties, and survey response analysis.</p>
