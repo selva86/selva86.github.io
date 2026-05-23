@@ -1,0 +1,453 @@
+---
+title: "workflows update_model() in R: Swap a Workflow's Model Spec"
+description: "Use workflows update_model() in R to swap the parsnip spec inside an existing tidymodels workflow. Syntax, four worked examples, gotchas, and pitfalls."
+keywords: "workflows update_model, update_model function R, update_model workflow, tidymodels update_model, R update_model, workflows update model, update_model parsnip examples"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "update_model()|workflows update_model|workflows::update_model()|swap the model in workflow|update the model spec"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>workflows update_model() in R: Swap a Workflow's Model Spec</h1>
+
+<p class="lead">The workflows <code>update_model()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> replaces the parsnip model specification inside a tidymodels workflow with a new spec, while leaving the preprocessor untouched. Use it to swap engines, sweep hyperparameters, or A/B two algorithms on the same recipe without rebuilding the pipeline by hand.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>update_model(wf, new_spec)<span class="qa-cmt">                       # swap the model in place</span>
+wf |&gt; update_model(rf_spec)<span class="qa-cmt">                      # pipe-friendly swap</span>
+update_model(wf, new_spec, formula = y ~ x)<span class="qa-cmt">      # swap with a model-only formula</span>
+wf |&gt; update_model(spec) |&gt; fit(data = df)<span class="qa-cmt">       # swap then refit</span>
+update_model(wf_fit, new_spec)<span class="qa-cmt">                   # resets workflow to unfitted</span>
+update_recipe(wf, new_rec)<span class="qa-cmt">                       # sibling verb for the preprocessor</span>
+remove_model(wf) |&gt; add_model(new_spec)<span class="qa-cmt">          # equivalent two-step path</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is update_model() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">swap the model spec in an existing workflow</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">update_model(wf, spec_v2)</text><text x="125" y="126" class="branch-label">attach a model to an empty workflow</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">workflow() |&gt; add_model(spec)</text><text x="125" y="182" class="branch-label">remove the model and leave the slot empty</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">remove_model(wf)</text><text x="125" y="238" class="branch-label">swap the recipe instead</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">update_recipe(wf, new_rec)</text><text x="125" y="294" class="branch-label">swap recipe and model together</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">update_recipe(wf, r) |&gt; update_model(s)</text><text x="125" y="350" class="branch-label">pull the current spec back out to inspect it</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">extract_spec_parsnip(wf)</text></svg></div>
+
+<h2>What update_model() does</h2>
+
+<p><strong>update_model() replaces the parsnip spec slot of a workflow with a new spec.</strong> It returns a new workflow object with the same preprocessor but a different model. The original workflow is not modified; the function is pure and assignment-safe.</p>
+
+<p>The verb exists because add_model() refuses to overwrite an existing spec. Once a model is attached, calling add_model() a second time raises an error. update_model() is the explicit replacement door. It is the right tool whenever the recipe stays the same and only the algorithm or its hyperparameters change, which happens constantly during engine comparison, lambda tuning, and quick A/B tests across model families.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>update_model() always returns an unfitted workflow.</strong> Even if you call it on a fitted workflow, the returned object discards any trained parameters because the new spec would change the fitted state. Treat the result as a fresh workflow that must be refit before predictions.</div></div>
+
+<h2>update_model() syntax and arguments</h2>
+
+<p><strong>update_model() takes a workflow, a replacement spec, and an optional formula.</strong> The signature mirrors add_model(), so swapping between the two verbs is a one-word rename.</p>
+
+<div class="webr-container" data-block-title="The update_model argument skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The update_model argument skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+
+update_model(
+  x,              # a workflow object, fitted or unfitted
+  spec,           # an unfit parsnip model_spec
+  formula = NULL  # optional model-only formula override
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>x</code> argument must be a workflow() object that already has a model attached; calling update_model() on a workflow with no model raises an error. The <code>spec</code> argument must be an unfit parsnip spec built with <code>linear_reg()</code>, <code>rand_forest()</code>, <code>boost_tree()</code>, or any other model family function plus <code>set_engine()</code>. Passing a fitted parsnip object is rejected. The <code>formula</code> argument lets you give the model a different formula from the preprocessor, useful when the recipe creates engineered columns that the engine should consume selectively.</p>
+
+<p><strong>update_model() is the most common spec-side iteration verb.</strong> The three patterns below cover almost every use case in practice.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Swap target</th>
+<th>Typical pattern</th>
+<th>What stays constant</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Engine (same family)</td>
+<td>`<a class="auto-link" href="parsnip-linear_reg-in-R.html" title="parsnip linear_reg() in R: Fit Linear Regression Models">linear_reg()</a></td>
+<td>> set_engine("lm")<code> to </code>linear_reg(penalty = 0.1)</td>
+<td>> set_engine("glmnet")`</td>
+<td>Recipe, outcome, predictor set</td>
+</tr>
+<tr>
+<td>Hyperparameters</td>
+<td><code>rand_forest(trees = 500)</code> to <code>rand_forest(trees = 2000, min_n = 5)</code></td>
+<td>Recipe, engine, algorithm family</td>
+</tr>
+<tr>
+<td>Algorithm family</td>
+<td><code>linear_reg()</code> to <code>rand_forest()</code></td>
+<td>Recipe and outcome only</td>
+</tr>
+</tbody>
+</table>
+
+<p>Each row is one update_model() call. The preprocessor is shared across all variants, so any difference in fit or hold-out metric is attributable to the spec alone.</p>
+
+<h2>Swap models with update_model(): four examples</h2>
+
+<p><strong>Every example uses built-in mtcars and airquality datasets</strong> so the focus stays on the swap mechanics rather than on the data.</p>
+
+<h3>Example 1: Swap engines inside the linear regression family</h3>
+
+<p><strong>The base case is one recipe and two engines.</strong> Build the workflow once, then swap engines without touching the preprocessor.</p>
+
+<div class="webr-container" data-block-title="Build then swap with update_model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build then swap with update_model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+
+rec_norm &lt;- recipe(mpg ~ wt + hp + disp + cyl, data = mtcars) |&gt;
+  step_normalize(all_numeric_predictors())
+
+spec_lm &lt;- linear_reg() |&gt; set_engine(&quot;lm&quot;)
+
+wf &lt;- workflow() |&gt;
+  add_recipe(rec_norm) |&gt;
+  add_model(spec_lm)
+
+spec_glmnet &lt;- linear_reg(penalty = 0.1, mixture = 1) |&gt;
+  set_engine(&quot;glmnet&quot;)
+
+wf_glmnet &lt;- update_model(wf, spec_glmnet)
+wf_glmnet
+#&gt; == Workflow ====================================================================
+#&gt; Preprocessor: Recipe
+#&gt; Model: linear_reg()
+#&gt;
+#&gt; -- Preprocessor ----------------------------------------------------------------
+#&gt; 1 Recipe Step
+#&gt;
+#&gt; * step_normalize()
+#&gt;
+#&gt; -- Model -----------------------------------------------------------------------
+#&gt; Linear Regression Model Specification (regression)
+#&gt;
+#&gt; Main Arguments:
+#&gt;   penalty = 0.1
+#&gt;   mixture = 1
+#&gt;
+#&gt; Computational engine: glmnet</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The original <code>wf</code> still holds the lm spec. <code>wf_glmnet</code> is a separate object with a lasso-regularized spec. Both can be fit independently to compare <a class="auto-link" href="Simple-Linear-Regression-in-R.html" title="Linear Regression in R: Fit Your First Model With lm() and Understand Every Number">ordinary least squares</a> against <a class="auto-link" href="Ridge-and-Lasso-Regression-in-R.html" title="Ridge and Lasso in R: How Penalised Regression Shrinks Coefficients and Selects Variables">regularized regression</a> on the same normalized predictors.</p>
+
+<h3>Example 2: Sweep hyperparameters of the same algorithm</h3>
+
+<p><strong>Holding the engine constant and varying hyperparameters is what update_model() does inside <a class="auto-link" href="tune-tune_grid-in-R.html" title="tune tune_grid() in R: Hyperparameter Search on Resamples">tune_grid()</a>.</strong> You can run the loop yourself when you want exact control.</p>
+
+<div class="webr-container" data-block-title="Manual hyperparameter sweep with update_model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Manual hyperparameter sweep with update_model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec &lt;- recipe(mpg ~ wt + hp + disp + cyl, data = mtcars) |&gt;
+  step_normalize(all_numeric_predictors())
+
+wf_base &lt;- workflow() |&gt;
+  add_recipe(rec) |&gt;
+  add_model(rand_forest(trees = 100) |&gt;
+    set_engine(&quot;ranger&quot;) |&gt;
+    set_mode(&quot;regression&quot;))
+
+tree_grid &lt;- c(100, 500, 1500)
+
+results &lt;- map_dfr(tree_grid, function(n) {
+  spec &lt;- rand_forest(trees = n) |&gt;
+    set_engine(&quot;ranger&quot;) |&gt;
+    set_mode(&quot;regression&quot;)
+
+  wf_n &lt;- update_model(wf_base, spec)
+  fit_n &lt;- fit(wf_n, data = mtcars)
+  preds &lt;- predict(fit_n, new_data = mtcars)
+  tibble(trees = n,
+         rmse = rmse_vec(mtcars$mpg, preds$.pred))
+})
+
+results
+#&gt; # A tibble: 3 x 2
+#&gt;   trees  rmse
+#&gt;   &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1   100  1.07
+#&gt; 2   500  1.02
+#&gt; 3  1500  1.01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>update_model() lets you swap just the <code>trees</code> argument across iterations. The preprocessor is built once and reused, so the cost of each iteration is the model fit alone. This pattern is what <code>tune_grid()</code> automates; doing it by hand is useful for debugging and for sweeps too small to justify a tuning workflow.</p>
+
+<h3>Example 3: A/B compare two algorithm families</h3>
+
+<p><strong>Comparing two algorithms on identical preprocessing is where update_model() earns its keep most often.</strong> The recipe is fixed, the spec varies, and any difference in cross-validated performance is attributable to the algorithm.</p>
+
+<div class="webr-container" data-block-title="Compare lm and random forest under cross-validation">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare lm and random forest under cross-validation</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_cv &lt;- recipe(mpg ~ wt + hp + disp, data = mtcars) |&gt;
+  step_normalize(all_numeric_predictors())
+
+wf_lm &lt;- workflow() |&gt;
+  add_recipe(rec_cv) |&gt;
+  add_model(linear_reg() |&gt; set_engine(&quot;lm&quot;))
+
+rf_spec &lt;- rand_forest(trees = 500) |&gt;
+  set_engine(&quot;ranger&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+wf_rf &lt;- update_model(wf_lm, rf_spec)
+
+set.seed(42)
+folds &lt;- vfold_cv(mtcars, v = 5)
+
+res_lm &lt;- fit_resamples(wf_lm, folds)
+res_rf &lt;- fit_resamples(wf_rf, folds)
+
+bind_rows(
+  collect_metrics(res_lm) |&gt; mutate(model = &quot;linear_reg + lm&quot;),
+  collect_metrics(res_rf) |&gt; mutate(model = &quot;rand_forest + ranger&quot;)
+) |&gt;
+  filter(.metric == &quot;rmse&quot;) |&gt;
+  select(model, mean, std_err)
+#&gt; # A tibble: 2 x 3
+#&gt;   model                 mean std_err
+#&gt;   &lt;chr&gt;                &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 linear_reg + lm       2.78   0.396
+#&gt; 2 rand_forest + ranger  2.56   0.342</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>update_model() returns a workflow that fit_resamples() consumes directly. You never rebuild the recipe, so the comparison is clean: only the model changes between the two metric rows.</p>
+
+<h3>Example 4: Update on a fitted workflow resets it</h3>
+
+<p><strong>Calling update_model() on a fitted workflow is legal but discards the fit.</strong> This is the most common surprise.</p>
+
+<div class="webr-container" data-block-title="Fitted workflow loses its fit after update_model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fitted workflow loses its fit after update_model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wf_fit &lt;- fit(wf_lm, data = mtcars)
+
+# The fitted workflow can predict
+predict(wf_fit, new_data = head(mtcars))
+#&gt; # A tibble: 6 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  22.6
+#&gt; 2  22.1
+#&gt; 3  26.3
+#&gt; 4  21.2
+#&gt; 5  17.7
+#&gt; 6  20.4
+
+wf_reset &lt;- update_model(wf_fit, rf_spec)
+
+# After the swap, the workflow is unfitted again
+tryCatch(
+  predict(wf_reset, new_data = head(mtcars)),
+  error = function(e) conditionMessage(e)
+)
+#&gt; [1] &quot;Can't predict on an untrained workflow.&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The returned workflow has the new spec attached but no trained parameters. Refit with <code>fit(wf_reset, data = mtcars)</code> before calling <code>predict()</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never assume update_model() preserves a fit.</strong> Pipelines that branch off a fitted workflow must refit after every spec change. Forgetting the refit raises an "untrained workflow" error at predict time; resampling pipelines silently start from scratch.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three errors hit beginners the most.</strong> Each one has a one-line fix.</p>
+
+<div class="webr-container" data-block-title="Three errors and their fixes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three errors and their fixes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Pitfall 1: update_model on a workflow with no model
+wf_rec_only &lt;- workflow() |&gt;
+  add_recipe(rec_norm)
+tryCatch(
+  update_model(wf_rec_only, spec_lm),
+  error = function(e) conditionMessage(e)
+)
+#&gt; [1] &quot;The workflow does not have a model action.&quot;
+# Fix: use add_model() to attach a spec first, OR build the workflow with one.
+
+# Pitfall 2: passing a fitted parsnip object
+spec_fit &lt;- linear_reg() |&gt;
+  set_engine(&quot;lm&quot;) |&gt;
+  fit(mpg ~ wt, data = mtcars)
+tryCatch(
+  update_model(wf, spec_fit),
+  error = function(e) conditionMessage(e)
+)
+#&gt; [1] &quot;`spec` must be a `model_spec`, not a fitted model.&quot;
+# Fix: pass the unfit spec; the workflow fits it.
+
+# Pitfall 3: chaining without assignment
+wf |&gt; update_model(spec_glmnet)
+# wf is unchanged because update_model() is pure.
+# Fix: wf_glmnet &lt;- wf |&gt; update_model(spec_glmnet)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>update_model() and remove_model() then add_model() are equivalent.</strong> Use the single verb. It is faster to type, shorter to read, and signals intent: you are replacing the spec, not detaching it.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a workflow with a recipe of <code>Sepal.Length</code> predicting <code>Petal.Length</code> plus a linear regression spec, then use update_model() to swap in a <code>nearest_neighbor()</code> regression spec with 5 neighbors. Save the swapped, unfitted workflow to <code>ex_wf</code>.</p>
+<div class="webr-container" data-block-title="Your turn: swap a model spec with update_model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: swap a model spec with update_model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: swap linear_reg for nearest_neighbor in a workflow
+library(tidymodels)
+
+ex_rec &lt;- # your code here
+
+ex_spec_v1 &lt;- # your code here
+
+ex_spec_v2 &lt;- # your code here
+
+ex_wf &lt;- # workflow then update_model
+
+ex_wf
+#&gt; Expected: workflow with the kNN spec and the original recipe</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec &lt;- recipe(Petal.Length ~ Sepal.Length, data = iris)
+
+ex_spec_v1 &lt;- linear_reg() |&gt; set_engine(&quot;lm&quot;)
+
+ex_spec_v2 &lt;- nearest_neighbor(neighbors = 5) |&gt;
+  set_engine(&quot;kknn&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+ex_wf &lt;- workflow() |&gt;
+  add_recipe(ex_rec) |&gt;
+  add_model(ex_spec_v1) |&gt;
+  update_model(ex_spec_v2)
+
+ex_wf
+#&gt; == Workflow ====================================================================
+#&gt; Preprocessor: Recipe
+#&gt; Model: nearest_neighbor()
+#&gt;
+#&gt; -- Preprocessor ----------------------------------------------------------------
+#&gt; 0 Recipe Steps
+#&gt;
+#&gt; -- Model -----------------------------------------------------------------------
+#&gt; K-Nearest Neighbor Model Specification (regression)
+#&gt;
+#&gt; Main Arguments:
+#&gt;   neighbors = 5
+#&gt;
+#&gt; Computational engine: kknn</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The first spec attaches with add_model(). The second swap happens through update_model() in the same pipeline. The result is a workflow with the kNN spec and the original recipe untouched.</p>
+
+</details>
+</section>
+
+<h2>Related tidymodels functions</h2>
+
+<p><strong>update_model() lives inside the workflows verb family.</strong> Knowing the neighbours makes spec iteration faster.</p>
+
+<ul>
+
+<li><code>workflow()</code> creates the empty workflow that update_model() later modifies.</li>
+
+<li><code>add_model()</code> attaches the initial parsnip spec to an empty workflow.</li>
+
+<li><code>remove_model()</code> strips the spec out and leaves the model slot empty.</li>
+
+<li><code>update_recipe()</code> swaps the preprocessor while leaving the model in place.</li>
+
+<li><code>extract_spec_parsnip()</code> returns the unfit spec currently stored in a workflow.</li>
+
+<li><code>fit()</code> retrains the workflow after a spec swap.</li>
+
+</ul>
+
+<p>See the <a href="https://workflows.tidymodels.org/reference/">workflows package reference</a> for the full verb family.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Does update_model() refit the workflow?</strong></p>
+
+<p>No. update_model() only replaces the model slot. Any trained parameters from a prior fit are discarded, and the returned workflow is unfitted. Call <code>fit(wf, data = ...)</code> after the swap to retrain. This separation lets you queue several spec changes before paying the cost of a fit, which matters during interactive engine comparison and when scripting batch sweeps across hyperparameter values.</p>
+
+<p><strong>What is the difference between update_model() and tune_grid()?</strong></p>
+
+<p>update_model() is a single, manual swap of one spec for another. tune_grid() is the automated version: it accepts a workflow with <code>tune()</code> placeholders and a parameter grid, then internally calls update_model() once per grid row and per resample to fit every combination. Reach for update_model() when you want explicit control over a small handful of variants; reach for tune_grid() when you want to search a parameter space systematically.</p>
+
+<p><strong>Can update_model() swap between regression and classification?</strong></p>
+
+<p>Technically yes; the new spec can declare any mode. In practice you should not, because the recipe was almost certainly built for one outcome type. Changing mode usually means changing the outcome variable, which means rebuilding the recipe too. If you need both regression and classification on the same predictors, build two workflows from the start.</p>
+
+<p><strong>Does update_model() invalidate tuning results?</strong></p>
+
+<p>Yes. Tuning grids and resampled metrics are tied to the exact workflow used to produce them. Calling update_model() returns a new workflow that has not been tuned. Rerun tune_grid() or fit_resamples() on the updated workflow to get fresh results, and treat any prior <code>select_best()</code> output as invalid for the new spec.</p>
+
+<p><strong>Can I use update_model() to add steps to an existing spec?</strong></p>
+
+<p>Not directly. update_model() swaps the whole spec object, not individual settings. To extend a spec, rebuild it with the extra arguments and pass the new object to update_model(). Parsnip itself provides no in-place mutation on a spec; the design philosophy is to construct specs declaratively and swap them whole.</p>
+
+{% endraw %}
