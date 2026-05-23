@@ -1,0 +1,433 @@
+---
+title: "tune select_best() in R: Pick Top Hyperparameter Set"
+description: "tune select_best() in R returns the single winning hyperparameter row from a tuning result, ready for finalize_workflow(). Covers metric, one-SE rule, pct loss."
+keywords: "tune select_best, select_best function R, tune select_best examples, select_best tidymodels, R hyperparameter tuning select_best, tune package select_best, select_by_one_std_err"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "select_best()|tune select_best|tune::select_best()|pick best hyperparameter row|select_by_one_std_err"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>tune select_best() in R: Pick Top Hyperparameter Set</h1>
+
+<p class="lead">The tune <code>select_best()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> returns the single winning hyperparameter row from a tuning result, ready to hand straight to <code>finalize_workflow()</code>. You pass a tuning object and a metric name, and it picks the row with the best mean score across resamples.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>select_best(tune_res)<span class="qa-cmt">                                # default: first metric, top 1</span>
+select_best(tune_res, metric = &quot;rmse&quot;)<span class="qa-cmt">               # rank by RMSE (minimize)</span>
+select_best(tune_res, metric = &quot;roc_auc&quot;)<span class="qa-cmt">            # rank by ROC AUC (maximize)</span>
+select_best(tune_res, metric = &quot;accuracy&quot;)<span class="qa-cmt">           # classification pick</span>
+select_by_one_std_err(tune_res, metric = &quot;rmse&quot;, trees)<span class="qa-cmt">   # one-SE simpler model</span>
+select_by_pct_loss(tune_res, metric = &quot;rmse&quot;, limit = 2, trees)<span class="qa-cmt">  # 2% loss tolerance</span>
+finalize_workflow(wf, select_best(tune_res, metric = &quot;rmse&quot;))<span class="qa-cmt">    # plug straight in</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is select_best() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">pick the single winning parameter row</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">select_best(tune_res, metric = &quot;rmse&quot;)</text><text x="125" y="126" class="branch-label">preview the leaderboard before picking</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">show_best(tune_res, metric = &quot;rmse&quot;)</text><text x="125" y="182" class="branch-label">pick a simpler model within one SE</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">select_by_one_std_err(tune_res, metric, trees)</text><text x="125" y="238" class="branch-label">pick the cheapest within a loss budget</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">select_by_pct_loss(tune_res, metric, limit, trees)</text><text x="125" y="294" class="branch-label">inspect every row and metric</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">collect_metrics(tune_res)</text><text x="125" y="350" class="branch-label">finalize the workflow from the pick</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">finalize_workflow(wf, best_params)</text></svg></div>
+
+<h2>What select_best() does in one sentence</h2>
+
+<p><strong>select_best() distills a tuning result down to a single row of parameters.</strong> Hand it a <code>tune_results</code> object from <code>tune_grid()</code>, <code>tune_bayes()</code>, or <code>tune_race_anova()</code>, name the metric, and you get back a one-row tibble containing only the tuned columns and a <code>.config</code> label. That row is the input shape <code>finalize_workflow()</code> expects.</p>
+
+<p>The return value is intentionally narrow. Where <code>show_best()</code> gives the metric, mean, standard error, and resample count for the top n rows, <code>select_best()</code> strips every column except the hyperparameters and <code>.config</code>. The direction of each metric is registered in <code>yardstick</code>, so RMSE picks the smallest mean automatically and ROC <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">AUC</a> picks the largest.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>select_best() is the machine pick; show_best() is the human read.</strong> Both consult the same metric table, but <code>select_best()</code> returns parameters-only for finalization while <code>show_best()</code> returns the leaderboard for inspection. Use them in sequence: inspect, then select.</div></div>
+
+<h2>select_best() syntax and arguments</h2>
+
+<p><strong>select_best() needs a tuning result plus a metric name.</strong> Both arguments default sensibly, but naming the metric is the recommended pattern.</p>
+
+<div class="webr-container" data-block-title="The select_best() argument skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The select_best() argument skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">select_best(
+  x,                # a tune_results object
+  metric = NULL,    # which metric to optimize; default is the first one collected
+  eval_time = NULL, # survival models with time-indexed metrics
+  ...               # passed to underlying methods
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>x</code> argument is the tuning object. The <code>metric</code> argument must match a metric you passed into <code>metric_set()</code> during the tuning call. The output is a single row with columns for each tuned parameter plus <code>.config</code>, matching the same row in <code>collect_metrics()</code> and <code>show_best()</code>.</p>
+
+<p>The sibling helpers <code>select_by_one_std_err()</code> and <code>select_by_pct_loss()</code> share this output shape but apply a tradeoff rule before picking. They take the same <code>x</code> and <code>metric</code> plus an unquoted tie-breaking column, dplyr style.</p>
+
+<h2>Use select_best() in four scenarios</h2>
+
+<p><strong>Every example below runs on built-in R data so the entire chain reproduces in a single session.</strong> A small random forest on <code>mtcars</code> keeps each run fast.</p>
+
+<h3>Example 1: Pick the lowest RMSE row from tune_grid()</h3>
+
+<p><strong>Tune a random forest, then call select_best() to lock in the winner.</strong> The output is a one-row tibble ready for <code>finalize_workflow()</code>.</p>
+
+<div class="webr-container" data-block-title="Tune a random forest and select the best row">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tune a random forest and select the best row</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+set.seed(42)
+
+cars_split &lt;- initial_split(mtcars, prop = 0.75)
+cars_train &lt;- training(cars_split)
+
+rf_spec &lt;- rand_forest(mtry = tune(), trees = tune()) |&gt;
+  set_engine(&quot;ranger&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+rf_wf &lt;- workflow() |&gt;
+  add_formula(mpg ~ .) |&gt;
+  add_model(rf_spec)
+
+folds   &lt;- vfold_cv(cars_train, v = 3)
+rf_grid &lt;- expand.grid(mtry = c(2, 4, 6), trees = c(100, 500))
+
+rf_res &lt;- tune_grid(
+  rf_wf,
+  resamples = folds,
+  grid      = rf_grid,
+  metrics   = metric_set(rmse, rsq)
+)
+
+best_rf &lt;- select_best(rf_res, metric = &quot;rmse&quot;)
+best_rf
+#&gt; # A tibble: 1 x 3
+#&gt;    mtry trees .config
+#&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1     4   500 Preprocessor1_Model05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Note the output has no <code>mean</code> or <code>std_err</code> column. Those belong to <code>show_best()</code>; <code>select_best()</code> strips them so the result fits cleanly into the next step.</p>
+
+<h3>Example 2: Select the best classification row by ROC AUC</h3>
+
+<p><strong>Switch to a classification problem and select by a maximize-direction metric.</strong> The same call shape works because the metric direction is registered automatically.</p>
+
+<div class="webr-container" data-block-title="Select the best classification row">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Select the best classification row</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cars_cls &lt;- mtcars
+cars_cls$am &lt;- factor(cars_cls$am, labels = c(&quot;auto&quot;, &quot;manual&quot;))
+
+cls_spec &lt;- logistic_reg(penalty = tune(), mixture = tune()) |&gt;
+  set_engine(&quot;glmnet&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+cls_wf &lt;- workflow() |&gt;
+  add_formula(am ~ mpg + hp + wt) |&gt;
+  add_model(cls_spec)
+
+cls_folds &lt;- vfold_cv(cars_cls, v = 3)
+cls_grid  &lt;- expand.grid(
+  penalty = c(0.001, 0.01, 0.1),
+  mixture = c(0, 0.5, 1)
+)
+
+cls_res &lt;- tune_grid(
+  cls_wf,
+  resamples = cls_folds,
+  grid      = cls_grid,
+  metrics   = metric_set(roc_auc, accuracy)
+)
+
+best_cls &lt;- select_best(cls_res, metric = &quot;roc_auc&quot;)
+best_cls
+#&gt; # A tibble: 1 x 3
+#&gt;   penalty mixture .config
+#&gt;     &lt;dbl&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1    0.01    0.5  Preprocessor1_Model05</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>ROC AUC is a maximize-direction metric, so the row with the largest mean wins. No sorting argument is needed.</p>
+
+<h3>Example 3: Apply the one standard error rule</h3>
+
+<p><strong>Use select_by_one_std_err() to prefer a simpler model within one SE of the leader.</strong> This rule picks the most regularized or smallest model whose mean falls inside the leader's one-SE band.</p>
+
+<div class="webr-container" data-block-title="Pick the simplest model within one standard error">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pick the simplest model within one standard error</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">best_simple &lt;- select_by_one_std_err(
+  rf_res,
+  metric = &quot;rmse&quot;,
+  trees                # tie-breaker: prefer fewer trees
+)
+
+best_simple
+#&gt; # A tibble: 1 x 3
+#&gt;    mtry trees .config
+#&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1     2   100 Preprocessor1_Model01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The tie-breaking column is unquoted. With <code>trees</code>, the helper sorts candidates within the one-SE band by tree count and picks the smallest. The returned row has the <code>select_best()</code> shape, so it drops straight into <code>finalize_workflow()</code>.</p>
+
+<h3>Example 4: Apply a percent-loss budget</h3>
+
+<p><strong>Use select_by_pct_loss() to allow a small metric drop in exchange for a simpler model.</strong> A two percent loss limit trades a tiny bit of accuracy for substantial simplicity.</p>
+
+<div class="webr-container" data-block-title="Pick a simpler model within a 2% loss budget">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pick a simpler model within a 2% loss budget</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">best_budget &lt;- select_by_pct_loss(
+  rf_res,
+  metric = &quot;rmse&quot;,
+  limit  = 2,          # tolerate up to 2% worse than the leader
+  trees                # tie-breaker
+)
+
+best_budget
+#&gt; # A tibble: 1 x 3
+#&gt;    mtry trees .config
+#&gt;   &lt;dbl&gt; &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1     2   100 Preprocessor1_Model01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>limit = 2</code> means any candidate within 2 percent of the leader's mean is fair game; the tie-breaker decides which one.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always name metric explicitly, even when one metric is collected.</strong> Adding a second metric later silently changes the default. A named metric makes the call self-documenting and immune to that change.</div></div>
+
+<h2>Chain select_best() into finalize_workflow()</h2>
+
+<p><strong>select_best() exists to feed finalize_workflow().</strong> The pair locks the winning parameters into the workflow and produces a model ready for <code>last_fit()</code> or <code>fit()</code> on the full <a class="auto-link" href="rsample-training-in-R.html" title="rsample training() in R: Get the Training Set From a Split">training set</a>.</p>
+
+<div class="webr-container" data-block-title="Finalize, then fit on the held-out split">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Finalize, then fit on the held-out split</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">best_rf  &lt;- select_best(rf_res, metric = &quot;rmse&quot;)
+final_wf &lt;- finalize_workflow(rf_wf, best_rf)
+
+final_fit &lt;- last_fit(final_wf, cars_split)
+
+collect_metrics(final_fit)
+#&gt; # A tibble: 2 x 4
+#&gt;   .metric .estimator .estimate .config
+#&gt;   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 rmse    standard       3.10  Preprocessor1_Model1
+#&gt; 2 rsq     standard       0.741 Preprocessor1_Model1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>finalize_workflow()</code> reads the parameter columns of <code>best_rf</code>, substitutes them for the <code>tune()</code> placeholders inside the workflow, and returns a workflow you can fit. <code>last_fit()</code> then trains on the full training data and scores the test split in one step.</p>
+
+<h2>Compare select_best() with show_best() and the selection helpers</h2>
+
+<p><strong>select_best() is one verb in a four-function pick API.</strong> Each one reads the same metric table but applies a different selection rule.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>Selection rule</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>select_best()</code></td>
+<td>1 row, parameters only</td>
+<td>best mean by metric</td>
+<td>Finalizing with the leader</td>
+</tr>
+<tr>
+<td><code>select_by_one_std_err()</code></td>
+<td>1 row, parameters only</td>
+<td>simpler model within 1 SE</td>
+<td>You want a parsimonious pick</td>
+</tr>
+<tr>
+<td><code>select_by_pct_loss()</code></td>
+<td>1 row, parameters only</td>
+<td>simpler model within X% loss</td>
+<td>You have a metric budget</td>
+</tr>
+<tr>
+<td><code>show_best()</code></td>
+<td>top n rows with metrics</td>
+<td>best mean by metric</td>
+<td>Inspecting the leaderboard</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for <code>select_best()</code> for a straight pick. Use <code>select_by_one_std_err()</code> when you want regularization unless the leader is statistically distinct. Use <code>select_by_pct_loss()</code> when your accuracy budget is a percent number.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three select_best() mistakes account for most stuck pipelines.</strong> Each one below shows the symptom and the fix.</p>
+
+<p>The first is asking for a metric that was not collected during tuning. <code>select_best()</code> checks the name against the run's metric set and stops with an error if it does not match.</p>
+
+<div class="webr-container" data-block-title="The metric name must match metric_set()">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The metric name must match metric_set()</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Wrong: mae is not in metric_set(rmse, rsq)
+select_best(rf_res, metric = &quot;mae&quot;)
+#&gt; Error in `select_best()`:
+#&gt; ! &quot;mae&quot; was not in the metric set. Please choose from: &quot;rmse&quot;, &quot;rsq&quot;
+
+# Right: pick a metric that was collected
+select_best(rf_res, metric = &quot;rsq&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second is passing a quoted string to the tie-breaking column of <code>select_by_one_std_err()</code>. The helpers use NSE like dplyr, so <code>trees</code> is correct and <code>&quot;trees&quot;</code> triggers an error. The third is feeding a <code>show_best()</code> output to <code>finalize_workflow()</code>. That tibble has metric columns that <code>finalize_workflow()</code> does not expect, so it errors. Always call <code>select_best()</code> (or a sibling) before finalizing.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>select_best() returns a one-row tibble, not a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a>.</strong> If you index it with <code>$mtry</code> you get a length-one vector, which is usually what you want. Older code that calls <code>as.list()</code> on the result still works, but the modern pattern is to pass the tibble whole to <code>finalize_workflow()</code>.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Tune a <code>decision_tree()</code> spec on <code>mtcars</code> over <code>tree_depth</code> values 3, 5, and 7, then use <code>select_best()</code> to pick the row with the lowest RMSE. Save the row to <code>ex_pick</code>.</p>
+<div class="webr-container" data-block-title="Your turn: tune and select">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tune and select</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: tune a decision tree and select the best tree_depth
+library(tidymodels)
+set.seed(123)
+
+dt_spec &lt;- decision_tree(tree_depth = tune()) |&gt;
+  set_engine(&quot;rpart&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+dt_wf &lt;- workflow() |&gt;
+  add_formula(mpg ~ .) |&gt;
+  add_model(dt_spec)
+
+dt_folds &lt;- vfold_cv(mtcars, v = 3)
+dt_grid  &lt;- tibble(tree_depth = c(3, 5, 7))
+
+dt_res &lt;- tune_grid(dt_wf, resamples = dt_folds, grid = dt_grid,
+                    metrics = metric_set(rmse))
+
+ex_pick &lt;- # your code here
+
+ex_pick
+#&gt; Expected: a 1-row tibble with tree_depth and .config columns</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_pick &lt;- select_best(dt_res, metric = &quot;rmse&quot;)
+
+ex_pick
+#&gt; # A tibble: 1 x 2
+#&gt;   tree_depth .config
+#&gt;        &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1          5 Preprocessor1_Model2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>select_best()</code> aggregates the per-fold RMSE values into a mean for each <code>tree_depth</code>, picks the smallest, and returns only the parameter columns plus <code>.config</code>. Hand the result to <code>finalize_workflow(dt_wf, ex_pick)</code> to lock the depth in.</p>
+
+</details>
+</section>
+
+<h2>Related tune functions</h2>
+
+<p><strong>select_best() sits at the boundary between tuning and finalization.</strong> These siblings cover the steps on either side.</p>
+
+<ul>
+
+<li><code>show_best()</code> returns the top n rows with metric columns for visual inspection.</li>
+
+<li><code>select_by_one_std_err()</code> picks the simplest model within one standard error of the leader.</li>
+
+<li><code>select_by_pct_loss()</code> picks the simplest model within a percent-loss budget.</li>
+
+<li><code>finalize_workflow()</code> substitutes the picked parameters into the tunable workflow.</li>
+
+<li><code>collect_metrics()</code> returns every metric for every parameter combination for custom analysis.</li>
+
+<li><code>last_fit()</code> trains the finalized workflow and scores the held-out test split.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>Does select_best() work with <a class="auto-link" href="tune-tune_bayes-in-R.html" title="tune tune_bayes() in R: Bayesian Hyperparameter Search">tune_bayes()</a> and <a class="auto-link" href="tune-tune_race_anova-in-R.html" title="tune tune_race_anova() in R: ANOVA Hyperparameter Racing">tune_race_anova()</a>?</strong></p>
+
+<p>Yes. <code>select_best()</code> dispatches on the class of the tuning result, so the same call accepts objects from <code>tune_grid()</code>, <code>tune_bayes()</code>, <code>tune_race_anova()</code>, and <code>tune_race_win_loss()</code>. The shape of the returned row is identical. Racing results sometimes carry fewer candidates because losers were dropped early, but the pick rule is unchanged.</p>
+
+<p><strong>What is the difference between select_best() and select_by_one_std_err()?</strong></p>
+
+<p><code>select_best()</code> picks the row with the best mean metric. <code>select_by_one_std_err()</code> first finds the leader, then walks down candidates ranked by your tie-breaking column and picks the simplest one whose mean still sits within one standard error of the leader. The one-SE rule trades a tiny amount of expected performance for a parsimonious model that is statistically indistinguishable from the leader.</p>
+
+<p><strong>Why does select_best() drop the mean and std_err columns?</strong></p>
+
+<p>The output is shaped to plug directly into <code>finalize_workflow()</code>, which expects only parameter columns and <code>.config</code>. Carrying mean or standard error along would force every downstream consumer to drop them first. For the metric numbers, call <code>show_best(tune_res, n = 1, metric = &quot;rmse&quot;)</code> instead.</p>
+
+<p><strong>Can select_best() return a tie or multiple rows?</strong></p>
+
+<p>No. <code>select_best()</code> always returns exactly one row. When two candidates share the same mean to floating-point precision, the helper breaks the tie by the <a class="auto-link" href="dplyr-arrange-in-R.html" title="dplyr arrange() in R: Sort Rows by Column">order rows</a> appear in <code>collect_metrics()</code>. For a rule-based tie-break, switch to <code>select_by_one_std_err()</code> or <code>select_by_pct_loss()</code> with an unquoted tie-breaking column.</p>
+
+<p><strong>How do I pass the result into finalize_model() instead of finalize_workflow()?</strong></p>
+
+<p>Use <code>finalize_model()</code> when your tuning target is a bare model spec, not a full workflow. The call shape is identical: <code>finalize_model(rf_spec, best_rf)</code> substitutes the tuned arguments into the spec. Choose <code>finalize_workflow()</code> when tunable parameters include preprocessing steps from a recipe, since only a workflow knows about the recipe.</p>
+
+{% endraw %}
