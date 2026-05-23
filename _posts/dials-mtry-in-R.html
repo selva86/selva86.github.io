@@ -1,0 +1,382 @@
+---
+title: "dials mtry() in R: Tune Random Forest Variable Sampling"
+description: "Use dials mtry() in R to set the variable-sampling range for random forest tuning. See finalize(), update(), mtry_prop(), examples, and common pitfalls."
+keywords: "dials mtry, mtry function R, dials mtry examples, R mtry hyperparameter, tune mtry tidymodels, mtry random forest, finalize mtry"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "mtry()|dials mtry|dials::mtry()|tune mtry|finalize mtry"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>dials mtry() in R: Tune Random Forest Variable Sampling</h1>
+
+<p class="lead">The dials mtry() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> defines the integer hyperparameter for the number of predictors randomly sampled at each split in tree ensembles. It returns a parameter object with an unknown upper bound, so you almost always pair it with finalize() to fill in the maximum from your training data before tuning.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>mtry()<span class="qa-cmt">                                   # default range 1L to unknown()</span>
+mtry(range = c(1L, 20L))<span class="qa-cmt">                 # explicit integer range</span>
+finalize(mtry(), train_data)<span class="qa-cmt">             # set upper bound from data</span>
+update(params, mtry = mtry(c(2L, 8L)))<span class="qa-cmt">   # override range in a param set</span>
+mtry_prop()<span class="qa-cmt">                              # proportion variant, no finalize needed</span>
+mtry_long()<span class="qa-cmt">                              # log-scaled variant for wide data</span>
+grid_regular(mtry(c(1L, 10L)), levels = 5)<span class="qa-cmt"> # candidate grid</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is mtry() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">tune predictor count for random forest or boosted trees</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">mtry()</text><text x="125" y="126" class="branch-label">tune as a proportion of predictors instead</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">mtry_prop()</text><text x="125" y="182" class="branch-label">finalize a tuning grid once data is in hand</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">finalize(params, train_x)</text><text x="125" y="238" class="branch-label">set learn rate or shrinkage</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">learn_rate()</text><text x="125" y="294" class="branch-label">set tree depth for boosted trees</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">tree_depth()</text><text x="125" y="350" class="branch-label">set number of trees in the ensemble</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">trees()</text><text x="125" y="406" class="branch-label">update many ranges at once on a workflow</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">extract_parameter_set_dials(wf) |&gt; update(...)</text></svg></div>
+
+<h2>What mtry() does in one sentence</h2>
+
+<p><strong>mtry() returns a dials parameter object, not a numeric value.</strong> It describes the hyperparameter that controls how many predictors are sampled when each split is considered in a random forest or boosted tree. The object carries a range, a label, a transformation (none, by default), and an integer flag, which is enough metadata for <code>grid_regular()</code>, <code>grid_space_filling()</code>, and <code>tune_grid()</code> to build candidate sets and rank them.</p>
+
+<p>The wrinkle that sets mtry() apart from other dials parameters is the upper bound. Most parameters ship with sensible defaults baked in. mtry()'s default is <code>c(1L, unknown())</code> because the maximum sensible value equals the number of columns in your predictor matrix, which dials cannot know until you hand it data. That is why <code>finalize()</code> exists, and it is the call you forget at your peril.</p>
+
+<h2>mtry() syntax and arguments</h2>
+
+<p><strong>The signature is intentionally minimal.</strong></p>
+
+<div class="webr-container" data-block-title="mtry signature and defaults">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">mtry signature and defaults</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dials)
+mtry(range = c(1L, unknown()), trans = NULL)
+#&gt; # Randomly Selected Predictors (quantitative)
+#&gt; Range: [1, ?]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>range</code></td>
+<td>Two-element integer vector. Lower default 1L; upper default <code>unknown()</code> until finalize() fills it in.</td>
+</tr>
+<tr>
+<td><code>trans</code></td>
+<td>A transformation from the scales package, e.g. <code>transform_log()</code>. Almost always NULL for mtry.</td>
+</tr>
+</tbody>
+</table>
+
+<p>The return is a <code>quant_param</code> S3 object. Print it to inspect the range, call <code>value_seq()</code> to generate values, or pass it to <code>grid_*()</code> helpers.</p>
+
+<div class="webr-container" data-block-title="Inspect the parameter object">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the parameter object</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p &lt;- mtry(range = c(2L, 12L))
+p
+#&gt; # Randomly Selected Predictors (quantitative)
+#&gt; Range: [2, 12]
+
+value_seq(p, 4)
+#&gt; [1]  2  5  8 12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Integer flag matters.</strong> dials calls <code>is_unknown()</code> and <code>as.integer()</code> when sampling, so a <code>range = c(1, 20)</code> (doubles) gets coerced. Pass <code>c(1L, 20L)</code> to be explicit and avoid surprises in custom grids.</div></div>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Start with a tunable random forest, then finalize the range, then grid the candidates.</strong></p>
+
+<div class="webr-container" data-block-title="Tunable random forest with tune placeholders">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tunable random forest with tune placeholders</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+data(ames, package = &quot;modeldata&quot;)
+ames &lt;- ames |&gt; mutate(Sale_Price = log10(Sale_Price))
+
+set.seed(42)
+split &lt;- initial_split(ames, prop = 0.8, strata = Sale_Price)
+train &lt;- training(split)
+
+rf_spec &lt;- rand_forest(
+  mtry  = tune(),
+  trees = 500,
+  min_n = tune()
+) |&gt;
+  set_engine(&quot;ranger&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+wf &lt;- workflow() |&gt;
+  add_formula(Sale_Price ~ Gr_Liv_Area + Year_Built + Bldg_Type + Neighborhood) |&gt;
+  add_model(rf_spec)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Extract the parameter set, see the unknown upper bound, then finalize against the training data.</p>
+
+<div class="webr-container" data-block-title="Extract and finalize mtry">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Extract and finalize mtry</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">params &lt;- extract_parameter_set_dials(wf)
+params
+#&gt; Collection of 2 parameters for tuning
+#&gt;  identifier  type    object
+#&gt;        mtry  mtry nparam[?]
+#&gt;       min_n min_n nparam[+]
+#&gt; Parameters needing finalization:
+#&gt;    Randomly Selected Predictors ('mtry')
+
+params &lt;- params |&gt; finalize(train)
+params
+#&gt; Collection of 2 parameters for tuning
+#&gt;  identifier  type    object
+#&gt;        mtry  mtry nparam[+]
+#&gt;       min_n min_n nparam[+]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>nparam[?]</code> flips to <code>nparam[+]</code> once the upper bound is set. Now a regular grid actually has both endpoints.</p>
+
+<div class="webr-container" data-block-title="Regular grid over finalized mtry">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Regular grid over finalized mtry</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtry_grid &lt;- grid_regular(params, levels = c(mtry = 4, min_n = 3))
+mtry_grid
+#&gt; # A tibble: 12 x 2
+#&gt;     mtry min_n
+#&gt;    &lt;int&gt; &lt;int&gt;
+#&gt;  1     1     2
+#&gt;  2     2     2
+#&gt;  3     3     2
+#&gt;  4     4     2
+#&gt;  5     1    21
+#&gt;  ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>You can skip the finalize step entirely by switching to <code>mtry_prop()</code>, which lives on <code>[0, 1]</code> and does not depend on data shape.</p>
+
+<div class="webr-container" data-block-title="Proportion variant avoids finalize">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Proportion variant avoids finalize</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rf_spec2 &lt;- rand_forest(mtry = tune(), trees = 500) |&gt;
+  set_engine(&quot;ranger&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+wf2 &lt;- workflow(Sale_Price ~ Gr_Liv_Area + Year_Built, rf_spec2)
+
+params2 &lt;- extract_parameter_set_dials(wf2) |&gt;
+  update(mtry = mtry_prop(range = c(0.1, 0.9)))
+
+grid_random(params2, size = 5)
+#&gt; # A tibble: 5 x 1
+#&gt;    mtry
+#&gt;   &lt;dbl&gt;
+#&gt; 1 0.231
+#&gt; 2 0.687
+#&gt; ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>mtry() and mtry_prop() are interchangeable knobs into the same model argument.</strong> Both feed <code>rand_forest(mtry = tune())</code>. The choice is whether you want to think in absolute predictor counts (mtry) or share of predictors (mtry_prop). The latter generalizes across datasets, which makes recipes that test multiple data sources feel cleaner.</div></div>
+
+<h2>mtry() versus mtry_prop() and mtry_long()</h2>
+
+<p><strong>Pick by how you reason about the model, not by what the documentation lists first.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Range</th>
+<th>When to reach for it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mtry()</code></td>
+<td><code>[1, p]</code> integer, needs finalize</td>
+<td>You think in absolute predictor counts. Sklearn-style "max_features".</td>
+</tr>
+<tr>
+<td><code>mtry_prop()</code></td>
+<td><code>[0, 1]</code> numeric</td>
+<td>You want a portable range across datasets of different widths.</td>
+</tr>
+<tr>
+<td><code>mtry_long()</code></td>
+<td><code>[1, p]</code> on log2 scale</td>
+<td>Very wide data (hundreds of predictors), where a linear sweep wastes points at the high end.</td>
+</tr>
+</tbody>
+</table>
+
+<p>ranger and xgboost both accept the raw integer behind the scenes; the dials variant just controls how the search space is sampled. A 100-predictor dataset with <code>mtry_long()</code> and 5 levels samples roughly at 1, 4, 10, 32, 100, which spreads coverage on the log scale.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Four mistakes account for most failed <a class="auto-link" href="tune-tune_grid-in-R.html" title="tune tune_grid() in R: Hyperparameter Search on Resamples">tune_grid()</a> calls involving mtry.</strong></p>
+
+<ol>
+
+<li><strong>Forgetting finalize().</strong> <code>grid_regular(params)</code> with an unfinalized mtry returns <code>Error: Some parameters require finalization</code>. Always pipe through <code>finalize(train_predictors)</code> before constructing the grid.</li>
+
+<li><strong>Passing the full data frame including the outcome.</strong> <code>finalize()</code> counts columns. A data frame with the outcome inflates the upper bound by one, which is harmless for trees but confusing in <code>value_seq()</code>. Pass <code>train |&gt; select(-Sale_Price)</code> or a recipe-prepped matrix for clarity.</li>
+
+<li><strong>Mixing mtry() and mtry_prop() in one parameter set.</strong> Only one can occupy the <code>mtry</code> slot of a parsnip spec. If you update from one to the other, the entire <code>mtry</code> parameter object is replaced, not merged.</li>
+
+<li><strong>Treating mtry as numeric in a custom tibble grid.</strong> A grid with <code>mtry = c(0.5, 0.7)</code> will be coerced to integer 0 and 0, silently breaking the run. Use <code>mtry_prop()</code> for fractions or stick to integer values for <code>mtry()</code>.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Default upper bound after finalize includes prepped predictors, not raw columns.</strong> If your recipe uses <code>step_dummy()</code>, one categorical column with five levels expands to four predictor columns. Finalize the parameter set AFTER the recipe is part of the workflow so the upper bound reflects the post-prep predictor count, not the raw frame.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a tunable random forest on iris (3-class classification), finalize a parameter set so mtry has a real upper bound, and produce a 6-point regular grid over mtry and min_n. Print the grid.</p>
+<div class="webr-container" data-block-title="Your turn: finalize mtry on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: finalize mtry on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: finalize mtry on iris
+library(tidymodels)
+
+ex_spec &lt;- rand_forest(mtry = tune(), trees = 200, min_n = tune()) |&gt;
+  set_engine(&quot;ranger&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+ex_wf &lt;- workflow() |&gt;
+  add_formula(Species ~ .) |&gt;
+  add_model(ex_spec)
+
+ex_params &lt;- # your code here
+
+ex_grid &lt;- # your code here
+
+ex_grid
+#&gt; Expected: a 6-row tibble with columns mtry and min_n</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_params &lt;- extract_parameter_set_dials(ex_wf) |&gt;
+  finalize(iris |&gt; select(-Species))
+
+ex_grid &lt;- grid_regular(ex_params, levels = c(mtry = 3, min_n = 2))
+
+ex_grid
+#&gt; # A tibble: 6 x 2
+#&gt;    mtry min_n
+#&gt;   &lt;int&gt; &lt;int&gt;
+#&gt; 1     1     2
+#&gt; 2     2     2
+#&gt; 3     4     2
+#&gt; 4     1    40
+#&gt; 5     2    40
+#&gt; 6     4    40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> iris has four predictors after dropping Species, so finalize() sets the mtry upper bound to 4. The regular grid then spreads three points across mtry and two across min_n, producing the 3 by 2 grid.</p>
+
+</details>
+</section>
+
+<h2>Related tidymodels functions</h2>
+
+<p><strong>mtry() rarely flies solo; the typical call lives inside a short pipeline.</strong></p>
+
+<ul>
+
+<li><code>finalize()</code> to substitute the unknown upper bound with the training data column count.</li>
+
+<li><code>mtry_prop()</code> and <code>mtry_long()</code> for proportion-based and log-scaled variants of the same knob.</li>
+
+<li><code>extract_parameter_set_dials()</code> to pull every tunable parameter from a workflow at once.</li>
+
+<li><code>update()</code> to override one parameter range inside a parameter set without rebuilding the spec.</li>
+
+<li><code>grid_regular()</code>, <code>grid_random()</code>, <code>grid_space_filling()</code> to turn the parameter set into candidate tibbles.</li>
+
+<li><code>tune_grid()</code> to actually fit each candidate across resamples.</li>
+
+</ul>
+
+<p>External reference: the official dials documentation at <a href="https://dials.tidymodels.org/reference/trees.html">dials.tidymodels.org</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is mtry in a random forest?</strong></p>
+
+<p>mtry is the number of predictor variables randomly sampled as candidates at each split point during tree construction. It is the single most important hyperparameter for random forests because it controls the correlation between trees in the ensemble. Lower mtry produces more diverse trees and stronger variance reduction; higher mtry produces stronger individual trees but more correlation. The classic defaults are <code>sqrt(p)</code> for classification and <code>p/3</code> for regression, where p is the number of predictors.</p>
+
+<p><strong>Why does mtry() have an unknown upper bound by default?</strong></p>
+
+<p>Because dials parameter objects are defined before the data is seen. The maximum sensible value for mtry is the number of predictor columns, which depends on the data and any recipe steps that change the column count (<code>step_dummy()</code>, <code>step_pca()</code>, <code>step_zv()</code>). Leaving the upper bound as <code>unknown()</code> forces an explicit <code>finalize()</code> call, which makes the dependency on data shape visible in the code rather than hidden behind a constant.</p>
+
+<p><strong>How is mtry() different from mtry_prop()?</strong></p>
+
+<p>mtry() lives on the integer range <code>[1, p]</code> and tunes the absolute count of sampled predictors. mtry_prop() lives on the numeric range <code>[0, 1]</code> and tunes the proportion. Internally, ranger or xgboost still receives an integer count at fit time, computed as <code>ceiling(mtry_prop * p)</code>. Use mtry_prop() when you want the search space to be portable across datasets of different widths, or when you find proportions easier to reason about than counts.</p>
+
+<p><strong>Do I need to call finalize() if I pass an explicit range to mtry()?</strong></p>
+
+<p>No. <code>mtry(range = c(2L, 10L))</code> is a fully specified parameter object; <code>is_unknown()</code> returns FALSE on both endpoints, and <code>grid_regular()</code> can sample it directly. Use this form when you want to bound the search tighter than the data permits, for example to prevent the model from sampling all predictors and degenerating into a bagged tree ensemble.</p>
+
+<p><strong>Can I tune mtry alongside recipe steps in the same workflow?</strong></p>
+
+<p>Yes. Mark the recipe step with <code>tune()</code> (for example, <code>step_pca(num_comp = tune())</code>) and <code>rand_forest(mtry = tune())</code> in the model spec. <code>extract_parameter_set_dials(wf) |&gt; finalize(train)</code> collects both. Finalize after adding the recipe to the workflow so the mtry upper bound reflects the post-recipe column count, not the raw frame.</p>
+
+{% endraw %}
