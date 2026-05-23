@@ -24,7 +24,8 @@ export interface Env {
   RAZORPAY_WEBHOOK_SECRET: string;
   ZOHO_AUTH_TOKEN: string;
   ZOHO_LIST_KEY: string;
-  RESEND_API_KEY: string;
+  ZOHO_ZEPTOMAIL_TOKEN: string;
+  ZOHO_ZEPTOMAIL_SENDER: string;
   SENTRY_DSN: string;
   ENVIRONMENT: string;
   SITE_ORIGIN: string;

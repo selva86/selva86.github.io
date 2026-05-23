@@ -144,14 +144,18 @@ Re-runnable. The schema uses `IF NOT EXISTS`.
 
 ---
 
-## 7. Resend (transactional email only)
+## 7. Zoho ZeptoMail (transactional email only — NOT Zoho Campaigns)
 
-1. https://resend.com -> Sign up.
-2. Domains -> Add `mail.r-statistics.co`.
-3. Add the 4 DNS records Resend shows (SPF, DKIM x2, DMARC) to Cloudflare DNS for the `r-statistics.co` zone. DMARC starts at `p=none` for 2 weeks then move to `p=reject`.
-4. API Keys -> Create -> `RESEND_API_KEY`.
+ZeptoMail is a separate Zoho product from Campaigns. It handles only transactional sends (magic links, receipts, dunning, cert-ready notifications). The 62k newsletter list stays on Zoho Campaigns.
 
-The 62k newsletter list stays on Zoho. Resend is only for magic links, receipts, dunning, cert "your cert is ready" emails.
+1. https://zeptomail.zoho.com -> Sign in with your existing Zoho account.
+2. Add a Mail Agent -> name it `r-statistics-co-transactional`.
+3. Domains -> Add `mail.r-statistics.co` -> Verify.
+4. Add the DNS records (SPF + DKIM CNAMEs + DMARC) Zoho shows to Cloudflare DNS for the `r-statistics.co` zone. DMARC starts at `p=none` for 2 weeks then move to `p=reject`.
+5. After verification, retrieve the API token: Mail Agent -> SMTP & API Info -> API -> copy the `Zoho-enczapikey ...` token -> `ZOHO_ZEPTOMAIL_TOKEN`.
+6. Sender address: set as `ZOHO_ZEPTOMAIL_SENDER` (e.g. `noreply@mail.r-statistics.co`).
+
+Free tier: 10,000 emails/month, no daily cap (vs Resend's 3k/mo + 100/day).
 
 ---
 
@@ -192,7 +196,8 @@ for s in SUPABASE_URL SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY SUPABASE_JWT_S
          PADDLE_API_KEY PADDLE_WEBHOOK_SECRET \
          RAZORPAY_KEY_ID RAZORPAY_KEY_SECRET RAZORPAY_WEBHOOK_SECRET \
          ZOHO_AUTH_TOKEN ZOHO_LIST_KEY \
-         RESEND_API_KEY SENTRY_DSN; do
+         ZOHO_ZEPTOMAIL_TOKEN ZOHO_ZEPTOMAIL_SENDER \
+         SENTRY_DSN; do
   wrangler pages secret put $s --project-name r-statistics-co
 done
 ```
@@ -204,7 +209,8 @@ $secrets = @(
   'PADDLE_API_KEY','PADDLE_WEBHOOK_SECRET',
   'RAZORPAY_KEY_ID','RAZORPAY_KEY_SECRET','RAZORPAY_WEBHOOK_SECRET',
   'ZOHO_AUTH_TOKEN','ZOHO_LIST_KEY',
-  'RESEND_API_KEY','SENTRY_DSN'
+  'ZOHO_ZEPTOMAIL_TOKEN','ZOHO_ZEPTOMAIL_SENDER',
+  'SENTRY_DSN'
 )
 foreach ($s in $secrets) {
   wrangler pages secret put $s --project-name r-statistics-co
