@@ -1,0 +1,396 @@
+---
+title: "workflows add_variables() in R: Bare Columns, No Formula"
+description: "Use workflows add_variables() in R to attach predictors and outcomes as bare columns to a tidymodels workflow. Syntax, four worked examples, and pitfalls."
+keywords: "workflows add_variables, add_variables function R, workflows add_variables example, tidymodels add_variables, R add_variables, workflows add variables, add_variables tidymodels examples"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "add_variables()|workflows add_variables|workflows::add_variables()|attach variables to workflow|tidy-select predictors"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>workflows add_variables() in R: Bare Columns, No Formula</h1>
+
+<p class="lead">The workflows <code>add_variables()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> attaches outcome and predictor columns to a tidymodels workflow using bare column names and tidy-select helpers. No formula is built, no dummy expansion is forced, so the engine sees the columns exactly as they sit in the data frame.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>workflow() |&gt; add_variables(mpg, c(wt, hp))<span class="qa-cmt">            # bare outcome and predictors</span>
+workflow() |&gt; add_variables(mpg, c(wt, hp, cyl))<span class="qa-cmt">       # multiple predictors as vector</span>
+workflow() |&gt; add_variables(mpg, everything())<span class="qa-cmt">         # all other columns as predictors</span>
+workflow() |&gt; add_variables(mpg, starts_with(&quot;disp&quot;))<span class="qa-cmt">  # tidy-select helper</span>
+workflow() |&gt; add_variables(c(mpg, qsec), c(wt, hp))<span class="qa-cmt">   # multiple outcomes</span>
+add_variables(wf, mpg, c(wt, hp), blueprint = bp)<span class="qa-cmt">      # custom hardhat blueprint</span>
+update_variables(wf, mpg, c(wt, hp, disp))<span class="qa-cmt">             # swap selection in place</span>
+remove_variables(wf)<span class="qa-cmt">                                   # detach the selection</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is add_variables() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">attach bare outcome and predictor columns</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">workflow() |&gt; add_variables(y, c(x1, x2))</text><text x="125" y="126" class="branch-label">attach a formula with interactions or `.`</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">workflow() |&gt; add_formula(y ~ x1 * x2)</text><text x="125" y="182" class="branch-label">attach a recipe with explicit prep steps</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">workflow() |&gt; add_recipe(rec)</text><text x="125" y="238" class="branch-label">select predictors with tidyselect helpers</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">add_variables(wf, y, starts_with(&quot;v_&quot;))</text><text x="125" y="294" class="branch-label">replace the variable selection in place</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">update_variables(wf, y, c(x1, x2, x3))</text><text x="125" y="350" class="branch-label">handle engines that refuse formulas</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">xgboost or lightgbm via add_variables</text></svg></div>
+
+<h2>What add_variables() does</h2>
+
+<p><strong>add_variables() registers a pair of column selections as the preprocessor of a workflow.</strong> It stores one tidy-select expression for the outcome and another for the predictors in the workflow's preprocessor slot. Nothing is computed. The actual column lookup runs inside <code>fit()</code>, <code>fit_resamples()</code>, or <code>tune_grid()</code>, when <code>hardhat::mold()</code> resolves the selections against the training data.</p>
+
+<p>The selections are held as quosures, so anything tidyselect accepts works on either side: bare names, vectors, and helpers like <code>starts_with()</code>, <code>where()</code>, and <code>everything()</code>. Factors stay as factors, character columns stay as character, and no <code>model.matrix()</code> expansion runs unless the engine itself asks for one.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>add_variables() is the "raw columns" preprocessor.</strong> It is the right verb when you want the engine to see the <a class="auto-link" href="R-Data-Frames.html" title="R Data Frames: Every Operation You'll Need, With 10 Real Examples">data frame columns</a> untouched. That matters for tree-based engines that accept categorical predictors natively, for XGBoost where you usually want to control encoding yourself, and for any spec where formula expansion would force unwanted dummy variables.</div></div>
+
+<h2>add_variables() syntax and arguments</h2>
+
+<p><strong>add_variables() takes a workflow, an outcome selection, a predictor selection, and an optional blueprint.</strong> The function dispatches on tidyselect, so the second and third arguments accept anything <code>dplyr::select()</code> would accept.</p>
+
+<div class="webr-container" data-block-title="The add_variables argument skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The add_variables argument skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+
+add_variables(
+  x,                # a workflow object
+  outcomes,         # tidy-select for the outcome column(s)
+  predictors,       # tidy-select for the predictor columns
+  ...,
+  blueprint = NULL  # default_xy_blueprint() object
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>x</code> argument is a <code>workflow()</code> object, usually piped in from <code>workflow()</code>. The <code>outcomes</code> argument accepts a bare name like <code>mpg</code> or a vector like <code>c(mpg, qsec)</code> for multi-outcome specs. The <code>predictors</code> argument accepts any tidy-select expression: <code>c(wt, hp)</code>, <code>everything()</code>, <code>starts_with(&quot;v_&quot;)</code>, and <code>where(is.numeric)</code> all work. The <code>blueprint</code> argument is a <code>hardhat::default_xy_blueprint()</code> object that controls how missing rows are handled at prediction time; the default rarely needs overriding.</p>
+
+<p><strong>add_variables() returns a new workflow.</strong> Like every workflows verb, it is pure and does not mutate its input. Assign the result back to a variable or chain it into the next pipe step.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The selection is stored, not run.</strong> Calling <code>workflows::add_variables()</code> is cheap. The two quosures are held alongside the parsnip spec until the workflow is fit. To preview which columns the selection will pick, evaluate the expressions with <code>tidyselect::eval_select()</code> on the data, outside the workflow.</div></div>
+
+<p><strong>add_variables() is one of three preprocessor verbs in the workflows package.</strong> The right verb depends on how much expansion you want.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Verb</th>
+<th>Preprocessor input</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>add_variables()</code></td>
+<td>Outcome and predictor selections</td>
+<td>Engine handles encoding, or you want raw columns</td>
+</tr>
+<tr>
+<td><code>add_formula()</code></td>
+<td>A model formula <code>y ~ x1 + x2</code></td>
+<td>Need base R formula expansion (<code>*</code>, <code>poly</code>, <code>.</code>)</td>
+</tr>
+<tr>
+<td><code>add_recipe()</code></td>
+<td>A <code>recipe()</code> with explicit steps</td>
+<td>Need imputation, scaling, or custom transforms</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for <code>add_variables()</code> when no transformation is needed and you want the engine to receive the columns exactly as they appear in the source data.</p>
+
+<h2>Build workflows with add_variables(): four examples</h2>
+
+<p><strong>Every example below uses the built-in mtcars and iris datasets</strong> so the focus stays on the variable-selection plumbing rather than on the data.</p>
+
+<h3>Example 1: Bare outcome and predictor names</h3>
+
+<p><strong>The simplest call lists the outcome first and the predictors as a vector.</strong> No quotes, no formula, just column names.</p>
+
+<div class="webr-container" data-block-title="Bare names for outcome and predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Bare names for outcome and predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+
+lin_spec &lt;- linear_reg() |&gt; set_engine(&quot;lm&quot;)
+
+wf_var &lt;- workflow() |&gt;
+  add_variables(outcomes = mpg, predictors = c(wt, hp)) |&gt;
+  add_model(lin_spec)
+
+wf_var
+#&gt; == Workflow ====================================================================
+#&gt; Preprocessor: Variables
+#&gt; Model: linear_reg()
+#&gt;
+#&gt; -- Preprocessor ----------------------------------------------------------------
+#&gt; Outcomes: mpg
+#&gt; Predictors: c(wt, hp)
+#&gt;
+#&gt; -- Model -----------------------------------------------------------------------
+#&gt; Linear Regression Model Specification (regression)
+#&gt;
+#&gt; Computational engine: lm</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The workflow prints <code>Preprocessor: Variables</code> rather than <code>Formula</code> or <code>Recipe</code>, signalling that no formula was built. Calling <code>fit(wf_var, data = mtcars)</code> hands <code>mpg</code>, <code>wt</code>, and <code>hp</code> to <code>lm()</code> as plain columns; <code>lm()</code> then builds its own internal formula because that is what the engine needs, but the workflow itself stays formula-free.</p>
+
+<h3>Example 2: Tidy-select helpers for the predictor set</h3>
+
+<p><strong>Predictor selection accepts every tidyselect helper.</strong> That makes column-pattern selection trivial without listing names by hand.</p>
+
+<div class="webr-container" data-block-title="starts_with and where helpers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">starts_with and where helpers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wf_select &lt;- workflow() |&gt;
+  add_variables(
+    outcomes   = mpg,
+    predictors = c(starts_with(&quot;d&quot;), where(is.numeric) &amp; !mpg)
+  ) |&gt;
+  add_model(linear_reg() |&gt; set_engine(&quot;lm&quot;))
+
+wf_select_fit &lt;- fit(wf_select, data = mtcars)
+
+predict(wf_select_fit, new_data = head(mtcars, 3))
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  22.0
+#&gt; 2  22.0
+#&gt; 3  25.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>starts_with(&quot;d&quot;)</code> part grabs <code>disp</code> and <code>drat</code>. The <code>where(is.numeric) &amp; !mpg</code> part adds every other numeric column, minus the outcome. The two halves combine into one predictor set at fit time. Because the selection is stored as a quosure, it re-evaluates inside each resample, so adding or renaming columns upstream is picked up automatically.</p>
+
+<h3>Example 3: An engine that prefers raw columns</h3>
+
+<p><strong>Some engines refuse formula input and need bare columns.</strong> XGBoost is the canonical case: it expects a numeric matrix and handles its own categorical encoding, so a <code>model.matrix()</code> expansion gets in the way.</p>
+
+<div class="webr-container" data-block-title="add_variables with xgboost">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">add_variables with xgboost</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">xgb_spec &lt;- boost_tree(trees = 50) |&gt;
+  set_engine(&quot;xgboost&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+wf_xgb &lt;- workflow() |&gt;
+  add_variables(outcomes = mpg, predictors = c(wt, hp, disp, cyl)) |&gt;
+  add_model(xgb_spec)
+
+wf_xgb_fit &lt;- fit(wf_xgb, data = mtcars)
+
+predict(wf_xgb_fit, new_data = head(mtcars, 3))
+#&gt; # A tibble: 3 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  20.9
+#&gt; 2  20.9
+#&gt; 3  22.9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>With <code>add_variables()</code>, XGBoost receives the four numeric columns directly and never sees a formula. Swapping in <code>add_formula(mpg ~ wt + hp + disp + cyl)</code> would also work for this engine, but the formula path adds an intercept column and pulls factors through <code>model.matrix()</code>, which is wasted work when the engine already handles encoding internally.</p>
+
+<h3>Example 4: Multiple outcomes in one workflow</h3>
+
+<p><strong>add_variables() accepts more than one outcome column.</strong> That is unusual for <code>add_formula()</code>, where the left side is typically a single response, but tidyselect lets you list a vector.</p>
+
+<div class="webr-container" data-block-title="Two outcome columns at once">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Two outcome columns at once</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">multi_spec &lt;- linear_reg() |&gt; set_engine(&quot;lm&quot;)
+
+wf_multi &lt;- workflow() |&gt;
+  add_variables(outcomes = c(Sepal.Length, Sepal.Width),
+                predictors = c(Petal.Length, Petal.Width)) |&gt;
+  add_model(multi_spec)
+
+wf_multi
+#&gt; == Workflow ====================================================================
+#&gt; Preprocessor: Variables
+#&gt; Model: linear_reg()
+#&gt;
+#&gt; -- Preprocessor ----------------------------------------------------------------
+#&gt; Outcomes: c(Sepal.Length, Sepal.Width)
+#&gt; Predictors: c(Petal.Length, Petal.Width)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Whether the model engine fits multi-outcome regression depends on the engine, not the workflow. With <code>set_engine(&quot;lm&quot;)</code> only the first outcome is used; engines built for multivariate response, like <code>mgcv::gam</code> with a list-formula, can consume the full set. The workflow itself happily records both outcomes and passes them along, leaving the rest to the engine.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>A workflow holds exactly one preprocessor.</strong> These four errors show up most often when picking up <code>add_variables()</code> for the first time.</p>
+
+<div class="webr-container" data-block-title="Four errors and their fixes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Four errors and their fixes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Pitfall 1: mixing a formula and a variable selection
+workflow() |&gt;
+  add_variables(mpg, c(wt, hp)) |&gt;
+  add_formula(mpg ~ wt)
+#&gt; Error: A variables action has already been added to this workflow.
+#&gt; Fix: pick one. add_variables() OR add_formula(), never both.
+
+# Pitfall 2: quoting the column names
+workflow() |&gt; add_variables(&quot;mpg&quot;, c(&quot;wt&quot;, &quot;hp&quot;))
+#&gt; Error in `add_variables()`: Predictors must be a tidy-select expression.
+#&gt; Fix: drop the quotes. add_variables(mpg, c(wt, hp)) works.
+
+# Pitfall 3: column not present in fit data
+wf_typo &lt;- workflow() |&gt;
+  add_variables(MPG, c(wt, hp)) |&gt;
+  add_model(linear_reg() |&gt; set_engine(&quot;lm&quot;))
+fit(wf_typo, data = mtcars)
+#&gt; Error: Can't subset columns that don't exist. Column `MPG` doesn't exist.
+#&gt; Fix: match the exact column name; R is case sensitive.
+
+# Pitfall 4: a predictor selection that also picks the outcome
+workflow() |&gt;
+  add_variables(outcomes = mpg, predictors = everything()) |&gt;
+  add_model(linear_reg() |&gt; set_engine(&quot;lm&quot;)) |&gt;
+  fit(data = mtcars)
+#&gt; Error: Following columns are specified as both predictors and outcomes: mpg.
+#&gt; Fix: exclude the outcome: predictors = !mpg, or use everything() &amp; !mpg.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Tidy-select expressions inside add_variables() re-evaluate against each new dataset.</strong> That is usually a feature, but it bites when the new data has different columns from the training data. A selection like <code>starts_with(&quot;v_&quot;)</code> may pick five columns at fit time and three at predict time, which raises a <code>hardhat::forge()</code> error. Pin the exact column names with <code>c(...)</code> when the column set is stable; reserve helpers for cases where you control both the train and predict frames.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a workflow with <code>workflows::add_variables()</code> that uses <code>Petal.Length</code> as the outcome and the two sepal columns as predictors in the <code>iris</code> dataset, pairs it with a <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a> engine, and fits it. Save the fitted workflow to <code>ex_fit</code>.</p>
+<div class="webr-container" data-block-title="Your turn: add_variables with iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add_variables with iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: add_variables for a linear regression
+library(tidymodels)
+
+ex_fit &lt;- # your code here
+
+predict(ex_fit, new_data = head(iris))
+#&gt; Expected: tibble with 6 .pred values between 1 and 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- workflow() |&gt;
+  add_variables(
+    outcomes   = Petal.Length,
+    predictors = c(Sepal.Length, Sepal.Width)
+  ) |&gt;
+  add_model(linear_reg() |&gt; set_engine(&quot;lm&quot;)) |&gt;
+  fit(data = iris)
+
+predict(ex_fit, new_data = head(iris))
+#&gt; # A tibble: 6 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  2.65
+#&gt; 2  2.36
+#&gt; 3  2.31
+#&gt; 4  2.42
+#&gt; 5  2.71
+#&gt; 6  2.94</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>add_variables()</code> records the two sepal columns as predictors and <code>Petal.Length</code> as the outcome without building a formula. When <code>fit()</code> runs, <code>hardhat::mold()</code> resolves the selections against the <code>iris</code> data and hands plain columns to the <code>lm</code> engine. No interaction or expansion is added, so the linear regression uses exactly two predictors.</p>
+
+</details>
+</section>
+
+<h2>Related workflows functions</h2>
+
+<p><strong>add_variables() is one verb in a small family.</strong> These functions sit beside it in almost every tidymodels script.</p>
+
+<ul>
+
+<li><code>workflow()</code> creates the empty workflow that <code>add_variables()</code> updates.</li>
+
+<li><code>add_model()</code> attaches the parsnip spec that pairs with the variable selection.</li>
+
+<li><code>add_formula()</code> swaps the bare selection for a base R formula preprocessor.</li>
+
+<li><code>add_recipe()</code> swaps the bare selection for a full recipes preprocessor.</li>
+
+<li><code>update_variables()</code> replaces the selection in place without rebuilding the workflow.</li>
+
+<li><code>remove_variables()</code> detaches the selection entirely.</li>
+
+</ul>
+
+<p>See the <a href="https://workflows.tidymodels.org/reference/">workflows package reference</a> for the full verb family.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>When should I use add_variables() instead of add_formula()?</strong></p>
+
+<p>Reach for <code>workflows::add_variables()</code> whenever a formula would force expansion you do not want. Tree-based engines like XGBoost and LightGBM accept categorical predictors natively, so a <code>model.matrix()</code> path wastes work. Use <code>add_variables()</code> when you only need to name columns; pick <code>add_formula()</code> when you need interactions, polynomial terms, or the <code>.</code> shorthand.</p>
+
+<p><strong>Does add_variables() support tidyselect helpers?</strong></p>
+
+<p>Yes. Both <code>outcomes</code> and <code>predictors</code> accept any tidyselect expression: <code>starts_with()</code>, <code>ends_with()</code>, <code>contains()</code>, <code>matches()</code>, <code>where()</code>, <code>everything()</code>, and the <code>&amp;</code>, <code>|</code>, <code>!</code> operators all work. The selections are stored as quosures and resolved at fit time and again at predict time. Pin column names with <code>c(...)</code> when the column set must not drift between train and predict.</p>
+
+<p><strong>Can add_variables() handle multiple outcomes?</strong></p>
+
+<p>Yes, on the workflow side. Passing <code>outcomes = c(y1, y2)</code> records two outcome columns. Whether the engine fits a multi-outcome model depends on the engine. The <code>lm</code> engine uses only the first; engines built for multivariate response can consume the full vector.</p>
+
+<p><strong>How is add_variables() different from add_recipe()?</strong></p>
+
+<p><code>workflows::add_variables()</code> records bare column selections and runs no transformations. <code>add_recipe()</code> records a <code>recipe()</code> with explicit <code>step_*()</code> operations, all of which are re-estimated on each resample. Use <code>add_variables()</code> when no preprocessing is needed; use <code>add_recipe()</code> when imputation, scaling, or other learned steps must stay leak-free across folds.</p>
+
+<p><strong>Can I swap the selection later?</strong></p>
+
+<p>Yes. Use <code>update_variables(wf, new_outcome, new_predictors)</code>. It replaces the selection in the existing workflow without touching the model spec or any fitted state. Calling <code>add_variables()</code> twice on the same workflow fails because the preprocessor slot is already filled.</p>
+
+{% endraw %}
