@@ -1,0 +1,357 @@
+---
+title: "glue single_quote() in R: Wrap Strings for SQL Literals"
+description: "Use glue single_quote() in R to wrap strings and escape embedded apostrophes. Five SQL-literal examples, shQuote() comparison, three common pitfalls, FAQ."
+keywords: "glue single_quote, single_quote function R, glue single_quote examples, R escape single quotes, glue::single_quote, sql string literal R, quote apostrophe R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "single_quote()|glue::single_quote()|glue single_quote|single_quote function|escape single quotes in glue"
+auto_link_case_sensitive: true
+fr_parent: "stringr-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>glue single_quote() in R: Wrap Strings for SQL Literals</h1>
+
+<p class="lead">glue single_quote() wraps each element of a character vector in single quotes and escapes any embedded single quote (apostrophe) with a backslash. It is the SQL-92 standard way to quote a string literal, and it is the helper to reach for when you build SQL WHERE clauses, parsed R expressions, or any text that must contain a quoted literal alongside an apostrophe.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>single_quote(&quot;hi&quot;)<span class="qa-cmt">                            # 'hi'  with surrounding quotes</span>
+single_quote(c(&quot;a&quot;, &quot;b&quot;))<span class="qa-cmt">                     # vectorised over input</span>
+single_quote(&quot;O'Brien&quot;)<span class="qa-cmt">                       # escapes inner apostrophe</span>
+single_quote(NA)<span class="qa-cmt">                              # NA passes through unchanged</span>
+single_quote(&quot;&quot;)<span class="qa-cmt">                              # empty string becomes ''</span>
+single_quote(as.character(c(1, 2)))<span class="qa-cmt">           # coerce numbers first</span>
+paste0(&quot;name = &quot;, single_quote(nm))<span class="qa-cmt">           # build a SQL fragment</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is single_quote() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">wrap a string in escaped single quotes</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">single_quote(x)</text><text x="125" y="126" class="branch-label">wrap in escaped double quotes instead</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">double_quote(x)</text><text x="125" y="182" class="branch-label">wrap a SQL identifier (column or table)</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">backtick(x)</text><text x="125" y="238" class="branch-label">safely interpolate values into SQL</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">glue_sql(&quot;WHERE n = {x}&quot;, .con = con)</text><text x="125" y="294" class="branch-label">build a portable shell argument</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">shQuote(x, type = &quot;sh&quot;)</text><text x="125" y="350" class="branch-label">escape HTML entities, not quotes</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">htmltools::htmlEscape(x)</text><text x="125" y="406" class="branch-label">format an R object as deparsed code</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">deparse(x)</text></svg></div>
+
+<h2>What single_quote() does in one sentence</h2>
+
+<p><strong>single_quote() takes a character vector and returns it with each element wrapped in single quotes and any internal apostrophe escaped with a backslash.</strong> It is a one-line helper exported by the <a class="auto-link" href="glue-glue-in-R.html" title="glue glue() in R: Interpolate Variables Into Strings">glue package</a> and is the underlying machinery behind <a class="auto-link" href="glue-glue_sql-in-R.html" title="glue glue_sql() in R: Safely Interpolate Values Into SQL">glue_sql()</a> when it quotes string literals against a database connection.</p>
+
+<p>The function is vectorised over its input, NA-safe, and changes nothing about the string apart from adding the surrounding <code>&#x27;</code> characters and escaping any inner <code>&#x27;</code>. There is no template syntax, no formatter logic, no connection awareness. Once you reach for <code>paste0(&quot;&#x27;&quot;, x, &quot;&#x27;&quot;)</code> to build SQL or generated R code, single_quote() is the safer replacement because it handles the awkward apostrophe-inside-string case for free.</p>
+
+<div class="webr-container" data-block-title="Load glue and wrap a simple string">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load glue and wrap a simple string</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(glue)
+
+single_quote(&quot;New York&quot;)
+#&gt; [1] &quot;'New York'&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result is a character vector of the same length as the input, with each element padded by single quotes. The outer R-level double quotes you see in the printed output are how R displays a character string; the value itself contains the literal single quotes.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Use single_quote() for VALUES, backtick() for IDENTIFIERS.</strong> SQL uses single quotes to delimit string literals (<code>WHERE name = &#x27;Selva&#x27;</code>) and backticks or double quotes to delimit identifiers like column and table names. Pick the wrapper based on which side of the comparison the text sits on.</div></div>
+
+<h2>Syntax</h2>
+
+<p><strong>The signature is minimal because the job is small.</strong></p>
+
+<div class="webr-container" data-block-title="Function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># single_quote(x)
+#
+# Arguments
+#   x: character vector. NULL, NA, and zero-length input are handled.
+#
+# Returns
+#   character vector the same length as x. Each non-NA element
+#   has '...' added; any internal ' is escaped with \\'.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One argument, no options, output length always matches input length. NA inputs return NA, not the string <code>&#x27;NA&#x27;</code>, which matters when you assemble SQL because the literal text <code>&#x27;NA&#x27;</code> is almost never what you want.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>single_quote() is exported by glue but is independent of glue() itself.</strong> You do not need a template to call it. The function lives alongside double_quote() and backtick() as a small family of string-wrapping primitives.</div></div>
+
+<h2>Common use cases</h2>
+
+<h3>1. Build a SQL WHERE clause for a string column</h3>
+
+<p>The most frequent reason to call single_quote() is to wrap a string value before it slots into a SQL fragment. Single quotes are the SQL-92 standard for string literals, so a portable WHERE clause uses them regardless of database engine.</p>
+
+<div class="webr-container" data-block-title="Quote a value for a SQL WHERE clause">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Quote a value for a SQL WHERE clause</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(glue)
+
+city &lt;- &quot;Chennai&quot;
+clause &lt;- glue(&quot;WHERE city = {single_quote(city)}&quot;)
+clause
+#&gt; WHERE city = 'Chennai'</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The output is a glue object that prints without R-level escaping, so it pastes straight into a SQL string and the database sees a properly quoted literal.</p>
+
+<h3>2. Escape an embedded apostrophe in a name</h3>
+
+<p>Names like <code>O&#x27;Brien</code>, <code>D&#x27;Souza</code>, and <code>Cote d&#x27;Ivoire</code> contain an apostrophe that doubles as the SQL string-literal delimiter. single_quote() escapes that internal apostrophe automatically so you never construct broken SQL.</p>
+
+<div class="webr-container" data-block-title="Escape an apostrophe inside a name">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Escape an apostrophe inside a name</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">single_quote(&quot;O'Brien&quot;)
+#&gt; [1] &quot;'O\\'Brien'&quot;
+
+single_quote(c(&quot;Tom&quot;, &quot;O'Brien&quot;, &quot;D'Souza&quot;))
+#&gt; [1] &quot;'Tom'&quot;      &quot;'O\\'Brien'&quot; &quot;'D\\'Souza'&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The doubled backslash is R's print form for a single backslash plus apostrophe; the on-the-wire SQL receives <code>&#x27;O\&#x27;Brien&#x27;</code>, which most engines accept. For strict SQL-92 doubling (<code>&#x27;O&#x27;&#x27;Brien&#x27;</code>) use glue_sql() with a connection.</p>
+
+<h3>3. Vectorise over a column to build an IN clause</h3>
+
+<p>Because single_quote() is vectorised, you can wrap every element of a column in one call and then collapse the result into a comma-separated IN clause.</p>
+
+<div class="webr-container" data-block-title="Build a SQL IN clause from a character vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a SQL IN clause from a character vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cities &lt;- c(&quot;Chennai&quot;, &quot;Mumbai&quot;, &quot;Bengaluru&quot;)
+quoted &lt;- single_quote(cities)
+quoted
+#&gt; [1] &quot;'Chennai'&quot;   &quot;'Mumbai'&quot;    &quot;'Bengaluru'&quot;
+
+in_clause &lt;- glue(&quot;city IN ({paste(quoted, collapse = ', ')})&quot;)
+in_clause
+#&gt; city IN ('Chennai', 'Mumbai', 'Bengaluru')</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two-step approach (wrap, then collapse) reads more clearly than a nested expression and keeps the quoted vector reusable.</p>
+
+<h3>4. Quote values inside a generated R expression</h3>
+
+<p><strong>Generated R code needs quoted string literals too.</strong> R, like SQL, accepts single quotes around character strings, so single_quote() output drops into a parseable expression unchanged.</p>
+
+<div class="webr-container" data-block-title="Build an R expression as a character string">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build an R expression as a character string</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">group &lt;- &quot;treatment&quot;
+expr_text &lt;- glue(&quot;subset(df, condition == {single_quote(group)})&quot;)
+expr_text
+#&gt; subset(df, condition == 'treatment')</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Pass <code>expr_text</code> to <code>parse(text = expr_text)</code> followed by <code>eval()</code>, or write it into a generated script. The single quotes around <code>treatment</code> make the literal valid <a class="auto-link" href="R-Syntax-101.html" title="R Syntax 101: Write Your First Working Script in 10 Minutes">R syntax</a>.</p>
+
+<h3>5. Pair with glue_sql() for connection-aware quoting</h3>
+
+<p><strong>For production SQL, prefer glue_sql() because it knows the database engine.</strong> single_quote() still shines for offline tests, fixtures, and fragments you splice into a larger template later.</p>
+
+<div class="webr-container" data-block-title="Manual quoting for an offline test fixture">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Manual quoting for an offline test fixture</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fake_value &lt;- single_quote(&quot;Test'value&quot;)
+fragment &lt;- glue(&quot;name = {fake_value}&quot;)
+fragment
+#&gt; name = 'Test\\'value'</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The offline fragment is deterministic and never reaches the database, so it works for assertion tests. Against a live connection, swap to glue_sql() so the engine's preferred escape style takes over.</p>
+
+<h2>single_quote() vs shQuote() and paste0()</h2>
+
+<p><strong>Three <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">R functions</a> can put single quotes around a string, and they are not interchangeable.</strong> Pick the one that matches the consumer of the output.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Best for</th>
+<th>NA handling</th>
+<th>Vectorised</th>
+<th>Escape style</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>glue::single_quote()</code></td>
+<td>SQL string literals, generated R code</td>
+<td>NA in, NA out</td>
+<td>yes</td>
+<td>backslash apostrophe</td>
+</tr>
+<tr>
+<td><code>shQuote(x, type = &quot;sh&quot;)</code></td>
+<td>POSIX shell arguments</td>
+<td>errors on NA</td>
+<td>yes</td>
+<td>POSIX <code>&#x27;\&#x27;&#x27;</code> close-reopen</td>
+</tr>
+<tr>
+<td><code>paste0(&quot;&#x27;&quot;, x, &quot;&#x27;&quot;)</code></td>
+<td>quick demo, no apostrophes ever</td>
+<td>NA becomes <code>&#x27;NA&#x27;</code></td>
+<td>yes</td>
+<td>none, will break on <code>&#x27;</code></td>
+</tr>
+</tbody>
+</table>
+
+<div class="webr-container" data-block-title="Compare the three quoting helpers">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Compare the three quoting helpers</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- &quot;O'Brien&quot;
+
+glue::single_quote(x)
+#&gt; [1] &quot;'O\\'Brien'&quot;
+
+shQuote(x, type = &quot;sh&quot;)
+#&gt; [1] &quot;'O'\\''Brien'&quot;
+
+paste0(&quot;'&quot;, x, &quot;'&quot;)
+#&gt; [1] &quot;'O'Brien'&quot;   # broken: unbalanced quotes</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The shell variant uses the POSIX close-escape-reopen trick: right for <code>system2()</code> arguments, wrong for SQL. The <a class="auto-link" href="base-paste-in-R.html" title="paste() and paste0() in R: Concatenate Strings">paste0()</a> variant looks fine until the data contains an apostrophe, when it silently produces malformed output.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>For SQL, prefer glue_sql() to manual single_quote() once a <a class="auto-link" href="DBI-in-R.html" title="Connect R to Any Database: DBI + RSQLite, RPostgres, and RMySQL">DBI</a> connection is in scope.</strong> glue_sql() routes the escape through the driver, which matches the engine's exact rules (Postgres doubles apostrophes; SQLite uses backslash; SQL Server uses doubling). single_quote() picks one style and lets the engine sort it out, which works for most engines but not for stricter SQL-92 ones.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>NA flows through as NA, not as the string <code>&#x27;NA&#x27;</code>.</strong> Splice that NA into SQL with <code>paste()</code> and you get the literal text <code>NA</code> instead of the keyword <code>NULL</code>. Convert NA explicitly with <code>ifelse(is.na(x), &quot;NULL&quot;, single_quote(x))</code> before assembly.</p>
+
+<p><strong>Numeric input errors.</strong> <code>single_quote(123)</code> fails because the input is not character. Coerce with <code>as.character()</code> first, or skip quoting entirely; SQL accepts numeric literals unquoted and quoting them can defeat numeric indexes.</p>
+
+<p><strong>Backslash escaping is not universal.</strong> Strict SQL-92 engines (PostgreSQL with <code>standard_conforming_strings = on</code>) reject <code>\\&#x27;</code> and require apostrophe doubling. Route through glue_sql() with a live connection on those engines.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Wrap each element of <code>c(&quot;Tom&quot;, &quot;Pat&#x27;s&quot;, &quot;Sam&quot;)</code> in single quotes, then collapse the result into a single comma-separated string suitable for a SQL IN list. Save the final string to <code>ex_in_list</code>.</p>
+<div class="webr-container" data-block-title="Your turn: build a SQL IN list">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build a SQL IN list</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(glue)
+ex_names &lt;- c(&quot;Tom&quot;, &quot;Pat's&quot;, &quot;Sam&quot;)
+
+ex_in_list &lt;- # your code here
+
+ex_in_list
+#&gt; Expected: &quot;'Tom', 'Pat\\'s', 'Sam'&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_in_list &lt;- paste(single_quote(ex_names), collapse = &quot;, &quot;)
+ex_in_list
+#&gt; [1] &quot;'Tom', 'Pat\\'s', 'Sam'&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> single_quote() handles the apostrophe inside <code>Pat&#x27;s</code> automatically, then paste(..., collapse = ", ") joins the quoted vector into the comma-separated form a SQL IN clause expects.</p>
+
+</details>
+</section>
+
+<h2>Related glue functions</h2>
+
+<ul>
+
+<li><code>double_quote(x)</code> wraps in escaped double quotes; pair with this when you need identifier quoting on engines that accept doubles.</li>
+
+<li><code>backtick(x)</code> wraps in backticks; the right choice for SQL identifiers on MySQL and SQLite.</li>
+
+<li><code>glue_sql(.con = con, ...)</code> is the connection-aware template that routes both literal and identifier quoting through the database driver.</li>
+
+<li><code>glue()</code> is the underlying template engine; single_quote() output drops into a glue template without further escaping.</li>
+
+<li><code>as_glue()</code> promotes a plain character to a glue object so print methods render without R-level quoting.</li>
+
+</ul>
+
+<h2>FAQ</h2>
+
+<p><strong>What does glue single_quote() do?</strong></p>
+
+<p>It takes a character vector and returns the same vector with each element wrapped in single quotes and any internal apostrophe escaped with a backslash. The function is exported by the glue package and powers glue_sql() string-literal quoting. It is vectorised, NA-safe, and has no options.</p>
+
+<p><strong>When should I use single_quote() instead of glue_sql()?</strong></p>
+
+<p>Use single_quote() when no live database connection is available (offline tests, fixtures, code generation) or when you assemble a fragment to splice into a larger glue_sql() template later. With a DBI connection in scope, prefer glue_sql() because it routes the escape through the driver.</p>
+
+<p><strong>Why does single_quote("O'Brien") show two backslashes?</strong></p>
+
+<p>The double backslash is R's print representation of a single backslash. The character vector actually holds one backslash followed by one apostrophe inside the surrounding single quotes. Write the value to a file or pass it to cat() and you will see the on-the-wire form, <code>&#x27;O\&#x27;Brien&#x27;</code>, with a single backslash.</p>
+
+<p><strong>Is single_quote() safe against SQL injection?</strong></p>
+
+<p>Not on its own. It handles apostrophe-in-string for many engines but strict SQL-92 engines reject backslash escaping. For untrusted input, route through glue_sql() with a live connection or use parameterised queries via DBI directly.</p>
+
+<p><strong>Does single_quote() work on <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">numeric vectors</a>?</strong></p>
+
+<p>No. It errors on non-character input. Coerce with <code>as.character()</code> first if you really need to quote a number, but usually you should leave numeric columns unquoted because SQL accepts them as numeric literals.</p>
