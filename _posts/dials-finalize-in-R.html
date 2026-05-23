@@ -1,0 +1,354 @@
+---
+title: "dials finalize() in R: Set Tuning Parameter Ranges From Data"
+description: "Use dials finalize() in R to fill unknown tidymodels tuning ranges like mtry from training data. Syntax, workflow examples, recipe handling, pitfalls, FAQ."
+keywords: "dials finalize, finalize function R, dials finalize examples, R finalize tuning parameters, dials finalize mtry, tidymodels finalize parameters, finalize parameter ranges"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "finalize()|dials finalize|dials::finalize()|finalize tuning parameters|finalize parameter ranges"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>dials finalize() in R: Set Tuning Parameter Ranges From Data</h1>
+
+<p class="lead">The dials finalize() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> substitutes data-dependent bounds (mostly the upper bound of mtry) into a parameter object or parameter set, turning unknown ranges into concrete numeric ranges that <a class="auto-link" href="tune-grid_regular-in-R.html" title="dials grid_regular() in R: Build Regular Tuning Grids">grid_regular()</a> and <a class="auto-link" href="tune-tune_grid-in-R.html" title="tune tune_grid() in R: Hyperparameter Search on Resamples">tune_grid()</a> can actually sample.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>finalize(mtry(), train_x)<span class="qa-cmt">                       # single parameter, raw predictors</span>
+finalize(params, train_x)<span class="qa-cmt">                       # full parameter set</span>
+params |&gt; finalize(train |&gt; select(-outcome))<span class="qa-cmt">   # drop outcome first</span>
+finalize(params, bake(prep(rec), new_data = NULL))<span class="qa-cmt"> # post-recipe column count</span>
+extract_parameter_set_dials(wf) |&gt; finalize(train)<span class="qa-cmt"> # straight from a workflow</span>
+finalize(mtry_long(), train_x)<span class="qa-cmt">                  # log-scaled mtry variant</span>
+update(params, mtry = mtry(c(2L, 8L)))<span class="qa-cmt">          # skip finalize with an explicit range</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is finalize() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">fill an unknown upper bound from training data</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">finalize(params, train_x)</text><text x="125" y="126" class="branch-label">set an explicit numeric range without touching data</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">update(params, mtry = mtry(c(1L, 10L)))</text><text x="125" y="182" class="branch-label">inspect what still needs finalization</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">extract_parameter_set_dials(wf)</text><text x="125" y="238" class="branch-label">pull tuning ranges out of a fitted workflow</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">extract_parameter_dials(fit)</text><text x="125" y="294" class="branch-label">swap finalize for a portion-based knob</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">mtry_prop()</text><text x="125" y="350" class="branch-label">finalize one parameter set inside a workflow</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">finalize_workflow(wf, best_params)</text><text x="125" y="406" class="branch-label">finalize many workflows at once</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">workflow_map() with <a class="auto-link" href="tune-control_grid-in-R.html" title="tune control_grid() in R: Configure Grid Search Behavior">control_grid()</a></text></svg></div>
+
+<h2>What finalize() does in one sentence</h2>
+
+<p><strong>finalize() resolves data-dependent endpoints in a dials parameter object.</strong> Most tuning parameters ship with sensible defaults baked in, but mtry, finalize_tree, and a handful of others carry an <code>unknown()</code> upper bound because their maximum depends on the column count of the predictor matrix. finalize() takes the parameter (or a whole parameters set) plus a data frame, calls each parameter's stored finalizer, and returns a copy with the unknowns replaced by integers.</p>
+
+<p>The function is generic. It dispatches on parameter type, so <code>finalize.mtry()</code> reads <code>ncol(x)</code>, <code>finalize.num_comp()</code> reads the same column count for PCA, and parameters with no finalizer pass through unchanged. The output is the same shape as the input, which means you can chain it inside a pipe without restructuring downstream code.</p>
+
+<h2>finalize() syntax and arguments</h2>
+
+<p><strong>The signature is a method with two required arguments.</strong></p>
+
+<div class="webr-container" data-block-title="finalize signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">finalize signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dials)
+finalize(x, ...)
+# S3 generic; methods include:
+#   finalize.parameters(x, x_dat = NULL, force = TRUE, ...)
+#   finalize.list(x, x_dat = NULL, force = TRUE, ...)
+#   finalize.param(x, x_dat = NULL, force = TRUE, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>x</code></td>
+<td>A dials parameter object, a list of parameters, or a <code>parameters</code> set built by <code>extract_parameter_set_dials()</code>.</td>
+</tr>
+<tr>
+<td><code>x_dat</code></td>
+<td>The predictor data used to compute the finalized bound. Pass predictors only, not the outcome column.</td>
+</tr>
+<tr>
+<td><code>force</code></td>
+<td>If TRUE (default), finalize even parameters whose bounds are already known. Set FALSE to only fill unknowns.</td>
+</tr>
+</tbody>
+</table>
+
+<p>The return type matches the input: a <code>param</code> for a single parameter, a <code>parameters</code> tibble for a set. Both print themselves nicely so you can confirm the unknown markers are gone.</p>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Most calls flow inside a tunable workflow rather than against a bare parameter object.</strong></p>
+
+<div class="webr-container" data-block-title="Finalize a single parameter object">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Finalize a single parameter object</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dials)
+data(ames, package = &quot;modeldata&quot;)
+ames &lt;- transform(ames, Sale_Price = log10(Sale_Price))
+set.seed(42)
+train &lt;- ames[sample(nrow(ames), 1500), ]
+
+mtry_param &lt;- mtry()
+mtry_param
+#&gt; # Randomly Selected Predictors (quantitative)
+#&gt; Range: [1, ?]
+
+train_x &lt;- subset(train, select = c(Gr_Liv_Area, Year_Built, Bldg_Type, Neighborhood, Lot_Area))
+mtry_finalized &lt;- finalize(mtry_param, train_x)
+mtry_finalized
+#&gt; # Randomly Selected Predictors (quantitative)
+#&gt; Range: [1, 5]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The upper bound flips from <code>?</code> to the column count of the predictor frame. Inside a real pipeline you almost never call finalize on a single parameter; you call it on the full set pulled from a workflow.</p>
+
+<div class="webr-container" data-block-title="Finalize a parameter set from a workflow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Finalize a parameter set from a workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+
+rf_spec &lt;- rand_forest(mtry = tune(), trees = 500, min_n = tune()) |&gt;
+  set_engine(&quot;ranger&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+wf &lt;- workflow() |&gt;
+  add_formula(Sale_Price ~ Gr_Liv_Area + Year_Built + Bldg_Type + Neighborhood + Lot_Area) |&gt;
+  add_model(rf_spec)
+
+params &lt;- extract_parameter_set_dials(wf)
+params
+#&gt; Collection of 2 parameters for tuning
+#&gt;  identifier  type    object
+#&gt;        mtry  mtry nparam[?]
+#&gt;       min_n min_n nparam[+]
+#&gt; Parameters needing finalization:
+#&gt;    Randomly Selected Predictors ('mtry')
+
+params &lt;- params |&gt; finalize(train)
+params
+#&gt; Collection of 2 parameters for tuning
+#&gt;  identifier  type    object
+#&gt;        mtry  mtry nparam[+]
+#&gt;       min_n min_n nparam[+]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>nparam[?]</code> marker becomes <code>nparam[+]</code>, which is the signal <code>grid_regular()</code> and <code>tune_grid()</code> need before they will run.</p>
+
+<div class="webr-container" data-block-title="Finalize after a recipe with step_dummy">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Finalize after a recipe with step_dummy</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec &lt;- recipe(Sale_Price ~ Gr_Liv_Area + Year_Built + Bldg_Type + Neighborhood, data = train) |&gt;
+  step_dummy(all_nominal_predictors())
+
+wf2 &lt;- workflow() |&gt;
+  add_recipe(rec) |&gt;
+  add_model(rf_spec)
+
+train_baked &lt;- bake(prep(rec), new_data = NULL) |&gt;
+  subset(select = -Sale_Price)
+
+params2 &lt;- extract_parameter_set_dials(wf2) |&gt;
+  finalize(train_baked)
+params2
+#&gt; Collection of 2 parameters for tuning
+#&gt;  identifier  type    object
+#&gt;        mtry  mtry nparam[+]
+#&gt;       min_n min_n nparam[+]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Bldg_Type and Neighborhood expand into many dummy columns after prep, so the finalized upper bound is much larger than the four raw predictor columns. The grid will now sample mtry across the post-prep predictor space, which is what the model actually sees.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>finalize() reads ncol(x) at call time, not at fit time.</strong> Whatever predictor frame you hand in determines the upper bound forever. Pass the same data you expect the model to see, including post-recipe columns when a recipe is in the workflow.</div></div>
+
+<h2>finalize() versus update() and explicit ranges</h2>
+
+<p><strong>Pick by who owns the bound: the data or the analyst.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>When to reach for it</th>
+<th>Trade-off</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>finalize(params, train_x)</code></td>
+<td>The data dictates the bound (mtry, num_comp).</td>
+<td>Couples the search space to the <a class="auto-link" href="rsample-training-in-R.html" title="rsample training() in R: Get the Training Set From a Split">training set</a>; re-finalize per resample if needed.</td>
+</tr>
+<tr>
+<td><code>update(params, mtry = mtry(c(2L, 10L)))</code></td>
+<td>You want a tighter or wider bound than the data implies.</td>
+<td>Explicit and reproducible, but ignores data-driven information.</td>
+</tr>
+<tr>
+<td><code>mtry_prop()</code> instead of <code>mtry()</code></td>
+<td>You want portability across datasets of varying width.</td>
+<td>No finalize needed, but the search space is on <code>[0, 1]</code> rather than counts.</td>
+</tr>
+</tbody>
+</table>
+
+<p>The three are not mutually exclusive. A common pattern is to finalize first to get a sane upper bound, then call update() to shrink the range when you have prior knowledge that the optimum sits in a smaller window.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Four mistakes account for most failed tune_grid() calls that involve finalize.</strong></p>
+
+<ol>
+
+<li><strong>Passing the full data frame with the outcome column.</strong> finalize uses ncol(x), so an outcome column inflates the mtry upper bound by one. Pass predictors only: <code>train |&gt; select(-Sale_Price)</code> or a recipe-baked frame.</li>
+
+<li><strong>Finalizing before adding the recipe to the workflow.</strong> If the recipe uses step_dummy() or step_pca(), the prepped column count differs from the raw one. Either extract the parameter set after <code>add_recipe()</code> and finalize against the baked predictors, or finalize after <code>extract_parameter_set_dials(wf)</code> so the workflow already carries the recipe.</li>
+
+<li><strong>Setting force = FALSE without realizing what is being skipped.</strong> With <code>force = FALSE</code>, finalize touches only parameters that report <code>is_unknown()</code>. If a previous step manually narrowed the range, that narrowed range is preserved, which can silently cap the search.</li>
+
+<li><strong>Forgetting that finalize is a method, not a function on a tibble.</strong> <code>finalize(my_grid, train)</code> errors because finalize dispatches on parameter or parameters classes, not on tibbles. Build the grid AFTER finalize: <code>params |&gt; finalize(train) |&gt; grid_regular(levels = 5)</code>.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Re-finalizing inside a resampling loop is rare but valid.</strong> When each fold has a different recipe (for example, recipe-tuned column-selection steps), the post-prep column count differs per fold. tune_grid handles this internally for built-in recipes, but custom workflows may need an explicit finalize step inside the resampling function. Watch the <code>nparam[?]</code> marker; if it survives extract_parameter_set_dials(), finalize again.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>finalize is package-aware.</strong> Parameters from extension packages (themis, embed, recipeselectors) carry their own finalize methods. Updating dials alone does not retrofit new finalizers onto third-party parameters; update the source package when a new finalize behavior is needed.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a tunable random forest on the iris dataset, extract its parameter set from a workflow, finalize mtry against the four predictor columns, and produce a 6-row regular grid over mtry and min_n.</p>
+<div class="webr-container" data-block-title="Your turn: finalize on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: finalize on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: finalize on iris
+library(tidymodels)
+
+ex_spec &lt;- rand_forest(mtry = tune(), trees = 200, min_n = tune()) |&gt;
+  set_engine(&quot;ranger&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+ex_wf &lt;- workflow() |&gt;
+  add_formula(Species ~ .) |&gt;
+  add_model(ex_spec)
+
+ex_params &lt;- # your code here
+
+ex_grid &lt;- # your code here
+
+ex_grid
+#&gt; Expected: a 6-row tibble with columns mtry and min_n</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_params &lt;- extract_parameter_set_dials(ex_wf) |&gt;
+  finalize(iris |&gt; subset(select = -Species))
+
+ex_grid &lt;- grid_regular(ex_params, levels = c(mtry = 3, min_n = 2))
+
+ex_grid
+#&gt; # A tibble: 6 x 2
+#&gt;    mtry min_n
+#&gt;   &lt;int&gt; &lt;int&gt;
+#&gt; 1     1     2
+#&gt; 2     2     2
+#&gt; 3     4     2
+#&gt; 4     1    40
+#&gt; 5     2    40
+#&gt; 6     4    40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> iris has four predictor columns once Species is dropped. finalize sets the mtry upper bound to 4. grid_regular then spreads three points across mtry and two across min_n for a 3 by 2 grid.</p>
+
+</details>
+</section>
+
+<h2>Related tidymodels functions</h2>
+
+<p><strong>finalize sits at the boundary between parameter specification and grid construction.</strong></p>
+
+<ul>
+
+<li><code>extract_parameter_set_dials()</code> to pull every tunable parameter from a workflow at once.</li>
+
+<li><code>mtry()</code>, <code>mtry_prop()</code>, <code>mtry_long()</code> for the three variants of the predictor-count knob.</li>
+
+<li><code>update()</code> to override one parameter range inside a set without rebuilding the spec.</li>
+
+<li><code>grid_regular()</code>, <code>grid_random()</code>, <code>grid_space_filling()</code> to turn the finalized set into candidate tibbles.</li>
+
+<li><code>tune_grid()</code>, <code>tune_bayes()</code> to actually sample and fit each candidate.</li>
+
+<li><code>finalize_workflow()</code> and <code>finalize_model()</code> to lock in the BEST hyperparameters after tuning (different verb, different stage).</li>
+
+</ul>
+
+<p>External reference: the official dials documentation at <a href="https://dials.tidymodels.org/reference/finalize.html">dials.tidymodels.org/reference/finalize.html</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between finalize() and finalize_workflow()?</strong></p>
+
+<p>They operate at opposite ends of the tuning pipeline. finalize() runs BEFORE tuning: it fills data-dependent bounds in a parameter set so grid construction succeeds. finalize_workflow() runs AFTER tuning: it substitutes the chosen hyperparameter values (typically <code>select_best()</code> output) back into the workflow so it can be fit on the full training set. Same root word, different jobs. Mistaking one for the other is a common beginner error.</p>
+
+<p><strong>Does finalize() change my data?</strong></p>
+
+<p>No. finalize() reads ncol(x) and any other shape statistics it needs, then writes results into the parameter object. The data frame you pass is not modified, not stored inside the parameters, and not referenced again. You can safely pass a temporary slice or even a <code>head(train, 100)</code> since only the column count matters for mtry-style parameters.</p>
+
+<p><strong>Why does extract_parameter_set_dials() still show nparam[?] after I added a recipe?</strong></p>
+
+<p>Because extract_parameter_set_dials() collects parameter objects, not their finalized forms. The recipe defines what the predictors will look like at fit time, but the dials parameters do not auto-finalize when a recipe is attached. You still need an explicit finalize() call against the post-prep data or against the raw training frame if the recipe does not change the predictor count.</p>
+
+<p><strong>Can I finalize a parameter that does not need it?</strong></p>
+
+<p>Yes, and it is safe. The default finalize methods for already-known parameters are no-ops; they return the parameter unchanged. With force = TRUE (the default), even known parameters pass through finalize, which means you can call <code>finalize(params, train)</code> on any parameter set without first checking which ones are unknown. The function is designed to be idempotent on already-finalized inputs.</p>
+
+<p><strong>How do I finalize multiple workflows in a workflowset?</strong></p>
+
+<p>Use <code>option_add(param_info = ...)</code> on the workflow_set, passing a finalized parameter set per workflow, or rely on workflow_map() with <code>tune_grid</code> and a control object that triggers internal finalization. For most cases, building each workflow individually, calling extract_parameter_set_dials() then finalize(), and feeding the finalized set into the workflowset via option_add keeps the search space explicit and reproducible.</p>
+
+{% endraw %}
