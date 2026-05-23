@@ -1,0 +1,320 @@
+---
+title: "var() in R: Sample Variance With NA and Covariance Handling"
+description: "Compute sample variance with base R var(). Covers the n-1 denominator, na.rm, covariance matrices, population variance, pitfalls, and 5 worked examples."
+keywords: "var in R, R var function, base R var, sample variance in R, variance function R, var() with na.rm, population variance R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "base var()|R var function|sample variance in R|var() with na.rm|var() covariance matrix"
+auto_link_case_sensitive: true
+fr_parent: "Descriptive-Statistics-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>var() in R: Sample Variance With NA and Covariance Handling</h1>
+
+<p class="lead">The <code>var()</code> function in base R computes the sample variance of a numeric vector using the unbiased <code>n-1</code> denominator. Pass <code>na.rm = TRUE</code> to ignore missing values, supply a second vector for covariance, or pass a matrix to get a full <a class="auto-link" href="Multivariate-Statistics-in-R.html" title="Multivariate Statistics in R: Distances, Mahalanobis, and Hotelling's T² Demystified">covariance matrix</a>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>var(x)<span class="qa-cmt">                               # sample variance of a vector</span>
+var(x, na.rm = TRUE)<span class="qa-cmt">                 # ignore NA values</span>
+var(x) * (length(x) - 1) / length(x)<span class="qa-cmt"> # population variance (n denominator)</span>
+var(x, y)<span class="qa-cmt">                            # covariance between two vectors</span>
+var(mtcars)<span class="qa-cmt">                          # covariance matrix of a data frame</span>
+sqrt(var(x))<span class="qa-cmt">                         # standard deviation (same as sd(x))</span>
+diag(var(mtcars))<span class="qa-cmt">                    # per-column variances from a frame</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is var() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">sample variance of one numeric vector</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">var(x)</text><text x="125" y="126" class="branch-label">variance ignoring missing values</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">var(x, na.rm = TRUE)</text><text x="125" y="182" class="branch-label">population variance (n denominator)</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">var(x) * (n - 1) / n</text><text x="125" y="238" class="branch-label">standard deviation instead of variance</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">sd(x)</text><text x="125" y="294" class="branch-label">covariance between two vectors</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">cov(x, y) or var(x, y)</text><text x="125" y="350" class="branch-label">correlation, not covariance</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">cor(x, y)</text><text x="125" y="406" class="branch-label">per-column variances of a data frame</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">sapply(df, var)</text></svg></div>
+
+<h2>What var() does in one sentence</h2>
+
+<p><strong>var() returns the sum of squared deviations from the mean divided by n-1 as a single numeric value.</strong> It accepts numeric, integer, and logical vectors (where <code>TRUE = 1</code>). For matrices and data frames, it returns the full sample covariance matrix instead of a single number.</p>
+
+<p>The <code>n-1</code> denominator (Bessel's correction) makes the estimate unbiased when <code>x</code> is a sample drawn from a larger population. R uses sample variance by default; population variance requires a manual adjustment.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>var(x, y = NULL, na.rm = FALSE, use)</code> takes a vector or matrix plus optional second vector and missing-value controls.</strong> When <code>y</code> is supplied, the function returns covariance; when <code>x</code> is a matrix or data frame, it returns a covariance matrix.</p>
+
+<div class="webr-container" data-block-title="Variance of a numeric vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Variance of a numeric vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(2, 4, 6, 8, 10)
+var(x)
+#&gt; [1] 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The four arguments:</p>
+
+<ul>
+
+<li><code>x</code>: numeric vector, matrix, or data frame</li>
+
+<li><code>y</code>: optional second numeric vector for covariance; default <code>NULL</code></li>
+
+<li><code>na.rm</code>: if <code>TRUE</code>, drop <code>NA</code> before computing; default <code>FALSE</code></li>
+
+<li><code>use</code>: how to handle <code>NA</code> in matrix input; one of <code>&quot;everything&quot;</code>, <code>&quot;all.obs&quot;</code>, <code>&quot;complete.obs&quot;</code>, <code>&quot;na.or.complete&quot;</code>, <code>&quot;pairwise.complete.obs&quot;</code></li>
+
+</ul>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Always set <code>na.rm = TRUE</code> for real-world data.</strong> With the default <code>na.rm = FALSE</code>, a single <code>NA</code> makes the entire result <code>NA</code>. This is the most common reason a variance summary silently returns <code>NA</code> and breaks downstream reporting.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Plain sample variance</h3>
+
+<div class="webr-container" data-block-title="Variance of a small vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Variance of a small vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">var(c(1, 2, 3, 4, 5))
+#&gt; [1] 2.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The mean is 3, the squared deviations are <code>(1-3)^2, (2-3)^2, ..., (5-3)^2 = 4, 1, 0, 1, 4</code>. Their sum is 10, divided by <code>n-1 = 4</code> gives 2.5.</p>
+
+<h3>2. Ignore missing values</h3>
+
+<div class="webr-container" data-block-title="Drop NA before computing variance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop NA before computing variance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(10, 20, NA, 30, 40)
+var(x)
+#&gt; [1] NA
+
+var(x, na.rm = TRUE)
+#&gt; [1] 166.6667</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Without <code>na.rm = TRUE</code>, any <code>NA</code> poisons the result. With it, the function drops <code>NA</code> and computes variance from the remaining four values.</p>
+
+<h3>3. Population variance instead of sample variance</h3>
+
+<div class="webr-container" data-block-title="Adjust from sample to population variance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Adjust from sample to population variance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(2, 4, 6, 8, 10)
+n &lt;- length(x)
+
+var(x)                        # sample variance (n - 1 denominator)
+#&gt; [1] 10
+
+var(x) * (n - 1) / n          # population variance (n denominator)
+#&gt; [1] 8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>R has no built-in population variance function. Multiply the sample variance by <code>(n - 1) / n</code> whenever your data represents the entire population, not a sample drawn from one.</p>
+
+<h3>4. Covariance between two vectors</h3>
+
+<div class="webr-container" data-block-title="Variance with a second vector returns covariance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Variance with a second vector returns covariance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">var(mtcars$mpg, mtcars$hp)
+#&gt; [1] -320.7321
+
+cov(mtcars$mpg, mtcars$hp)
+#&gt; [1] -320.7321</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When you pass a second vector, <code>var()</code> returns the sample covariance between the two. This is identical to <code>cov(x, y)</code> and measures how the two variables move together. The negative value confirms that higher horsepower goes with lower miles per gallon in <code>mtcars</code>.</p>
+
+<h3>5. Covariance matrix of a data frame</h3>
+
+<div class="webr-container" data-block-title="Variance of a data frame returns a covariance matrix">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Variance of a data frame returns a covariance matrix</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">var(mtcars[, c(&quot;mpg&quot;, &quot;hp&quot;, &quot;wt&quot;)])
+#&gt;             mpg         hp         wt
+#&gt; mpg   36.324103  -320.7321  -5.116685
+#&gt; hp  -320.732056  4700.8669  44.192661
+#&gt; wt    -5.116685    44.1927   0.957379</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For a matrix or data frame, <code>var()</code> returns a full covariance matrix: variances on the diagonal, pairwise covariances off-diagonal. To get just the per-column variances, use <code>diag(var(df))</code> or <code>sapply(df, var)</code>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>var()</code> is one function with two outputs depending on input shape.</strong> A vector gives a single number (sample variance); a matrix or pair of vectors gives a covariance object. That overloaded behaviour is why <code>var(mtcars)</code> does not return a per-column summary, and why beginners often expect a vector and get a matrix.</div></div>
+
+<h2>var vs sd vs cov vs population variance</h2>
+
+<p><strong>Pick the spread function that matches your need.</strong> The table compares <code>var()</code>, <code>sd()</code>, <code>cov()</code>, and the manual population variance.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>What it computes</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>var(x)</code></td>
+<td>Sample variance (n-1 denominator)</td>
+<td>Default for samples drawn from a population</td>
+</tr>
+<tr>
+<td><code>sd(x)</code></td>
+<td>Sample standard deviation, <code>sqrt(var(x))</code></td>
+<td>Spread in the same units as the data</td>
+</tr>
+<tr>
+<td><code>cov(x, y)</code></td>
+<td>Covariance between two vectors</td>
+<td>How two variables move together</td>
+</tr>
+<tr>
+<td><code>var(x) * (n-1) / n</code></td>
+<td>Population variance (n denominator)</td>
+<td>When <code>x</code> is the entire population, not a sample</td>
+</tr>
+<tr>
+<td><code>sapply(df, var)</code></td>
+<td>Per-column variances of a data frame</td>
+<td>Vector of variances, not a covariance matrix</td>
+</tr>
+</tbody>
+</table>
+
+<p>Sample variance is the right default for almost every applied analysis. Switch to population variance only when you genuinely have the full population (not a sample of it). Use <code>sd()</code> when you want a spread measure on the original scale.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: <code>var()</code> returns <code>NA</code> when any element is <code>NA</code>.</strong> Always set <code>na.rm = TRUE</code> for real-world data. If you forget, summaries silently propagate <code>NA</code> and break tables and plots downstream.</p>
+
+<p><strong>Pitfall 2: <code>var()</code> uses the n-1 denominator, not n.</strong> R reports the unbiased sample estimate. If your textbook formula has <code>n</code> in the denominator, you are computing population variance; multiply the R result by <code>(n - 1) / n</code>.</p>
+
+<p><strong>Pitfall 3: <code>var(df)</code> returns a covariance matrix, not column-wise variances.</strong> To get a vector of per-column variances, use <code>sapply(df, var)</code> or <code>diag(var(df))</code>. Beginners often pass a data frame expecting a per-column summary and get a square matrix instead.</p>
+
+<p><strong>Pitfall 4: <code>var()</code> of a single value returns <code>NA</code>.</strong> With one observation, <code>n - 1 = 0</code> and the division is undefined. Check <code>length(x) &gt; 1</code> before computing if your data may shrink to a single row after filtering.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never confuse <code>var()</code> with population variance in statistical homework.</strong> The <code>n-1</code> denominator is correct for inference from a sample, but most introductory formulas write variance with <code>n</code> in the denominator. Multiply by <code>(n - 1) / n</code> to convert, or use <code>mean((x - mean(x))^2)</code> to compute population variance directly without the correction.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the sample variance of <code>mtcars$mpg</code> for cars with exactly 6 cylinders, ignoring any missing values. Save the result to <code>ex_var_6cyl</code>.</p>
+<div class="webr-container" data-block-title="Your turn: conditional variance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: conditional variance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_var_6cyl &lt;- # your code here
+
+ex_var_6cyl
+#&gt; Expected: about 2.11</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_var_6cyl &lt;- var(mtcars$mpg[mtcars$cyl == 6], na.rm = TRUE)
+ex_var_6cyl
+#&gt; [1] 2.109286</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The subset <code>mtcars$mpg[mtcars$cyl == 6]</code> keeps mpg values only where cylinder count is 6. Passing the filtered vector to <code>var()</code> with <code>na.rm = TRUE</code> returns the sample variance of that subgroup. The same logical-subset pattern powers most "variance of a subgroup" questions in base R.</p>
+
+</details>
+</section>
+
+<h2>Related base R spread functions</h2>
+
+<p>After mastering <code>var()</code>, look at:</p>
+
+<ul>
+
+<li><code>sd()</code>: sample standard deviation, the square root of <code>var()</code></li>
+
+<li><code>cov()</code> and <code>cor()</code>: covariance and correlation between two vectors</li>
+
+<li><code>range()</code>, <code>IQR()</code>, <code>mad()</code>: alternative spread measures</li>
+
+<li><code>summary()</code>: five-number summary plus mean in one call</li>
+
+<li><code>apply(m, 2, var)</code>: per-column variances of a matrix</li>
+
+<li><code>aggregate()</code> and <code>dplyr::summarise()</code>: group-wise variances</li>
+
+</ul>
+
+<p>For a full breakdown of spread, central tendency, and shape measures, see the <a class="auto-link" href="Descriptive-Statistics-in-R.html" title="Descriptive Statistics in R: The 8 Numbers That Tell You What Your Data Is Doing">descriptive statistics</a> in R guide. The official base <a class="auto-link" href="Getting-Help-in-R.html" title="Stuck in R? 6 Ways to Get Unstuck Without Wasting Hours">R documentation</a> lives at the <a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/cor.html">R stats package reference</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I compute variance in R while ignoring missing values?</strong></p>
+
+<p>Pass <code>na.rm = TRUE</code>: <code>var(x, na.rm = TRUE)</code>. By default, <code>var()</code> returns <code>NA</code> if any element of <code>x</code> is <code>NA</code>, which silently propagates into downstream summaries. Always set <code>na.rm = TRUE</code> when working with real-world data, or <a class="auto-link" href="Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html" title="Missing Values in R: Detect, Count, Remove, and Impute NA — Complete Playbook">impute missing values</a> first using a domain-appropriate rule before computing the variance.</p>
+
+<p><strong>What is the difference between var() and sd() in R?</strong></p>
+
+<p><code>var()</code> returns the sample variance (average squared deviation from the mean, with n-1 denominator); <code>sd()</code> returns the sample standard deviation, which is the square root of the variance. They measure the same spread, but <code>sd()</code> is in the same units as the original data while <code>var()</code> is in squared units. Use <code>sd()</code> for reporting, <code>var()</code> when you need the squared quantity for downstream formulas.</p>
+
+<p><strong>Does var() in R use the n or n-1 denominator?</strong></p>
+
+<p>R's <code>var()</code> always uses <code>n - 1</code> (Bessel's correction), giving the unbiased sample variance estimator. For population variance with the <code>n</code> denominator, multiply by <code>(n - 1) / n</code>, or compute <code>mean((x - mean(x))^2)</code> directly. The choice matters most in small samples where the difference between dividing by <code>n</code> and <code>n-1</code> is meaningful.</p>
+
+<p><strong>Why does var() return a matrix when I pass a data frame?</strong></p>
+
+<p>Because <code>var()</code> is overloaded: a vector input returns a scalar variance, a matrix or data frame input returns a full sample covariance matrix with variances on the diagonal and pairwise covariances off-diagonal. To get a simple vector of per-column variances, use <code>sapply(df, var)</code> or <code>diag(var(df))</code> to extract the diagonal of the covariance matrix.</p>
+
+<p><strong>How do I compute the variance of every column in a data frame?</strong></p>
+
+<p>Use <code>sapply(df, var)</code> for a named numeric vector of per-column variances. For numeric-only frames you can also extract the diagonal of the covariance matrix with <code>diag(var(df))</code>. The tidyverse equivalent is <code>dplyr::summarise(across(where(is.numeric), var, na.rm = TRUE))</code> for a one-line column-wise variance with NA handling.</p>
