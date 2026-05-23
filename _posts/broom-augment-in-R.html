@@ -1,0 +1,349 @@
+---
+title: "broom augment() in R: Add Predictions and Residuals"
+description: "Use broom::augment() in R to add fitted values, residuals, leverage, and cluster assignments to your data. Works on lm, glm, kmeans, and survival models."
+keywords: "broom augment, augment function R, broom augment examples, R augment model predictions, augment fitted residuals, broom::augment R, augment regression model"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "augment()|broom augment|broom::augment()|augment fitted values|broom augment residuals"
+auto_link_case_sensitive: true
+fr_parent: "Linear-Regression.html"
+---
+<!-- md2html:generated -->
+
+<h1>broom augment() in R: Add Predictions and Residuals</h1>
+
+<p class="lead">The <code>broom::augment()</code> function adds per-observation predictions, residuals, and diagnostic columns back onto the original data as a <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> frame. It works across <code>lm</code>, <code>glm</code>, <code>kmeans</code>, <code>nls</code>, and many survival objects, so model output flows straight into <code>dplyr</code> and <code>ggplot2</code>.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>augment(lm_fit)<span class="qa-cmt">                                      # .fitted, .resid, .hat, .cooksd</span>
+augment(lm_fit, newdata = new_df)<span class="qa-cmt">                    # predictions on new data</span>
+augment(lm_fit, newdata = new_df, se_fit = TRUE)<span class="qa-cmt">     # add standard errors</span>
+augment(glm_fit, type.predict = &quot;response&quot;)<span class="qa-cmt">          # predicted probabilities</span>
+augment(km_fit, data = iris)<span class="qa-cmt">                         # add .cluster column</span>
+augment(t_test_obj, conf.int = TRUE)<span class="qa-cmt">                 # tidy htest with CI</span>
+augment(fit) |&gt; filter(.cooksd &gt; 4 / n())<span class="qa-cmt">            # flag influential rows</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is augment() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">per-observation fitted and residuals</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">augment(lm_fit)</text><text x="125" y="126" class="branch-label">one-row-per-term coefficient table</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">tidy(lm_fit)</text><text x="125" y="182" class="branch-label">one-row model summary (R-squared, <a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a>)</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">glance(lm_fit)</text><text x="125" y="238" class="branch-label">predictions on brand-new data only</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">predict(lm_fit, newdata = df)</text><text x="125" y="294" class="branch-label">assign cluster IDs to original rows</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">augment(km_fit, data = iris)</text><text x="125" y="350" class="branch-label">formatted regression table for a report</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code"><a class="auto-link" href="Regression-Tables-in-R.html" title="Regression Tables in R: modelsummary vs stargazer vs gtsummary, Which to Use">tbl_regression</a>(fit) from gtsummary</text></svg></div>
+
+<h2>What augment() does in one sentence</h2>
+
+<p><strong><code>augment()</code> rebuilds the input data and bolts on model-derived columns.</strong> Every new column name starts with a dot, so you never overwrite an existing variable. For a linear model you get <code>.fitted</code>, <code>.resid</code>, <code>.hat</code>, <code>.sigma</code>, <code>.cooksd</code>, and <code>.std.resid</code>. For a <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">logistic regression</a> you get fitted probabilities (or link-scale values), <a class="auto-link" href="Chi-Square-Tests-in-R.html" title="Chi-Square Tests in R: Independence, Goodness-of-Fit, With Effect Sizes">Pearson residuals</a>, and deviance residuals. For <code>kmeans</code> you get a <code>.cluster</code> factor.</p>
+
+<p>Because the output is always a tibble with one row per observation, you can pipe straight into <code>dplyr</code> filters, <code>ggplot2</code> geoms, or <code>readr::write_csv()</code> for a downstream report. No more juggling <code>fitted()</code>, <code>residuals()</code>, and <code>model.matrix()</code> to stitch results back together.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>augment()</code> is an S3 generic.</strong> broom dispatches to the right method (<code>augment.lm</code>, <code>augment.glm</code>, <code>augment.kmeans</code>, and many others) based on the model class. Three arguments appear across most methods:</p>
+
+<ul>
+
+<li><code>data</code>: the original training data; broom usually finds it via <code>model.frame()</code>, but pass it explicitly for <code>kmeans</code> or when the call discarded it</li>
+
+<li><code>newdata</code>: a data frame of new observations to predict on; if supplied, residuals are dropped because there is no truth column</li>
+
+<li><code>se_fit</code>: add a <code>.se.fit</code> standard-error column for the fitted values (linear and generalized linear models only)</li>
+
+</ul>
+
+<div class="webr-container" data-block-title="Load broom and fit a linear model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Load broom and fit a linear model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(broom)
+library(dplyr)
+
+lm_fit &lt;- lm(mpg ~ wt + hp, data = mtcars)
+class(lm_fit)
+#&gt; [1] &quot;lm&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>Common patterns</h2>
+
+<h3>1. Diagnostic columns from a linear model</h3>
+
+<div class="webr-container" data-block-title="Augment an lm fit with per-row diagnostics">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Augment an lm fit with per-row diagnostics</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">augment(lm_fit) |&gt; head(3)
+#&gt; # A tibble: 3 x 9
+#&gt;   .rownames       mpg    wt    hp .fitted .resid   .hat .sigma .cooksd
+#&gt;   &lt;chr&gt;         &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;   &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;  &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 Mazda RX4      21    2.62   110    23.6  -2.57 0.0413   2.60  0.0124
+#&gt; 2 Mazda RX4 Wag  21    2.88   110    22.6  -1.59 0.0349   2.61  0.0040
+#&gt; 3 Datsun 710     22.8  2.32    93    25.3  -2.46 0.0552   2.60  0.0148</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The row names of <code>mtcars</code> survive as a <code>.rownames</code> column. Every diagnostic that Base R would normally make you compute with <code>cooks.distance()</code>, <code>hatvalues()</code>, or <code>rstandard()</code> is now a regular column you can filter, group, or plot.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pipe <code>augment()</code> into <code>dplyr::filter()</code> to spot <a class="auto-link" href="Regression-Diagnostics-in-R.html" title="Regression Diagnostics in R: 5 Plots That Reveal Model Violations Instantly">influential observations</a> in one line.</strong> A common rule of thumb is <code>.cooksd &gt; 4 / n()</code>. Wrapping the filter in a single expression keeps the diagnostic logic close to the model and easy to re-run after refitting.</div></div>
+
+<h3>2. Predictions on new data</h3>
+
+<div class="webr-container" data-block-title="Predict on new cars and ask for standard errors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Predict on new cars and ask for standard errors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">new_cars &lt;- data.frame(wt = c(2.5, 3.5), hp = c(100, 200))
+augment(lm_fit, newdata = new_cars, se_fit = TRUE)
+#&gt; # A tibble: 2 x 4
+#&gt;      wt    hp .fitted .se.fit
+#&gt;   &lt;dbl&gt; &lt;dbl&gt;   &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1   2.5   100    24.4   0.654
+#&gt; 2   3.5   200    17.3   1.20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>newdata</code> switches the function into prediction mode. Residual and influence columns drop out (there is no observed <code>mpg</code> to compare against), and <code>se_fit = TRUE</code> adds <code>.se.fit</code> so you can build a 95% <a class="auto-link" href="ggplot2-geom_ribbon-in-R.html" title="ggplot2 geom_ribbon() in R: Filled Area Between Two Lines">confidence band</a> by hand with <code>.fitted +/- 1.96 * .se.fit</code>.</p>
+
+<h3>3. Logistic regression with predicted probabilities</h3>
+
+<div class="webr-container" data-block-title="Augment a glm with response-scale predictions">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Augment a glm with response-scale predictions</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mtcars$am &lt;- as.integer(mtcars$am)
+glm_fit &lt;- glm(am ~ wt + hp, data = mtcars, family = binomial)
+
+augment(glm_fit, type.predict = &quot;response&quot;) |&gt;
+  select(am, .fitted, .resid) |&gt;
+  head(3)
+#&gt; # A tibble: 3 x 3
+#&gt;      am .fitted .resid
+#&gt;   &lt;int&gt;   &lt;dbl&gt;  &lt;dbl&gt;
+#&gt; 1     1   0.547  0.957
+#&gt; 2     1   0.394  1.046
+#&gt; 3     1   0.948  0.225</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>type.predict = &quot;response&quot;</code> returns probabilities on the 0 to 1 scale. The default link-scale values are <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">log-odds</a>, which are harder to read and plot. The residuals stay on the deviance scale, which is what diagnostic plots for logistic regression expect.</p>
+
+<h3>4. K-means cluster assignments</h3>
+
+<div class="webr-container" data-block-title="Augment kmeans to label every iris row with its cluster">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Augment kmeans to label every iris row with its cluster</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">km_fit &lt;- kmeans(iris[, 1:4], centers = 3, nstart = 25)
+
+augment(km_fit, data = iris) |&gt; head(3)
+#&gt; # A tibble: 3 x 6
+#&gt;   Sepal.Length Sepal.Width Petal.Length Petal.Width Species .cluster
+#&gt;          &lt;dbl&gt;       &lt;dbl&gt;        &lt;dbl&gt;       &lt;dbl&gt; &lt;fct&gt;   &lt;fct&gt;
+#&gt; 1          5.1         3.5          1.4         0.2 setosa  2
+#&gt; 2          4.9         3            1.4         0.2 setosa  2
+#&gt; 3          4.7         3.2          1.3         0.2 setosa  2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>You must pass <code>data = iris</code> explicitly because <code>kmeans()</code> does not retain the input matrix. The added <code>.cluster</code> column is a factor with one level per centre, so <code>count(.cluster, Species)</code> immediately shows how well the clusters align with the true species labels.</p>
+
+<h3>5. Diagnostic plot from augmented output</h3>
+
+<div class="webr-container" data-block-title="Residuals vs fitted plot sized by Cook&#x27;s distance">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Residuals vs fitted plot sized by Cook&#x27;s distance</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+augment(lm_fit) |&gt;
+  mutate(label = ifelse(.cooksd &gt; 0.1, .rownames, NA)) |&gt;
+  ggplot(aes(.fitted, .resid)) +
+  geom_point(aes(size = .cooksd), alpha = 0.7) +
+  geom_text(aes(label = label), nudge_x = 1, na.rm = TRUE) +
+  geom_hline(yintercept = 0, linetype = 2) +
+  labs(x = &quot;Fitted mpg&quot;, y = &quot;Residual&quot;)
+#&gt; A scatter of residuals with high-leverage cars labelled</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the same view as <code>plot(lm_fit, which = 1)</code>, but in ggplot2 with a Cook's distance overlay and free-form annotations. Because the data is a tibble, you can layer any other geom, add facets, or colour by another variable in the original frame.</p>
+
+<h2>augment() vs predict() and residuals()</h2>
+
+<p><strong>Three base R tools cover slices of what <code>augment()</code> returns in one call.</strong> Pick by what you need to do next with the output:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Returns</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>predict(fit, newdata)</code></td>
+<td>numeric vector or matrix</td>
+<td>quick scoring loop, model serving</td>
+</tr>
+<tr>
+<td><code>residuals(fit)</code></td>
+<td>numeric vector</td>
+<td>base-R diagnostic plots</td>
+</tr>
+<tr>
+<td><code>broom::augment(fit)</code></td>
+<td>tibble with <code>.fitted</code>, <code>.resid</code>, plus diagnostics</td>
+<td>tidyverse pipelines, ggplot2, CSV export</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for <code>augment()</code> whenever the next step is a <code>dplyr</code> verb, a <code>ggplot2</code> layer, or a CSV write. The base R tools are still useful inside model-fitting loops where you only want one vector, but they force you to bind columns back onto the data by hand.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Augmented output is the join key between modeling and reporting.</strong> Once predictions and residuals sit in a tibble alongside the original predictors and IDs, every dplyr verb, every ggplot geom, and every table layout works without extra plumbing. This is the cost-free upgrade <code>broom</code> gives every legacy <code>lm</code> or <code>glm</code> script.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting <code>data =</code> for kmeans.</strong> <code>kmeans()</code> does not store the input matrix on the fitted object, so <code>augment(km_fit)</code> returns only the cluster vector with no predictor columns. Pass <code>data = iris</code> (or whatever frame you clustered) so the original variables come back attached.</p>
+
+<div class="webr-container" data-block-title="Missing data argument loses the predictors">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Missing data argument loses the predictors</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">augment(km_fit) |&gt; head(2)
+#&gt; # A tibble: 2 x 1
+#&gt;   .cluster
+#&gt;   &lt;fct&gt;
+#&gt; 1 2
+#&gt; 2 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Pitfall 2: leaving glm fitted values on the link scale.</strong> The default <code>type.predict = &quot;link&quot;</code> gives log-odds for logistic regression. Plotted directly, you see a flat-looking line stretching from large negative to large positive values instead of the familiar S-curve. Set <code>type.predict = &quot;response&quot;</code> whenever you want to read or plot probabilities.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>augment()</code> drops rows when the model used <code>na.action = na.omit</code>.</strong> If your training data had <code>NA</code>s in any predictor or response, those rows are absent from the augmented tibble. To keep them aligned with the original frame, refit with <code>na.action = na.exclude</code>. broom honours the model's <code>na.action</code>, so the fix lives upstream of <code>augment()</code>.</div></div>
+
+<p><strong>Pitfall 3: assuming every model class supports <code>augment()</code>.</strong> broom covers around 150 model classes, but the list is not exhaustive. For unsupported objects you get a "no applicable method" error. Run <code>methods(&quot;augment&quot;)</code> or check the reference index on <code>broom.tidymodels.org</code> to confirm support before building a pipeline around it.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit <code>lm(mpg ~ disp, data = mtcars)</code> and use <code>augment()</code> to find cars with Cook's distance greater than <code>4 / nrow(mtcars)</code>. Save the filtered tibble to <code>ex_high_cook</code>.</p>
+<div class="webr-container" data-block-title="Your turn: flag influential rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: flag influential rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: high-influence cars from a simple lm
+ex_high_cook &lt;- # your code here
+
+ex_high_cook |&gt; select(.rownames, mpg, disp, .cooksd)
+#&gt; Expected: 3 to 4 rows with .cooksd above the threshold</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- lm(mpg ~ disp, data = mtcars)
+ex_high_cook &lt;- augment(ex_fit) |&gt;
+  filter(.cooksd &gt; 4 / nrow(mtcars))
+
+ex_high_cook |&gt; select(.rownames, mpg, disp, .cooksd)
+#&gt; # A tibble: 3 x 4
+#&gt;   .rownames           mpg  disp .cooksd
+#&gt;   &lt;chr&gt;             &lt;dbl&gt; &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 Cadillac Fleetwood 10.4  472    0.166
+#&gt; 2 Chrysler Imperial  14.7  440    0.205
+#&gt; 3 Toyota Corolla     33.9   71.1  0.241</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>4 / n</code> is a standard cut-off for Cook's distance. The filter keeps any row whose deletion would meaningfully change the fitted line. Augment makes the rule readable in a single pipeline; the same thing in base R needs <code>cooks.distance(fit)</code> plus manual indexing back to the original rows.</p>
+
+</details>
+</section>
+
+<h2>Related broom functions</h2>
+
+<p>Once <code>augment()</code> is in muscle memory, pair it with:</p>
+
+<ul>
+
+<li><code>tidy()</code>: one-row-per-term coefficient table (the part you cite in writing)</li>
+
+<li><code>glance()</code>: one-row model summary with R-squared, AIC, BIC, and degrees of freedom</li>
+
+<li><code>augment_columns()</code>: internal helper; use <code>augment()</code> instead unless you are writing a new tidier method</li>
+
+<li><code>purrr::map()</code> plus <code>tidyr::nest()</code>: apply <code>augment()</code> to many models in parallel and bind the rows back together</li>
+
+</ul>
+
+<p>For a deeper run through linear models with broom, see the <a href="Linear-Regression.html">linear regression in R</a> walkthrough. The official <a href="https://broom.tidymodels.org/reference/index.html">broom augment reference</a> lists every supported method and its arguments.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does broom augment do in R?</strong></p>
+
+<p><code>broom::augment()</code> returns the original data with extra columns for per-observation model output. For a linear model you get <code>.fitted</code>, <code>.resid</code>, <code>.hat</code>, <code>.sigma</code>, <code>.cooksd</code>, and <code>.std.resid</code>. For a logistic model you get fitted probabilities and Pearson or deviance residuals. Every new column starts with a dot to avoid overwriting your existing variables. The result is a tibble, so it flows into <code>dplyr</code> and <code>ggplot2</code> without further conversion.</p>
+
+<p><strong>How is augment() different from predict()?</strong></p>
+
+<p><code>predict()</code> returns a bare numeric vector or matrix and forces you to bind it back to the data by hand. <code>augment()</code> returns the data and the predictions in a single tibble, plus residuals and <a class="auto-link" href="Multivariate-Outlier-Detection-in-R.html" title="Multivariate Outlier Detection in R: Mahalanobis Distance & Influence">influence diagnostics</a> when applicable. Use <code>predict()</code> inside fitting loops where you only need the numbers; use <code>augment()</code> whenever the next step is a pipeline or a plot.</p>
+
+<p><strong>Does augment work with new data?</strong></p>
+
+<p>Yes. Pass <code>newdata = your_data_frame</code> and broom returns the new rows with <code>.fitted</code> attached. Residuals are dropped because there is no observed response on new data. Add <code>se_fit = TRUE</code> for standard errors so you can build a 95% confidence band as <code>.fitted +/- 1.96 * .se.fit</code>.</p>
+
+<p><strong>Why does augment() add a leading dot to every new column?</strong></p>
+
+<p>To guarantee the new column names never collide with anything in your data. If your data already has a <code>fitted</code> column, broom can still add <code>.fitted</code> without overwriting it. The same convention appears across the rest of the package and across <code>tidymodels</code>, so a dotted name is a reliable signal that a column came from a model fit, not the raw data.</p>
+
+<p><strong>Which models does broom augment support?</strong></p>
+
+<p>Around 150 model classes, including <code>lm</code>, <code>glm</code>, <code>nls</code>, <code>lme4::lmer</code>, <code>survival::coxph</code>, <code>kmeans</code>, <code>prcomp</code>, <code>Mclust</code>, and many <code>htest</code> outputs from base R. Run <code>methods(&quot;augment&quot;)</code> to see the list installed on your machine, or browse the reference index on <code>broom.tidymodels.org</code>. If your model class is missing, fall back to <code>predict()</code> and <code>residuals()</code> or open a feature request on the broom GitHub repo.</p>
