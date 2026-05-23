@@ -1,0 +1,399 @@
+---
+title: "range() in R: Find Min and Max in One Call"
+description: "Use base R range() to return min and max in one call. Covers na.rm, multi-vector input, plot axis limits, dates, normalization, and 3 common pitfalls."
+keywords: "range in R, R range function, base range R, range na.rm, R min and max, range vector R, R range dates"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "range()|base range|base::range()|min and max|R range function"
+auto_link_case_sensitive: true
+fr_parent: "Descriptive-Statistics-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>range() in R: Find Min and Max in One Call</h1>
+
+<p class="lead">The <code>range()</code> function in base R returns a length-2 vector containing the minimum and maximum of one or more numeric, character, or date inputs in a single call. It is the fastest way to get both bounds at once.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>range(x)<span class="qa-cmt">                        # c(min, max)</span>
+range(x, na.rm = TRUE)<span class="qa-cmt">          # ignore NA</span>
+range(x, y, z)<span class="qa-cmt">                  # bounds across many vectors</span>
+diff(range(x))<span class="qa-cmt">                  # spread (max - min)</span>
+range(as.Date(d))<span class="qa-cmt">               # earliest and latest date</span>
+range(c(&quot;apple&quot;, &quot;pear&quot;))<span class="qa-cmt">       # lexical min and max</span>
+plot(x, y, ylim = range(y))<span class="qa-cmt">               # set axis limits</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is range() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">need min and max together</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">range(x)</text><text x="125" y="126" class="branch-label">need only the minimum</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">min(x)</text><text x="125" y="182" class="branch-label">need only the maximum</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">max(x)</text><text x="125" y="238" class="branch-label">need the spread (max - min)</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">diff(range(x))</text><text x="125" y="294" class="branch-label">need full summary (Q1, median, etc.)</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">summary(x)</text><text x="125" y="350" class="branch-label">need bounds across multiple vectors</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">range(x, y, z)</text><text x="125" y="406" class="branch-label">need axis limits for plotting</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">range(y) feeds ylim</text></svg></div>
+
+<h2>What range() does in one sentence</h2>
+
+<p><strong><code>range(x, na.rm = FALSE)</code> returns <code>c(min(x), max(x))</code> as a length-2 vector for any orderable input.</strong> One call replaces two, which matters when you need both bounds for axis limits, normalization, or bin edges in a single line of code.</p>
+
+<p><code>range()</code> accepts numeric, integer, character (lexical order), logical, <code>Date</code>, and <code>POSIXct</code> inputs. It also accepts multiple arguments and pools them, so <code>range(x, y, z)</code> gives you the global minimum and maximum across all three vectors at once. The return type matches the input class, which makes <code>range()</code> safe to pipe into plotting and modelling functions without surprise coercion.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>range(..., na.rm = FALSE, finite = FALSE)</code>. The <code>...</code> accepts one or more vectors of the same orderable type.</strong></p>
+
+<div class="webr-container" data-block-title="Basic range on a numeric vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Basic range on a numeric vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(4, 7, 2, 9, 1, 5)
+
+range(x)
+#&gt; [1] 1 9
+
+min(x); max(x)
+#&gt; [1] 1
+#&gt; [1] 9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first element of the result is the minimum; the second is the maximum. Two arguments worth knowing beyond the input: <code>na.rm = TRUE</code> drops <code>NA</code> values before computing bounds, and <code>finite = TRUE</code> drops <code>NA</code>, <code>NaN</code>, <code>Inf</code>, and <code>-Inf</code>. Setting <code>finite = TRUE</code> implies <code>na.rm = TRUE</code>, so you only need one.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Assign <code>range()</code> to a name to reuse the bounds.</strong> <code>b &lt;- range(x)</code> lets you write <code>b[1]</code> and <code>b[2]</code> later without recomputing. This is the idiomatic pattern for plot axis limits and rescaling. It also doubles the speedup over <code>min()</code> plus <code>max()</code>, since you scan the vector once and reuse the answer.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Both bounds at once</h3>
+
+<div class="webr-container" data-block-title="Replace two calls with one">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Replace two calls with one</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(15, 8, 23, 42, 11, 4)
+
+bounds &lt;- range(x)
+bounds
+#&gt; [1]  4 42
+
+bounds[1]   # min
+#&gt; [1] 4
+
+bounds[2]   # max
+#&gt; [1] 42</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the canonical use case: you want both numbers, and a single call is clearer than <code>c(min(x), max(x))</code>. The result is an ordinary numeric vector, so indexing with <code>[1]</code> and <code>[2]</code> extracts the bounds wherever you need them downstream.</p>
+
+<h3>2. Handling NA values</h3>
+
+<div class="webr-container" data-block-title="na.rm controls NA handling">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">na.rm controls NA handling</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">y &lt;- c(3, NA, 7, 1, NA, 9)
+
+range(y)
+#&gt; [1] NA NA
+
+range(y, na.rm = TRUE)
+#&gt; [1] 1 9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>By default <code>range()</code> propagates <code>NA</code>, returning <code>c(NA, NA)</code>. This is consistent with <code>min()</code> and <code>max()</code> and protects you from silently using corrupt bounds. Set <code>na.rm = TRUE</code> to compute bounds over the non-<a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> only. In production code, always pass <code>na.rm = TRUE</code> explicitly so the intent is visible.</p>
+
+<h3>3. Bounds across multiple vectors</h3>
+
+<div class="webr-container" data-block-title="Pool inputs for a global range">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pool inputs for a global range</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">a &lt;- c(1, 3, 5)
+b &lt;- c(2, 8, 4)
+c &lt;- c(7, 6, 9)
+
+range(a, b, c)
+#&gt; [1] 1 9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Passing several vectors via <code>...</code> is the cleanest way to find global axis limits when comparing series on a shared plot. Internally, R scans the inputs once, avoiding the intermediate allocation of <code>range(c(a, b, c))</code>.</p>
+
+<h3>4. Spread with diff(range())</h3>
+
+<div class="webr-container" data-block-title="diff(range(x)) is the spread">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">diff(range(x)) is the spread</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(10, 25, 4, 18, 30)
+
+diff(range(x))
+#&gt; [1] 26
+
+max(x) - min(x)
+#&gt; [1] 26</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>diff(range(x))</code> and <code>max(x) - min(x)</code> give the same number. The <code>diff()</code> version is one fewer pass over the data; both are fine in practice. Note that the statistics term "range" usually means the spread (a single number), while R's <code>range()</code> function returns the endpoints. This naming mismatch is the most common source of confusion among new R users.</p>
+
+<h3>5. Range on dates</h3>
+
+<div class="webr-container" data-block-title="Earliest and latest dates">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Earliest and latest dates</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">d &lt;- as.Date(c(&quot;2025-03-12&quot;, &quot;2024-11-05&quot;, &quot;2025-08-21&quot;, &quot;2024-06-30&quot;))
+
+range(d)
+#&gt; [1] &quot;2024-06-30&quot; &quot;2025-08-21&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>range()</code> works on <code>Date</code> and <code>POSIXct</code> because they are orderable. The result is the earliest and latest timestamp, which is the data-science default for time-series summaries. The same code applies to <code>POSIXct</code> timestamps; you do not need a special function for date-time data.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>range()</code> is one function call, not two.</strong> It traverses the vector once instead of twice; on a million-element vector that is roughly a 2x speedup over calling <code>min()</code> and <code>max()</code> separately. The difference is invisible in interactive use but matters in tight loops and column-wise summaries.</div></div>
+
+<h2>range() vs min, max, summary, diff</h2>
+
+<p><strong>Four functions sit in the same neighbourhood as <code>range()</code>; each answers a slightly different question.</strong> Pick by what you need to do next with the answer.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>range(x)</code></td>
+<td><code>c(min, max)</code> length-2 vector</td>
+<td>You need both bounds for axis limits, normalization, or bin edges</td>
+</tr>
+<tr>
+<td><code>min(x)</code></td>
+<td>Single value</td>
+<td>You only need the lower bound</td>
+</tr>
+<tr>
+<td><code>max(x)</code></td>
+<td>Single value</td>
+<td>You only need the upper bound</td>
+</tr>
+<tr>
+<td><code>diff(range(x))</code></td>
+<td>Single value</td>
+<td>You need the spread (max - min)</td>
+</tr>
+<tr>
+<td><code>summary(x)</code></td>
+<td>6-number summary</td>
+<td>You need quartiles plus min and max</td>
+</tr>
+</tbody>
+</table>
+
+<p>For machine-learning normalization (<code>(x - min) / (max - min)</code>), <code>range()</code> is the natural choice because you use both numbers once. For <a class="auto-link" href="Exploratory-Data-Analysis-in-R.html" title="EDA in R: A 7-Step Framework That Works on Every Dataset You'll Encounter">exploratory analysis</a> with quartiles, <code>summary()</code> is more informative. For peak detection, <code>which.max()</code> plus <code>which.min()</code> returns positions rather than values.</p>
+
+<h2>Normalization with range()</h2>
+
+<p><strong>Min-max scaling rescales a numeric vector to the [0, 1] interval and <code>range()</code> makes it a one-liner.</strong> This is the most common practical use of <code>range()</code> outside plotting.</p>
+
+<div class="webr-container" data-block-title="Min-max normalization in one expression">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Min-max normalization in one expression</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(15, 8, 23, 42, 11, 4)
+b &lt;- range(x)
+
+x_scaled &lt;- (x - b[1]) / (b[2] - b[1])
+round(x_scaled, 3)
+#&gt; [1] 0.289 0.105 0.500 1.000 0.184 0.000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The smallest value maps to 0; the largest maps to 1; everything else falls between. Saving <code>range()</code> to <code>b</code> avoids two extra scans. For modeling pipelines, prefer <code>scale()</code> for z-score standardization, or <code>caret::preProcess(method = &quot;range&quot;)</code> for a tidy interface.</p>
+
+<h2>Range on character vectors</h2>
+
+<p><strong><code>range()</code> orders strings lexically, the same as <code>sort()</code>.</strong> That gives you the alphabetically first and last entries, which is rarely what you want for free-text but useful for IDs and categorical codes.</p>
+
+<div class="webr-container" data-block-title="Character range is lexical">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Character range is lexical</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">codes &lt;- c(&quot;B12&quot;, &quot;A07&quot;, &quot;C99&quot;, &quot;B03&quot;)
+
+range(codes)
+#&gt; [1] &quot;A07&quot; &quot;C99&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The result follows the locale collation order. For numeric IDs stored as strings (<code>&quot;100&quot;</code>, <code>&quot;99&quot;</code>), lexical order will surprise you (<code>&quot;99&quot;</code> comes after <code>&quot;100&quot;</code>); convert to numeric first with <code>as.numeric()</code>.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting na.rm.</strong> Any <code>NA</code> in the input yields <code>c(NA, NA)</code>. Check with <code>anyNA(x)</code> and pass <code>na.rm = TRUE</code> to ignore missing values.</p>
+
+<p><strong>Pitfall 2: empty input.</strong> <code>range(numeric(0))</code> returns <code>c(Inf, -Inf)</code> with a warning. Guard with <code>if (length(x) &gt; 0)</code> before calling.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong><code>range()</code> on a data frame pools across all columns.</strong> <code>range(df)</code> returns one pair of bounds, not bounds per column. For mixed-type frames, coercion may corrupt the result. Apply <code>range()</code> per column with <code>sapply(df, range)</code> or <code>purrr::map(df, range)</code>.</div></div>
+
+<p><strong>Pitfall 3: Inf in real data.</strong> If the vector contains <code>Inf</code> or <code>-Inf</code> (common after division by zero or floating-point overflow), <code>range()</code> returns them as the bounds. Use <code>range(x, finite = TRUE)</code> to exclude non-finite values.</p>
+
+<h2>Range in plotting workflows</h2>
+
+<p><strong>Setting <code>xlim</code> and <code>ylim</code> with <code>range()</code> is the most common use of the function in practice.</strong> Both base graphics and <a class="auto-link" href="ggplot2-Tutorial-With-R.html" title="ggplot2 Short Tutorial">ggplot2</a> accept a length-2 vector for axis bounds, which is exactly what <code>range()</code> returns.</p>
+
+<div class="webr-container" data-block-title="Use range() to align two plots on the same axis">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use range() to align two plots on the same axis</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- 1:30
+y1 &lt;- cumsum(rnorm(30))
+y2 &lt;- cumsum(rnorm(30))
+
+ylim &lt;- range(y1, y2)
+
+plot(x, y1, type = &quot;l&quot;, ylim = ylim, col = &quot;steelblue&quot;)
+lines(x, y2, col = &quot;tomato&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>By pooling <code>y1</code> and <code>y2</code> into one <code>range()</code> call, both curves fit inside a shared axis. The same idea applies to faceted ggplot2 charts when you want a consistent y-axis across panels: compute <code>range()</code> over the full data and pass it to <code>coord_cartesian(ylim = ...)</code>. For histograms, <code>range()</code> feeds <code>breaks = seq(min, max, length.out = 21)</code> to produce equal-width bins across the data span.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>range()</code> to find the min and max of <code>mtcars$mpg</code>, then compute the spread. Save the bounds to <code>ex_bounds</code> and the spread to <code>ex_spread</code>.</p>
+<div class="webr-container" data-block-title="Your turn: mpg bounds and spread">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: mpg bounds and spread</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_bounds &lt;- # your code here
+ex_spread &lt;- # your code here
+
+ex_bounds
+ex_spread
+#&gt; Expected: c(10.4, 33.9) and 23.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_bounds &lt;- range(mtcars$mpg)
+ex_spread &lt;- diff(ex_bounds)
+
+ex_bounds
+#&gt; [1] 10.4 33.9
+
+ex_spread
+#&gt; [1] 23.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>range()</code> returns both bounds in one call. <code>diff()</code> on a length-2 vector subtracts the first element from the second, giving the spread. Same result as <code>max(mtcars$mpg) - min(mtcars$mpg)</code> but one fewer scan of the vector.</p>
+
+</details>
+</section>
+
+<h2>Related base R functions</h2>
+
+<p>After mastering <code>range()</code>, look at:</p>
+
+<ul>
+
+<li><code>min()</code>, <code>max()</code>: single-bound versions when you only need one end</li>
+
+<li><code>summary()</code>: full 6-number summary including quartiles and the mean</li>
+
+<li><code>quantile()</code>: arbitrary quantiles, not just the bounds</li>
+
+<li><code>diff()</code>: pair with <code>range()</code> to compute the spread</li>
+
+<li><code>pmin()</code>, <code>pmax()</code>: parallel min and max for vector-vs-vector comparison</li>
+
+<li><code>which.min()</code>, <code>which.max()</code>: position of the min or max, not the value</li>
+
+</ul>
+
+<p>For grouped bounds, <code>dplyr::summarise(across(x, list(min = min, max = max)))</code> gives a tidy output with one row per group. For column-wise bounds across a data frame, <code>sapply(df, range)</code> returns a 2-by-N matrix.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does the range() function return in R?</strong></p>
+
+<p><code>range()</code> returns a length-2 numeric (or character, or Date) vector. The first element is the minimum, the second is the maximum. So <code>range(c(4, 1, 7))</code> returns <code>c(1, 7)</code>. It is not a single number; if you need just the spread, wrap it in <code>diff()</code>. The class of the result matches the input, which makes <code>range()</code> safe to feed directly into plotting and modelling functions.</p>
+
+<p><strong>How do I get the range as a single number in R?</strong></p>
+
+<p>Use <code>diff(range(x))</code> or <code>max(x) - min(x)</code>. Both give the spread (max minus min). <code>range()</code> itself returns both bounds. Statistics calls this the range of the data, but R's <code>range()</code> function returns the endpoints, not their difference. The <code>diff(range(x))</code> form scans the vector once instead of twice.</p>
+
+<p><strong>Why does range() return <a class="auto-link" href="R-Special-Values.html" title="R's Four Special Values: NA, NULL, NaN, Inf — What Each One Actually Means">NA in R</a>?</strong></p>
+
+<p>If your vector contains any <code>NA</code> value and you do not set <code>na.rm = TRUE</code>, <code>range()</code> returns <code>c(NA, NA)</code> by default. Pass <code>na.rm = TRUE</code> to ignore missing values: <code>range(x, na.rm = TRUE)</code>. This behaviour is intentional; it forces you to acknowledge missing data. To check before calling, run <code>anyNA(x)</code>.</p>
+
+<p><strong>Can range() handle dates in R?</strong></p>
+
+<p>Yes. <code>range()</code> works on <code>Date</code> and <code>POSIXct</code> vectors because they have a defined order. <code>range(my_dates)</code> returns the earliest and latest date. The output is the same class as the input, so you can feed the result into <code>seq.Date()</code> or <code>xlim</code> for a time-series chart. Character dates need conversion first with <code>as.Date()</code>.</p>
+
+<p><strong>Is range() faster than min() and max() separately?</strong></p>
+
+<p>Yes, by roughly 2x on large <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">numeric vectors</a>. <code>range()</code> makes one pass through the data; calling <code>min()</code> and <code>max()</code> separately makes two. The difference is invisible on small data and meaningful on millions of elements. For specialized <a class="auto-link" href="R-Matrices.html" title="R Matrices: Fast Linear Algebra Operations That Data Frames Can't Do">matrix operations</a>, <code>matrixStats::rowRanges()</code> and <code>colRanges()</code> are even faster than <code>apply(m, 1, range)</code>.</p>
