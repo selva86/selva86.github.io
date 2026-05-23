@@ -1,0 +1,387 @@
+---
+title: "dials tree_depth() in R: Tune Decision Tree Depth"
+description: "Use dials tree_depth() in R to set the depth range for decision and boosted trees in tidymodels. Defaults, engine quirks, min_n interaction, pitfalls."
+keywords: "dials tree_depth, tree_depth function R, dials tree_depth examples, R tree_depth hyperparameter, tune tree depth tidymodels, dials::tree_depth, boosted tree depth"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "tree_depth()|dials tree_depth|dials::tree_depth()|tune tree depth|tree depth parameter"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>dials tree_depth() in R: Tune Decision Tree Depth</h1>
+
+<p class="lead">The dials tree_depth() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> defines the integer hyperparameter for the maximum depth of a single tree. It ships with a finalized range of 1 to 15 by default, so you can pipe it straight into a tuning grid without calling finalize() first.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>tree_depth()<span class="qa-cmt">                                  # default range 1L to 15L</span>
+tree_depth(range = c(3L, 10L))<span class="qa-cmt">                # explicit narrower band</span>
+tree_depth(trans = transform_log2())<span class="qa-cmt">          # log-scaled depth search</span>
+update(params, tree_depth = tree_depth(c(2L, 8L)))<span class="qa-cmt"> # override in a param set</span>
+grid_regular(tree_depth(c(2L, 12L)), levels = 6)<span class="qa-cmt">   # candidate depths</span>
+decision_tree(tree_depth = tune())<span class="qa-cmt">            # tune CART depth</span>
+boost_tree(tree_depth = tune(), trees = tune())<span class="qa-cmt"> # boosting depth + count</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is tree_depth() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">tune the max depth of a single tree</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">tree_depth()</text><text x="125" y="126" class="branch-label">tune the minimum node size that stops splitting</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">min_n()</text><text x="125" y="182" class="branch-label">tune the cost-complexity pruning parameter</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">cost_complexity()</text><text x="125" y="238" class="branch-label">tune the number of trees in the ensemble</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">trees()</text><text x="125" y="294" class="branch-label">tune the boosting shrinkage per round</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">learn_rate()</text><text x="125" y="350" class="branch-label">tune predictors sampled at each split</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">mtry()</text><text x="125" y="406" class="branch-label">finalize a data-dependent range like mtry</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">finalize(params, train_x)</text></svg></div>
+
+<h2>What tree_depth() does in one sentence</h2>
+
+<p><strong>tree_depth() returns a dials parameter object describing the maximum levels a single tree may grow, not a numeric value.</strong> It is the knob you tune when you mark <code>tree_depth = tune()</code> inside <code>decision_tree()</code>, <code>boost_tree()</code>, <code>bag_tree()</code>, or <code>bart()</code>. A shallow tree underfits; a deep tree overfits. The right depth depends on signal-to-noise in the predictors and on whether the tree stands alone or sits inside an ensemble.</p>
+
+<p>The function sits next to <code>trees()</code>, <code>min_n()</code>, <code>mtry()</code>, and <code>learn_rate()</code> in the dials family. Its upper bound does not depend on the training data, so the default <code>c(1L, 15L)</code> is usable without finalize.</p>
+
+<h2>tree_depth() syntax and arguments</h2>
+
+<p><strong>The signature is two arguments and no surprises.</strong></p>
+
+<div class="webr-container" data-block-title="tree_depth signature and defaults">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">tree_depth signature and defaults</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dials)
+tree_depth(range = c(1L, 15L), trans = NULL)
+#&gt; Tree Depth (quantitative)
+#&gt; Range: [1, 15]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>range</code></td>
+<td>Two-element integer vector. Default <code>c(1L, 15L)</code>. Narrow it for boosting (2 to 8 is common); widen it for a stand-alone CART you plan to prune later.</td>
+</tr>
+<tr>
+<td><code>trans</code></td>
+<td>Optional scales transformation. Use <code>transform_log2()</code> when you want to sweep depths 1, 2, 4, 8, 16 with even resolution. NULL by default.</td>
+</tr>
+</tbody>
+</table>
+
+<p>The return is a <code>quant_param</code> S3 object with class <code>c(&quot;quant_param&quot;, &quot;param&quot;)</code>. Print it to inspect, call <code>value_seq()</code> to draw points, or pass it to a <code>grid_*()</code> helper to expand a search space.</p>
+
+<div class="webr-container" data-block-title="Inspect the parameter object">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the parameter object</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p &lt;- tree_depth(range = c(2L, 10L))
+p
+#&gt; Tree Depth (quantitative)
+#&gt; Range: [2, 10]
+
+value_seq(p, 5)
+#&gt; [1]  2  4  6  8 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Integer flag matters.</strong> dials samples on integers and coerces doubles silently, so <code>range = c(2, 10)</code> works but <code>c(2.5, 10.5)</code> quietly truncates. Use the <code>L</code> suffix to make integer intent explicit and avoid grid drift.</div></div>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Decision trees, boosted trees, and bagged trees all take tree_depth(), but the sensible ranges differ sharply.</strong></p>
+
+<p>A stand-alone CART benefits from depth as a structural cap that interacts with the pruning step. A wide range here is fine because cost_complexity() does the bias-variance balancing.</p>
+
+<div class="webr-container" data-block-title="Tunable CART with tree_depth and cost_complexity">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tunable CART with tree_depth and cost_complexity</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+data(ames, package = &quot;modeldata&quot;)
+ames &lt;- ames |&gt; mutate(Sale_Price = log10(Sale_Price))
+
+set.seed(42)
+split &lt;- initial_split(ames, prop = 0.8, strata = Sale_Price)
+train &lt;- training(split)
+
+cart_spec &lt;- decision_tree(
+  tree_depth      = tune(),
+  cost_complexity = tune(),
+  min_n           = tune()
+) |&gt;
+  set_engine(&quot;rpart&quot;) |&gt;
+  set_mode(&quot;regression&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container" data-block-title="Build a CART-friendly grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a CART-friendly grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cart_params &lt;- extract_parameter_set_dials(cart_spec) |&gt;
+  update(tree_depth = tree_depth(c(2L, 12L)))
+
+grid_cart &lt;- grid_regular(cart_params, levels = c(tree_depth = 4, cost_complexity = 3, min_n = 2))
+head(grid_cart)
+#&gt; # A tibble: 6 x 3
+#&gt;   cost_complexity tree_depth min_n
+#&gt;             &lt;dbl&gt;      &lt;int&gt; &lt;int&gt;
+#&gt; 1    0.0000000001          2     2
+#&gt; 2    0.00000316            2     2
+#&gt; 3    0.1                   2     2
+#&gt; 4    0.0000000001          5     2
+#&gt; 5    0.00000316            5     2
+#&gt; 6    0.1                   5     2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Boosted trees want a much tighter range. Each tree corrects the residuals from the previous round, so shallow trees (depth 3 to 6) typically outperform deep ones. xgboost defaults to depth 6 for this reason.</p>
+
+<div class="webr-container" data-block-title="Boosted tree spec with shallow depth">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Boosted tree spec with shallow depth</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">xgb_spec &lt;- boost_tree(
+  tree_depth = tune(),
+  trees      = tune(),
+  learn_rate = tune()
+) |&gt;
+  set_engine(&quot;xgboost&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+xgb_params &lt;- extract_parameter_set_dials(xgb_spec) |&gt;
+  update(
+    tree_depth = tree_depth(c(2L, 8L)),
+    trees      = trees(c(100L, 1000L)),
+    learn_rate = learn_rate(c(-3, -1))
+  )
+
+grid_xgb &lt;- grid_space_filling(xgb_params, size = 12)
+head(grid_xgb, 3)
+#&gt; # A tibble: 3 x 3
+#&gt;   tree_depth trees learn_rate
+#&gt;        &lt;int&gt; &lt;int&gt;      &lt;dbl&gt;
+#&gt; 1          2   100    0.00794
+#&gt; 2          5   523    0.0501 
+#&gt; 3          8   918    0.158</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For a stand-alone CART or a bagged ensemble where you want to scan order-of-magnitude depths, log2 spreads candidates more evenly than a linear sweep.</p>
+
+<div class="webr-container" data-block-title="Log2-scaled depth range">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Log2-scaled depth range</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">depth_log &lt;- tree_depth(range = c(2L, 16L), trans = transform_log2())
+value_seq(depth_log, 5)
+#&gt; [1]  2  3  6 10 16</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The log2 schedule samples both shallow and deep candidates without burning grid points on adjacent integers.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Shallow boosted trees, deep bagged trees.</strong> Boosting relies on weak learners adding small corrections, so depths 3 to 6 hit the sweet spot; deeper boosted trees overfit fast. Bagging and random forests use deep, decorrelated trees averaged together, so depths 10+ are normal. The right tree_depth() range depends entirely on whether the trees are correcting each other (boosting) or voting independently (bagging).</div></div>
+
+<h2>tree_depth() versus min_n() and cost_complexity()</h2>
+
+<p><strong>Three knobs cap how complex a single tree can get; they apply in different ways.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Knob</th>
+<th>What it controls</th>
+<th>How it caps complexity</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tree_depth()</code></td>
+<td>Maximum levels from root to leaf</td>
+<td>Hard ceiling on tree height. Stops splits beyond depth N.</td>
+</tr>
+<tr>
+<td><code>min_n()</code></td>
+<td>Minimum samples needed to consider a split</td>
+<td>Stops splits when a node holds too few rows to justify branching.</td>
+</tr>
+<tr>
+<td><code>cost_complexity()</code></td>
+<td>Penalty on tree size during pruning</td>
+<td>Prunes back after fitting; bigger penalty = smaller final tree.</td>
+</tr>
+</tbody>
+</table>
+
+<p>For boosted trees, <code>tree_depth()</code> is the cleanest knob because each round produces a fresh tree from scratch. min_n() also works but ranges are engine-dependent. cost_complexity() does not apply to xgboost or lightgbm at all; it is an rpart concept.</p>
+
+<p>For <a class="auto-link" href="parsnip-decision_tree-in-R.html" title="parsnip decision_tree() in R: Build Tree-Based Models">decision_tree()</a> with rpart, all three cooperate: tree_depth() and min_n() cap the unpruned tree, then cost_complexity() prunes it back. Tuning depth alone with the rpart default of cost_complexity = 0.01 often gives a tree that is shorter than your tree_depth() ceiling because pruning kicks in first.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Four mistakes cause most tree_depth() tuning runs to settle at suboptimal values.</strong></p>
+
+<ol>
+
+<li><strong>Using boosting depth ranges for a stand-alone CART.</strong> A CART with <code>tree_depth(c(2L, 6L))</code> underfits unless cost_complexity does the heavy lifting. Stand-alone trees usually need depths 8 to 20.</li>
+
+<li><strong>Using CART depth ranges for boosted trees.</strong> A boosted ensemble with depths 12 to 20 overfits aggressively; deep boosted trees combine into a high-variance model. Cap boosting depth at 8.</li>
+
+<li><strong>Tuning tree_depth() in random forests without checking engine support.</strong> <code>ranger</code> exposes <code>tree.depth</code> only in recent versions; <code>randomForest</code> ignores max-depth entirely. Check <code>show_engines(&quot;rand_forest&quot;)</code> before assuming tree_depth() applies.</li>
+
+<li><strong>Forgetting that depth 1 means a stump.</strong> <code>tree_depth(c(1L, 15L))</code> includes single-split trees as a candidate. For boosting, stumps are a real strategy. For a stand-alone CART they are rarely useful; lift the lower bound to 3 or 4.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>xgboost ignores tree_depth() when grow_policy is "lossguide".</strong> xgboost has two tree-growth policies. Under the default <code>&quot;depthwise&quot;</code>, the <code>max_depth</code> parameter (set by tree_depth()) caps tree height as expected. Under <code>&quot;lossguide&quot;</code>, xgboost grows leaf-wise and uses <code>max_leaves</code> instead; max_depth is set to 0 internally and tree_depth() has no effect. If you switch grow_policy, tune <code>max_leaves</code> via a custom parameter object, not tree_depth().</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a tunable boosted tree spec for the diamonds dataset, set the tree_depth range to 3 to 8 and trees to 200 to 800, and produce a 6-candidate space-filling grid. Print the grid.</p>
+<div class="webr-container" data-block-title="Your turn: tune tree_depth and trees">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tune tree_depth and trees</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: build a boosted-tree grid
+library(tidymodels)
+data(diamonds, package = &quot;ggplot2&quot;)
+
+ex_spec &lt;- boost_tree(tree_depth = tune(), trees = tune()) |&gt;
+  set_engine(&quot;xgboost&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+ex_params &lt;- # your code here
+
+ex_grid &lt;- # your code here
+
+ex_grid
+#&gt; Expected: a 6-row tibble with columns tree_depth and trees</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_params &lt;- extract_parameter_set_dials(ex_spec) |&gt;
+  update(
+    tree_depth = tree_depth(c(3L, 8L)),
+    trees      = trees(c(200L, 800L))
+  )
+
+set.seed(1)
+ex_grid &lt;- grid_space_filling(ex_params, size = 6)
+
+ex_grid
+#&gt; # A tibble: 6 x 2
+#&gt;   tree_depth trees
+#&gt;        &lt;int&gt; &lt;int&gt;
+#&gt; 1          3   320
+#&gt; 2          4   680
+#&gt; 3          5   440
+#&gt; 4          6   200
+#&gt; 5          7   800
+#&gt; 6          8   560</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>update()</code> overrides the default ranges for both parameters in the extracted set. <code>grid_space_filling()</code> spreads six candidates so tree_depth steps through integer levels and trees fills the count range with maximum spread.</p>
+
+</details>
+</section>
+
+<h2>Related tidymodels functions</h2>
+
+<p><strong>tree_depth() rarely flies solo; it lives inside a short, predictable pipeline.</strong></p>
+
+<ul>
+
+<li><code>trees()</code> to tune the ensemble size alongside individual tree depth.</li>
+
+<li><code>min_n()</code> to set the minimum samples that still trigger a split.</li>
+
+<li><code>cost_complexity()</code> to tune rpart pruning after the depth cap is hit.</li>
+
+<li><code>learn_rate()</code> to tune the boosting shrinkage when each tree is shallow.</li>
+
+<li><code>mtry()</code> to tune predictor sampling at each split inside a forest.</li>
+
+<li><code>extract_parameter_set_dials()</code> to pull every tunable parameter from a workflow at once.</li>
+
+<li><code>update()</code> to override one parameter range inside a parameter set.</li>
+
+<li><code>grid_regular()</code>, <code>grid_random()</code>, <code>grid_space_filling()</code> to materialize candidate tibbles.</li>
+
+<li><code>tune_grid()</code> to fit each candidate across resamples and rank them.</li>
+
+</ul>
+
+<p>External reference: the official dials documentation at <a href="https://dials.tidymodels.org/reference/tree_depth.html">dials.tidymodels.org</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is a good tree_depth for xgboost?</strong></p>
+
+<p>For xgboost on tabular data, depths 4 to 8 cover the great majority of well-tuned models. Kaggle-winning solutions cluster around depth 6, matching xgboost's library default. Going beyond 8 rarely improves out-of-fold accuracy and inflates training time. If you tune learn_rate jointly, shrinkage can compensate for slightly deeper trees, but the canonical safe range is <code>tree_depth(c(3L, 8L))</code>.</p>
+
+<p><strong>How does tree_depth() differ from max_depth in xgboost?</strong></p>
+
+<p><code>dials::tree_depth()</code> is the parameter object describing the search range for the depth hyperparameter. <code>xgboost::xgb.train(params = list(max_depth = 6))</code> is the engine-level setting that consumes a single value at fit time. tidymodels translates <code>tree_depth = tune()</code> in <code>boost_tree()</code> to repeated <code>max_depth = N</code> calls inside xgboost, one per candidate. The dials function defines the space; the engine argument consumes one point at a time.</p>
+
+<p><strong>Why does dials tree_depth() not need finalize() like mtry()?</strong></p>
+
+<p>Because the maximum sensible depth does not depend on the training data shape. Even with a million rows, depth 20 is more than enough to fit pure noise. dials therefore ships tree_depth() with a concrete default of <code>c(1L, 15L)</code>, which is finalized at construction and ready to feed into <code>grid_regular()</code> without further setup.</p>
+
+<p><strong>Can I tune tree_depth() in a random forest?</strong></p>
+
+<p>Sometimes. The <code>ranger</code> engine added <code>max.depth</code> support in version 0.12, so <code>rand_forest(tree_depth = tune())</code> works there but is ignored by older builds. The <code>randomForest</code> engine has no max-depth argument and ignores tree_depth() silently. In practice, mtry() and min_n() are the load-bearing knobs for forests; tree_depth() is a secondary target you reach for only if an unconstrained forest overfits on small training sets.</p>
+
+<p><strong>Should I tune tree_depth() and min_n() together?</strong></p>
+
+<p>Yes for boosted trees, often no for random forests. In boosting, depth and min_n jointly cap each round's complexity and can compensate for each other, so tuning both helps the search find the right knob mix. In forests, min_n is the primary complexity knob and tree_depth() is usually redundant; tuning both burns budget on combinations that fit nearly identical trees.</p>
+
+{% endraw %}
