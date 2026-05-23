@@ -1,0 +1,389 @@
+---
+title: "broom tidy() for htest in R: Tidy Hypothesis Test Results"
+description: "Tidy htest objects in R using broom::tidy(). Convert t.test, cor.test, chisq.test, prop.test, and wilcox.test results to one-row tibbles for analysis."
+keywords: "broom tidy htest, tidy htest R, tidy.htest function R, broom tidy t.test, broom tidy chisq.test, tidy hypothesis test R, broom tidy cor.test"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "tidy.htest()|broom tidy htest|broom::tidy.htest()|tidy hypothesis test|tidy htest"
+auto_link_case_sensitive: true
+fr_parent: "Statistical-Tests-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>broom tidy() for htest in R: Tidy Hypothesis Test Results</h1>
+
+<p class="lead">The <code>broom::tidy()</code> function turns any <code>htest</code> object, the output of <code>t.test()</code>, <code>cor.test()</code>, <code>chisq.test()</code>, <code>prop.test()</code>, and friends, into a one-row tibble with <code>estimate</code>, <code>statistic</code>, <code>p.value</code>, and confidence interval columns. It replaces the printed test report with a data frame you can pipe into <code>dplyr</code>, <code>ggplot2</code>, or a Word report.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>tidy(t.test(mtcars$mpg))<span class="qa-cmt">                          # one-sample t</span>
+tidy(t.test(mpg ~ am, data = mtcars))<span class="qa-cmt">             # two-sample Welch t</span>
+tidy(cor.test(mtcars$mpg, mtcars$wt))<span class="qa-cmt">             # Pearson correlation</span>
+tidy(chisq.test(table(mtcars$cyl, mtcars$gear)))<span class="qa-cmt">  # chi-square independence</span>
+tidy(prop.test(c(40, 55), c(100, 100)))<span class="qa-cmt">           # two-proportion z</span>
+tidy(wilcox.test(mpg ~ am, data = mtcars))<span class="qa-cmt">        # rank-sum (non-parametric)</span>
+tidy(shapiro.test(mtcars$mpg))<span class="qa-cmt">                    # normality check</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is <a class="auto-link" href="parsnip-tidy-fit-in-R.html" title="parsnip tidy() in R: Tidy Model Coefficients">tidy()</a> the right tool for an htest?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">single hypothesis test result as a data frame</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">tidy(test_result)</text><text x="125" y="126" class="branch-label">ANOVA F table from <a class="auto-link" href="How-to-do-One-Way-ANOVA-in-R.html" title="One-Way ANOVA in R: Compare Group Means With aov()">aov()</a></text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">tidy(aov_fit)</text><text x="125" y="182" class="branch-label">linear or generalized model coefficients</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">tidy(lm_fit) or tidy(glm_fit)</text><text x="125" y="238" class="branch-label">one-row model summary (<a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a>, R-squared)</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">glance(fit)</text><text x="125" y="294" class="branch-label">per-row fitted values and residuals</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">augment(fit)</text><text x="125" y="350" class="branch-label">mixed-effects test results</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">broom.mixed::tidy(lmer_fit)</text><text x="125" y="406" class="branch-label">publication-ready test table in Word</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code"><a class="auto-link" href="Regression-Tables-in-R.html" title="Regression Tables in R: modelsummary vs stargazer vs gtsummary, Which to Use">gtsummary</a>::tbl_summary()</text></svg></div>
+
+<h2>What tidy() does for htest in one sentence</h2>
+
+<p><strong><code>tidy()</code> flattens an <code>htest</code> object into a single-row tibble.</strong> Base R hypothesis tests return a list of class <code>&quot;htest&quot;</code> that prints as a fixed-width report but is awkward to subset. <code>broom::tidy()</code> extracts the <a class="auto-link" href="Hypothesis-Testing-in-R.html" title="Hypothesis Testing in R: Understand the Framework, Not Just the p-Value">test statistic</a>, p-value, effect estimate, confidence interval, and method label, all keyed by stable column names. Every test that returns class <code>htest</code> follows the same tidying contract.</p>
+
+<p>The single-row shape is what makes the function powerful. Run a hundred t-tests across subsets and <code>bind_rows()</code> the tidied results, no parser logic required. The tibble shape is identical whether the underlying test is parametric or rank-based.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>tidy.htest()</code> is the <a class="auto-link" href="S3-Classes-in-R.html" title="S3 Classes in R: Create, Inherit & Write Methods — Complete Tutorial">S3 method</a> that <code>broom</code> dispatches to when you pass any <code>htest</code> object.</strong> You never call it directly. Calling <code>tidy()</code> on the result of <code>t.test</code>, <code>cor.test</code>, <code>chisq.test</code>, <code>prop.test</code>, <code>wilcox.test</code>, <code>ks.test</code>, <code>var.test</code>, <code>fisher.test</code>, <code>mcnemar.test</code>, <code>oneway.test</code>, <code>binom.test</code>, or <code>shapiro.test</code> routes to the right method automatically.</p>
+
+<div class="webr-container" data-block-title="Confirm an htest class on a t.test result">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Confirm an htest class on a t.test result</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(broom)
+library(dplyr)
+
+tt &lt;- t.test(mpg ~ am, data = mtcars)
+class(tt)
+#&gt; [1] &quot;htest&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The function signature is short:</p>
+
+<ul>
+
+<li><code>x</code>: the fitted <code>htest</code> object</li>
+
+<li><code>...</code>: forwarded to internal helpers; rarely used</li>
+
+</ul>
+
+<p>The returned tibble columns vary slightly by test family, but the core set is always present:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Column</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>estimate</code></td>
+<td><a class="auto-link" href="Effect-Size-in-R.html" title="Effect Size in R: The Number p-Values Never Tell You (Cohen's d, η², and r)">Effect size</a> (mean difference, correlation r, proportion difference)</td>
+</tr>
+<tr>
+<td><code>statistic</code></td>
+<td>Test statistic (t, chi-square, W, Z)</td>
+</tr>
+<tr>
+<td><code>p.value</code></td>
+<td>Two-sided p-value (or one-sided per <code>alternative</code>)</td>
+</tr>
+<tr>
+<td><code>parameter</code></td>
+<td>Degrees of freedom or sample size, depending on test</td>
+</tr>
+<tr>
+<td><code>conf.low</code>, <code>conf.high</code></td>
+<td>Confidence interval bounds (when the test returns one)</td>
+</tr>
+<tr>
+<td><code>method</code></td>
+<td>Human-readable test name, e.g. <code>&quot;Welch Two Sample t-test&quot;</code></td>
+</tr>
+<tr>
+<td><code>alternative</code></td>
+<td><code>&quot;two.sided&quot;</code>, <code>&quot;less&quot;</code>, or <code>&quot;greater&quot;</code></td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Use <code>glance()</code> and <code>tidy()</code> interchangeably on an <code>htest</code>.</strong> Because the test produces a single row, <code>glance(test_result)</code> returns the same tibble as <code>tidy(test_result)</code>. The broom team kept both methods so model-level pipelines that call <code>glance()</code> still work for hypothesis tests.</div></div>
+
+<h2>Common patterns</h2>
+
+<h3>1. Tidy a one-sample and two-sample t-test</h3>
+
+<div class="webr-container" data-block-title="Tidy two flavors of t.test">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tidy two flavors of t.test</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">one_t &lt;- t.test(mtcars$mpg, mu = 25)
+tidy(one_t)
+#&gt; # A tibble: 1 x 8
+#&gt;   estimate statistic p.value parameter conf.low conf.high method            alternative
+#&gt;      &lt;dbl&gt;     &lt;dbl&gt;   &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt; &lt;chr&gt;             &lt;chr&gt;
+#&gt; 1     20.1     -5.08 1.86e-5      31.0     18.0      22.3 One Sample t-test two.sided
+
+two_t &lt;- t.test(mpg ~ am, data = mtcars)
+tidy(two_t)
+#&gt; # A tibble: 1 x 10
+#&gt;   estimate estimate1 estimate2 statistic  p.value parameter conf.low conf.high method                  alternative
+#&gt;      &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt; &lt;chr&gt;                   &lt;chr&gt;
+#&gt; 1    -7.24      17.1      24.4     -3.77 0.000137      18.3    -11.3     -3.21 Welch Two Sample t-test two.sided</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both calls produce one row. The one-sample form has a single <code>estimate</code> (the sample mean). The two-sample form adds <code>estimate1</code> and <code>estimate2</code> for the two group means and keeps <code>estimate</code> as the difference. The fixed schema means downstream code does not care which test ran.</p>
+
+<h3>2. Tidy correlation and rank-based tests</h3>
+
+<div class="webr-container" data-block-title="Pearson correlation and Wilcoxon rank-sum">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pearson correlation and Wilcoxon rank-sum</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">cor_test &lt;- cor.test(mtcars$mpg, mtcars$wt)
+tidy(cor_test)
+#&gt; # A tibble: 1 x 8
+#&gt;   estimate statistic  p.value parameter conf.low conf.high method                              alternative
+#&gt;      &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;     &lt;int&gt;    &lt;dbl&gt;     &lt;dbl&gt; &lt;chr&gt;                               &lt;chr&gt;
+#&gt; 1   -0.868     -9.56 1.29e-10        30   -0.934    -0.744 Pearson's product-moment correlation two.sided
+
+wilc &lt;- wilcox.test(mpg ~ am, data = mtcars, conf.int = TRUE)
+tidy(wilc)
+#&gt; # A tibble: 1 x 7
+#&gt;   estimate statistic   p.value conf.low conf.high method                                          alternative
+#&gt;      &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt; &lt;chr&gt;                                           &lt;chr&gt;
+#&gt; 1    -6.80         42 0.0019         -11.2     -2.7 Wilcoxon rank sum test with continuity correction two.sided</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Both rows fit the same template. <code>estimate</code> is the Pearson r in the first case and the Hodges-Lehmann location shift in the second. Passing <code>conf.int = TRUE</code> to <code>wilcox.test()</code> is the only way to populate <code>conf.low</code> and <code>conf.high</code> for that test; without it those columns are NA.</p>
+
+<h3>3. Tidy categorical tests</h3>
+
+<div class="webr-container" data-block-title="Chi-square independence and two-proportion z">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Chi-square independence and two-proportion z</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">chi &lt;- chisq.test(table(mtcars$cyl, mtcars$gear))
+tidy(chi)
+#&gt; # A tibble: 1 x 4
+#&gt;   statistic p.value parameter method
+#&gt;       &lt;dbl&gt;   &lt;dbl&gt;     &lt;int&gt; &lt;chr&gt;
+#&gt; 1      18.0 0.00121         4 Pearson's Chi-squared test
+
+pp &lt;- prop.test(c(40, 55), c(100, 100))
+tidy(pp)
+#&gt; # A tibble: 1 x 9
+#&gt;   estimate1 estimate2 statistic p.value parameter conf.low conf.high method                                              alternative
+#&gt;       &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;   &lt;dbl&gt;     &lt;int&gt;    &lt;dbl&gt;     &lt;dbl&gt; &lt;chr&gt;                                               &lt;chr&gt;
+#&gt; 1      0.40      0.55      4.32  0.0376         1   -0.290  -0.00969 2-sample test for equality of proportions with cont... two.sided</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>chisq.test()</code> has no natural effect size, so <code>tidy()</code> drops the <code>estimate</code> column entirely. <code>prop.test()</code> does, and returns <code>estimate1</code>/<code>estimate2</code> for the two proportions. The variable column set is by design: <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> would be misleading, so broom omits them rather than fill with NA.</p>
+
+<h3>4. Bind many tests into one report</h3>
+
+<div class="webr-container" data-block-title="Run a test per group and stack the tidied rows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Run a test per group and stack the tidied rows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mt_split &lt;- split(mtcars, mtcars$cyl)
+
+test_table &lt;- mt_split |&gt;
+  lapply(\(d) t.test(d$mpg, mu = 25)) |&gt;
+  lapply(tidy) |&gt;
+  bind_rows(.id = &quot;cyl&quot;)
+test_table
+#&gt; # A tibble: 3 x 9
+#&gt;   cyl   estimate statistic   p.value parameter conf.low conf.high method            alternative
+#&gt;   &lt;chr&gt;    &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt; &lt;chr&gt;             &lt;chr&gt;
+#&gt; 1 4         26.7     1.32   0.218          10.0     24.0      29.4 One Sample t-test two.sided
+#&gt; 2 6         19.7    -7.59   0.000625        6.00    18.0      21.5 One Sample t-test two.sided
+#&gt; 3 8         15.1    -10.7   1.45e-7        13.0     13.1      17.1 One Sample t-test two.sided</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the payoff. With a per-group t-test the printed reports would be three separate text blocks; the tidied rows stack into a comparable table with a <code>cyl</code> identifier column. Sorting, filtering, plotting, and saving to CSV become one-liners.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Use <code>purrr::map(.) |&gt; bind_rows()</code> for the same effect in tidyverse style.</strong> <code>purrr::map(mt_split, ~ tidy(t.test(.x$mpg, mu = 25))) |&gt; bind_rows(.id = &quot;cyl&quot;)</code> replaces the two <code>lapply()</code> calls with one pipeline. Both produce identical tibbles.</div></div>
+
+<h2>tidy() vs base print() and other reporting paths</h2>
+
+<p><strong>Three tools cover the same job from different angles.</strong> Pick by what you do next with the output.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Output type</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>print(test_result)</code></td>
+<td>text report</td>
+<td>Quick console eyeball</td>
+</tr>
+<tr>
+<td><code>broom::tidy(test_result)</code></td>
+<td>tibble (single row)</td>
+<td>dplyr piping, batched testing, ggplot</td>
+</tr>
+<tr>
+<td><code>gtsummary::tbl_summary()</code></td>
+<td>rendered HTML or Word</td>
+<td>Final publication-ready report</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>tidy()</code> whenever the next step is code: filtering on <code>p.value</code>, plotting effect sizes with confidence intervals, or saving test results to disk. Use <code>gtsummary</code> for the final document; it accepts a tidied table and adds journal formatting. The <code>print()</code> output is the fastest interactive eyeball but a dead end for anything programmatic.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The single-row tibble is the bridge between base-R <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">hypothesis testing</a> and tidyverse tooling.</strong> Once <code>tidy()</code> returns a row with stable column names, every dplyr verb, every ggplot geom for <a class="auto-link" href="Communicating-Uncertainty.html" title="Communicating Uncertainty: Don't Mislead Your Audience with Data Viz">error bars</a>, and every <code>gt</code> or <code>flextable</code> layout works without a custom shim. This is why <code>broom</code> ships inside the <code>tidymodels</code> meta-package even if you only run two-sample t-tests.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: assuming every column always appears.</strong> The columns returned depend on the test. <code>chisq.test()</code> has no <code>estimate</code>, <code>wilcox.test()</code> without <code>conf.int = TRUE</code> has no <code>conf.low</code>/<code>conf.high</code>, and <code>cor.test(method = &quot;spearman&quot;)</code> returns a different <code>statistic</code> name (S instead of t). Code that hardcodes <code>pull(estimate)</code> will fail on a chi-square. Use <code>dplyr::any_of(c(&quot;estimate&quot;, &quot;conf.low&quot;))</code> when binding heterogeneous tests, or call <code>bind_rows()</code> first and let it fill missing columns with NA.</p>
+
+<div class="webr-container" data-block-title="any_of() guards against missing columns">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">any_of() guards against missing columns</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tests &lt;- list(
+  t_test  = t.test(mtcars$mpg, mu = 25),
+  chi_sq  = chisq.test(table(mtcars$cyl, mtcars$gear))
+)
+lapply(tests, tidy) |&gt;
+  bind_rows(.id = &quot;test&quot;) |&gt;
+  select(test, statistic, p.value, any_of(c(&quot;estimate&quot;, &quot;conf.low&quot;, &quot;conf.high&quot;)))
+#&gt; # A tibble: 2 x 6
+#&gt;   test   statistic  p.value estimate conf.low conf.high
+#&gt;   &lt;chr&gt;      &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 t_test     -5.08 1.86e-5      20.1     18.0      22.3
+#&gt; 2 chi_sq     18.0  0.00121      NA       NA        NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Pitfall 2: confusing <code>tidy()</code> on an <code>htest</code> with <code>tidy()</code> on the underlying data.</strong> <code>tidy(t.test(mtcars$mpg))</code> returns the test result. <code>tidy(mtcars$mpg)</code> returns a tibble of the vector itself. The class on the input drives dispatch, so passing the wrong object silently produces the wrong shape. Always check <code>class()</code> if a tidy output looks unexpected.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>The <code>parameter</code> column means different things across tests.</strong> For <code>t.test</code>, it is degrees of freedom (often non-integer for Welch). For <code>chisq.test</code>, it is also df but integer-valued. For <code>prop.test</code> with one group, it is the sample size. For <code>wilcox.test</code>, the column is absent entirely. Do not treat <code>parameter</code> as a single metric across stacked test results; document or relabel it in your report.</div></div>
+
+<p><strong>Pitfall 3: forgetting that one-sided tests still produce a single row.</strong> Passing <code>alternative = &quot;greater&quot;</code> or <code>&quot;less&quot;</code> changes the <code>p.value</code> and <code>conf.low</code>/<code>conf.high</code> values but not the shape. The <code>alternative</code> column records the choice, so a downstream consumer can verify which tail the p-value refers to without rerunning the test.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Run a Welch <a class="auto-link" href="t-Tests-in-R.html" title="t-Tests in R: Every Variant With the Decision Rule for Choosing Between Them">two-sample t-test</a> comparing <code>wt</code> between automatic and manual transmissions in <code>mtcars</code>. Tidy the result and pull the <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">95% confidence interval</a> as a numeric vector of length two. Save it to <code>ex_ci</code>.</p>
+<div class="webr-container" data-block-title="Your turn: extract a confidence interval">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: extract a confidence interval</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: tidy a t.test, then pull the CI
+ex_test &lt;- t.test(wt ~ am, data = mtcars)
+ex_ci &lt;- # your code here
+
+ex_ci
+#&gt; Expected: c(conf.low, conf.high) ~ c(0.85, 2.00)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_test &lt;- t.test(wt ~ am, data = mtcars)
+ex_ci &lt;- tidy(ex_test) |&gt;
+  select(conf.low, conf.high) |&gt;
+  unlist(use.names = FALSE)
+ex_ci
+#&gt; [1] 0.8525632 2.0026926</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Tidying the test gives a one-row tibble. Selecting the two CI columns and <code>unlist()</code> strips names and returns a length-two numeric vector, the typical shape for downstream plotting or reporting code that expects <code>c(lower, upper)</code>.</p>
+
+</details>
+</section>
+
+<h2>Related broom functions for htest</h2>
+
+<p>After mastering <code>tidy()</code> on <code>htest</code> objects, the next two broom verbs round out the workflow:</p>
+
+<ul>
+
+<li><code>glance(test_result)</code>: same single row as <code>tidy()</code>; kept for API symmetry with model objects</li>
+
+<li><code>augment(test_result)</code>: NOT defined for <code>htest</code> (no per-observation residuals); use the underlying data directly</li>
+
+<li><code>tidy(aov(...))</code>: ANOVA tables, covered in the sibling <a href="broom-tidy-aov-in-R.html">broom tidy aov post</a></li>
+
+<li><code>tidy(lm(...))</code>: regression coefficient tables for the linear model behind a t.test</li>
+
+<li><code>tidy(chisq.test(...))</code>: also reachable via <code>gtsummary::tbl_cross()</code> for categorical reports</li>
+
+</ul>
+
+<p>To compare effect sizes across many tests at once, use <code>purrr::map_dfr(tests, tidy, .id = &quot;test&quot;)</code>. The <code>.id</code> column lets you facet a forest-plot-style ggplot by test name.</p>
+
+<p>See the official <a href="https://broom.tidymodels.org/reference/tidy.htest.html">broom reference for tidy.htest methods</a> for the full column list per test family.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I extract the p-value from a t.test result in R?</strong></p>
+
+<p>Call <code>broom::tidy(t.test(...))</code> and read the <code>p.value</code> column, or pull it directly with <code>tidy(t.test(x, y))$p.value</code>. The same one-liner works for <code>cor.test</code>, <code>chisq.test</code>, <code>prop.test</code>, and any other <code>htest</code>-class result. This is the most reliable way to grab the p-value without parsing the printed report or remembering which list element holds it.</p>
+
+<p><strong>What is the difference between tidy(t.test) and tidy(lm) on the same comparison?</strong></p>
+
+<p>A two-sample t-test on <code>mpg ~ am</code> and <code>lm(mpg ~ am)</code> test the same hypothesis with the same p-value when variances are equal. <code>tidy(t.test(...))</code> returns one row with the group means and CI for the difference. <code>tidy(lm(...))</code> returns two rows, one per coefficient (intercept and <code>am</code> slope). Pick the t-test form for compact reports, the lm form when you need additional predictors.</p>
+
+<p><strong>Does broom tidy work with fisher.test and <a class="auto-link" href="McNemars-Test-in-R.html" title="McNemar's Test in R: Paired Categorical Data & Matched Case-Control">mcnemar.test</a>?</strong></p>
+
+<p>Yes. Both return objects of class <code>htest</code>, so <code>tidy()</code> dispatches to the same method. <code>fisher.test()</code> adds <code>estimate</code> (the <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">odds ratio</a>) and <code>conf.low</code>/<code>conf.high</code>. <code>mcnemar.test()</code> returns only <code>statistic</code>, <code>p.value</code>, <code>parameter</code> (df), and <code>method</code>. The single-row shape holds for both.</p>
+
+<p><strong>How do I tidy a one-sided test and keep that information?</strong></p>
+
+<p>Pass <code>alternative = &quot;greater&quot;</code> or <code>&quot;less&quot;</code> to the test as usual. The tidied row keeps an <code>alternative</code> column with the chosen direction, and the <code>p.value</code> is the one-sided value. The confidence interval becomes one-sided too (one bound is infinite, displayed as <code>Inf</code> or <code>-Inf</code>). Always check <code>alternative</code> before reusing the p-value downstream.</p>
+
+<p><strong>Can I plot a forest plot directly from the tidy output?</strong></p>
+
+<p>Yes. Stack tidied tests with <code>bind_rows(.id = &quot;label&quot;)</code>, then <code>ggplot(aes(x = estimate, y = label)) + geom_point() + geom_errorbarh(aes(xmin = conf.low, xmax = conf.high))</code>. Add <code>geom_vline(xintercept = 0, linetype = &quot;dashed&quot;)</code> for a reference at the null. Drop rows where <code>conf.low</code> is NA (chi-square, McNemar) before plotting.</p>
