@@ -1,0 +1,329 @@
+---
+title: "broom tidy() for glm in R: Logistic and Poisson Output"
+description: "Tidy glm models in R with broom::tidy(). Extract coefficients, odds ratios, IRRs, and confidence intervals from logistic and Poisson fits in a single call."
+keywords: "broom tidy glm, tidy glm R, broom glm output, tidy logistic regression coefficients, glm tidy data frame, broom::tidy glm, glm odds ratio R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "broom::tidy()|broom tidy|tidy glm|tidy glm model|tidy logistic regression"
+auto_link_case_sensitive: true
+fr_parent: "Linear-Regression.html"
+---
+<!-- md2html:generated -->
+
+<h1>broom tidy() for glm in R: Logistic and Poisson Output</h1>
+
+<p class="lead">The <code>broom::tidy()</code> function turns a fitted <code>glm</code> object into a one-row-per-term tibble you can pipe into <code>dplyr</code>, <code>ggplot2</code>, or a report. It works on every <code>glm</code> family (binomial, Poisson, Gamma, quasi) and can return odds ratios, incidence rate ratios, and <a class="auto-link" href="Confidence-Intervals-in-R.html" title="Confidence Intervals in R: The Definition Most Textbooks State Incorrectly">confidence intervals</a> in a single call.</p>
+
+<div class="engagement-header" data-difficulty="Intermediate" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>tidy(logit_fit)<span class="qa-cmt">                                   # log-odds coefficients</span>
+tidy(logit_fit, exponentiate = TRUE)<span class="qa-cmt">              # odds ratios</span>
+tidy(logit_fit, conf.int = TRUE)<span class="qa-cmt">                  # add 95% CI columns</span>
+tidy(logit_fit, exponentiate = TRUE, conf.int = TRUE)<span class="qa-cmt">  # OR plus CI</span>
+tidy(poisson_fit, exponentiate = TRUE)<span class="qa-cmt">            # incidence rate ratios</span>
+tidy(logit_fit, conf.level = 0.99)<span class="qa-cmt">                # custom CI level</span>
+tidy(logit_fit) |&gt; arrange(p.value)<span class="qa-cmt">               # rank terms by p-value</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is tidy() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">coefficient or OR table from a fitted glm</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">tidy(fit, exponentiate = TRUE)</text><text x="125" y="126" class="branch-label">one-row model summary (<a class="auto-link" href="Model-Selection-in-R.html" title="Model Selection in R">AIC</a>, deviance, df)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">glance(fit)</text><text x="125" y="182" class="branch-label">per-observation residuals or fitted values</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">augment(fit)</text><text x="125" y="238" class="branch-label">compare nested models with a likelihood test</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code"><a class="auto-link" href="https://r-statistics.co/How-to-do-One-Way-ANOVA-in-R.html" title="One-Way ANOVA in R: Compare Group Means (With Examples)">anova</a>(fit1, fit2, test = &quot;Chisq&quot;)</text><text x="125" y="294" class="branch-label"><a class="auto-link" href="Interaction-Effects-in-R.html" title="Interaction Effects in R: Add Them, Test Them, and Actually Understand the Output">marginal effects</a> on the response scale</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">marginaleffects::avg_slopes(fit)</text><text x="125" y="350" class="branch-label">formatted Word or HTML report</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">gtsummary::<a class="auto-link" href="Regression-Tables-in-R.html" title="Regression Tables in R: modelsummary vs stargazer vs gtsummary, Which to Use">tbl_regression</a>(fit, exponentiate = TRUE)</text></svg></div>
+
+<h2>What tidy() does for glm in one sentence</h2>
+
+<p><strong><code>tidy()</code> reshapes a <code>glm</code> object into a rectangular tibble.</strong> A fitted glm is an S3 list with deeply nested slots for coefficients, the design matrix, the <a class="auto-link" href="GLM-Exercises-in-R.html" title="GLM Exercises in R: 10 Poisson, Binomial & Gamma Practice Problems, Solved Step-by-Step">link function</a>, and the <a class="auto-link" href="Robust-Regression-in-R.html" title="Robust Regression in R: Use rlm() When Outliers Are Ruining Your lm() Estimates">IRLS</a> trace. <code>broom::tidy()</code> extracts the parts you usually need (term, estimate, standard error, statistic, p.value) and returns one row per predictor.</p>
+
+<p>For a binomial fit, the <code>estimate</code> column is on the log-odds scale by default. Set <code>exponentiate = TRUE</code> and it flips to odds ratios, with standard errors and p-values left on the link scale (the statistically correct presentation under the <a class="auto-link" href="Asymptotic-Theory-in-R.html" title="Asymptotic Theory in R: Consistency, Asymptotic Normality & Delta Method">delta method</a>). The same flag returns incidence rate ratios for Poisson and quasi-Poisson, and untransformed values for Gaussian and Gamma families.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>tidy.glm()</code> is the <a class="auto-link" href="S3-Classes-in-R.html" title="S3 Classes in R: Create, Inherit & Write Methods — Complete Tutorial">S3 method</a> that broom dispatches to when you pass a <code>glm</code> fit.</strong> You almost never call it directly; just call <code>tidy()</code> on the fit and the right method runs.</p>
+
+<div class="webr-container" data-block-title="Fit a logistic regression on mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fit a logistic regression on mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(broom)
+library(dplyr)
+
+# Predict manual transmission (am) from mpg and weight
+logit_fit &lt;- glm(am ~ mpg + wt, data = mtcars, family = binomial)
+class(logit_fit)
+#&gt; [1] &quot;glm&quot; &quot;lm&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three arguments that matter for daily reporting are:</p>
+
+<ul>
+
+<li><code>exponentiate</code>: <code>TRUE</code> returns odds ratios for binomial fits and incidence rate ratios for Poisson; default <code>FALSE</code> returns log-scale coefficients</li>
+
+<li><code>conf.int</code>: <code>TRUE</code> adds <code>conf.low</code> and <code>conf.high</code> columns derived from a <a class="auto-link" href="Likelihood-Ratio-Tests-and-Pivotal-Methods.html" title="Likelihood Ratio Tests & Pivotal Methods: Confidence Sets Theory">profile likelihood</a>; default <code>FALSE</code></li>
+
+<li><code>conf.level</code>: confidence level for the interval; default <code>0.95</code></li>
+
+</ul>
+
+<p>Everything else (<code>quick</code>, <code>expone</code>, <code>...</code> passed to <code>confint()</code>) is rarely needed.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Combine <code>exponentiate = TRUE</code> and <code>conf.int = TRUE</code> for a publication-ready <a class="auto-link" href="Logistic-Regression-in-R.html" title="Logistic Regression in R: From glm() to Odds Ratios, ROC, and AUC">odds ratio</a> table.</strong> A single call returns OR, lower CI, upper CI, and <a class="auto-link" href="Statistical-Tests-in-R.html" title="Statistical Tests in R">p-value</a>, which is the format most journals expect. You skip the manual <code>exp(coef())</code> plus <code>exp(confint())</code> two-step.</div></div>
+
+<h2>Common patterns</h2>
+
+<h3>1. Coefficient table from a logistic regression</h3>
+
+<div class="webr-container" data-block-title="Tidy a binomial glm with log-odds">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tidy a binomial glm with log-odds</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(logit_fit)
+#&gt; # A tibble: 3 x 5
+#&gt;   term        estimate std.error statistic p.value
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 (Intercept)   25.9      12.1       2.14   0.0322
+#&gt; 2 mpg            0.307     0.231     1.33   0.184
+#&gt; 3 wt            -9.15      4.15     -2.20   0.0276</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each row is one predictor. The <code>estimate</code> for <code>wt</code> is the change in log-odds of <code>am = 1</code> for a one-unit (one-thousand-pound) increase in weight, holding <code>mpg</code> constant. Negative means heavier cars are less likely to be manual. The <code>statistic</code> column is the Wald z-statistic and <code>p.value</code> is its two-sided p-value, copied straight from <code>summary(fit)$coefficients</code>.</p>
+
+<h3>2. Odds ratios with confidence intervals</h3>
+
+<div class="webr-container" data-block-title="Odds ratios with 95% CI">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Odds ratios with 95% CI</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(logit_fit, exponentiate = TRUE, conf.int = TRUE)
+#&gt; # A tibble: 3 x 7
+#&gt;   term         estimate std.error statistic p.value     conf.low conf.high
+#&gt;   &lt;chr&gt;           &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;   &lt;dbl&gt;        &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 (Intercept) 1.79e+11    12.1       2.14   0.0322   1.55e+01    9.79e+24
+#&gt; 2 mpg         1.36e+00     0.231     1.33   0.184    8.81e-01    2.32e+00
+#&gt; 3 wt          1.07e-04     4.15     -2.20   0.0276   5.99e-09    1.69e-01</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the table you put in a Methods or Results section. Each <code>estimate</code> is an odds ratio: 1.36 for <code>mpg</code> means a one-mpg increase multiplies the odds of being a manual transmission by 1.36, controlling for weight. The huge intercept OR is normal in glm output; it represents the baseline odds when all predictors are zero, which is far outside the support of the data and rarely interpretable on its own. Most reporting workflows drop the intercept row before plotting or printing, which is what the forest plot in pattern 4 does.</p>
+
+<h3>3. Poisson glm with incidence rate ratios</h3>
+
+<div class="webr-container" data-block-title="Tidy a Poisson glm as IRRs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tidy a Poisson glm as IRRs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Count of carb (carburetors) modeled as a function of hp and cyl
+pois_fit &lt;- glm(carb ~ hp + cyl, data = mtcars, family = poisson)
+
+tidy(pois_fit, exponentiate = TRUE, conf.int = TRUE)
+#&gt; # A tibble: 3 x 7
+#&gt;   term        estimate std.error statistic p.value conf.low conf.high
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;   &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 (Intercept)    0.586     0.674    -0.793   0.428    0.150     2.16
+#&gt; 2 hp             1.005     0.00263   1.95    0.0517   1.000     1.01
+#&gt; 3 cyl            1.16      0.0962    1.55    0.122    0.962     1.40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For Poisson and quasi-Poisson fits, <code>exponentiate = TRUE</code> returns incidence rate ratios. An IRR of 1.005 for <code>hp</code> means each additional unit of horsepower multiplies the expected carburetor count by 1.005, or about a 0.5% increase, holding cylinders constant. Counts are a stretch on a 32-row toy dataset, but the mechanics generalize: any Poisson glm, including those with offsets for exposure, tidies into the same seven-column tibble.</p>
+
+<h3>4. Plot odds ratios as a forest plot</h3>
+
+<div class="webr-container" data-block-title="Forest plot from tidy() output">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Forest plot from tidy() output</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+or_tbl &lt;- tidy(logit_fit, exponentiate = TRUE, conf.int = TRUE) |&gt;
+  filter(term != &quot;(Intercept)&quot;)
+
+ggplot(or_tbl, aes(x = estimate, y = term)) +
+  geom_pointrange(aes(xmin = conf.low, xmax = conf.high)) +
+  geom_vline(xintercept = 1, linetype = &quot;dashed&quot;) +
+  scale_x_log10() +
+  labs(x = &quot;Odds ratio (log scale)&quot;, y = NULL)
+#&gt; A two-row pointrange plot centered on OR = 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The log-scale x-axis keeps <code>OR = 1</code> visually centered between protective and risk-increasing effects, which matches how analysts read forest plots. Dropping the intercept avoids the extreme value squashing the rest of the plot into the left margin.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong><code>tidy.glm()</code> covers every family <code>glm()</code> supports.</strong> Gaussian, binomial, Poisson, Gamma, inverse.gaussian, quasi, quasibinomial, <a class="auto-link" href="Poisson-Regression-in-R.html" title="Poisson Regression in R: Model Count Data and Handle Overdispersion">quasipoisson</a> all dispatch to the same method. The only thing that changes is what <code>exponentiate = TRUE</code> means: odds ratio (binomial), IRR (Poisson and quasi-Poisson), or untransformed (Gaussian).</div></div>
+
+<h2>tidy() vs base summary() and gtsummary</h2>
+
+<p><strong>Three tools cover the same job from different angles.</strong> Pick by what you do next with the output.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Output type</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>summary(fit)</code></td>
+<td>printed text plus nested list</td>
+<td>Quick console check</td>
+</tr>
+<tr>
+<td><code>broom::tidy(fit)</code></td>
+<td>tibble (data frame)</td>
+<td>dplyr piping, ggplot, custom tables</td>
+</tr>
+<tr>
+<td><code>gtsummary::tbl_regression(fit)</code></td>
+<td>rendered HTML or Word table</td>
+<td>Final reports without manual formatting</td>
+</tr>
+</tbody>
+</table>
+
+<p>Use <code>tidy()</code> whenever the next step is code: filtering significant terms, combining many glm fits with <code>purrr::map()</code>, drawing a forest plot, or writing to CSV. Use <code>gtsummary</code> for the final document; it calls <code>broom::tidy()</code> under the hood and adds publication formatting. The <code>summary()</code> printout is still the fastest way to eyeball a single fit interactively, but it is a dead end for anything programmatic.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>The <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> frame is the bridge between modeling and tidyverse tooling.</strong> Once <code>tidy()</code> returns a tibble, every dplyr verb, every ggplot geom, and every <code>gt</code> or <code>flextable</code> layout works without a custom shim. This is why <code>broom</code> ships inside the tidymodels meta-package even if you only fit a single glm.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: forgetting <code>exponentiate = TRUE</code>.</strong> The default is the link scale (log-odds for binomial, log-rate for Poisson), which is rarely what you report. If your "odds ratio" column has negative numbers, you forgot the argument.</p>
+
+<div class="webr-container" data-block-title="Wrong scale: log-odds reported as if it were an OR">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Wrong scale: log-odds reported as if it were an OR</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy(logit_fit) |&gt; select(term, estimate)
+#&gt; # A tibble: 3 x 2
+#&gt;   term        estimate
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;
+#&gt; 1 (Intercept)   25.9
+#&gt; 2 mpg            0.307
+#&gt; 3 wt            -9.15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Pitfall 2: tidying a <code>glm</code> fit on the response scale by hand.</strong> Manually calling <code>exp(tidy(fit)$estimate)</code> works for the point estimate but is brittle: the standard error of an exponentiated coefficient is not simply <code>exp(SE)</code>. Let <code>exponentiate = TRUE</code> do the bookkeeping: it returns OR for the estimate and CI but keeps SE, statistic, and p-value on the link scale where they were computed.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Profile-likelihood CIs from <code>tidy(fit, conf.int = TRUE)</code> can fail to converge on sparse data.</strong> broom calls <code>MASS::confint.glm()</code> internally, which uses profiling. With separation or very few events per predictor, you may see a <code>glm.fit: fitted probabilities numerically 0 or 1 occurred</code> warning and <code>NA</code> CI bounds. Switch to Wald intervals (<code>confint.default()</code>) or refit with <code>brglm2::brglm()</code> to handle separation.</div></div>
+
+<p><strong>Pitfall 3: passing <code>level = 0.9</code> instead of <code>conf.level = 0.9</code>.</strong> The current argument name is <code>conf.level</code>. Older broom accepted <code>level</code>; tutorials predating broom 0.7 still show it. Check <code>packageVersion(&quot;broom&quot;)</code> if you see <code>unused argument</code>.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Fit a <a class="auto-link" href="Logistic-Regression-With-R.html" title="Logistic Regression with R">logistic regression</a> on <code>mtcars</code> predicting <code>am</code> from <code>hp</code> and <code>qsec</code>. Use <code>tidy()</code> to produce an odds-ratio table with 95% confidence intervals. Save the result to <code>ex_or_table</code>.</p>
+<div class="webr-container" data-block-title="Your turn: build an odds ratio table">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: build an odds ratio table</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: tidy a binomial glm as OR plus CI
+ex_or_table &lt;- # your code here
+
+ex_or_table
+#&gt; Expected: 3 rows with estimate (OR), conf.low, conf.high columns</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- glm(am ~ hp + qsec, data = mtcars, family = binomial)
+ex_or_table &lt;- tidy(ex_fit, exponentiate = TRUE, conf.int = TRUE)
+ex_or_table
+#&gt; # A tibble: 3 x 7
+#&gt;   term        estimate std.error statistic p.value conf.low conf.high
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;   &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 (Intercept) 4.83e+05   8.45      1.55   0.121   0.0173    1.40e+13
+#&gt; 2 hp          1.02       0.0118    1.49   0.137   0.997     1.05
+#&gt; 3 qsec        0.484      0.464    -1.56   0.118   0.180     1.18</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Combining <code>exponentiate = TRUE</code> with <code>conf.int = TRUE</code> returns odds ratios and their 95% interval in a single call. No manual <code>exp()</code> or <code>confint()</code> step is required, and the standard errors stay on the link scale where they belong.</p>
+
+</details>
+</section>
+
+<h2>Related broom functions for glm</h2>
+
+<p>After mastering <code>tidy()</code>, the next two broom verbs round out the workflow:</p>
+
+<ul>
+
+<li><code>glance(fit)</code>: one-row model summary with <code>null.deviance</code>, <code>df.null</code>, <code>logLik</code>, <code>AIC</code>, <code>BIC</code>, <code>deviance</code>, and <code>nobs</code></li>
+
+<li><code>augment(fit)</code>: per-observation tibble with <code>.fitted</code>, <code>.resid</code>, <code>.std.resid</code>, <code>.hat</code>, and <code>.cooksd</code></li>
+
+<li><code>gtsummary::tbl_regression(fit, exponentiate = TRUE)</code>: formatted regression table built on top of broom</li>
+
+</ul>
+
+<p>To combine multiple glm fits from <code>purrr::map()</code>, use <code>map_dfr(fits, tidy, .id = &quot;model&quot;)</code>. The <code>.id</code> column lets you facet a forest plot by model.</p>
+
+<p>See the official <a href="https://broom.tidymodels.org/reference/tidy.glm.html">broom documentation for glm methods</a> for the full argument list.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I get odds ratios from a <a class="auto-link" href="Logistic-Regression-Exercises-in-R.html" title="Logistic Regression Exercises in R: 10 Classification Practice Problems, Solved Step-by-Step">glm in R</a>?</strong></p>
+
+<p>Call <code>tidy(glm_fit, exponentiate = TRUE)</code> on a binomial fit. The <code>estimate</code> column will hold odds ratios instead of log-odds coefficients. Add <code>conf.int = TRUE</code> to include 95% confidence bounds in the same call. This single line replaces the older two-step pattern of <code>exp(coef(fit))</code> plus <code>exp(confint(fit))</code>, and it keeps the term, standard error, and p-value aligned with the OR in one tibble.</p>
+
+<p><strong>Does <a class="auto-link" href="broom-tidy-kmeans-in-R.html" title="broom tidy() for kmeans in R: Cluster Centers and Sizes">broom tidy</a> work with quasibinomial and quasipoisson fits?</strong></p>
+
+<p>Yes. <code>tidy.glm()</code> handles every family <code>glm()</code> accepts, including <code>quasibinomial</code>, <code>quasipoisson</code>, <code>Gamma</code>, and <code>inverse.gaussian</code>. The <code>exponentiate = TRUE</code> argument follows the same convention as the parent family: odds ratios for quasibinomial, IRRs for quasipoisson, and untransformed values for Gamma and Gaussian.</p>
+
+<p><strong>What is the difference between tidy(), <a class="auto-link" href="parsnip-glance-fit-in-R.html" title="parsnip glance() in R: One-Row Model Summary">glance()</a>, and augment() for a glm?</strong></p>
+
+<p><code>tidy()</code> returns one row per coefficient (term-level). <code>glance()</code> returns one row summarizing the whole fit (AIC, deviance, null deviance, degrees of freedom). <code>augment()</code> returns one row per observation in the training data, with fitted values, residuals, <a class="auto-link" href="Multivariate-Outlier-Detection-in-R.html" title="Multivariate Outlier Detection in R: Mahalanobis Distance & Influence">hat values</a>, and <a class="auto-link" href="Regression-Diagnostics-in-R.html" title="Regression Diagnostics in R: 5 Plots That Reveal Model Violations Instantly">Cook's distance</a>. The three together replace nearly every base R <code>summary()</code>, <code>coef()</code>, <code>fitted()</code>, and <code>residuals()</code> call.</p>
+
+<p><strong>Why are my confidence intervals different from <code>confint.default()</code>?</strong></p>
+
+<p>By default, <code>tidy(fit, conf.int = TRUE)</code> calls <code>MASS::confint.glm()</code>, which produces profile-likelihood intervals. These are usually narrower and more accurate than Wald (<code>confint.default()</code>) intervals on small samples. If you need Wald intervals for speed or reproducibility, pass <code>conf.int = TRUE</code> together with <code>conf.method = &quot;Wald&quot;</code> (broom 1.0 and later).</p>
+
+<p><strong>Can tidy() handle a glm with an offset or weights?</strong></p>
+
+<p>Yes. broom reads the offset and weights from the fit object, so the standard errors and p-values in the tidy output reflect them. The estimates are interpreted exactly as in the underlying glm: an offset shifts the linear predictor, and weights rescale each observation's contribution to the deviance.</p>
