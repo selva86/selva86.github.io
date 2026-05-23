@@ -1,0 +1,348 @@
+---
+title: "dials update() Params in R: Set Custom Tuning Ranges"
+description: "Use dials update() in R to set custom tuning ranges inside a tidymodels parameter set. Syntax, multi-parameter updates, update vs finalize, pitfalls, FAQ."
+keywords: "dials update params, dials update parameters, update parameter range tidymodels, tidymodels update tuning grid, dials update function R, dials update mtry"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "dials::update()|dials update params|update.parameters()|update tuning parameters|dials update parameters"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>dials update() Params in R: Set Custom Tuning Ranges</h1>
+
+<p class="lead">The dials update() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> replaces one or more parameter objects inside a tidymodels parameters set, letting you tighten, widen, or swap the tuning ranges that <a class="auto-link" href="tune-grid_regular-in-R.html" title="dials grid_regular() in R: Build Regular Tuning Grids">grid_regular()</a> and <a class="auto-link" href="tune-tune_grid-in-R.html" title="tune tune_grid() in R: Hyperparameter Search on Resamples">tune_grid()</a> will sample from later in the pipeline.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>update(params, trees = trees(c(100, 500)))<span class="qa-cmt">                       # set one range</span>
+update(params, mtry = mtry(c(1L, 10L)), min_n = min_n(c(2, 40)))<span class="qa-cmt"> # multiple at once</span>
+params |&gt; update(learn_rate = learn_rate(c(-3, -1)))<span class="qa-cmt">             # log10-scale knob</span>
+update(params, !!!list(trees = trees(c(50, 200))))<span class="qa-cmt">               # splice from a list</span>
+update(params, mtry = mtry_prop(c(0.2, 0.9)))<span class="qa-cmt">                    # swap to a portion knob</span>
+update(params, mtry = mtry(c(1L, ncol(train_x))))<span class="qa-cmt">                # manual finalize</span>
+params |&gt; update(penalty = penalty(c(-4, 0)))<span class="qa-cmt">                    # widen a glmnet range</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is dials::update() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">set a custom numeric range on a known parameter</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">update(params, mtry = mtry(c(1L, 10L)))</text><text x="125" y="126" class="branch-label">the range depends on data (mtry, num_comp)</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">finalize(params, train_x)</text><text x="125" y="182" class="branch-label">inspect ranges already inside a set</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">extract_parameter_set_dials(wf)</text><text x="125" y="238" class="branch-label">check if any parameter still has an unknown bound</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">has_unknowns(params)</text><text x="125" y="294" class="branch-label">swap one parameter object for a different family member</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">update(params, mtry = mtry_prop())</text><text x="125" y="350" class="branch-label">build the grid from the updated set</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">grid_regular(params, levels = 5)</text><text x="125" y="406" class="branch-label">override the best params back into a fitted workflow</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">finalize_workflow(wf, best)</text></svg></div>
+
+<h2>What dials::update() does in one sentence</h2>
+
+<p><strong>update() replaces named parameter objects inside a parameters set with new ones you supply.</strong> Each tidymodels tunable parameter is itself a small object carrying a type, a default range, and metadata. The parameters set is a tibble of those objects, indexed by the parameter id. update() takes the set plus a series of <code>id = new_param_object</code> arguments, swaps the matching rows, and returns a new set with the replacements applied.</p>
+
+<p>The method is <code>update.parameters()</code>. It dispatches on the parameters class so the same call signature works whether you built the set by hand with <code>parameters(list(mtry(), trees()))</code> or pulled it from a workflow with <code>extract_parameter_set_dials()</code>. The set is immutable; update() always returns a new object rather than mutating in place.</p>
+
+<h2>dials::update() syntax and arguments</h2>
+
+<p><strong>The signature accepts a parameters set plus named replacements.</strong></p>
+
+<div class="webr-container" data-block-title="update signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">update signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dials)
+# S3 method for class 'parameters'
+update(object, ...)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>object</code></td>
+<td>A <code>parameters</code> set built by <code>parameters()</code> or <code>extract_parameter_set_dials()</code>.</td>
+</tr>
+<tr>
+<td><code>...</code></td>
+<td>Named arguments where each name matches a parameter id in <code>object</code> and each value is a new dials parameter object (for example <code>mtry(c(1L, 10L))</code>).</td>
+</tr>
+</tbody>
+</table>
+
+<p>The names in <code>...</code> must match parameter identifiers exactly (case-sensitive). The values must be valid dials parameter objects, not raw vectors or numeric ranges. Passing <code>mtry = c(1, 10)</code> errors; the correct form is <code>mtry = mtry(c(1L, 10L))</code>.</p>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Most update() calls happen after extracting parameters from a workflow.</strong></p>
+
+<div class="webr-container" data-block-title="Build a parameters set and update one range">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a parameters set and update one range</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dials)
+
+params &lt;- parameters(list(mtry(), trees(), min_n()))
+params
+#&gt; Collection of 3 parameters for tuning
+#&gt; 
+#&gt;  identifier  type    object
+#&gt;        mtry  mtry nparam[?]
+#&gt;       trees trees nparam[+]
+#&gt;       min_n min_n nparam[+]
+#&gt; 
+#&gt; Parameters needing finalization:
+#&gt;    # Randomly Selected Predictors ('mtry')
+
+params &lt;- update(params, trees = trees(c(100, 500)))
+extract_parameter_dials(params, &quot;trees&quot;)
+#&gt; # Trees (quantitative)
+#&gt; Range: [100, 500]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The default trees range is <code>[1, 2000]</code>, which is too wide for a small dataset. update() narrows it to a sensible window without rebuilding the rest of the set.</p>
+
+<div class="webr-container" data-block-title="Update multiple parameters in one call">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Update multiple parameters in one call</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">params &lt;- update(params,
+                 trees = trees(c(50, 1000)),
+                 min_n = min_n(c(2, 40)))
+
+extract_parameter_dials(params, &quot;trees&quot;)
+#&gt; # Trees (quantitative)
+#&gt; Range: [50, 1000]
+extract_parameter_dials(params, &quot;min_n&quot;)
+#&gt; # Minimal Node Size (quantitative)
+#&gt; Range: [2, 40]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Pass as many <code>id = value</code> pairs as needed. The arguments do not need to cover every parameter in the set; rows not named in the call are left untouched.</p>
+
+<div class="webr-container" data-block-title="Update from a workflow-extracted set">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Update from a workflow-extracted set</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+data(ames, package = &quot;modeldata&quot;)
+set.seed(42)
+train &lt;- ames[sample(nrow(ames), 1500), ]
+
+rf_spec &lt;- rand_forest(mtry = tune(), trees = tune(), min_n = tune()) |&gt;
+  set_engine(&quot;ranger&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+wf &lt;- workflow() |&gt;
+  add_formula(Sale_Price ~ Gr_Liv_Area + Year_Built + Lot_Area + Bldg_Type) |&gt;
+  add_model(rf_spec)
+
+params &lt;- extract_parameter_set_dials(wf) |&gt;
+  update(mtry  = mtry(c(1L, 4L)),
+         trees = trees(c(200, 600)),
+         min_n = min_n(c(5, 30)))
+
+params
+#&gt; Collection of 3 parameters for tuning
+#&gt;  identifier  type    object
+#&gt;        mtry  mtry nparam[+]
+#&gt;       trees trees nparam[+]
+#&gt;       min_n min_n nparam[+]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All three ranges now carry explicit bounds, including mtry, so <code>grid_regular(params, levels = 4)</code> will run without an additional finalize() step. The pattern of "extract, then update" is the canonical <a class="auto-link" href="recipes-recipe-in-R.html" title="recipes recipe() in R: Build a Preprocessing Blueprint">tidymodels recipe</a> for overriding default search spaces.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>update() and finalize() are siblings, not substitutes.</strong> finalize() reads the column count from training data and fills <code>nparam[?]</code> markers. update() replaces a parameter object outright with one you specify. Reach for update() when you already know the range; reach for finalize() when the data has to tell you the range. They <a class="auto-link" href="R-Function-Operators.html" title="R Function Operators: Compose, Negate & Partial Application">compose</a>: pipe finalize() first, then update() to tighten a specific bound.</div></div>
+
+<h2>update() versus finalize() and direct grid edits</h2>
+
+<p><strong>Choose by who owns the bound and whether you want a search-space override.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Approach</th>
+<th>Best when</th>
+<th>Trade-off</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>update(params, mtry = mtry(c(1L, 8L)))</code></td>
+<td>You know the exact range you want to search.</td>
+<td>Explicit and reproducible; ignores data shape.</td>
+</tr>
+<tr>
+<td><code>finalize(params, train_x)</code></td>
+<td>The upper bound depends on the predictor column count.</td>
+<td>Couples search space to a specific <a class="auto-link" href="rsample-training-in-R.html" title="rsample training() in R: Get the Training Set From a Split">training set</a>.</td>
+</tr>
+<tr>
+<td><code>mtry_prop()</code> as a replacement parameter</td>
+<td>You want portability across datasets of varying width.</td>
+<td>Range is on <code>[0, 1]</code>; less intuitive to interpret.</td>
+</tr>
+<tr>
+<td>Edit the candidate tibble directly</td>
+<td>A handful of bespoke candidates, not a range.</td>
+<td>Loses the dials metadata; grid functions stop working.</td>
+</tr>
+</tbody>
+</table>
+
+<p>A common pipeline chains the first two: finalize() to handle data-driven bounds, then update() to tighten any range where you have prior knowledge that the optimum sits in a narrower window.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three mistakes account for most update() errors.</strong></p>
+
+<ol>
+
+<li><strong>Passing a raw vector instead of a parameter constructor.</strong> <code>update(params, mtry = c(1, 10))</code> errors with "must be a 'param' object". Always wrap in the constructor: <code>update(params, mtry = mtry(c(1L, 10L)))</code>. The constructor carries the type, transformer, and label that downstream grid functions read.</li>
+
+<li><strong>Misspelling the parameter id.</strong> <code>update(params, mtry = mtry(c(1L, 10L)))</code> works, but <code>update(params, m_try = mtry(c(1L, 10L)))</code> silently adds nothing because no row matches. Check ids with <code>params$id</code> first, or use <code>extract_parameter_dials(params, &quot;mtry&quot;)</code> to confirm the name.</li>
+
+<li><strong>Updating a log-scaled parameter with raw values.</strong> <code>learn_rate</code> lives on <code>log10</code> scale by default, so <code>update(params, learn_rate = learn_rate(c(0.001, 0.1)))</code> mistakenly searches <code>[0.001, 0.1]</code> on the <a class="auto-link" href="ggplot2-Log-Scale.html" title="ggplot2 Log Scale in R: When & How to Transform Axes (with Examples)">log axis</a> (a tiny window near 1). Pass log10 bounds instead: <code>learn_rate = learn_rate(c(-3, -1))</code> searches <code>[1e-3, 1e-1]</code> on the natural scale.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>update() does not check that your range is reachable.</strong> Setting <code>mtry = mtry(c(1L, 100L))</code> on a 10-column predictor matrix silently produces an unreachable upper bound; tune_grid will fit invalid candidates and emit warnings inside the resampling loop, not at update time. Always cross-check against the actual column count.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>update() lives on parameters sets, not on workflows.</strong> To swap a tuning range inside a workflow, extract the set first with <code>extract_parameter_set_dials(wf)</code>, update it, then pass the updated set into <code>tune_grid(wf, ..., param_info = params)</code>. The workflow itself stays unchanged; tune_grid consumes the updated set as a separate argument.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a tunable random forest on iris, extract its parameter set, update mtry to <code>[1L, 3L]</code> and min_n to <code>[5, 20]</code>, then build a regular grid with 3 levels per parameter.</p>
+<div class="webr-container" data-block-title="Your turn: update on iris">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: update on iris</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: update iris params
+library(tidymodels)
+
+ex_spec &lt;- rand_forest(mtry = tune(), trees = 200, min_n = tune()) |&gt;
+  set_engine(&quot;ranger&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+ex_wf &lt;- workflow() |&gt;
+  add_formula(Species ~ .) |&gt;
+  add_model(ex_spec)
+
+ex_params &lt;- # your code here
+
+ex_grid &lt;- # your code here
+
+ex_grid
+#&gt; Expected: a 9-row tibble with columns mtry and min_n</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_params &lt;- extract_parameter_set_dials(ex_wf) |&gt;
+  update(mtry  = mtry(c(1L, 3L)),
+         min_n = min_n(c(5, 20)))
+
+ex_grid &lt;- grid_regular(ex_params, levels = 3)
+
+ex_grid
+#&gt; # A tibble: 9 x 2
+#&gt;    mtry min_n
+#&gt;   &lt;int&gt; &lt;int&gt;
+#&gt; 1     1     5
+#&gt; 2     2     5
+#&gt; 3     3     5
+#&gt; 4     1    12
+#&gt; 5     2    12
+#&gt; 6     3    12
+#&gt; 7     1    20
+#&gt; 8     2    20
+#&gt; 9     3    20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> update() swaps the mtry and min_n parameter rows with explicit ranges, so the set no longer carries any unknown bounds. grid_regular() then crosses three levels of each, producing a 3 by 3 grid.</p>
+
+</details>
+</section>
+
+<h2>Related tidymodels functions</h2>
+
+<p><strong>update() sits between parameter inspection and grid construction.</strong></p>
+
+<ul>
+
+<li><code>extract_parameter_set_dials()</code> pulls every tunable parameter from a workflow or model spec.</li>
+
+<li><code>finalize()</code> fills data-dependent bounds (the companion verb when the data sets the range).</li>
+
+<li><code>parameters()</code> builds a set from a list of parameter objects when no workflow is involved.</li>
+
+<li><code>mtry()</code>, <code>trees()</code>, <code>min_n()</code>, <code>learn_rate()</code>, <code>penalty()</code> are common parameter constructors you pass into update().</li>
+
+<li><code>grid_regular()</code>, <code>grid_random()</code>, <code>grid_space_filling()</code> consume the updated set to produce candidate tibbles.</li>
+
+<li><code>tune_grid()</code> and <code>tune_bayes()</code> accept the updated set via <code>param_info</code> to constrain the search.</li>
+
+</ul>
+
+<p>External reference: the dials documentation at <a href="https://dials.tidymodels.org/reference/update.parameters.html">dials.tidymodels.org/reference/update.parameters.html</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between dials::update() and update_recipe()?</strong></p>
+
+<p>They touch different layers of the tidymodels stack. dials::update() modifies a parameters set: the tuning ranges that grid functions will sample. update_recipe() is from the workflows package and swaps the entire recipe inside a workflow object. Same English verb, different objects. Use dials::update() when you want a tighter learn_rate search; use update_recipe() when you want to add or remove preprocessing steps without rebuilding the workflow from scratch.</p>
+
+<p><strong>Can I use dials::update() on a single parameter outside a set?</strong></p>
+
+<p>No. update.parameter() is not part of the dials API. To change the range of a standalone parameter, just call the constructor again with the new range: <code>my_param &lt;- mtry(c(1L, 10L))</code>. update() only makes sense for the parameters tibble because its job is to replace a named row inside the set; a single object has no named index to match against.</p>
+
+<p><strong>Why does my update() call appear to do nothing?</strong></p>
+
+<p>Three causes account for almost every silent no-op. First, the parameter id does not match a row in the set (typo or wrong case). Second, you forgot to assign the result back, since update() returns a new set rather than mutating in place: write <code>params &lt;- update(params, ...)</code>. Third, you updated a set that you then never passed into <code>tune_grid(..., param_info = params)</code>, so the tuner used the workflow's default ranges. Print the set after the update call to confirm the change took effect.</p>
+
+<p><strong>How do I update only a subset of parameters in a large set?</strong></p>
+
+<p>Name only the ones you want to change. update() leaves any parameter id not appearing in <code>...</code> untouched, so <code>update(params, trees = trees(c(50, 200)))</code> modifies the trees row and keeps mtry, min_n, learn_rate, and any others at their previous ranges. For programmatic updates over a variable list of parameters, build a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> and splice it with <code>!!!</code>: <code>update(params, !!!my_updates)</code>.</p>
+
+<p><strong>Does dials::update() work with mtry_prop or mtry_long?</strong></p>
+
+<p>Yes. update() accepts any dials parameter object, including mtry variants. To swap from integer mtry to a portion-based mtry_prop, write <code>update(params, mtry = mtry_prop(c(0.1, 0.8)))</code>. The id stays "mtry", but the underlying object changes type, so downstream grid functions sample on <code>[0, 1]</code> instead of counts. This is the canonical pattern for portable hyperparameter searches across datasets of varying width.</p>
+
+{% endraw %}
