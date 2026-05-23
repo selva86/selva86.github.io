@@ -1,0 +1,387 @@
+---
+title: "dials trees() in R: Tune Ensemble Size in tidymodels"
+description: "Use dials trees() in R to set the ensemble size range for random forest and boosted tree tuning. Defaults, examples, learn_rate interaction, pitfalls."
+keywords: "dials trees, trees function R, dials trees examples, R trees hyperparameter, tune trees tidymodels, number of trees parameter, dials::trees"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "trees()|dials trees|dials::trees()|tune trees|trees parameter"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>dials trees() in R: Tune Ensemble Size in tidymodels</h1>
+
+<p class="lead">The dials trees() <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> defines the integer hyperparameter for the number of trees in an ensemble model. It ships with a finalized range of 1 to 2000 by default, so unlike mtry() you can drop it into a tuning grid without calling finalize() first.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>trees()<span class="qa-cmt">                                  # default range 1L to 2000L</span>
+trees(range = c(100L, 1500L))<span class="qa-cmt">            # explicit narrower band</span>
+trees(trans = transform_log10())<span class="qa-cmt">         # log-scaled search space</span>
+update(params, trees = trees(c(50L, 500L)))<span class="qa-cmt"> # override range in a param set</span>
+grid_regular(trees(c(100L, 1000L)), levels = 5)<span class="qa-cmt"> # candidate grid</span>
+rand_forest(trees = tune(), mtry = tune())<span class="qa-cmt">   # mark for tuning in spec</span>
+boost_tree(trees = tune(), learn_rate = tune())<span class="qa-cmt"> # boosting needs both</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is trees() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">tune ensemble size for forest or boosted trees</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">trees()</text><text x="125" y="126" class="branch-label">tune learning rate alongside trees for boosting</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">learn_rate()</text><text x="125" y="182" class="branch-label">tune variable sampling at each split</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">mtry()</text><text x="125" y="238" class="branch-label">tune the minimum node size</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">min_n()</text><text x="125" y="294" class="branch-label">tune individual tree depth in boosting</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">tree_depth()</text><text x="125" y="350" class="branch-label">stop boosting early based on validation</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">stop_iter()</text><text x="125" y="406" class="branch-label">finalize an unknown range like mtry</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">finalize(params, train_x)</text></svg></div>
+
+<h2>What trees() does in one sentence</h2>
+
+<p><strong>trees() returns a dials parameter object describing the ensemble size, not a numeric value.</strong> It is the knob you tune when you mark <code>trees = tune()</code> inside <code>rand_forest()</code>, <code>boost_tree()</code>, <code>bag_tree()</code>, or <code>bart()</code>. Random forests want enough trees to stabilize the variance reduction. Boosted trees want enough rounds to fit the residual structure, but not so many that they overfit. trees() encodes both intents through the search range you hand it.</p>
+
+<p>The function sits next to <code>mtry()</code>, <code>min_n()</code>, <code>tree_depth()</code>, and <code>learn_rate()</code> in the dials family. Unlike mtry(), its upper bound is data-independent, so the default <code>c(1L, 2000L)</code> is usable without finalize.</p>
+
+<h2>trees() syntax and arguments</h2>
+
+<p><strong>The signature is two arguments and no surprises.</strong></p>
+
+<div class="webr-container" data-block-title="trees signature and defaults">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">trees signature and defaults</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dials)
+trees(range = c(1L, 2000L), trans = NULL)
+#&gt; # Trees (quantitative)
+#&gt; Range: [1, 2000]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>range</code></td>
+<td>Two-element integer vector. Default <code>c(1L, 2000L)</code>. Lower the upper bound for fast prototyping; raise it for boosted trees that need more rounds.</td>
+</tr>
+<tr>
+<td><code>trans</code></td>
+<td>Optional scales transformation. Use <code>transform_log10()</code> or <code>transform_log2()</code> when the useful range spans an order of magnitude. NULL by default.</td>
+</tr>
+</tbody>
+</table>
+
+<p>The return is a <code>quant_param</code> S3 object with class <code>c(&quot;quant_param&quot;, &quot;param&quot;)</code>. Print it to inspect, call <code>value_seq()</code> to draw points, or pass it to a <code>grid_*()</code> helper to expand a search space.</p>
+
+<div class="webr-container" data-block-title="Inspect the parameter object">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Inspect the parameter object</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">p &lt;- trees(range = c(100L, 1500L))
+p
+#&gt; # Trees (quantitative)
+#&gt; Range: [100, 1500]
+
+value_seq(p, 4)
+#&gt; [1]  100  566 1033 1500</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Integer flag matters.</strong> dials samples on integers and coerces doubles silently, so passing <code>range = c(100, 1500)</code> works but <code>c(100.5, 1500.5)</code> quietly truncates. Use the <code>L</code> suffix to make integer intent explicit and avoid subtle grid drift.</div></div>
+
+<h2>Examples by use case</h2>
+
+<p><strong>Random forests, boosted trees, and bagged ensembles all take trees(), but the sensible ranges differ.</strong></p>
+
+<div class="webr-container" data-block-title="Tunable random forest with trees and mtry">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Tunable random forest with trees and mtry</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+data(ames, package = &quot;modeldata&quot;)
+ames &lt;- ames |&gt; mutate(Sale_Price = log10(Sale_Price))
+
+set.seed(42)
+split &lt;- initial_split(ames, prop = 0.8, strata = Sale_Price)
+train &lt;- training(split)
+
+rf_spec &lt;- rand_forest(
+  trees = tune(),
+  mtry  = tune(),
+  min_n = tune()
+) |&gt;
+  set_engine(&quot;ranger&quot;) |&gt;
+  set_mode(&quot;regression&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Random forests benefit from a wide range that scales the trees up to a plateau. The marginal gain past 1000 is usually small, but it costs only compute.</p>
+
+<div class="webr-container" data-block-title="Build a forest-friendly grid">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Build a forest-friendly grid</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">params &lt;- extract_parameter_set_dials(rf_spec) |&gt;
+  update(trees = trees(c(200L, 1500L))) |&gt;
+  finalize(train |&gt; select(-Sale_Price))
+
+grid_rf &lt;- grid_regular(params, levels = c(trees = 4, mtry = 3, min_n = 2))
+head(grid_rf)
+#&gt; # A tibble: 6 x 3
+#&gt;   trees  mtry min_n
+#&gt;   &lt;int&gt; &lt;int&gt; &lt;int&gt;
+#&gt; 1   200     2     2
+#&gt; 2   633     2     2
+#&gt; 3  1066     2     2
+#&gt; 4  1500     2     2
+#&gt; 5   200    33     2
+#&gt; 6   633    33     2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Boosted trees need a tighter pairing of trees and learn_rate. Many trees with a high learning rate overfit; few trees with a low rate underfit.</p>
+
+<div class="webr-container" data-block-title="Boosted tree spec with trees and learn_rate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Boosted tree spec with trees and learn_rate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">xgb_spec &lt;- boost_tree(
+  trees      = tune(),
+  learn_rate = tune(),
+  tree_depth = tune()
+) |&gt;
+  set_engine(&quot;xgboost&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+xgb_params &lt;- extract_parameter_set_dials(xgb_spec) |&gt;
+  update(
+    trees      = trees(c(100L, 1000L)),
+    learn_rate = learn_rate(c(-3, -1))
+  )
+
+grid_xgb &lt;- grid_space_filling(xgb_params, size = 12)
+head(grid_xgb, 3)
+#&gt; # A tibble: 3 x 3
+#&gt;   trees tree_depth learn_rate
+#&gt;   &lt;int&gt;      &lt;int&gt;      &lt;dbl&gt;
+#&gt; 1   100          4    0.00794
+#&gt; 2   523          8    0.0501 
+#&gt; 3   918         12    0.158</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For very long search spaces, the log transform spreads candidates more usefully than a linear sweep.</p>
+
+<div class="webr-container" data-block-title="Log-scaled trees range">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Log-scaled trees range</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">trees_log &lt;- trees(range = c(50L, 2000L), trans = transform_log10())
+value_seq(trees_log, 5)
+#&gt; [1]   50  119  283  672 1600</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A linear sweep would oversample the high end; the log-scaled sequence samples both small and large counts evenly.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>For random forests, trees() is the cheapest knob to leave generous; for boosting, it is the most expensive knob to set wrong.</strong> Random forest accuracy is monotone-non-decreasing in tree count, so over-allocating costs only compute. Boosting accuracy is unimodal in tree count, so the wrong setting actively degrades the model and a too-wide range wastes the tuning budget on bad candidates.</div></div>
+
+<h2>trees() versus stop_iter() and learn_rate()</h2>
+
+<p><strong>These three control how long the ensemble runs and how it grows; the right move depends on whether you are forest- or boosting-flavored.</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Knob</th>
+<th>Where it applies</th>
+<th>What it controls</th>
+<th>When to reach for it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>trees()</code></td>
+<td>Forests, boosting, bagging, BART</td>
+<td>Fixed ensemble size before fitting</td>
+<td>You want a search over a known range.</td>
+</tr>
+<tr>
+<td><code>stop_iter()</code></td>
+<td>xgboost, lightgbm boosting only</td>
+<td>Early stopping rounds</td>
+<td>You set a generous trees upper bound and let validation cut the run short.</td>
+</tr>
+<tr>
+<td><code>learn_rate()</code></td>
+<td>Boosting only</td>
+<td>Shrinkage per round</td>
+<td>You expect to need many trees and want each one to contribute a small step.</td>
+</tr>
+</tbody>
+</table>
+
+<p>For boosted trees, the productive pattern is <code>trees = 1000, learn_rate = tune(), stop_iter = 25</code>. Trees is the budget ceiling; learn_rate is the tuning knob; stop_iter is the brake. Forests skip the brake entirely because there is no validation-set signal to act on.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Four mistakes cause most boosted tree tuning runs to land at suboptimal trees() values.</strong></p>
+
+<ol>
+
+<li><strong>Tuning trees without learn_rate in boosting.</strong> A fixed learn_rate hides the actual response curve. Either fix learn_rate at a sensible 0.1 and tune trees, or tune both jointly. Tuning trees in isolation against a low learn_rate produces a flat search surface and an arbitrary winner.</li>
+
+<li><strong>Setting the upper bound to match the trees argument literally.</strong> <code>boost_tree(trees = 500)</code> and <code>trees(c(1L, 500L))</code> look similar but mean different things. The first fixes trees at 500; the second searches 1 to 500. Use <code>tune()</code> in the spec and the range in dials when you want to tune.</li>
+
+<li><strong>Using trees() with engines that ignore it.</strong> Linear models, MARS, kNN, and neural nets have no <code>trees</code> argument. <code>update()</code>-ing a parameter set with <code>trees()</code> against a non-ensemble spec raises <code>Error: &#x27;trees&#x27; is not a parameter for this object.</code></li>
+
+<li><strong>Forgetting that trees() controls the count, not the depth.</strong> A 1000-tree forest with depth 30 takes far longer to fit than a 200-tree forest with depth 30. Use <code>tree_depth()</code> for individual tree size; trees() only controls how many there are.</li>
+
+</ol>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>xgboost early stopping and <a class="auto-link" href="tune-tune_grid-in-R.html" title="tune tune_grid() in R: Hyperparameter Search on Resamples">tune_grid()</a> do not <a class="auto-link" href="R-Function-Operators.html" title="R Function Operators: Compose, Negate & Partial Application">compose</a> cleanly by default.</strong> If you set <code>stop_iter</code> inside <code>set_engine(&quot;xgboost&quot;, stop_iter = 25, validation = 0.1)</code> and also tune trees, the early-stopping cutoff applies inside each candidate fit. The recorded <code>trees</code> value in <code>collect_metrics()</code> is the requested count, not the count after early stopping kicks in. Inspect <code>extract_fit_engine()</code> to see the actual best_iteration per candidate.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a tunable boosted tree spec for the diamonds dataset, set the trees range to 200 to 800 and learn_rate to 1e-3 to 1e-1 on a log10 scale, and produce a 6-candidate space-filling grid. Print the grid.</p>
+<div class="webr-container" data-block-title="Your turn: tune trees and learn_rate">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: tune trees and learn_rate</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: build a boosted-tree grid
+library(tidymodels)
+data(diamonds, package = &quot;ggplot2&quot;)
+
+ex_spec &lt;- boost_tree(trees = tune(), learn_rate = tune()) |&gt;
+  set_engine(&quot;xgboost&quot;) |&gt;
+  set_mode(&quot;regression&quot;)
+
+ex_params &lt;- # your code here
+
+ex_grid &lt;- # your code here
+
+ex_grid
+#&gt; Expected: a 6-row tibble with columns trees and learn_rate</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_params &lt;- extract_parameter_set_dials(ex_spec) |&gt;
+  update(
+    trees      = trees(c(200L, 800L)),
+    learn_rate = learn_rate(c(-3, -1))
+  )
+
+set.seed(1)
+ex_grid &lt;- grid_space_filling(ex_params, size = 6)
+
+ex_grid
+#&gt; # A tibble: 6 x 2
+#&gt;   trees learn_rate
+#&gt;   &lt;int&gt;      &lt;dbl&gt;
+#&gt; 1   200    0.0316 
+#&gt; 2   320    0.001  
+#&gt; 3   440    0.01   
+#&gt; 4   560    0.1    
+#&gt; 5   680    0.00316
+#&gt; 6   800    0.00562</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>update()</code> overrides the default ranges for both parameters in the extracted set. <code>grid_space_filling()</code> spreads six candidates so trees marches roughly linearly and learn_rate covers the log10 span uniformly.</p>
+
+</details>
+</section>
+
+<h2>Related tidymodels functions</h2>
+
+<p><strong>trees() rarely flies solo; it lives inside a short, predictable pipeline.</strong></p>
+
+<ul>
+
+<li><code>learn_rate()</code> to tune the boosting shrinkage rate alongside trees.</li>
+
+<li><code>tree_depth()</code> to set the depth of individual boosted trees.</li>
+
+<li><code>mtry()</code> to tune the predictor count sampled at each split.</li>
+
+<li><code>stop_iter()</code> for xgboost early stopping when the trees upper bound is generous.</li>
+
+<li><code>extract_parameter_set_dials()</code> to pull every tunable parameter from a workflow at once.</li>
+
+<li><code>update()</code> to override one parameter range inside a parameter set.</li>
+
+<li><code>grid_regular()</code>, <code>grid_random()</code>, <code>grid_space_filling()</code> to materialize candidate tibbles.</li>
+
+<li><code>tune_grid()</code> to fit each candidate across resamples and rank them.</li>
+
+</ul>
+
+<p>External reference: the official dials documentation at <a href="https://dials.tidymodels.org/reference/trees.html">dials.tidymodels.org</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How many trees should I use in a random forest?</strong></p>
+
+<p>For random forests, more trees rarely hurt accuracy; they cost compute. A common practical default is 500 to 1000 for most tabular problems, and 2000 if the response surface is noisy or the predictor space is high-dimensional. The accuracy gain past 1000 is typically inside the resampling noise band, so tuning trees() in a forest is more about finding the point of diminishing returns than chasing the global maximum.</p>
+
+<p><strong>Why does dials trees() not need finalize() like mtry()?</strong></p>
+
+<p>Because the upper bound of trees() does not depend on the training data. The maximum sensible ensemble size is governed by compute budget and overfitting risk, not the predictor matrix shape. dials therefore ships trees() with a concrete default of <code>c(1L, 2000L)</code>, which is finalized at construction and ready to feed into <code>grid_regular()</code> without further setup.</p>
+
+<p><strong>How does trees() interact with learn_rate() in boosting?</strong></p>
+
+<p>They are jointly responsible for the total signal absorbed during boosting. A small learn_rate spreads the same gradient signal across more rounds, so it needs proportionally more trees to converge. Tuning one without the other gives a misleading picture: a small learn_rate looks bad with too few trees, and a large learn_rate looks unstable with too many. Use a 2D grid or space-filling design over both.</p>
+
+<p><strong>Can I tune trees() with cross-validation and early stopping at the same time?</strong></p>
+
+<p>Yes, but the bookkeeping is tricky. Set a generous trees() range, configure <code>stop_iter</code> inside the engine, and let xgboost stop each candidate fit early. The <code>collect_metrics()</code> output reports the requested trees count, not the post-stopping count, so to see the actual best iteration per candidate, pipe <code>extract_fit_engine()</code> and inspect <code>best_iteration</code>. Most users skip stop_iter inside tune_grid() and just tune trees as a clean knob.</p>
+
+<p><strong>What is the difference between trees() in dials and trees in parsnip?</strong></p>
+
+<p><code>dials::trees()</code> is the parameter object that describes the search range for the ensemble size. <code>parsnip::rand_forest(trees = ...)</code> is the model argument that takes either an integer (fixed value) or <code>tune()</code> (placeholder to be filled in by the dials object during tuning). The dials function defines the search space; the parsnip argument consumes the result. They cooperate via <code>extract_parameter_set_dials()</code> and <code>tune_grid()</code>.</p>
+
+{% endraw %}
