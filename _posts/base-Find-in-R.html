@@ -1,0 +1,398 @@
+---
+title: "base Find() in R: Return First Element Matching a Predicate"
+description: "base R Find() returns the first list or vector element matching a predicate. See syntax, six patterns, Find vs Filter vs Position, and common pitfalls."
+keywords: "base Find function, Find function R, R Find first match, Find predicate R, base R Find, functional programming Find R, Find vs Filter R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "Find()|base::Find()|base Find|Find function in R|R Find function"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>base Find() in R: Return First Element Matching a Predicate</h1>
+
+<p class="lead">base R Find() returns the first element of a list or vector for which a predicate function returns TRUE. It is part of R's Filter, Find, Position, Reduce, Map functional family, built into base.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>Find(\(x) x &gt; 5, c(1, 8, 3))<span class="qa-cmt">           # first element matching a predicate</span>
+Find(is.character, my_list)<span class="qa-cmt">             # first character element</span>
+Find(\(x) x &gt; 5, v, right = TRUE)<span class="qa-cmt">       # last match (search from right)</span>
+Find(\(x) x &gt; 100, v, nomatch = -1L)<span class="qa-cmt">    # fallback when nothing matches</span>
+Find(\(x) length(x) &gt; 0, my_list)<span class="qa-cmt">       # first non-empty list element</span>
+Find(Negate(is.na), v)<span class="qa-cmt">                  # first non-NA value</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is Find() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">get the first element matching a predicate</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">Find(\(x) x &gt; 5, v)</text><text x="125" y="126" class="branch-label">get the INDEX of the first match</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">Position(\(x) x &gt; 5, v)</text><text x="125" y="182" class="branch-label">get ALL elements matching a predicate</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">Filter(\(x) x &gt; 5, v)</text><text x="125" y="238" class="branch-label">combine elements with an accumulator</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">Reduce(`+`, v)</text><text x="125" y="294" class="branch-label">apply a function to every element</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">lapply(v, \(x) x * 2)</text><text x="125" y="350" class="branch-label">locate a known value in a lookup</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">match(needle, haystack)</text></svg></div>
+
+<h2>What Find() does in one sentence</h2>
+
+<p><strong>Find() scans a list or vector left to right and returns the first element where a predicate returns TRUE.</strong> It is base R's answer to "give me one match, not all of them." Unlike <code>Filter()</code>, which keeps every matching element, <code>Find()</code> stops at the first hit and returns that single element. The companion function <code>Position()</code> returns the index of the same hit; <code>Find()</code> returns the value.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Find() returns a VALUE, Position() returns an INDEX.</strong> If you need both, call Position() once, then index <code>x[[i]]</code>, rather than calling Find() and Position() back to back.</div></div>
+
+<h2>Syntax</h2>
+
+<p><strong>Find() has a short signature with only four arguments.</strong> Two are positional (the predicate and the data), two are keyword arguments that change scan direction and the no-match return value.</p>
+
+<div class="webr-container" data-block-title="Find signature and arguments">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find signature and arguments</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Function signature
+args(Find)
+#&gt; function (f, x, right = FALSE, nomatch = NULL)
+#&gt; NULL</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The arguments:</p>
+
+<ul>
+
+<li><code>f</code>: a predicate function that takes one element and returns a single TRUE or FALSE.</li>
+
+<li><code>x</code>: a list or atomic vector to scan.</li>
+
+<li><code>right</code>: if TRUE, scan from right to left and return the last matching element. Default FALSE.</li>
+
+<li><code>nomatch</code>: value returned when no element matches. Default NULL.</li>
+
+</ul>
+
+<p>Find() does not require any package, it ships with base R and has been stable since R 1.5. The predicate <code>f</code> is called once per element, in order, and scanning stops the moment a TRUE is returned.</p>
+
+<h2>Six common patterns</h2>
+
+<p><strong>Each pattern below covers a different real-world shape of "find one match".</strong> Run them in order; the WebR session keeps state across blocks.</p>
+
+<h3>First element passing a numeric condition</h3>
+
+<p><strong>Pass a numeric predicate to grab the first value above (or below) a threshold.</strong> This is the canonical Find() use case.</p>
+
+<div class="webr-container" data-block-title="Find first value above threshold">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find first value above threshold</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">v &lt;- c(2, 4, 6, 8, 10)
+Find(\(x) x &gt; 5, v)
+#&gt; [1] 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The anonymous function <code>\(x) x &gt; 5</code> is R 4.1+ shorthand for <code>function(x) x &gt; 5</code>. Find() walks <code>v</code> left to right and returns 6, the first value where the predicate is TRUE.</p>
+
+<h3>First element of a specific type in a mixed list</h3>
+
+<p><strong>Type predicates pair perfectly with Find() on heterogeneous lists.</strong> Use <code>is.character</code>, <code>is.numeric</code>, <code>is.function</code>, or <code>is.list</code> to pluck the first element of that type.</p>
+
+<div class="webr-container" data-block-title="Find first character element in a list">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find first character element in a list</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mixed &lt;- list(1L, TRUE, &quot;hello&quot;, 3.14, &quot;world&quot;)
+Find(is.character, mixed)
+#&gt; [1] &quot;hello&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Last match using right = TRUE</h3>
+
+<p><strong>Set <code>right = TRUE</code> to scan from the end and return the last match instead of the first.</strong> It is the only direction flag Find() supports; use <a class="auto-link" href="Reduce-Filter-Map-in-R.html" title="Reduce(), Filter(), Map() in Base R: Functional Trifecta Explained">Filter()</a> if you need every match.</p>
+
+<div class="webr-container" data-block-title="Find the last matching element">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find the last matching element</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">v &lt;- c(2, 4, 6, 8, 10)
+Find(\(x) x &gt; 5, v, right = TRUE)
+#&gt; [1] 10</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Fallback when nothing matches</h3>
+
+<p><strong>Use the <code>nomatch</code> argument to return a sentinel when no element passes the predicate.</strong> Without it, Find() silently returns NULL, which downstream code often mis-handles.</p>
+
+<div class="webr-container" data-block-title="Provide a default with nomatch">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Provide a default with nomatch</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">v &lt;- c(2, 4, 6, 8, 10)
+
+# Without nomatch: returns NULL silently
+Find(\(x) x &gt; 100, v)
+#&gt; NULL
+
+# With nomatch: returns the sentinel
+Find(\(x) x &gt; 100, v, nomatch = -1L)
+#&gt; [1] -1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Set <code>nomatch</code> to a sentinel when downstream code expects a numeric or character result; see Pitfall 1 below for the NULL-ambiguity case.</p>
+
+<h3>First non-empty element in a list of lists</h3>
+
+<p><strong>Combine Find() with <code>length(x) &gt; 0</code> to skip empty entries when cleaning nested data.</strong> It handles <code>list()</code>, <code>NULL</code>, and zero-length atomic vectors in one expression, useful for nested API responses.</p>
+
+<div class="webr-container" data-block-title="Skip empty entries">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Skip empty entries</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nested &lt;- list(list(), c(), list(1, 2), list(3))
+Find(\(x) length(x) &gt; 0, nested)
+#&gt; [[1]]
+#&gt; [1] 1
+#&gt;
+#&gt; [[2]]
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h3>Negate a predicate for "first NOT matching" semantics</h3>
+
+<p><strong>Wrap a predicate in <code>Negate()</code> to flip TRUE and FALSE without rewriting the function.</strong> It reads cleanly alongside <code>is.na</code>, <code>is.null</code>, and <code>is.numeric</code>.</p>
+
+<div class="webr-container" data-block-title="Find first non-NA value">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Find first non-NA value</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">v &lt;- c(NA, NA, 7, NA, 12)
+Find(Negate(is.na), v)
+#&gt; [1] 7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Anonymous functions are cheaper than named ones for one-off predicates.</strong> Use <code>\(x) x &gt; 5</code> inline rather than defining <code>is_big &lt;- function(x) x &gt; 5</code>; the predicate is called once per element and a lambda is the shortest form.</div></div>
+
+<h2>Find vs Position vs Filter vs purrr::detect</h2>
+
+<p><strong>These four functions cover the "search a sequence with a predicate" space.</strong> Pick by what you need back: a value, an index, all matches, or a tidyverse-style call order.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Returns</th>
+<th>Stops at first match?</th>
+<th>Package</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Find(f, x)</code></td>
+<td>First matching element (value)</td>
+<td>Yes</td>
+<td>base</td>
+</tr>
+<tr>
+<td><code>Position(f, x)</code></td>
+<td>Index of first match</td>
+<td>Yes</td>
+<td>base</td>
+</tr>
+<tr>
+<td><code>Filter(f, x)</code></td>
+<td>All matching elements</td>
+<td>No, scans all</td>
+<td>base</td>
+</tr>
+<tr>
+<td><code>purrr::detect(x, f)</code></td>
+<td>First match (tidyverse style)</td>
+<td>Yes</td>
+<td>purrr</td>
+</tr>
+</tbody>
+</table>
+
+<p>Base (Find, Filter, Position) takes the predicate first; purrr puts data first to fit pipe chains. If you already use tidyverse, <code>purrr::detect()</code> and <code>purrr::detect_index()</code> mirror Find()/Position() one-for-one.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>purrr::detect() returns NULL on no match by default, same as Find().</strong> Switching is a syntax change, not a semantics change.</div></div>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Three traps catch most Find() users.</strong> Read these before shipping production code.</p>
+
+<h3>Pitfall 1: NULL on no match looks like "found NULL"</h3>
+
+<p><strong>A NULL return is ambiguous when the list itself contains NULL entries.</strong> Was the match NULL, or was there no match? Use the <code>nomatch</code> argument with a clearly distinguishable sentinel to disambiguate.</p>
+
+<div class="webr-container" data-block-title="Disambiguate no-match from match-is-NULL">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Disambiguate no-match from match-is-NULL</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mixed &lt;- list(NULL, 1, 2, NULL, 3)
+Find(is.null, mixed)
+#&gt; NULL
+
+# Use a sentinel to distinguish
+result &lt;- Find(is.null, mixed, nomatch = &quot;NOT_FOUND&quot;)
+result
+#&gt; NULL</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The match here is genuine; element 1 IS NULL. With <code>nomatch = &quot;NOT_FOUND&quot;</code>, a "NOT_FOUND" return means no match, NULL means match-was-NULL.</p>
+
+<h3>Pitfall 2: Predicate must return a scalar logical</h3>
+
+<p><strong>Find() uses <code>isTRUE()</code> internally, which rejects any logical vector with length > 1.</strong> A predicate that returns a vector silently produces NULL, even when "some" element would seem to match.</p>
+
+<div class="webr-container" data-block-title="Scalarize multi-element predicates">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Scalarize multi-element predicates</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">v &lt;- list(c(1, 2), c(5, 6), c(8, 9))
+
+# WRONG: predicate returns a length-2 logical, isTRUE() rejects it
+Find(\(x) x &gt; 5, v)
+#&gt; NULL
+
+# CORRECT: wrap in any() to force a scalar TRUE/FALSE
+Find(\(x) any(x &gt; 5), v)
+#&gt; [1] 5 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Always wrap multi-element checks in <code>any()</code> or <code>all()</code> so the predicate returns ONE TRUE or FALSE per call.</p>
+
+<h3>Pitfall 3: Slower than vectorized indexing on big numeric vectors</h3>
+
+<p><strong>For long atomic numeric or <a class="auto-link" href="R-Vectors.html" title="R Vectors: The Foundation of Everything in R (Master This First)">character vectors</a>, <code>x[which(predicate(x))[1]]</code> is often faster than Find().</strong> The comparison runs once in C instead of once per element in R. Find() shines on lists and mixed types where vectorized comparison is impossible; on long flat numeric vectors, prefer <code>which()</code> plus indexing.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Find() has no .progress argument and no parallel backend.</strong> Long-running predicates on big lists block the main R session. If <code>f</code> is expensive and <code>x</code> has 10k+ elements, consider <code>furrr::future_detect()</code> or batched manual indexing.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use Find() on <code>c(3, 1, 4, 1, 5, 9, 2, 6)</code> to return the first value greater than 4. Save the result to <code>ex_first_big</code>.</p>
+<div class="webr-container" data-block-title="Your turn: first value above 4">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: first value above 4</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: find first element &gt; 4
+v &lt;- c(3, 1, 4, 1, 5, 9, 2, 6)
+ex_first_big &lt;- # your code here
+
+ex_first_big
+#&gt; Expected: 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">v &lt;- c(3, 1, 4, 1, 5, 9, 2, 6)
+ex_first_big &lt;- Find(\(x) x &gt; 4, v)
+ex_first_big
+#&gt; [1] 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> Find() scans left to right, returns the first hit (5 at position 5), and stops. The values 9 and 6 also pass the predicate but are never visited because Find() short-circuits on the first TRUE.</p>
+
+</details>
+</section>
+
+<h2>Related base R functional functions</h2>
+
+<p><strong>The base R functional family covers the common sequence operations without any package install.</strong> Reach for the right sibling based on what you want to return.</p>
+
+<ul>
+
+<li><code>Filter(f, x)</code>: keeps every element passing the predicate.</li>
+
+<li><code>Position(f, x)</code>: returns the integer INDEX of the first match instead of the value.</li>
+
+<li><code>Map(f, ...)</code>: applies <code>f</code> element-wise across one or more sequences, returns a list.</li>
+
+<li><code>Reduce(f, x)</code>: accumulates a binary operation across a sequence.</li>
+
+<li><code>Negate(f)</code>: flips a predicate's TRUE/FALSE return, handy with <code>is.na</code>, <code>is.null</code>, <code>is.numeric</code>.</li>
+
+</ul>
+
+<p>For a complete tour with comparison to the apply family and purrr equivalents, see Further Reading below.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What does Find() return if no element matches?</strong></p>
+
+<p>By default, Find() returns NULL when no element satisfies the predicate, the silent failure that surprises beginners. Override it with the <code>nomatch</code> argument: <code>Find(predicate, x, nomatch = NA)</code> or <code>nomatch = -1L</code>. Choose a sentinel that cannot collide with any legitimate match so the no-match return is unambiguous downstream.</p>
+
+<p><strong>What is the difference between Find() and Filter() in R?</strong></p>
+
+<p>Find() returns the first matching element and stops; Filter() returns every matching element and scans the whole sequence. Use Find() when you need a single result and want short-circuit evaluation. Use Filter() when you need all matches, for example to subset a list. Both take the predicate first and the data second in base R.</p>
+
+<p><strong>How does Find() differ from match() in R?</strong></p>
+
+<p>match() looks up exact equality against a lookup table, returning the index of the first match. Find() applies a predicate function, so it handles conditions like <code>x &gt; 5</code> or <code>is.numeric(x)</code> that match() cannot express. Use match() for value-equality lookups and Find() for predicate-based searches.</p>
+
+<p><strong>Can Find() use <a class="auto-link" href="R-Anonymous-Functions.html" title="R Anonymous Functions: \\(x) Syntax & When to Use Lambda Style">lambda functions in R</a>?</strong></p>
+
+<p>Yes. From R 4.1, the shorthand <code>\(x) condition</code> is a full lambda you can pass directly: <code>Find(\(x) x &gt; 5, v)</code>. Before R 4.1, use <code>function(x) condition</code>. Both forms work identically; the lambda is just shorter for one-line predicates.</p>
+
+<p><strong>Is Find() vectorized?</strong></p>
+
+<p>No. Find() calls the predicate element by element and stops at the first TRUE. For long atomic vectors where the predicate is vectorizable, <code>x[which(predicate(x))[1]]</code> is faster because the comparison runs once in C. Find() is most efficient for lists and mixed types where element-wise iteration is unavoidable.</p>
