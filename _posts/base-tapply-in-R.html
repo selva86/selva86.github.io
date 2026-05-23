@@ -1,0 +1,313 @@
+---
+title: "tapply() in R: Apply a Function by Grouping Factor"
+description: "Learn tapply() in R to compute grouped summaries from a vector and one or more factors. See five patterns, comparisons to aggregate, and common pitfalls."
+keywords: "tapply in R, tapply function R, base tapply, R group by vector, tapply vs aggregate, tapply examples"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "tapply()|base tapply|base::tapply()|tapply function|tapply R"
+auto_link_case_sensitive: true
+fr_parent: "Functional-Programming-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>base tapply() in R: Apply Functions to Grouped Vector Subsets</h1>
+
+<p class="lead">The <code>tapply()</code> function in base R applies a function to subsets of a vector defined by one or more grouping factors. It returns an array of per-group results, making it the base R workhorse for grouped summaries without loading any package.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>tapply(mtcars$mpg, mtcars$cyl, mean)<span class="qa-cmt">                    # mean mpg per cylinder count</span>
+tapply(mtcars$mpg, mtcars$cyl, sum)<span class="qa-cmt">                     # sum within group</span>
+tapply(mtcars$mpg, list(mtcars$cyl, mtcars$am), mean)<span class="qa-cmt">   # two grouping factors</span>
+tapply(mtcars$mpg, mtcars$cyl, length)<span class="qa-cmt">                  # count per group</span>
+tapply(mtcars$mpg, mtcars$cyl, function(x) max(x)-min(x))<span class="qa-cmt"> # custom function</span>
+tapply(x, g, mean, na.rm = TRUE)<span class="qa-cmt">                        # pass args to FUN</span>
+tapply(x, g, mean, default = 0)<span class="qa-cmt">                         # fill empty groups</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is tapply() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">grouped summary of one vector</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">tapply(x, g, mean)</text><text x="125" y="126" class="branch-label">grouped summary of many columns</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">aggregate(df, by = list(g), mean)</text><text x="125" y="182" class="branch-label">list output instead of array</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">split(x, g) then lapply()</text><text x="125" y="238" class="branch-label">per-row transform tied to group</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">ave(x, g, FUN = mean)</text><text x="125" y="294" class="branch-label">modern tidy syntax</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">dplyr::group_by(df, g) then summarise()</text><text x="125" y="350" class="branch-label">apply function over matrix rows</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">apply(m, 1, sum)</text><text x="125" y="406" class="branch-label">apply function over list elements</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">lapply(lst, fun)</text></svg></div>
+
+<h2>What tapply() does in one sentence</h2>
+
+<p><strong>tapply() is a grouped function applier for vectors.</strong> You pass a vector of values, one or more parallel factors that label each value's group, and a function. It returns the result of running that function on every subset of values that share a group label.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>Think of tapply() as <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">split-apply-combine</a> for a single vector.</strong> It internally calls <code>split()</code> to break the vector by factor, then applies your function to each chunk, then arranges the answers into an array keyed by factor level. This mental model explains every other behavior in this guide.</div></div>
+
+<h2>Syntax</h2>
+
+<div class="webr-container" data-block-title="tapply function signature">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">tapply function signature</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tapply(X, INDEX, FUN = NULL, ..., default = NA, simplify = TRUE)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Five arguments matter in everyday use.</strong> <code>X</code> is the numeric or character vector to summarize. <code>INDEX</code> is a factor (or list of factors) the same length as <code>X</code> that labels each element's group. <code>FUN</code> is the function applied to each subset. Extra <code>...</code> arguments are forwarded to <code>FUN</code> (this is how you pass <code>na.rm = TRUE</code>). <code>simplify = TRUE</code> returns an array; <code>simplify = FALSE</code> returns a list.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>INDEX can be a vector or a list.</strong> A single vector groups by one factor and returns a 1D named array. A list of two vectors groups by both factors and returns a 2D matrix. Three vectors return a 3D array, and so on, one dimension per grouping factor.</div></div>
+
+<h2>Five common patterns</h2>
+
+<p><strong>These five recipes cover 95 percent of <code>tapply()</code> calls in practice.</strong> Each example uses the built-in <code>mtcars</code> dataset so you can copy and run them as-is.</p>
+
+<h3>1. Mean of a numeric column by one factor</h3>
+
+<div class="webr-container" data-block-title="Mean mpg by cylinder count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean mpg by cylinder count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tapply(mtcars$mpg, mtcars$cyl, mean)
+#&gt;        4        6        8 
+#&gt; 26.66364 19.74286 15.10000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The output is a named numeric vector. Names come from the unique factor levels in <code>INDEX</code>. Reading order matches <code>levels(factor(mtcars$cyl))</code>, which is sorted ascending.</p>
+
+<h3>2. Multiple summary statistics with a custom function</h3>
+
+<div class="webr-container" data-block-title="Range of mpg per cylinder count">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Range of mpg per cylinder count</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tapply(mtcars$mpg, mtcars$cyl, function(x) max(x) - min(x))
+#&gt;     4     6     8 
+#&gt; 11.10  3.60  8.70</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Any function that takes a vector and returns a scalar works. To return multiple statistics per group, return a vector and <code>tapply()</code> will stack the results into a matrix.</p>
+
+<h3>3. Two grouping factors</h3>
+
+<div class="webr-container" data-block-title="Mean mpg by cylinder and transmission">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean mpg by cylinder and transmission</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tapply(mtcars$mpg, list(mtcars$cyl, mtcars$am), mean)
+#&gt;          0        1
+#&gt; 4 22.90000 28.07500
+#&gt; 6 19.12500 20.56667
+#&gt; 8 15.05000 15.40000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Pass <code>INDEX</code> as a list. Rows are the first factor's levels (<code>cyl</code>), columns the second (<code>am</code>). Cell <code>[1,2]</code> is the mean mpg for 4-cylinder cars with automatic transmission coded as 1.</p>
+
+<h3>4. Count of values per group</h3>
+
+<div class="webr-container" data-block-title="Count cars per cylinder bucket">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Count cars per cylinder bucket</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tapply(mtcars$mpg, mtcars$cyl, length)
+#&gt;  4  6  8 
+#&gt; 11  7 14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>length</code> returns the size of each subset. This is equivalent to <code>table(mtcars$cyl)</code> for a single factor, but <code>tapply()</code> extends naturally to multi-factor counts.</p>
+
+<h3>5. Pass extra arguments to FUN</h3>
+
+<div class="webr-container" data-block-title="Mean with NA handling">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean with NA handling</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(1, 2, NA, 4, 5, NA)
+g &lt;- c(&quot;a&quot;, &quot;a&quot;, &quot;a&quot;, &quot;b&quot;, &quot;b&quot;, &quot;b&quot;)
+tapply(x, g, mean, na.rm = TRUE)
+#&gt;   a   b 
+#&gt; 1.5 4.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Any argument after <code>FUN</code> is forwarded to <code>FUN</code>. This is the cleanest way to skip <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> without writing an anonymous function.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Reach for <code>tapply()</code> first, then graduate.</strong> For a single vector and 1-2 factors, <code>tapply()</code> is shorter than <code>aggregate()</code> and ships with base R. Switch to <code>aggregate()</code> or <code>dplyr</code> once you need to summarize multiple columns at once or chain further operations.</div></div>
+
+<h2>tapply vs aggregate vs by vs ave</h2>
+
+<p><strong>Four base <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">R functions</a> handle <a class="auto-link" href="dplyr-group_by-in-R.html" title="dplyr group_by() in R: Grouped Operations Made Easy">grouped operations</a>, each with a niche.</strong> Knowing which one returns what shape saves debugging time later.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Input</th>
+<th>Output</th>
+<th>Use when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tapply(x, g, fun)</code></td>
+<td>Vector + factor(s)</td>
+<td>Array (named, possibly multi-dim)</td>
+<td>One column, one or more factors</td>
+</tr>
+<tr>
+<td><code>aggregate(df, by, fun)</code></td>
+<td>Data frame + factor list</td>
+<td>Data frame</td>
+<td>Multiple columns at once</td>
+</tr>
+<tr>
+<td><code>by(df, g, fun)</code></td>
+<td>Data frame + factor</td>
+<td>List indexed by group</td>
+<td>Per-group operation on whole subframe</td>
+</tr>
+<tr>
+<td><code>ave(x, g, FUN)</code></td>
+<td>Vector + factor</td>
+<td>Vector of same length as input</td>
+<td>Add group statistic back as a column</td>
+</tr>
+</tbody>
+</table>
+
+<p><code>tapply()</code> is for collapsing a vector into a smaller array. <code>ave()</code> is the mirror: it returns a result the same length as the input, repeating the group statistic for every row. Pick <code>tapply()</code> when you want a summary table and <code>ave()</code> when you want to attach the group mean to each original row.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Empty factor levels yield NA cells.</strong> If <code>INDEX</code> is a factor with levels that have zero observations in <code>X</code>, the corresponding cell is <code>NA</code> (or whatever you pass as <code>default</code>). This trips up code that assumes the output has no missing values.</p>
+
+<div class="webr-container" data-block-title="Empty levels produce NA">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Empty levels produce NA</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">g &lt;- factor(c(&quot;a&quot;, &quot;a&quot;, &quot;b&quot;), levels = c(&quot;a&quot;, &quot;b&quot;, &quot;c&quot;))
+tapply(c(1, 2, 3), g, sum)
+#&gt;  a  b  c 
+#&gt;  3  3 NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Set <code>default = 0</code> (added in R 4.0)</strong> to fill empty groups with a sensible value instead of <code>NA</code>.</p>
+
+<p><strong>Function output shape must be consistent across groups.</strong> If <code>FUN</code> returns a 2-element vector for some groups and a 3-element vector for others, <code>tapply()</code> falls back to a list of mixed shapes. Always return the same number of values from <code>FUN</code> for every subset, or use <code>simplify = FALSE</code> and post-process explicitly.</p>
+
+<p><strong>Character INDEX gets coerced to factor.</strong> R sorts character factor levels alphabetically by default, which may not match your intended display order. Wrap with <code>factor(g, levels = c(&quot;low&quot;, &quot;mid&quot;, &quot;high&quot;))</code> to control ordering.</p>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Use <code>tapply()</code> to compute the median horsepower (<code>hp</code>) of <code>mtcars</code> grouped by the number of gears (<code>gear</code>). Save the result to <code>ex_hp_by_gear</code>.</p>
+<div class="webr-container" data-block-title="Your turn: median hp by gear">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: median hp by gear</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: median hp grouped by gear
+ex_hp_by_gear &lt;- # your code here
+
+ex_hp_by_gear
+#&gt; Expected: 3 named values (one per gear count)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_hp_by_gear &lt;- tapply(mtcars$hp, mtcars$gear, median)
+ex_hp_by_gear
+#&gt;     3     4     5 
+#&gt; 180.0  91.0 175.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>tapply()</code> splits <code>mtcars$hp</code> by the values in <code>mtcars$gear</code>, then applies <code>median</code> to each subset. The output is a named numeric vector with one entry per unique gear count.</p>
+
+</details>
+</section>
+
+<h2>Related apply functions</h2>
+
+<p>The apply family covers different input shapes. Each has a niche; mixing them up is the most common base R confusion.</p>
+
+<ul>
+
+<li><code>apply(m, MARGIN, FUN)</code>: matrix or array, by row (<code>1</code>) or column (<code>2</code>).</li>
+
+<li><code>lapply(lst, FUN)</code>: list or vector, always returns a list.</li>
+
+<li><code>sapply(lst, FUN)</code>: list or vector, simplifies result to a vector or matrix.</li>
+
+<li><code>vapply(lst, FUN, FUN.VALUE)</code>: like <code>sapply()</code> but type-safe via a template.</li>
+
+<li><code>mapply(FUN, ..., MoreArgs)</code>: multivariate; passes parallel elements from multiple arguments.</li>
+
+</ul>
+
+<p>Use <code>tapply()</code> when your input is a single vector and the grouping comes from a parallel factor. Everything else in the family ignores grouping factors entirely. For a comparison of those siblings, see <a href="base-sapply-in-R.html">base sapply()</a> and <a href="base-lapply-in-R.html">base lapply()</a>. The official reference is the <a href="https://www.rdocumentation.org/packages/base/topics/tapply">base R apply family documentation</a>.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is tapply() used for in R?</strong></p>
+
+<p><code>tapply()</code> computes a function over subsets of a vector defined by one or more grouping factors. It is the base R answer to "give me a summary statistic per group" without loading dplyr or data.table. Typical uses include mean values per category, counts per level, range or standard deviation by bucket, and any custom function that takes a vector and returns a scalar.</p>
+
+<p><strong>What is the difference between apply and tapply?</strong></p>
+
+<p><code>apply()</code> operates on matrix or array <a class="auto-link" href="dplyr-filter-select.html" title="dplyr filter() and select(): Subset Rows & Columns with Precision">rows and columns</a>, treating each row or column as the input to your function. <code>tapply()</code> operates on a single vector and partitions it by a factor, applying your function to each partition. <code>apply()</code> cares about the geometry of a 2D object; <code>tapply()</code> cares about group membership in a 1D object.</p>
+
+<p><strong>Can tapply() handle more than one grouping variable?</strong></p>
+
+<p>Yes. Pass a list of two or more factors as the <code>INDEX</code> argument. The result is a multidimensional array with one dimension per factor. Two factors give you a matrix, three factors give a 3D array, and so on. Cells with no observations return <code>NA</code> or the value you pass to <code>default</code>.</p>
+
+<p><strong>How does tapply() differ from aggregate()?</strong></p>
+
+<p><code>aggregate()</code> works on data frames and summarizes multiple columns at once, returning a data frame. <code>tapply()</code> works on a single vector and returns an array. If you have one column to summarize, <code>tapply()</code> is shorter and faster. If you have many columns or want a <a class="auto-link" href="Tidy-Data-in-R.html" title="Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable">tidy data</a> frame output for downstream operations, use <code>aggregate()</code> or <code>dplyr::summarise()</code>.</p>
+
+<p><strong>Why does tapply() return NA for some groups?</strong></p>
+
+<p>This happens when your <code>INDEX</code> is a factor with levels that have no observations in your data. Those cells get <code>NA</code> by default. Pass <code>default = 0</code> (or any other <a class="auto-link" href="dplyr-na_if-in-R.html" title="dplyr na_if() in R: Convert a Specific Value to NA">sentinel value</a>) to fill them. Alternatively, drop empty levels first with <code>droplevels()</code> before calling <code>tapply()</code>.</p>
