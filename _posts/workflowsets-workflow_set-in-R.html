@@ -1,0 +1,330 @@
+---
+title: "workflowsets workflow_set() in R: Compare Models at Once"
+description: "Use workflowsets workflow_set() in R to bundle multiple preprocessors and parsnip models into one tibble. Syntax, four examples, cross vs paired, pitfalls."
+keywords: "workflowsets workflow_set, workflow_set function R, workflowsets workflow_set examples, R compare models tidymodels, tidymodels workflow_set, workflow_set parsnip, workflowsets tutorial"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "workflow_set()|workflowsets workflow_set|workflowsets::workflow_set()|bundle workflows into one tibble|compare workflows side by side"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>workflowsets workflow_set() in R: Compare Models at Once</h1>
+
+<p class="lead">The workflowsets <code>workflow_set()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> bundles a list of preprocessors and a list of parsnip model specs into a single tibble, where each row is one fully formed workflow. Pass that tibble to <code>workflow_map()</code> to fit, resample, or tune every combination in one call and compare them with <code>rank_results()</code> or <code>autoplot()</code>.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>workflow_set(preproc = list(rec = rec), models = list(lm = lm_spec))<span class="qa-cmt">     # one preproc, one model</span>
+workflow_set(list(rec1 = rec1, rec2 = rec2), list(lm = lm_spec))<span class="qa-cmt">         # 2 preprocs x 1 model</span>
+workflow_set(list(rec = rec), list(lm = lm_spec, rf = rf_spec))<span class="qa-cmt">          # 1 preproc x 2 models</span>
+workflow_set(list(rec1, rec2), list(lm, rf), cross = TRUE)<span class="qa-cmt">               # full 2x2 grid</span>
+workflow_set(list(rec1, rec2), list(lm, rf), cross = FALSE)<span class="qa-cmt">              # paired element-wise</span>
+extract_workflow(ws, id = &quot;rec_lm&quot;)<span class="qa-cmt">                                      # pull one workflow out</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is workflow_set() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">compare multiple preprocessor/model combos in one tibble</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">workflow_set(preprocs, models)</text><text x="125" y="126" class="branch-label">attach a single model to a single workflow</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">workflow() |&gt; add_model(spec)</text><text x="125" y="182" class="branch-label">attach a single recipe to a single workflow</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">workflow() |&gt; add_recipe(rec)</text><text x="125" y="238" class="branch-label">fit one workflow on resamples</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">fit_resamples(wf, resamples)</text><text x="125" y="294" class="branch-label">tune one workflow's hyperparameters</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">tune_grid(wf, resamples, grid)</text><text x="125" y="350" class="branch-label">map fit/tune across a workflow set</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">workflow_map(ws, &quot;tune_grid&quot;, resamples)</text><text x="125" y="406" class="branch-label">pull one fitted workflow back out of a set</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">extract_workflow_set_result(ws, id)</text></svg></div>
+
+<h2>What workflow_set() does</h2>
+
+<p><strong>workflow_set() turns a Cartesian product of preprocessors and model specs into a tibble of workflows.</strong> It does not fit anything. It records every (preprocessor, model) pair as one row, generates a stable <code>wflow_id</code> for each row from the names you supplied, and returns a tibble that subsequent functions in the workflowsets package know how to map over. The actual call to each engine happens later when you pipe the set into <code>workflow_map()</code>.</p>
+
+<p>This shape is what makes model comparison painless. Instead of writing one <code>workflow()</code> per candidate and one <code>fit_resamples()</code> per workflow, you list the preprocessors once, list the models once, and let the set carry the bookkeeping. Resampling, tuning, ranking, and plotting all read from the same tibble.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A workflow set is a tibble of unfit workflows, not a model.</strong> The <code>info</code> column holds each workflow object as a list-column, and the <code>result</code> column starts empty. <code>workflow_map()</code> writes resampling or tuning results into <code>result</code> row by row, so the set grows in place rather than producing a separate fit object per candidate.</div></div>
+
+<h2>workflow_set() syntax and arguments</h2>
+
+<p><strong>workflow_set() takes a <a class="auto-link" href="R-Lists.html" title="R Lists: When Data Frames Aren't Flexible Enough (Complete Guide)">named list</a> of preprocessors and a named list of model specs.</strong> Four arguments, and most calls use only the first two.</p>
+
+<div class="webr-container" data-block-title="The workflow_set argument skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The workflow_set argument skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+library(workflowsets)
+
+workflow_set(
+  preproc,              # named list of preprocessors (recipes, formulas, or variable lists)
+  models,               # named list of parsnip model specs
+  cross = TRUE,         # TRUE = cross-join all combos, FALSE = pair element-wise
+  case_weights = NULL   # optional column for case weights, passed to each workflow
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>preproc</code> argument accepts recipes, formulas, or <code>workflow_variables()</code> calls; each entry must be named because the names become the left half of every <code>wflow_id</code>. The <code>models</code> argument accepts parsnip specs (unfit), one per entry, also named. The <code>cross</code> argument decides whether you get every preprocessor crossed with every model (the default and most common case) or whether the two lists are zipped pairwise (rare, but useful when each preprocessor only makes sense with one model). The <code>case_weights</code> argument names a column from your training data that should be passed to each fit as importance weights.</p>
+
+<p><strong>workflow_set() returns a tibble with class <code>workflow_set</code>.</strong> Columns are <code>wflow_id</code> (character), <code>info</code> (list of one-row tibbles holding the workflow and metadata), <code>option</code> (list of saved options for workflow_map), and <code>result</code> (list, empty until workflow_map populates it).</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Workflow ids are deterministic, not random.</strong> Each id is <code>&lt;preproc_name&gt;_&lt;model_name&gt;</code>, so the same call always produces the same ids. That stability matters when you later filter the set by id, join it to a grid of hyperparameters, or compare runs across sessions.</div></div>
+
+<h2>Four examples of workflow_set() in action</h2>
+
+<p><strong>workflow_set() shines when you want a small grid of candidates compared on the same resamples.</strong> The examples below all use <code>mtcars</code> so they run quickly in the browser.</p>
+
+<div class="webr-container" data-block-title="Setup with two recipes and two model specs">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Setup with two recipes and two model specs</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+library(workflowsets)
+set.seed(1)
+
+data(mtcars)
+mtcars$cyl &lt;- factor(mtcars$cyl)
+
+rec_basic &lt;- recipe(mpg ~ ., data = mtcars) |&gt;
+  step_dummy(all_nominal_predictors())
+
+rec_norm &lt;- rec_basic |&gt;
+  step_normalize(all_numeric_predictors())
+
+lm_spec &lt;- linear_reg() |&gt; set_engine(&quot;lm&quot;)
+rf_spec &lt;- rand_forest(trees = 200) |&gt; set_engine(&quot;ranger&quot;) |&gt; set_mode(&quot;regression&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The first example crosses both recipes with both specs into a 2 by 2 grid. Use this when you want to ask, in one shot, which preprocessor pairs best with which model.</p>
+
+<div class="webr-container" data-block-title="Cross-join: 2 recipes x 2 models = 4 workflows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Cross-join: 2 recipes x 2 models = 4 workflows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ws_cross &lt;- workflow_set(
+  preproc = list(basic = rec_basic, norm = rec_norm),
+  models  = list(lm = lm_spec, rf = rf_spec),
+  cross   = TRUE
+)
+ws_cross
+#&gt; # A workflow set/tibble: 4 x 4
+#&gt;   wflow_id  info             option    result    
+#&gt;   &lt;chr&gt;     &lt;list&gt;           &lt;list&gt;    &lt;list&gt;    
+#&gt; 1 basic_lm  &lt;tibble [1 x 4]&gt; &lt;opts[0]&gt; &lt;list [0]&gt;
+#&gt; 2 basic_rf  &lt;tibble [1 x 4]&gt; &lt;opts[0]&gt; &lt;list [0]&gt;
+#&gt; 3 norm_lm   &lt;tibble [1 x 4]&gt; &lt;opts[0]&gt; &lt;list [0]&gt;
+#&gt; 4 norm_rf   &lt;tibble [1 x 4]&gt; &lt;opts[0]&gt; &lt;list [0]&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second example zips the two lists pairwise with <code>cross = FALSE</code>. Two preprocessors, two models, two workflows. Use this when normalisation only matters for the linear model and the basic recipe only makes sense for the random forest.</p>
+
+<div class="webr-container" data-block-title="Paired: 2 recipes x 2 models = 2 workflows">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Paired: 2 recipes x 2 models = 2 workflows</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ws_paired &lt;- workflow_set(
+  preproc = list(basic = rec_basic, norm = rec_norm),
+  models  = list(rf = rf_spec, lm = lm_spec),
+  cross   = FALSE
+)
+nrow(ws_paired)
+#&gt; [1] 2
+ws_paired$wflow_id
+#&gt; [1] &quot;basic_rf&quot; &quot;norm_lm&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The third example fits every workflow in the cross set on 5-fold cross-validation in one <code>workflow_map()</code> call. The verb string <code>&quot;fit_resamples&quot;</code> tells workflowsets which tune function to apply per row.</p>
+
+<div class="webr-container" data-block-title="Resample every workflow in the set at once">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Resample every workflow in the set at once</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">folds &lt;- vfold_cv(mtcars, v = 5)
+
+ws_fit &lt;- ws_cross |&gt;
+  workflow_map(&quot;fit_resamples&quot;, resamples = folds, verbose = FALSE)
+
+rank_results(ws_fit, rank_metric = &quot;rmse&quot;)
+#&gt; # A tibble: 8 x 9
+#&gt;   wflow_id .config       .metric mean std_err     n preprocessor model rank
+#&gt;   &lt;chr&gt;    &lt;chr&gt;         &lt;chr&gt;  &lt;dbl&gt;   &lt;dbl&gt; &lt;int&gt; &lt;chr&gt;        &lt;chr&gt; &lt;int&gt;
+#&gt; 1 norm_lm  Preprocessor1 rmse    2.62   0.218     5 recipe       line~     1
+#&gt; 2 norm_lm  Preprocessor1 rsq     0.842  0.030     5 recipe       line~     1
+#&gt; ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The fourth example pulls one workflow out of the set by id, in case you want to refit it on the full data after picking the winner. <code>extract_workflow()</code> is the inverse of <code>add_model()</code> plus <code>add_recipe()</code>.</p>
+
+<div class="webr-container" data-block-title="Pull a single workflow back out by id">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Pull a single workflow back out by id</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">best_wf &lt;- extract_workflow(ws_fit, id = &quot;norm_lm&quot;)
+class(best_wf)
+#&gt; [1] &quot;workflow&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<h2>workflow_set() compared with single workflows and caret</h2>
+
+<p><strong>workflow_set() is the multi-candidate sibling of workflow().</strong> Reach for it the moment you have more than one candidate; stick with plain <code>workflow()</code> while you only have one.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Tool</th>
+<th>Returns</th>
+<th>Best for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>workflow()</code></td>
+<td>one workflow object</td>
+<td>a single preprocessor + single model</td>
+</tr>
+<tr>
+<td><code>workflow_set()</code></td>
+<td>a tibble of workflows</td>
+<td>many candidates compared on the same resamples</td>
+</tr>
+<tr>
+<td><code>caret::train()</code></td>
+<td>a single <code>train</code> object</td>
+<td>legacy code; one model at a time, no shared resamples</td>
+</tr>
+</tbody>
+</table>
+
+<p>The contrast with <code>caret::train()</code> is the headline: caret fits one model per call, so comparing five models means five <code>train()</code> calls and manual bookkeeping. <code>workflow_set()</code> plus <code>workflow_map()</code> does the same job in two lines, with shared folds, shared metric collection, and a single tibble of results.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Unnamed lists fail loudly.</strong> Both <code>preproc</code> and <code>models</code> must be named lists. <code>workflow_set(list(rec_basic), list(lm_spec))</code> errors with "<a class="auto-link" href="R-Attributes.html" title="R Attributes: The Hidden Metadata That Makes R Objects Behave Differently">names attribute</a> must be the same length as the vector." Always pass <code>list(basic = rec_basic, ...)</code> even for one element.</p>
+
+<p><strong>Mixed problem types silently rank poorly.</strong> If one model spec is <code>linear_reg()</code> and another is <code>logistic_reg()</code>, every row still builds, but the workflows expect different outcomes. <code>workflow_map()</code> will only error at fit time, not at construction. Keep one outcome type per set.</p>
+
+<p><strong>Forgetting <code>cross = FALSE</code> produces n times m workflows.</strong> Two preprocessors and three models gives six workflows by default. If you only intended pairs, the set quietly explodes to six and resampling time grows with it. Always state <code>cross</code> explicitly when the list lengths match.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>workflow_map() requires resamples, not training data.</strong> A common slip is passing <code>data = mtcars</code> instead of <code>resamples = folds</code>. The function will error with "argument resamples is missing." Build the rset first with <code>vfold_cv()</code>, <code>bootstraps()</code>, or <code>validation_split()</code> and pass that.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a workflow set that crosses a single recipe (<code>mpg ~ .</code> with dummy encoding) against three model specs: a <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a>, a random forest with 100 trees, and a boosted tree with 50 trees. Save the result to <code>ex_ws</code>. Confirm it contains three rows.</p>
+<div class="webr-container" data-block-title="Your turn: workflow_set with three models">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: workflow_set with three models</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: build a 1 x 3 workflow set
+ex_rec &lt;- recipe(mpg ~ ., data = mtcars) |&gt;
+  step_dummy(all_nominal_predictors())
+
+ex_lm  &lt;- linear_reg() |&gt; set_engine(&quot;lm&quot;)
+ex_rf  &lt;- rand_forest(trees = 100) |&gt; set_engine(&quot;ranger&quot;) |&gt; set_mode(&quot;regression&quot;)
+ex_bt  &lt;- boost_tree(trees = 50)   |&gt; set_engine(&quot;xgboost&quot;) |&gt; set_mode(&quot;regression&quot;)
+
+ex_ws &lt;- # your code here
+
+nrow(ex_ws)
+#&gt; Expected: 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_ws &lt;- workflow_set(
+  preproc = list(rec = ex_rec),
+  models  = list(lm = ex_lm, rf = ex_rf, bt = ex_bt),
+  cross   = TRUE
+)
+
+nrow(ex_ws)
+#&gt; [1] 3
+ex_ws$wflow_id
+#&gt; [1] &quot;rec_lm&quot; &quot;rec_rf&quot; &quot;rec_bt&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> One preprocessor crossed with three models gives three rows. The ids combine the preprocessor name with each model name, so the order in the <code>models</code> list determines the order of <code>rec_lm</code>, <code>rec_rf</code>, <code>rec_bt</code>.</p>
+
+</details>
+</section>
+
+<h2>Related workflowsets and tidymodels functions</h2>
+
+<ul>
+
+<li><code>workflow_map()</code>: apply <code>fit_resamples()</code>, <code>tune_grid()</code>, or <code>tune_bayes()</code> to every row of a workflow set in one call.</li>
+
+<li><code>rank_results()</code>: sort the <code>result</code> column by a chosen metric, returning a long tibble ready for comparison.</li>
+
+<li><code>autoplot.workflow_set()</code>: visualise metric distributions across all workflows on the same resamples.</li>
+
+<li><code>extract_workflow()</code>: pull one workflow back out of the set by its <code>wflow_id</code>.</li>
+
+<li><code>as_workflow_set()</code>: cast a list of already-built workflows into a workflow_set tibble.</li>
+
+</ul>
+
+<p>See the workflowsets reference at <a href="https://workflowsets.tidymodels.org/reference/workflow_set.html">workflowsets.tidymodels.org</a> for the full argument table and edge cases.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>What is the difference between workflow_set() and workflow()?</strong></p>
+
+<p><code>workflow()</code> produces a single workflow object holding one preprocessor and one model. <code>workflow_set()</code> produces a tibble of workflows, one row per (preprocessor, model) pair. Use <code>workflow()</code> when you have a single candidate and <code>workflow_set()</code> when you want to compare many candidates on the same resamples without writing the resampling and metric-collection code multiple times.</p>
+
+<p><strong>Can workflow_set() handle hyperparameter tuning?</strong></p>
+
+<p>Yes. Build the set with <code>workflow_set()</code>, then call <code>workflow_map(&quot;tune_grid&quot;, resamples = folds, grid = 10)</code>. Each row that contains a tunable parsnip spec gets its own tuning grid, and <code>collect_metrics()</code> or <code>rank_results()</code> aggregates across all rows. Pass a list of grids through the <code>option_add()</code> helper if different workflows need different grids.</p>
+
+<p><strong>How do I extract the best workflow after fitting a set?</strong></p>
+
+<p>Run <code>rank_results(ws_fit, rank_metric = &quot;rmse&quot;)</code> to find the top <code>wflow_id</code>, then call <code>extract_workflow(ws_fit, id = &quot;the_winner&quot;)</code> to pull that workflow back out as a normal <code>workflow</code> object. Refit it on the full training data with <code>last_fit()</code> or <code>fit()</code> before producing final predictions.</p>
+
+<p><strong>Does cross = FALSE require equal-length preproc and models lists?</strong></p>
+
+<p>Yes. When <code>cross = FALSE</code>, workflow_set zips the two lists element by element, so they must be the same length. Different lengths raise an error about mismatched dimensions. Set <code>cross = TRUE</code> (the default) whenever the lists differ in length, or pad the shorter list with repeated entries.</p>
+
+<p><strong>Is workflow_set() faster than fitting models one at a time?</strong></p>
+
+<p>The fit time per workflow is the same. The savings come from sharing one set of resamples across all candidates, eliminating duplicate metric-collection code, and getting parallel evaluation for free when you register a parallel backend with <code>doParallel::registerDoParallel()</code>. The bookkeeping savings are larger than the raw compute savings.</p>
