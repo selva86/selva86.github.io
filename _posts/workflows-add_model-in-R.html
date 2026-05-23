@@ -1,0 +1,421 @@
+---
+title: "workflows add_model() in R: Attach a Parsnip Model Spec"
+description: "Use workflows add_model() in R to attach a parsnip model spec to a tidymodels workflow. Syntax, four worked examples, the formula override, and pitfalls."
+keywords: "workflows add_model, add_model function R, add_model workflow, tidymodels add_model, R add_model, workflows add model, add_model parsnip examples"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "add_model()|workflows add_model|workflows::add_model()|attach a model to workflow|attach a parsnip spec"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+{% raw %}
+<!-- md2html:generated -->
+
+<h1>workflows add_model() in R: Attach a Parsnip Model Spec</h1>
+
+<p class="lead">The workflows <code>add_model()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> attaches a parsnip model specification to a tidymodels workflow as the model action. The spec stays bundled with the preprocessor, so a single call to <code>fit()</code> trains both pieces together and <code>predict()</code> re-applies the preprocessor automatically on new data.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>add_model(wf, spec)<span class="qa-cmt">                                  # attach a parsnip spec to a workflow</span>
+workflow() |&gt; add_recipe(rec) |&gt; add_model(spec)<span class="qa-cmt">     # full workflow in one pipe</span>
+add_model(wf, spec, formula = y ~ .)<span class="qa-cmt">                 # supply a model-only formula</span>
+update_model(wf, new_spec)<span class="qa-cmt">                           # swap the spec in place</span>
+remove_model(wf)<span class="qa-cmt">                                     # detach the model</span>
+extract_spec_parsnip(wf)<span class="qa-cmt">                             # pull the spec back out</span>
+extract_fit_parsnip(wf_fit)<span class="qa-cmt">                          # pull the trained parsnip fit</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is add_model() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">attach a parsnip model spec to a workflow</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">workflow() |&gt; add_model(spec)</text><text x="125" y="126" class="branch-label">attach a <a class="auto-link" href="recipes-recipe-in-R.html" title="recipes recipe() in R: Build a Preprocessing Blueprint">preprocessing recipe</a> instead</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">workflow() |&gt; add_recipe(rec)</text><text x="125" y="182" class="branch-label">attach a bare formula (no preprocessing)</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">workflow() |&gt; add_formula(y ~ x1 + x2)</text><text x="125" y="238" class="branch-label">attach raw variables for matrix engines</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">workflow() |&gt; add_variables(y, predictors)</text><text x="125" y="294" class="branch-label">replace the spec inside an existing workflow</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">update_model(wf, new_spec)</text><text x="125" y="350" class="branch-label">detach the model entirely</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">remove_model(wf)</text><text x="125" y="406" class="branch-label">fit a parsnip spec directly without a workflow</text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">spec |&gt; fit(y ~ x, data = df)</text></svg></div>
+
+<h2>What add_model() does</h2>
+
+<p><strong>add_model() registers a parsnip model specification as the model action of a workflow.</strong> It does not train anything. It records the spec in the workflow's model slot, the same way <code>add_recipe()</code> records a preprocessor in the preprocessor slot. The actual call to the engine, whether <code>lm()</code>, <code>glmnet()</code>, <code>ranger()</code>, or <code>xgboost()</code>, happens later when you pass the workflow to <code>fit()</code>, <code>fit_resamples()</code>, or <code>tune_grid()</code>.</p>
+
+<p>This separation is what makes a workflow a portable training recipe. The preprocessor describes how to clean and reshape the data, the parsnip spec describes the algorithm and its engine, and <code>add_model()</code> is the verb that locks the algorithm in place. Once the spec is attached, the workflow can travel through cross-validation, tuning, and prediction without you having to re-state the engine or re-attach the preprocessor each time.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>A workflow with a model is a frozen training contract.</strong> The recipe says what to compute, the parsnip spec says what to learn, and <code>add_model()</code> welds them into one object that downstream resampling functions can pass around without losing either half. You stop juggling separate preprocessor and model objects the moment you call <code>add_model()</code>.</div></div>
+
+<h2>add_model() syntax and arguments</h2>
+
+<p><strong>add_model() takes a workflow, a parsnip spec, and an optional formula.</strong> Three arguments, and most users only ever pass the first two.</p>
+
+<div class="webr-container" data-block-title="The add_model argument skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The add_model argument skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+
+add_model(
+  x,                # a workflow object
+  spec,             # a parsnip model_spec, e.g. linear_reg() |&gt; set_engine(&quot;lm&quot;)
+  formula = NULL    # optional model-only formula override
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>x</code> argument must be a <code>workflow()</code> object, usually piped in from <code>workflow()</code> or a partial workflow that already has a preprocessor attached. The <code>spec</code> argument must be an unfit parsnip spec, the output of one of the model family functions like <code>linear_reg()</code>, <code>logistic_reg()</code>, <code>rand_forest()</code>, or <code>boost_tree()</code>, with a <code>set_engine()</code> call applied. The <code>formula</code> argument lets you give the model a different formula from the preprocessor, which is useful when the recipe creates engineered columns that the engine should treat specially.</p>
+
+<p><strong>add_model() returns a new workflow.</strong> The function is pure; it does not mutate its input. Always assign the result back to a variable or chain it into another pipe step, otherwise the spec attachment is silently discarded.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The spec is stored unfit.</strong> Calling <code>add_model()</code> is cheap because nothing reaches the engine yet. The parsnip spec is held alongside the preprocessor until the workflow is fit. To inspect the underlying engine call before training, call <code>translate(spec)</code> on the spec directly outside the workflow.</div></div>
+
+<p><strong>add_model() is the second half of a two-verb workflow.</strong> Each preprocessor verb has a matching role, and <code>add_model()</code> always closes the loop.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Preprocessor verb</th>
+<th>Pairs with</th>
+<th>When you reach for this combo</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>add_recipe()</code></td>
+<td><code>add_model()</code></td>
+<td>Any pipeline with imputation, scaling, dummy encoding, or PCA</td>
+</tr>
+<tr>
+<td><code>add_formula()</code></td>
+<td><code>add_model()</code></td>
+<td>One-liner workflow, no transformation, formula carries everything</td>
+</tr>
+<tr>
+<td><code>add_variables()</code></td>
+<td><code>add_model()</code></td>
+<td>Matrix engines like XGBoost or lightgbm that refuse formulas</td>
+</tr>
+</tbody>
+</table>
+
+<p>In every row, <code>add_model()</code> is the same verb. Only the preprocessor changes based on what the data needs.</p>
+
+<h2>Build workflows with add_model(): four examples</h2>
+
+<p><strong>Every example below uses built-in mtcars and airquality datasets</strong> so the focus stays on how the spec attaches, not on the data.</p>
+
+<h3>Example 1: Linear regression workflow</h3>
+
+<p><strong>The minimal workflow pairs a formula preprocessor with a <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a> spec.</strong> Two lines and an <code>add_model()</code> call build a complete training contract.</p>
+
+<div class="webr-container" data-block-title="Attach lm to a formula workflow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Attach lm to a formula workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+
+lin_spec &lt;- linear_reg() |&gt; set_engine(&quot;lm&quot;)
+
+wf_lin &lt;- workflow() |&gt;
+  add_formula(mpg ~ wt + hp + disp) |&gt;
+  add_model(lin_spec)
+
+wf_lin
+#&gt; == Workflow ====================================================================
+#&gt; Preprocessor: Formula
+#&gt; Model: linear_reg()
+#&gt;
+#&gt; -- Preprocessor ----------------------------------------------------------------
+#&gt; mpg ~ wt + hp + disp
+#&gt;
+#&gt; -- Model -----------------------------------------------------------------------
+#&gt; Linear Regression Model Specification (regression)
+#&gt;
+#&gt; Computational engine: lm</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The workflow now knows the formula and the engine. Calling <code>fit(wf_lin, data = mtcars)</code> passes the formula and data to <code>lm()</code> under the hood and returns a workflow object whose <code>extract_fit_parsnip()</code> accessor returns the trained linear model.</p>
+
+<h3>Example 2: Random forest with a recipe</h3>
+
+<p><strong>Combining a recipe and a parsnip spec is where add_model() earns its keep.</strong> The recipe handles preprocessing; <code>add_model()</code> locks in the algorithm.</p>
+
+<div class="webr-container" data-block-title="Recipe plus random forest">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recipe plus random forest</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_rf &lt;- recipe(am ~ mpg + wt + cyl + hp, data = mtcars) |&gt;
+  step_mutate(am = factor(am)) |&gt;
+  step_normalize(all_numeric_predictors())
+
+rf_spec &lt;- rand_forest(trees = 500) |&gt;
+  set_engine(&quot;ranger&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+wf_rf &lt;- workflow() |&gt;
+  add_recipe(rec_rf) |&gt;
+  add_model(rf_spec)
+
+wf_rf_fit &lt;- fit(wf_rf, data = mtcars)
+predict(wf_rf_fit, new_data = head(mtcars))
+#&gt; # A tibble: 6 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 1
+#&gt; 2 1
+#&gt; 3 1
+#&gt; 4 0
+#&gt; 5 0
+#&gt; 6 0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Notice that <code>predict()</code> runs on the raw <code>mtcars</code> rows. The workflow re-applies the normalization recipe internally before passing data to ranger, so you never call <code>bake()</code> by hand.</p>
+
+<h3>Example 3: Logistic regression with the formula override</h3>
+
+<p><strong>The optional formula argument lets the model use a different formula from the preprocessor.</strong> This is rare, but it matters when a recipe creates engineered columns that the engine should consume directly.</p>
+
+<div class="webr-container" data-block-title="Recipe makes columns, model sees a subset">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Recipe makes columns, model sees a subset</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidyr)
+
+aq &lt;- airquality |&gt;
+  mutate(High = factor(Ozone &gt; 50, labels = c(&quot;low&quot;, &quot;high&quot;))) |&gt;
+  drop_na(Ozone)
+
+rec_eng &lt;- recipe(High ~ Solar.R + Wind + Temp + Month, data = aq) |&gt;
+  step_impute_median(all_numeric_predictors()) |&gt;
+  step_mutate(WindSq = Wind^2)
+
+log_spec &lt;- logistic_reg() |&gt; set_engine(&quot;glm&quot;)
+
+wf_log &lt;- workflow() |&gt;
+  add_recipe(rec_eng) |&gt;
+  add_model(log_spec, formula = High ~ Solar.R + Temp + WindSq)
+
+wf_log_fit &lt;- fit(wf_log, data = aq)
+
+extract_fit_parsnip(wf_log_fit) |&gt;
+  tidy()
+#&gt; # A tibble: 4 x 5
+#&gt;   term        estimate std.error statistic p.value
+#&gt;   &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 (Intercept) -8.86      2.62        -3.38 0.000719
+#&gt; 2 Solar.R      0.00671   0.00282      2.38 0.0173
+#&gt; 3 Temp         0.0915    0.0291       3.14 0.00170
+#&gt; 4 WindSq       0.00373   0.00525      0.71 0.477</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The recipe still produces all four predictor columns, but the formula override tells <code>glm()</code> to fit on three of them only. Without the override, the engine would fit on every column the recipe emits.</p>
+
+<h3>Example 4: Update the model spec without rebuilding</h3>
+
+<p><strong>update_model() is the matching verb when you need to swap the algorithm.</strong> It edits the model slot in place while leaving the recipe untouched.</p>
+
+<div class="webr-container" data-block-title="Swap lm for glmnet on the same workflow">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Swap lm for glmnet on the same workflow</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rec_norm &lt;- recipe(mpg ~ wt + hp + disp + cyl, data = mtcars) |&gt;
+  step_normalize(all_numeric_predictors())
+
+wf_base &lt;- workflow() |&gt;
+  add_recipe(rec_norm) |&gt;
+  add_model(linear_reg() |&gt; set_engine(&quot;lm&quot;))
+
+glmnet_spec &lt;- linear_reg(penalty = 0.1, mixture = 1) |&gt;
+  set_engine(&quot;glmnet&quot;)
+
+wf_glmnet &lt;- update_model(wf_base, glmnet_spec)
+
+extract_spec_parsnip(wf_glmnet)
+#&gt; Linear Regression Model Specification (regression)
+#&gt;
+#&gt; Main Arguments:
+#&gt;   penalty = 0.1
+#&gt;   mixture = 1
+#&gt;
+#&gt; Computational engine: glmnet</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The recipe is unchanged. Only the model spec is now glmnet with a lasso penalty. This pattern is what <code>tune_grid()</code> uses internally when it sweeps engines or hyperparameters across the same preprocessor.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>A workflow holds exactly one model and only takes an unfit parsnip spec.</strong> These are the three errors you will hit while learning <code>add_model()</code>.</p>
+
+<div class="webr-container" data-block-title="Three errors and their fixes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Three errors and their fixes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Pitfall 1: adding two models to one workflow
+workflow() |&gt;
+  add_formula(mpg ~ wt) |&gt;
+  add_model(linear_reg() |&gt; set_engine(&quot;lm&quot;)) |&gt;
+  add_model(rand_forest() |&gt; set_engine(&quot;ranger&quot;) |&gt; set_mode(&quot;regression&quot;))
+#&gt; Error in `add_model()`: A model action has already been added.
+#&gt; Fix: use update_model() to replace, not add_model() twice.
+
+# Pitfall 2: forgetting set_mode() on a model that needs it
+spec_bad &lt;- rand_forest()
+workflow() |&gt;
+  add_formula(am ~ wt + mpg) |&gt;
+  add_model(spec_bad)
+#&gt; Error: Please set the mode in the model specification.
+#&gt; Fix: spec_bad |&gt; set_mode(&quot;classification&quot;) (or &quot;regression&quot;).
+
+# Pitfall 3: passing a fitted model instead of a spec
+spec_fit &lt;- linear_reg() |&gt;
+  set_engine(&quot;lm&quot;) |&gt;
+  fit(mpg ~ wt, data = mtcars)
+
+workflow() |&gt;
+  add_formula(mpg ~ wt) |&gt;
+  add_model(spec_fit)
+#&gt; Error in `add_model()`: `spec` must be a `model_spec`, not a fitted model.
+#&gt; Fix: pass the spec object before calling fit().</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never pass a fitted parsnip object to add_model().</strong> The workflow must train the model itself so resampling and tuning can re-fit it on each split. Pre-fitting and then attaching breaks every leakage guarantee the workflow gives you, and modern workflows versions reject it outright with the error above.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a workflow that uses <code>add_recipe()</code> to scale <code>Sepal.Length</code> and <code>Sepal.Width</code>, then attaches a k-nearest neighbors classifier to predict <code>Species</code>. Save the fitted workflow to <code>ex_fit</code>.</p>
+<div class="webr-container" data-block-title="Your turn: kNN classifier with add_model">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: kNN classifier with add_model</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: scale predictors and attach a knn spec
+library(tidymodels)
+
+ex_rec &lt;- # your code here
+
+ex_spec &lt;- # your code here
+
+ex_fit &lt;- # your code here
+
+predict(ex_fit, new_data = head(iris))
+#&gt; Expected: tibble with 6 .pred_class values, all &quot;setosa&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_rec &lt;- recipe(Species ~ Sepal.Length + Sepal.Width, data = iris) |&gt;
+  step_normalize(all_numeric_predictors())
+
+ex_spec &lt;- nearest_neighbor(neighbors = 5) |&gt;
+  set_engine(&quot;kknn&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+ex_fit &lt;- workflow() |&gt;
+  add_recipe(ex_rec) |&gt;
+  add_model(ex_spec) |&gt;
+  fit(data = iris)
+
+predict(ex_fit, new_data = head(iris))
+#&gt; # A tibble: 6 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 setosa
+#&gt; 2 setosa
+#&gt; 3 setosa
+#&gt; 4 setosa
+#&gt; 5 setosa
+#&gt; 6 setosa</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> <code>step_normalize()</code> scales the predictors so kNN's distance metric treats them equally. <code>nearest_neighbor()</code> builds the spec, <code>set_mode(&quot;classification&quot;)</code> is required because kNN supports both regression and classification, and <code>add_model()</code> attaches the spec to the workflow.</p>
+
+</details>
+</section>
+
+<h2>Related tidymodels functions</h2>
+
+<p><strong>add_model() rarely appears alone.</strong> These are the functions you will use alongside it.</p>
+
+<ul>
+
+<li><code>workflow()</code> creates the empty workflow that <code>add_model()</code> updates.</li>
+
+<li><code>add_recipe()</code> attaches the preprocessing recipe that pairs with the spec.</li>
+
+<li><code>add_formula()</code> attaches a bare formula preprocessor when no recipe is needed.</li>
+
+<li><code>update_model()</code> swaps the spec inside an existing workflow without rebuilding.</li>
+
+<li><code>extract_spec_parsnip()</code> pulls the unfit spec back out of a workflow.</li>
+
+<li><code>extract_fit_parsnip()</code> pulls the trained parsnip object out of a fitted workflow.</li>
+
+</ul>
+
+<p>See the <a href="https://workflows.tidymodels.org/reference/">workflows package reference</a> for the full verb family.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Does add_model() train the model?</strong></p>
+
+<p>No. <code>add_model()</code> only stores the parsnip spec in the workflow's model slot. Training happens inside <code>fit()</code>, <code>fit_resamples()</code>, or <code>tune_grid()</code>, which call the engine on the preprocessed training data. This is intentional and is what gives the workflow its consistent behaviour across resampling: the same spec is re-fit on each fold rather than carried over as a pre-trained object.</p>
+
+<p><strong>Can I have two models in one workflow?</strong></p>
+
+<p>No. A workflow holds exactly one model action, the same way it holds exactly one preprocessor. Calling <code>add_model()</code> a second time raises an error. Use <code>update_model(wf, new_spec)</code> to replace the existing spec without touching the recipe or formula. To compare several models on the same preprocessor, build separate workflows or use the workflowsets package.</p>
+
+<p><strong>What is the formula argument for in add_model()?</strong></p>
+
+<p>It supplies a model-only formula when the preprocessor would otherwise pass everything to the engine. This is needed when a recipe produces engineered columns and you want the engine to see only a subset, or when an engine like survival or zero-inflated models expects a specialised formula syntax that the preprocessor does not natively support. For most workflows, leave it <code>NULL</code>.</p>
+
+<p><strong>Is add_model() different from parsnip::fit()?</strong></p>
+
+<p>Yes. <code>parsnip::fit()</code> takes a spec plus data and trains the model directly. <code>add_model()</code> only attaches the spec to a workflow without training. The workflow object adds preprocessor management, resampling support, and <code>extract_*()</code> accessors. Pick <code>parsnip::fit()</code> for one-off training, <code>add_model()</code> when you need any of the workflow features.</p>
+
+<p><strong>How do I inspect the trained model inside a fitted workflow?</strong></p>
+
+<p>Call <code>extract_fit_parsnip(wf_fit)</code> on the fitted workflow. The returned parsnip fit can be passed to <code>tidy()</code> for coefficient tables, <code>glance()</code> for fit statistics, or <code>extract_fit_engine()</code> for the raw underlying object such as the <code>lm</code> or <code>ranger</code> model. The workflow's preprocessor is similarly retrievable with <code>extract_recipe(wf_fit)</code> or <code>extract_preprocessor(wf_fit)</code>.</p>
+
+{% endraw %}
