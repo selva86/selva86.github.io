@@ -13,8 +13,8 @@ export interface Env {
   AVATARS: R2Bucket;
   EXPORTS: R2Bucket;
   COURSE_MEDIA: R2Bucket;
-  SUPABASE_JWT_SECRET: string;
-  SUPABASE_URL: string;
+  SUPABASE_JWT_SECRET?: string;   // optional; only needed for legacy HS256 tokens
+  SUPABASE_URL: string;           // used to fetch JWKS for ES256 verification
   SUPABASE_ANON_KEY: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
   PADDLE_API_KEY: string;
@@ -41,7 +41,7 @@ export const onRequest: PagesFunction<Env, string, RequestData> = async (context
 
   const token = extractToken(context.request);
   if (token) {
-    const payload = await verifyJWT(token, context.env.SUPABASE_JWT_SECRET);
+    const payload = await verifyJWT(token, context.env);
     if (payload?.sub) {
       context.data.payload = payload;
       context.data.user = await getUserById(context.env.DB, payload.sub);

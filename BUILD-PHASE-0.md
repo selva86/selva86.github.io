@@ -112,8 +112,8 @@ Re-runnable. The schema uses `IF NOT EXISTS`.
    - `anon` public key -> `SUPABASE_ANON_KEY`
    - `service_role` key -> `SUPABASE_SERVICE_ROLE_KEY` (treat as a secret; never ship to the client)
 4. Project Settings -> API -> JWT Settings:
-   - **JWT signing algorithm: select `HS256`** (some new projects default to ECC P256; our edge verifier only supports HS256 for v1; ECC support adds JWKS fetching and is not yet shipped).
-   - Copy JWT Secret -> `SUPABASE_JWT_SECRET`
+   - **ECC P-256 (ES256) is the recommended algorithm** and our edge verifier handles it natively via JWKS fetched from `<SUPABASE_URL>/auth/v1/.well-known/jwks.json` (cached 24h in KV).
+   - If your project happens to be on legacy HS256, copy the JWT Secret as `SUPABASE_JWT_SECRET` (the verifier falls back to HS256 when this is set and a token advertises HS256). On ES256-only projects, you can leave `SUPABASE_JWT_SECRET` unset.
 5. Authentication -> Providers:
    - Email: Enable (magic link mode, no password required if you want passwordless-only)
    - Google: Enable, paste your Google OAuth client ID + secret (you create those at https://console.cloud.google.com/apis/credentials)
