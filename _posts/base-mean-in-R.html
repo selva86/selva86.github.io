@@ -1,0 +1,308 @@
+---
+title: "mean() in R: Arithmetic Mean With Trim and NA Handling"
+description: "Use base R mean() to compute the arithmetic average of a numeric vector. Covers na.rm, trim for trimmed means, weighted alternatives, pitfalls, 5 examples."
+keywords: "mean in R, R mean function, base R mean, arithmetic mean in R, mean ignoring NA R, na.rm in mean, trimmed mean in R"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "base mean()|R mean function|arithmetic mean in R|mean() with na.rm|mean() trim argument"
+auto_link_case_sensitive: true
+fr_parent: "Descriptive-Statistics-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>mean() in R: Arithmetic Mean With Trim and NA Handling</h1>
+
+<p class="lead">The <code>mean()</code> function in base R computes the arithmetic average of a numeric vector. Pass <code>na.rm = TRUE</code> to ignore <a class="auto-link" href="Missing-Value-Treatment-With-R.html" title="Missing Value Treatment">missing values</a> and <code>trim</code> to drop the tails for a robust central tendency.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="10" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>mean(x)<span class="qa-cmt">                              # arithmetic mean</span>
+mean(x, na.rm = TRUE)<span class="qa-cmt">                # ignore NA values</span>
+mean(x, trim = 0.1)<span class="qa-cmt">                  # 10% trimmed mean (robust to outliers)</span>
+mean(x[x &gt; 0])<span class="qa-cmt">                       # conditional mean (positive values only)</span>
+weighted.mean(x, w)<span class="qa-cmt">                  # weighted mean (separate function)</span>
+mean(mtcars$mpg)<span class="qa-cmt">                     # mean of a data frame column</span>
+colMeans(mtcars)<span class="qa-cmt">                     # column-wise mean of a numeric data frame</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is mean() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 461" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="426"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">average of a numeric vector</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">mean(x)</text><text x="125" y="126" class="branch-label">mean with missing values</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">mean(x, na.rm = TRUE)</text><text x="125" y="182" class="branch-label">robust to outliers</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">median(x) or mean(x, trim = 0.1)</text><text x="125" y="238" class="branch-label">weighted average</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">weighted.mean(x, w)</text><text x="125" y="294" class="branch-label">column-wise mean of a data frame</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">colMeans(df) or sapply(df, mean)</text><text x="125" y="350" class="branch-label">group-wise mean by category</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">aggregate(x ~ g, data, mean)</text><text x="125" y="406" class="branch-label">rolling or <a class="auto-link" href="dplyr-cummean-in-R.html" title="dplyr cummean() in R: Running Mean Across a Vector">running mean</a></text><line class="branch" x1="100" y1="426" x2="200" y2="426" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="413" width="490" height="28" rx="5"/><text x="222" y="431" class="code">zoo::rollmean() or RcppRoll::roll_mean()</text></svg></div>
+
+<h2>What mean() does in one sentence</h2>
+
+<p><strong>mean() returns the sum of x divided by length(x) as a single numeric value.</strong> It accepts numeric, integer, logical (where TRUE = 1), and complex vectors. For other input types it returns <code>NA</code> with a warning.</p>
+
+<p>The function is method-dispatching, so date and POSIXct objects also have a defined mean. <code>mean(Sys.Date() + 0:9)</code> returns the midpoint date as a <code>Date</code>, not a number.</p>
+
+<h2>Syntax</h2>
+
+<p><strong><code>mean(x, trim = 0, na.rm = FALSE, ...)</code> takes a vector plus two optional arguments.</strong> <code>trim</code> drops a fraction of values from each end; <code>na.rm</code> controls how <code>NA</code> values are handled.</p>
+
+<div class="webr-container" data-block-title="Mean of a numeric vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean of a numeric vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(2, 4, 6, 8, 10)
+mean(x)
+#&gt; [1] 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three arguments:</p>
+
+<ul>
+
+<li><code>x</code>: numeric, logical, or date/time vector</li>
+
+<li><code>trim</code>: fraction (between 0 and 0.5) of values to trim from each end before averaging</li>
+
+<li><code>na.rm</code>: if <code>TRUE</code>, drop <code>NA</code> before computing; default is <code>FALSE</code></li>
+
+</ul>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body"><strong>Pass <code>na.rm = TRUE</code> whenever you suspect missing values.</strong> With the default <code>na.rm = FALSE</code>, a single <code>NA</code> makes the entire result <code>NA</code>. This is the most common base-R surprise; check for it first when a summary returns <code>NA</code>.</div></div>
+
+<h2>Five common patterns</h2>
+
+<h3>1. Plain arithmetic mean</h3>
+
+<div class="webr-container" data-block-title="Mean of a small vector">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean of a small vector</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mean(c(1, 2, 3, 4, 5))
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The sum is 15, the length is 5, the mean is 3.</p>
+
+<h3>2. Ignore missing values</h3>
+
+<div class="webr-container" data-block-title="Drop NA before averaging">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Drop NA before averaging</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(10, 20, NA, 30, 40)
+mean(x)
+#&gt; [1] NA
+
+mean(x, na.rm = TRUE)
+#&gt; [1] 25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Without <code>na.rm = TRUE</code>, any <code>NA</code> poisons the result. With it, the function drops <code>NA</code> and averages the remaining four values.</p>
+
+<h3>3. Trimmed mean for outlier robustness</h3>
+
+<div class="webr-container" data-block-title="10% trimmed mean ignores extreme tails">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">10% trimmed mean ignores extreme tails</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">x &lt;- c(2, 3, 4, 5, 6, 7, 8, 9, 10, 100)
+mean(x)
+#&gt; [1] 15.4
+
+mean(x, trim = 0.1)
+#&gt; [1] 6.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>trim = 0.1</code> drops the lowest 10% and highest 10% of sorted values before averaging. The single <a class="auto-link" href="Outlier-Treatment-With-R.html" title="Outlier Treatment with R">outlier</a> of 100 pulls the plain mean to 15.4; the trimmed mean of 6.5 better reflects the bulk of the data.</p>
+
+<h3>4. Mean of a data frame column</h3>
+
+<div class="webr-container" data-block-title="Mean of the mpg column in mtcars">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Mean of the mpg column in mtcars</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mean(mtcars$mpg)
+#&gt; [1] 20.09062</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For a single column, pass it directly. For every numeric column, use <code>colMeans()</code> or <code>sapply(df, mean)</code>.</p>
+
+<h3>5. Mean of a logical vector returns a proportion</h3>
+
+<div class="webr-container" data-block-title="Share of mtcars rows with more than 4 cylinders">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Share of mtcars rows with more than 4 cylinders</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mean(mtcars$cyl &gt; 4)
+#&gt; [1] 0.65625</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>R coerces logical to numeric (<code>TRUE = 1</code>, <code>FALSE = 0</code>). The mean of a logical vector is the proportion that is <code>TRUE</code>. This is the cleanest one-liner for proportions in base R.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong><code>mean(condition)</code> is the idiomatic way to compute a proportion in R.</strong> Because logicals coerce to 0 and 1, <code>mean(x &gt; threshold)</code> returns the share of values above the threshold without a separate counter. The same trick gives <code>mean(is.na(x))</code> for missingness rate and <code>mean(x == &quot;yes&quot;)</code> for the yes-rate.</div></div>
+
+<h2>mean vs median vs trimmed mean vs weighted mean</h2>
+
+<p><strong>Pick the central-tendency function that matches your data shape.</strong> The table compares mean, median, trimmed mean, and weighted mean.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>What it computes</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mean(x)</code></td>
+<td>Arithmetic average</td>
+<td>Symmetric data with no outliers</td>
+</tr>
+<tr>
+<td><code>mean(x, trim = 0.1)</code></td>
+<td>Trimmed mean</td>
+<td>Skewed data with extreme tails</td>
+</tr>
+<tr>
+<td><code>median(x)</code></td>
+<td>Middle value</td>
+<td>Heavily skewed data; ordinal scales</td>
+</tr>
+<tr>
+<td><code>weighted.mean(x, w)</code></td>
+<td>Weighted average</td>
+<td>Observations differ in importance</td>
+</tr>
+<tr>
+<td><code>colMeans(df)</code></td>
+<td>Column-wise mean</td>
+<td>All numeric columns of a data frame</td>
+</tr>
+</tbody>
+</table>
+
+<p>For symmetric, well-behaved data the plain mean is the standard summary. The moment outliers appear, switch to a median or a trimmed mean for a more honest center.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>Pitfall 1: <code>mean()</code> returns <code>NA</code> when any element is <code>NA</code>.</strong> Always set <code>na.rm = TRUE</code> for real-world data. If you forget, downstream summaries silently propagate <code>NA</code> and break plots and tables.</p>
+
+<p><strong>Pitfall 2: mean of a character vector returns <code>NA</code> with a warning.</strong> R does not auto-convert strings to numbers. Convert first with <code>as.numeric()</code>, then handle the <code>NA</code> values from parse failures.</p>
+
+<p><strong>Pitfall 3: <code>trim</code> is a fraction, not a count.</strong> <code>mean(x, trim = 2)</code> is invalid; <code>trim</code> must be between 0 and 0.5. Use <code>trim = 0.1</code> for 10%, not <code>trim = 10</code>.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Never pass a data frame directly to <code>mean()</code>.</strong> <code>mean(mtcars)</code> returns <code>NA</code> with a warning in modern R. Use <code>colMeans(mtcars)</code> for numeric columns or <code>sapply(mtcars, mean)</code> for a column-by-column mean. This bug bites every R beginner once.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Compute the mean of <code>mtcars$mpg</code> for cars with exactly 4 cylinders. Save the result to <code>ex_mean_4cyl</code>.</p>
+<div class="webr-container" data-block-title="Your turn: conditional mean">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: conditional mean</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mean_4cyl &lt;- # your code here
+
+ex_mean_4cyl
+#&gt; Expected: about 26.66</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_mean_4cyl &lt;- mean(mtcars$mpg[mtcars$cyl == 4])
+ex_mean_4cyl
+#&gt; [1] 26.66364</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The subset <code>mtcars$mpg[mtcars$cyl == 4]</code> keeps mpg values only where cylinder count is 4. Passing that filtered vector to <code>mean()</code> gives the conditional average. The same logical-subset pattern powers most "mean of a subgroup" questions in base R.</p>
+
+</details>
+</section>
+
+<h2>Related base R summary functions</h2>
+
+<p>After mastering <code>mean()</code>, look at:</p>
+
+<ul>
+
+<li><code>median()</code>: middle value, robust to outliers</li>
+
+<li><code>sd()</code> and <code>var()</code>: spread around the mean</li>
+
+<li><code>range()</code>, <code>min()</code>, <code>max()</code>: extremes</li>
+
+<li><code>summary()</code>: five-number summary plus mean in one call</li>
+
+<li><code>colMeans()</code> and <code>rowMeans()</code>: bulk averages for matrices and data frames</li>
+
+<li><code>aggregate()</code> and <code>dplyr::summarise()</code>: group-wise means</li>
+
+</ul>
+
+<p>For <a class="auto-link" href="Descriptive-Statistics-in-R.html" title="Descriptive Statistics in R: The 8 Numbers That Tell You What Your Data Is Doing">descriptive statistics</a> across many variables at once, see the descriptive statistics in R guide. For weighted averages, <code>weighted.mean()</code> extends the toolkit; for running or rolling means, <code>zoo::rollmean()</code> is the go-to.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>How do I calculate the mean in R while ignoring missing values?</strong></p>
+
+<p>Pass <code>na.rm = TRUE</code>: <code>mean(x, na.rm = TRUE)</code>. By default, <code>mean()</code> returns <code>NA</code> if any element is <code>NA</code>, which silently propagates into downstream summaries. Always set <code>na.rm = TRUE</code> when working with real-world data, or impute the missing values first using a domain-appropriate rule before averaging.</p>
+
+<p><strong>What is the difference between mean and median in R?</strong></p>
+
+<p><code>mean()</code> is the arithmetic average (sum divided by length); <code>median()</code> is the middle value when data is sorted. The mean is sensitive to outliers and skew; the median is not. For symmetric data the two agree; for skewed data the median is the safer summary of central tendency.</p>
+
+<p><strong>How do I compute the mean of every column in a data frame?</strong></p>
+
+<p>For numeric-only frames, use <code>colMeans(df, na.rm = TRUE)</code>. For mixed types, use <code>sapply(df, function(x) if (is.numeric(x)) mean(x, na.rm = TRUE) else NA)</code>. The tidyverse equivalent is <code>dplyr::summarise(across(where(is.numeric), mean, na.rm = TRUE))</code> for a one-line column-wise mean.</p>
+
+<p><strong>Can I compute a weighted mean in base R?</strong></p>
+
+<p>Yes, with <code>weighted.mean(x, w)</code> where <code>w</code> is a numeric vector of weights the same length as <code>x</code>. The function returns <code>sum(x * w) / sum(w)</code>. Use it when observations contribute unequally, such as survey weights or grades with different credit values.</p>
+
+<p><strong>Why does <code>mean(mtcars)</code> return NA?</strong></p>
+
+<p>Because <code>mean()</code> expects a vector, not a data frame. Older R versions silently coerced the frame; current R returns <code>NA</code> with a warning. Use <code>colMeans(mtcars)</code> for column-wise means or <code>mean(mtcars$mpg)</code> for a single column.</p>
