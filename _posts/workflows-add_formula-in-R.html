@@ -1,0 +1,378 @@
+---
+title: "workflows add_formula() in R: Attach a Formula to a Workflow"
+description: "Use workflows add_formula() in R to attach a model formula to a tidymodels workflow. See the syntax, four worked examples, pitfalls, and when to pick it."
+keywords: "workflows add_formula, add_formula function R, add_formula workflow, tidymodels add_formula, R add_formula, workflows add formula, add_formula tidymodels examples"
+mathjax: false
+webr: true
+post_type: "PSEO"
+auto_link_terms: "add_formula()|workflows add_formula|workflows::add_formula()|attach formula to workflow|formula preprocessor"
+auto_link_case_sensitive: true
+fr_parent: "tidymodels-Exercises-in-R.html"
+---
+<!-- md2html:generated -->
+
+<h1>workflows add_formula() in R: Attach a Formula to a Workflow</h1>
+
+<p class="lead">The workflows <code>add_formula()</code> <a class="auto-link" href="R-Functions.html" title="Write Better R Functions: Arguments, Defaults, Scope & When to Vectorise">function in R</a> attaches a model formula like <code>y ~ x1 + x2</code> to a tidymodels workflow as the preprocessor. The workflow stores the formula and replays it inside <code>fit()</code> and <code>predict()</code>, so you get the formula syntax of base R with the resampling and tuning machinery of tidymodels.</p>
+
+<div class="engagement-header" data-difficulty="Beginner" data-time="15" data-exercises="1" data-xp="15"></div>
+
+<div class="quick-answer"><div class="qa-label">⚡ Quick Answer</div><pre>workflow() |&gt; add_formula(mpg ~ wt + hp)<span class="qa-cmt">            # basic formula preprocessor</span>
+workflow() |&gt; add_formula(am ~ .)<span class="qa-cmt">                   # all other columns as predictors</span>
+workflow() |&gt; add_formula(mpg ~ wt * hp)<span class="qa-cmt">            # main effects plus interaction</span>
+workflow() |&gt; add_formula(mpg ~ poly(wt, 2) + hp)<span class="qa-cmt">   # polynomial term, expanded by stats</span>
+add_formula(wf, mpg ~ wt, blueprint = bp)<span class="qa-cmt">           # custom hardhat blueprint</span>
+update_formula(wf, mpg ~ wt + hp + disp)<span class="qa-cmt">            # swap the formula in place</span>
+remove_formula(wf)<span class="qa-cmt">                                  # detach the formula</span></pre><p class="qa-foot">Need explanation? Read on for examples and pitfalls.</p></div>
+
+<div class="decision-tree"><div class="dt-label">📊 Is add_formula() the right tool?</div><svg class="dt-svg" viewBox="0 0 720 405" xmlns="http://www.w3.org/2000/svg"><style>.node-start{fill:#0ea5e9;stroke:#0c4a6e;stroke-width:1.5}.node-code{fill:#fff;stroke:#0ea5e9;stroke-width:1.5}.label-start{fill:#fff;font:600 13px -apple-system,sans-serif}.branch-label{font:600 11.5px -apple-system,sans-serif;fill:#0369a1}.code{font:13px 'JetBrains Mono',Consolas,monospace;fill:#1e293b}.branch{stroke:#0284c7;stroke-width:1.5;fill:none}.arrow-fill{fill:#0284c7}</style><defs><marker id="dt-arrow" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto"><polygon points="0 0, 9 4.5, 0 9" class="arrow-fill"/></marker></defs><line class="branch" x1="100" y1="50" x2="100" y2="370"/><rect class="node-start" x="60" y="20" width="80" height="28" rx="6"/><text x="100" y="38" text-anchor="middle" class="label-start">START</text><text x="125" y="70" class="branch-label">attach a lightweight model formula to a workflow</text><line class="branch" x1="100" y1="90" x2="200" y2="90" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="77" width="490" height="28" rx="5"/><text x="222" y="95" class="code">workflow() |&gt; add_formula(y ~ x1 + x2)</text><text x="125" y="126" class="branch-label">attach a recipe with explicit preprocessing steps</text><line class="branch" x1="100" y1="146" x2="200" y2="146" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="133" width="490" height="28" rx="5"/><text x="222" y="151" class="code">workflow() |&gt; add_recipe(rec)</text><text x="125" y="182" class="branch-label">attach bare predictor and outcome columns, no formula</text><line class="branch" x1="100" y1="202" x2="200" y2="202" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="189" width="490" height="28" rx="5"/><text x="222" y="207" class="code">workflow() |&gt; add_variables(y, c(x1, x2))</text><text x="125" y="238" class="branch-label">replace an attached formula in place</text><line class="branch" x1="100" y1="258" x2="200" y2="258" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="245" width="490" height="28" rx="5"/><text x="222" y="263" class="code">update_formula(wf, y ~ x1 + x2 + x3)</text><text x="125" y="294" class="branch-label">detach the formula entirely</text><line class="branch" x1="100" y1="314" x2="200" y2="314" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="301" width="490" height="28" rx="5"/><text x="222" y="319" class="code">remove_formula(wf)</text><text x="125" y="350" class="branch-label">write the formula straight into the model call</text><line class="branch" x1="100" y1="370" x2="200" y2="370" marker-end="url(#dt-arrow)"/><rect class="node-code" x="210" y="357" width="490" height="28" rx="5"/><text x="222" y="375" class="code">lm(y ~ x1 + x2, data = df)</text></svg></div>
+
+<h2>What add_formula() does</h2>
+
+<p><strong>add_formula() registers a model formula as the preprocessor of a workflow.</strong> It does not run the formula. The function records the formula in the workflow's preprocessor slot, the same way <code>add_recipe()</code> records a recipes object and <code>add_model()</code> records a parsnip spec. The actual <code>model.matrix()</code> expansion happens later, when <code>fit()</code>, <code>fit_resamples()</code>, or <code>tune_grid()</code> is called on the workflow.</p>
+
+<p>The formula is held as an unevaluated R expression. When the workflow is fit, the formula and the training data are passed through the hardhat preprocessor, which builds the predictor matrix and outcome vector. Factor columns become dummy variables, <a class="auto-link" href="Interaction-Effects-in-R.html" title="Interaction Effects in R: Add Them, Test Them, and Actually Understand the Output">interaction terms</a> multiply out, and inline transformations like <code>log()</code> or <code>poly()</code> are evaluated. The resulting design matrix goes to the engine that the parsnip spec selected.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><strong>add_formula() gives you base R formula semantics inside a tidymodels workflow.</strong> You write <code>mpg ~ wt * hp</code> and the workflow expands it the same way <code>lm()</code> would. The win is that the formula travels with the workflow, so resampling, tuning, and prediction all see the same predictor expansion without you re-typing the formula in three places.</div></div>
+
+<h2>add_formula() syntax and arguments</h2>
+
+<p><strong>add_formula() takes a workflow, a formula, and an optional blueprint.</strong> The signature is short and most users only ever pass the first two arguments.</p>
+
+<div class="webr-container" data-block-title="The add_formula argument skeleton">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">The add_formula argument skeleton</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidymodels)
+
+add_formula(
+  x,                # a workflow object
+  formula,          # a model formula like y ~ x1 + x2
+  blueprint = NULL  # a default_formula_blueprint() object
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>x</code> argument must be a <code>workflow()</code> object, usually piped in from <code>workflow()</code>. The <code>formula</code> argument is any valid model formula; the left side is the outcome and the right side is the predictor expression. The <code>blueprint</code> argument from the hardhat package controls indicator coding, intercept handling, and how <code>NA</code> rows are dropped at prediction time. The default blueprint matches what <code>lm()</code> and <code>glm()</code> do, so you rarely need to override it.</p>
+
+<p><strong>add_formula() returns a new workflow.</strong> The function is pure and does not mutate its input. Assign the result back to a variable or chain it into another pipe step.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>The formula is stored, not evaluated.</strong> Calling <code>workflows::add_formula()</code> is cheap because nothing is computed yet. The formula is held alongside the model spec until the workflow is fit. To preview the expansion, call <code>model.matrix(formula, data)</code> on the formula and data directly, outside the workflow.</div></div>
+
+<p><strong>add_formula() is one of three preprocessor verbs in the workflows package.</strong> Picking the right verb upfront avoids restructuring later.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Verb</th>
+<th>Preprocessor input</th>
+<th>When to use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>add_formula()</code></td>
+<td>A model formula <code>y ~ x1 + x2</code></td>
+<td>Lightweight model, base R formula expansion is enough</td>
+</tr>
+<tr>
+<td><code>add_recipe()</code></td>
+<td>A <code>recipe()</code> with explicit steps</td>
+<td>Need imputation, scaling, or custom transformations</td>
+</tr>
+<tr>
+<td><code>add_variables()</code></td>
+<td>Outcome and predictor column names</td>
+<td>Engine refuses formulas (XGBoost matrix input)</td>
+</tr>
+</tbody>
+</table>
+
+<p>Reach for <code>add_formula()</code> when the formula syntax is enough and you do not need preprocessing steps to be re-estimated on each resample.</p>
+
+<h2>Build workflows with add_formula(): four examples</h2>
+
+<p><strong>Every example below uses the built-in mtcars and airquality datasets</strong> so the focus stays on the formula plumbing rather than on the data.</p>
+
+<h3>Example 1: A two-predictor linear regression</h3>
+
+<p><strong>The smallest useful workflow has a formula and a model.</strong> This is the form most tidymodels tutorials open with.</p>
+
+<div class="webr-container" data-block-title="Formula plus linear regression">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Formula plus linear regression</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lin_spec &lt;- linear_reg() |&gt; set_engine(&quot;lm&quot;)
+
+wf_lin &lt;- workflow() |&gt;
+  add_formula(mpg ~ wt + hp) |&gt;
+  add_model(lin_spec)
+
+wf_lin
+#&gt; == Workflow ====================================================================
+#&gt; Preprocessor: Formula
+#&gt; Model: linear_reg()
+#&gt;
+#&gt; -- Preprocessor ----------------------------------------------------------------
+#&gt; mpg ~ wt + hp
+#&gt;
+#&gt; -- Model -----------------------------------------------------------------------
+#&gt; Linear Regression Model Specification (regression)
+#&gt;
+#&gt; Computational engine: lm</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The workflow now holds both the formula and the parsnip spec. Calling <code>fit(wf_lin, data = mtcars)</code> hands <code>mpg ~ wt + hp</code> to <code>lm()</code> along with the training data and returns a fitted workflow you can pass to <code>predict()</code> or <code>tune::tune_grid()</code>.</p>
+
+<h3>Example 2: All-other-columns shorthand and dot expansion</h3>
+
+<p><strong>Formulas accept the <code>.</code> shorthand for "every other column in data".</strong> This works inside a workflow the same way it does in <code>lm()</code>.</p>
+
+<div class="webr-container" data-block-title="Use the dot to include every other predictor">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Use the dot to include every other predictor</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wf_dot &lt;- workflow() |&gt;
+  add_formula(mpg ~ .) |&gt;
+  add_model(linear_reg() |&gt; set_engine(&quot;lm&quot;))
+
+wf_dot_fit &lt;- fit(wf_dot, data = mtcars)
+
+predict(wf_dot_fit, new_data = head(mtcars))
+#&gt; # A tibble: 6 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  22.6
+#&gt; 2  22.1
+#&gt; 3  26.3
+#&gt; 4  21.2
+#&gt; 5  17.7
+#&gt; 6  20.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>.</code> is expanded at fit time using the column names present in the training data. New data passed to <code>predict()</code> must contain those same columns; missing predictors raise an error from <code>hardhat::forge()</code>. This is one of the rare moments the workflow surfaces a base R behaviour rather than smoothing it over.</p>
+
+<h3>Example 3: Interactions and polynomial terms</h3>
+
+<p><strong>Formula syntax expands interactions and polynomial expressions in place.</strong> You get the same <code>x * z</code> and <code>poly(x, 2)</code> shortcuts that base R supplies.</p>
+
+<div class="webr-container" data-block-title="Interaction and polynomial inside add_formula">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interaction and polynomial inside add_formula</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wf_poly &lt;- workflow() |&gt;
+  add_formula(mpg ~ wt * hp + poly(disp, 2)) |&gt;
+  add_model(linear_reg() |&gt; set_engine(&quot;lm&quot;))
+
+wf_poly_fit &lt;- fit(wf_poly, data = mtcars)
+
+extract_fit_engine(wf_poly_fit) |&gt;
+  coef() |&gt;
+  round(3)
+#&gt;            (Intercept)                     wt
+#&gt;                 47.812                 -9.179
+#&gt;                     hp           poly(disp, 2)1
+#&gt;                 -0.108                -16.231
+#&gt;         poly(disp, 2)2                  wt:hp
+#&gt;                  9.444                  0.029</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>wt * hp</code> term added the two main effects plus the <code>wt:hp</code> interaction without you naming them. The <code>poly(disp, 2)</code> term created two orthogonal polynomial columns. Both expansions happen inside <code>model.matrix()</code> when the workflow is fit, so new data only needs the raw <code>wt</code>, <code>hp</code>, and <code>disp</code> columns at predict time.</p>
+
+<h3>Example 4: When add_formula() is not enough</h3>
+
+<p><strong>Formula transformations like <code>log()</code> are evaluated on the data passed in, not re-estimated.</strong> That is fine for fixed transformations and wrong for anything that learns from the data.</p>
+
+<div class="webr-container" data-block-title="Fixed transform vs learned transform">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Fixed transform vs learned transform</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># OK: log() is a fixed, data-free transformation
+wf_log &lt;- workflow() |&gt;
+  add_formula(log(Ozone) ~ Solar.R + Wind + Temp) |&gt;
+  add_model(linear_reg() |&gt; set_engine(&quot;lm&quot;))
+
+# Not OK: scale() inside a formula uses the WHOLE dataset
+wf_bad &lt;- workflow() |&gt;
+  add_formula(Ozone ~ scale(Solar.R) + scale(Wind)) |&gt;
+  add_model(linear_reg() |&gt; set_engine(&quot;lm&quot;))
+#&gt; Builds fine, but scale() learns its mean and sd from each fit() call
+#&gt; on the data passed in. Inside resampling this leaks information
+#&gt; between folds when scale() is computed on combined data.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For learned transformations, swap <code>add_formula()</code> for <code>add_recipe()</code> and use <code>step_normalize()</code> so the standardization is re-estimated on the training half of every resample. The formula path is correct for <code>log</code>, <code>sqrt</code>, <code>poly</code>, and similar deterministic expressions.</p>
+
+<h2>Common pitfalls</h2>
+
+<p><strong>A workflow holds exactly one preprocessor and one formula.</strong> These are the four errors you will hit while learning <code>add_formula()</code>.</p>
+
+<div class="webr-container" data-block-title="Four errors and their fixes">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Four errors and their fixes</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Pitfall 1: two preprocessors in one workflow
+workflow() |&gt;
+  add_formula(mpg ~ wt) |&gt;
+  add_recipe(recipe(mpg ~ wt, data = mtcars))
+#&gt; Error: A formula action has already been added to this workflow.
+#&gt; Fix: pick one. add_formula() OR add_recipe(), never both.
+
+# Pitfall 2: passing a string instead of a formula
+workflow() |&gt; add_formula(&quot;mpg ~ wt&quot;)
+#&gt; Error in `add_formula()`: `formula` must be a formula.
+#&gt; Fix: drop the quotes. mpg ~ wt is already an R expression.
+
+# Pitfall 3: column name not in data
+wf_typo &lt;- workflow() |&gt;
+  add_formula(MPG ~ wt) |&gt;
+  add_model(linear_reg() |&gt; set_engine(&quot;lm&quot;))
+fit(wf_typo, data = mtcars)
+#&gt; Error in `fit()`: object 'MPG' not found.
+#&gt; Fix: match the exact column name; R is case sensitive.
+
+# Pitfall 4: adding the formula after the model
+workflow() |&gt;
+  add_model(linear_reg() |&gt; set_engine(&quot;lm&quot;)) |&gt;
+  add_formula(mpg ~ wt)
+#&gt; Works, but the convention is preprocessor first.
+#&gt; Fix: pipe add_formula() before add_model() for readability.</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Inline data-learning transformations like <code>scale()</code> leak across resamples.</strong> A formula such as <code>Ozone ~ scale(Solar.R)</code> will fit, but the mean and standard deviation are computed on whatever data the current <code>fit()</code> call receives. Under cross-validation that means <a class="auto-link" href="dplyr-group-by-summarise.html" title="dplyr group_by() + summarise(): The Combination That Answers Most Business Questions">summary statistics</a> drift from fold to fold and can mix train and test rows. Move the standardization into a recipe with <code>step_normalize()</code> whenever the transform learns from the data.</div></div>
+
+<h2>Try it yourself</h2>
+
+<section class="tryit-block">
+<p><strong>Try it:</strong> Build a workflow that uses <code>workflows::add_formula()</code> to fit a <a class="auto-link" href="Linear-Regression.html" title="Linear Regression">linear regression</a> of <code>Petal.Length</code> on <code>Sepal.Length</code>, <code>Sepal.Width</code>, and their interaction in the <code>iris</code> dataset. Save the fitted workflow to <code>ex_fit</code>.</p>
+<div class="webr-container" data-block-title="Your turn: add_formula with interaction">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Your turn: add_formula with interaction</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Try it: interaction term inside add_formula
+library(tidymodels)
+
+ex_fit &lt;- # your code here
+
+predict(ex_fit, new_data = head(iris))
+#&gt; Expected: tibble with 6 .pred values between 1 and 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<details>
+<summary>Click to reveal solution</summary>
+
+<div class="webr-container" data-block-title="Solution">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Solution</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ex_fit &lt;- workflow() |&gt;
+  add_formula(Petal.Length ~ Sepal.Length * Sepal.Width) |&gt;
+  add_model(linear_reg() |&gt; set_engine(&quot;lm&quot;)) |&gt;
+  fit(data = iris)
+
+predict(ex_fit, new_data = head(iris))
+#&gt; # A tibble: 6 x 1
+#&gt;   .pred
+#&gt;   &lt;dbl&gt;
+#&gt; 1  1.55
+#&gt; 2  1.32
+#&gt; 3  1.25
+#&gt; 4  1.36
+#&gt; 5  1.55
+#&gt; 6  1.94</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>Explanation:</strong> The <code>Sepal.Length * Sepal.Width</code> term expands inside <code>model.matrix()</code> into the two main effects plus their interaction, exactly as <code>lm()</code> would. Wrapping the formula in <code>add_formula()</code> lets you reuse the same workflow object for resampling or tuning later, without redeclaring the formula.</p>
+
+</details>
+</section>
+
+<h2>Related workflows functions</h2>
+
+<p><strong>add_formula() is one verb in a small family.</strong> These functions appear next to it in almost every tidymodels script.</p>
+
+<ul>
+
+<li><code>workflow()</code> creates the empty workflow that <code>add_formula()</code> updates.</li>
+
+<li><code>add_model()</code> attaches the parsnip spec that pairs with the formula.</li>
+
+<li><code>add_recipe()</code> swaps the formula for a full recipes preprocessor.</li>
+
+<li><code>add_variables()</code> attaches bare column names when even a formula is too much structure.</li>
+
+<li><code>update_formula()</code> replaces the formula inside an existing workflow.</li>
+
+<li><code>remove_formula()</code> detaches the formula entirely.</li>
+
+</ul>
+
+<p>See the <a href="https://workflows.tidymodels.org/reference/">workflows package reference</a> for the full verb family.</p>
+
+<h2>FAQ</h2>
+
+<p><strong>Does add_formula() do any preprocessing?</strong></p>
+
+<p>No. <code>workflows::add_formula()</code> only stores the formula in the workflow's preprocessor slot. The formula is expanded into a design matrix later, inside <code>fit()</code>, by <code>hardhat::mold()</code>. That expansion runs whatever <a class="auto-link" href="R-Anonymous-Functions.html" title="R Anonymous Functions: \\(x) Syntax & When to Use Lambda Style">inline functions</a> appear in the formula, such as <code>log()</code> or <code>poly()</code>, but it does not learn parameters from the data. For learned preprocessing like normalization or imputation, use <code>add_recipe()</code> so the transformations are re-estimated on each resample.</p>
+
+<p><strong>Can I use add_formula() and add_recipe() in the same workflow?</strong></p>
+
+<p>No. A workflow holds exactly one preprocessor. Calling both <code>add_formula()</code> and <code>add_recipe()</code> on the same workflow raises an error. Choose <code>add_formula()</code> when a base R formula is enough and the engine accepts formulas. Choose <code>add_recipe()</code> when the preprocessing needs explicit steps that must be re-estimated on each fold of cross-validation.</p>
+
+<p><strong>How is add_formula() different from writing the formula directly in lm()?</strong></p>
+
+<p>The formula is identical, but the workflow keeps it bundled with the model spec and any tuning grid. That means resampling, tuning, and prediction all reuse the same formula without you typing it again. The workflow object also makes the pipeline easier to swap engines on; flipping <code>set_engine(&quot;lm&quot;)</code> to <code>set_engine(&quot;glmnet&quot;)</code> does not touch the formula at all.</p>
+
+<p><strong>Why does scale() inside a formula leak across resamples?</strong></p>
+
+<p><code>scale()</code> computes the mean and standard deviation of its argument at the moment the formula is evaluated. Inline transformations cannot remember what they saw on a previous fold, so the statistics drift fold by fold. A recipe step like <code>step_normalize()</code> records training-fold statistics inside the workflow, so prediction on the held-out fold uses the matching values.</p>
+
+<p><strong>Can I update the formula after adding it?</strong></p>
+
+<p>Yes. Use <code>update_formula(wf, new_formula)</code>. It replaces the formula in place without touching the model spec or refitting anything. Calling <code>add_formula()</code> twice on the same workflow fails because the preprocessor slot is already filled.</p>
