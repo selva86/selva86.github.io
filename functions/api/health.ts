@@ -12,14 +12,17 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     const row = await context.env.DB.prepare("SELECT 1 AS ok").first<{ ok: number }>();
     checks.db = row?.ok === 1 ? "ok" : "unexpected";
   } catch (e) {
-    checks.db = `error: ${(e as Error).message}`;
+    // Log full error to Workers tail; surface only a generic status to callers.
+    console.error("[health] db error:", (e as Error).message);
+    checks.db = "error";
   }
 
   try {
     await context.env.KV.get("health:probe");
     checks.kv = "ok";
   } catch (e) {
-    checks.kv = `error: ${(e as Error).message}`;
+    console.error("[health] kv error:", (e as Error).message);
+    checks.kv = "error";
   }
 
   const ok = checks.db === "ok" && checks.kv === "ok";

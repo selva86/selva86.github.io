@@ -74,11 +74,20 @@ wrangler kv namespace create r-stats-cache-dev
 
 ### R2 (4 buckets per environment = 8 total)
 
+**bash / macOS / Linux:**
 ```bash
 for b in certs avatars exports course-media; do
   wrangler r2 bucket create r-stats-$b
   wrangler r2 bucket create r-stats-$b-dev
 done
+```
+
+**PowerShell (Windows):**
+```powershell
+foreach ($b in 'certs','avatars','exports','course-media') {
+  wrangler r2 bucket create "r-stats-$b"
+  wrangler r2 bucket create "r-stats-$b-dev"
+}
 ```
 
 No ID to paste — wrangler.toml binds buckets by name. Confirm with `wrangler r2 bucket list`.
@@ -102,7 +111,9 @@ Re-runnable. The schema uses `IF NOT EXISTS`.
    - Project URL -> `SUPABASE_URL`
    - `anon` public key -> `SUPABASE_ANON_KEY`
    - `service_role` key -> `SUPABASE_SERVICE_ROLE_KEY` (treat as a secret; never ship to the client)
-4. Project Settings -> API -> JWT Settings -> copy JWT Secret -> `SUPABASE_JWT_SECRET`
+4. Project Settings -> API -> JWT Settings:
+   - **JWT signing algorithm: select `HS256`** (some new projects default to ECC P256; our edge verifier only supports HS256 for v1; ECC support adds JWKS fetching and is not yet shipped).
+   - Copy JWT Secret -> `SUPABASE_JWT_SECRET`
 5. Authentication -> Providers:
    - Email: Enable (magic link mode, no password required if you want passwordless-only)
    - Google: Enable, paste your Google OAuth client ID + secret (you create those at https://console.cloud.google.com/apis/credentials)
@@ -171,9 +182,10 @@ The CF Pages project must exist first. Connect the GH repo:
 3. Build settings:
    - Framework preset: None
    - Build command: `python _build/build_with_pagefind.py`
-   - Build output directory: `/`
+   - Build output directory: `.` (a single dot — repo root)
 4. Click Save and Deploy. First build will fail on missing secrets (expected). Continue:
 
+**bash / macOS / Linux:**
 ```bash
 # Set each secret (interactive prompt for the value)
 for s in SUPABASE_URL SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY SUPABASE_JWT_SECRET \
@@ -183,6 +195,20 @@ for s in SUPABASE_URL SUPABASE_ANON_KEY SUPABASE_SERVICE_ROLE_KEY SUPABASE_JWT_S
          RESEND_API_KEY SENTRY_DSN; do
   wrangler pages secret put $s --project-name r-statistics-co
 done
+```
+
+**PowerShell (Windows):**
+```powershell
+$secrets = @(
+  'SUPABASE_URL','SUPABASE_ANON_KEY','SUPABASE_SERVICE_ROLE_KEY','SUPABASE_JWT_SECRET',
+  'PADDLE_API_KEY','PADDLE_WEBHOOK_SECRET',
+  'RAZORPAY_KEY_ID','RAZORPAY_KEY_SECRET','RAZORPAY_WEBHOOK_SECRET',
+  'ZOHO_AUTH_TOKEN','ZOHO_LIST_KEY',
+  'RESEND_API_KEY','SENTRY_DSN'
+)
+foreach ($s in $secrets) {
+  wrangler pages secret put $s --project-name r-statistics-co
+}
 ```
 
 Each prompt: paste the value from steps 4-9. They are encrypted at rest and only readable by your Functions at runtime.

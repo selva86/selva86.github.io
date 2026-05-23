@@ -162,8 +162,11 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 
 -- ===== sessions (for revoke + active-sessions UI) =====
+-- session_id is pulled from Supabase Auth v2 JWT 'session_id' claim (NOT 'jti';
+-- Supabase JWTs don't include jti). Worker handler writes this row on first hit
+-- of a new session_id; revocation flips revoked_at AND adds to KV revoked:<id>.
 CREATE TABLE IF NOT EXISTS sessions (
-  jti        TEXT PRIMARY KEY,            -- JWT id
+  session_id TEXT PRIMARY KEY,           -- from JWT.session_id (Supabase Auth v2)
   user_id    TEXT NOT NULL,
   device     TEXT,
   ip         TEXT,
@@ -172,6 +175,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   expires_at INTEGER NOT NULL,
   revoked_at INTEGER
 );
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 
 -- ===== teams (Phase v2; ship schema now to avoid later migration) =====
 CREATE TABLE IF NOT EXISTS orgs (
