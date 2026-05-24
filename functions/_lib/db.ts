@@ -37,7 +37,9 @@ export async function getUserByEmail(db: D1Database, email: string): Promise<Use
     .first<User>();
 }
 
-// Upsert called from Supabase Auth webhook on user.created / user.updated.
+// Upsert called from Supabase Auth webhook on user.created / user.updated,
+// and from /api/me as a lazy-create fallback when JWT validates but no D1
+// row exists (Phase 1.6 — webhook race / pre-webhook signups).
 export async function upsertUserFromSupabase(
   db: D1Database,
   row: { id: string; email: string; display_name?: string; avatar_url?: string; country?: string },

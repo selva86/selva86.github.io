@@ -15,6 +15,7 @@ export interface Env {
   COURSE_MEDIA: R2Bucket;
   SUPABASE_JWT_SECRET?: string;   // optional; only needed for legacy HS256 tokens
   SUPABASE_URL: string;           // used to fetch JWKS for ES256 verification
+  SUPABASE_WEBHOOK_SECRET: string; // shared secret for /api/webhooks/supabase
   SUPABASE_ANON_KEY: string;
   SUPABASE_SERVICE_ROLE_KEY: string;
   PADDLE_API_KEY: string;
