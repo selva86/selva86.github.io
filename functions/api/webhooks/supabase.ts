@@ -74,6 +74,12 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   } catch {
     return jsonError(400, "bad_request", "Invalid JSON body");
   }
+  // Diagnostic: every accepted webhook request logs what it's about.
+  // Lets us see in `wrangler tail` whether Supabase is sending events for
+  // tables other than auth.users.
+  console.log(
+    `[webhook.supabase] type=${payload.type} schema=${payload.schema} table=${payload.table} record_id=${payload.record?.id ?? payload.old_record?.id ?? "(none)"}`,
+  );
   if (!payload.type || !payload.table || payload.schema !== "auth") {
     return jsonError(400, "bad_request", "Unexpected payload shape");
   }
