@@ -59,6 +59,30 @@ function timingSafeEqual(a: string, b: string): boolean {
 }
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
+  // DIAGNOSTIC ONLY (Phase 1 debug): log every incoming POST to webhook_events
+  // before any rejection. Captures raw body + auth-header presence so we can
+  // see what Supabase is actually sending. Remove after webhook flow verified.
+  try {
+    const cloned = context.request.clone();
+    const rawBody = await cloned.text();
+    const authHdr = context.request.headers.get("Authorization");
+    const authInfo = authHdr
+      ? `bearer present, len=${authHdr.length}, first8=${authHdr.slice(0, 8)}`
+      : "no auth header";
+    const expectedLen = context.env.SUPABASE_WEBHOOK_SECRET?.length ?? 0;
+    const diagPayload = `${authInfo}\nexpected_secret_len=${expectedLen}\n---\n${rawBody.slice(0, 4000)}`;
+    const debugId = `diag:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`;
+    await context.env.DB
+      .prepare(
+        "INSERT OR IGNORE INTO webhook_events (id, provider, payload_json, processed_at) VALUES (?, ?, ?, ?)",
+      )
+      .bind(debugId, "supabase-diag", diagPayload, Math.floor(Date.now() / 1000))
+      .run()
+      .catch(() => {});
+  } catch {
+    /* never block real flow on diag failure */
+  }
+
   // 1. Verify shared secret (constant-time)
   const auth = context.request.headers.get("Authorization") ?? "";
   if (!auth.startsWith(BEARER_PREFIX)) return err401();
