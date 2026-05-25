@@ -239,7 +239,14 @@ function initials(nameOrEmail) {
   const displayName = u.display_name || jwtMeta.full_name || jwtMeta.name || (u.email || session.user.email || '').split('@')[0];
   const email = u.email || session.user.email || '-';
   const avatarUrl = u.avatar_url || jwtMeta.avatar_url;
-  const provider = (session.user.app_metadata?.provider) || 'email';
+  // Show all providers linked to this user. app_metadata.providers is an
+  // array maintained by Supabase. Fall back to identities[].provider (newer
+  // Supabase versions) or app_metadata.provider (legacy single field).
+  const providersList = session.user.app_metadata?.providers
+    || (session.user.identities || []).map(i => i.provider)
+    || [session.user.app_metadata?.provider || 'email'];
+  const uniqueProviders = [...new Set(providersList)];
+  const provider = uniqueProviders[0] || 'email';
   const proStatus = me.pro
     ? (me.pro_until === -1 ? 'Lifetime' : 'Pro until ' + fmtDate(me.pro_until))
     : 'Free tier';
@@ -255,7 +262,10 @@ function initials(nameOrEmail) {
   document.getElementById('profile-email').textContent = email;
   document.getElementById('row-id').textContent = u.id || session.user.id;
   document.getElementById('row-since').textContent = fmtDate(u.created_at);
-  document.getElementById('row-method').textContent = provider === 'email' ? 'Magic link' : provider.charAt(0).toUpperCase() + provider.slice(1);
+  const methodLabels = uniqueProviders.map(p =>
+    p === 'email' ? 'Magic link' : p.charAt(0).toUpperCase() + p.slice(1),
+  );
+  document.getElementById('row-method').textContent = methodLabels.join(' + ');
   document.getElementById('row-pro').textContent = proStatus;
 
   // Sign-out.
