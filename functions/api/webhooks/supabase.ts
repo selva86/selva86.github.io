@@ -59,23 +59,42 @@ function timingSafeEqual(a: string, b: string): boolean {
 }
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
-  // DIAGNOSTIC ONLY (Phase 1 debug): log every incoming POST to webhook_events
-  // before any rejection. Captures ALL headers + body so we can see what
-  // Supabase is actually sending. Remove after webhook flow verified.
+  // 1. Extract presented secret (X-Webhook-Secret preferred; Authorization Bearer fallback)
+  const xSecret = context.request.headers.get("X-Webhook-Secret")?.trim() ?? "";
+  const authHeader = context.request.headers.get("Authorization") ?? "";
+  const bearerSecret = authHeader.startsWith(BEARER_PREFIX)
+    ? authHeader.slice(BEARER_PREFIX.length).trim()
+    : "";
+  const presented = xSecret || bearerSecret;
+  const expected = context.env.SUPABASE_WEBHOOK_SECRET ?? "";
+  const authPassed = presented.length > 0 && presented.length === expected.length && timingSafeEqual(presented, expected);
+
+  // DIAGNOSTIC ONLY (Phase 1 debug): log auth result + headers + body to
+  // webhook_events so we can query exactly what's happening. Remove after
+  // webhook flow verified.
   try {
     const cloned = context.request.clone();
     const rawBody = await cloned.text();
     const headerLines: string[] = [];
     context.request.headers.forEach((value, key) => {
-      // Don't log secrets in plaintext, but show length and first 8 chars for any header that looks like a secret
       if (key.toLowerCase().includes("auth") || key.toLowerCase().includes("secret") || key.toLowerCase().includes("token")) {
         headerLines.push(`${key}: <len=${value.length}, first8=${value.slice(0, 8)}>`);
       } else {
         headerLines.push(`${key}: ${value}`);
       }
     });
-    const expectedLen = context.env.SUPABASE_WEBHOOK_SECRET?.length ?? 0;
-    const diagPayload = `=== headers ===\n${headerLines.join("\n")}\n=== meta ===\nexpected_secret_len=${expectedLen}\n=== body ===\n${rawBody.slice(0, 4000)}`;
+    const diagPayload = [
+      `=== auth ===`,
+      `auth_passed: ${authPassed}`,
+      `presented_secret_len: ${presented.length}`,
+      `presented_secret_first8: ${presented.slice(0, 8)}`,
+      `expected_secret_len: ${expected.length}`,
+      `expected_secret_first8: ${expected.slice(0, 8)}`,
+      `=== headers ===`,
+      ...headerLines,
+      `=== body ===`,
+      rawBody.slice(0, 4000),
+    ].join("\n");
     const debugId = `diag:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`;
     await context.env.DB
       .prepare(
@@ -88,22 +107,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     /* never block real flow on diag failure */
   }
 
-  // 1. Verify shared secret. Accept either header name:
-  //    - X-Webhook-Secret: <secret>          (preferred; some webhook systems
-  //                                            strip Authorization headers for
-  //                                            SSRF safety)
-  //    - Authorization: Bearer <secret>       (fallback for compat with the
-  //                                            original config)
-  const xSecret = context.request.headers.get("X-Webhook-Secret")?.trim() ?? "";
-  const authHeader = context.request.headers.get("Authorization") ?? "";
-  const bearerSecret = authHeader.startsWith(BEARER_PREFIX)
-    ? authHeader.slice(BEARER_PREFIX.length).trim()
-    : "";
-  const presented = xSecret || bearerSecret;
-  if (!presented) return err401();
-  if (!timingSafeEqual(presented, context.env.SUPABASE_WEBHOOK_SECRET)) {
-    return err401();
-  }
+  if (!authPassed) return err401();
 
   // 2. Parse body
   let payload: WebhookPayload;
