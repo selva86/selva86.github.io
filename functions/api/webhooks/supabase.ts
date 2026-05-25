@@ -59,7 +59,11 @@ function timingSafeEqual(a: string, b: string): boolean {
 }
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
-  // 1. Extract presented secret (X-Webhook-Secret preferred; Authorization Bearer fallback)
+  // 1. Verify shared secret. Accept either header name:
+  //    - X-Webhook-Secret: <secret>          (preferred; Supabase's pg_net
+  //                                            strips Authorization headers
+  //                                            for SSRF safety)
+  //    - Authorization: Bearer <secret>       (fallback for non-pg_net senders)
   const xSecret = context.request.headers.get("X-Webhook-Secret")?.trim() ?? "";
   const authHeader = context.request.headers.get("Authorization") ?? "";
   const bearerSecret = authHeader.startsWith(BEARER_PREFIX)
@@ -67,47 +71,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     : "";
   const presented = xSecret || bearerSecret;
   const expected = context.env.SUPABASE_WEBHOOK_SECRET ?? "";
-  const authPassed = presented.length > 0 && presented.length === expected.length && timingSafeEqual(presented, expected);
-
-  // DIAGNOSTIC ONLY (Phase 1 debug): log auth result + headers + body to
-  // webhook_events so we can query exactly what's happening. Remove after
-  // webhook flow verified.
-  try {
-    const cloned = context.request.clone();
-    const rawBody = await cloned.text();
-    const headerLines: string[] = [];
-    context.request.headers.forEach((value, key) => {
-      if (key.toLowerCase().includes("auth") || key.toLowerCase().includes("secret") || key.toLowerCase().includes("token")) {
-        headerLines.push(`${key}: <len=${value.length}, first8=${value.slice(0, 8)}>`);
-      } else {
-        headerLines.push(`${key}: ${value}`);
-      }
-    });
-    const diagPayload = [
-      `=== auth ===`,
-      `auth_passed: ${authPassed}`,
-      `presented_secret_len: ${presented.length}`,
-      `presented_secret_first8: ${presented.slice(0, 8)}`,
-      `expected_secret_len: ${expected.length}`,
-      `expected_secret_first8: ${expected.slice(0, 8)}`,
-      `=== headers ===`,
-      ...headerLines,
-      `=== body ===`,
-      rawBody.slice(0, 4000),
-    ].join("\n");
-    const debugId = `diag:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`;
-    await context.env.DB
-      .prepare(
-        "INSERT OR IGNORE INTO webhook_events (id, provider, payload_json, processed_at) VALUES (?, ?, ?, ?)",
-      )
-      .bind(debugId, "supabase-diag", diagPayload, Math.floor(Date.now() / 1000))
-      .run()
-      .catch(() => {});
-  } catch {
-    /* never block real flow on diag failure */
-  }
-
-  if (!authPassed) return err401();
+  if (presented.length === 0 || presented.length !== expected.length) return err401();
+  if (!timingSafeEqual(presented, expected)) return err401();
 
   // 2. Parse body
   let payload: WebhookPayload;
