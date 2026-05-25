@@ -60,17 +60,22 @@ function timingSafeEqual(a: string, b: string): boolean {
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   // DIAGNOSTIC ONLY (Phase 1 debug): log every incoming POST to webhook_events
-  // before any rejection. Captures raw body + auth-header presence so we can
-  // see what Supabase is actually sending. Remove after webhook flow verified.
+  // before any rejection. Captures ALL headers + body so we can see what
+  // Supabase is actually sending. Remove after webhook flow verified.
   try {
     const cloned = context.request.clone();
     const rawBody = await cloned.text();
-    const authHdr = context.request.headers.get("Authorization");
-    const authInfo = authHdr
-      ? `bearer present, len=${authHdr.length}, first8=${authHdr.slice(0, 8)}`
-      : "no auth header";
+    const headerLines: string[] = [];
+    context.request.headers.forEach((value, key) => {
+      // Don't log secrets in plaintext, but show length and first 8 chars for any header that looks like a secret
+      if (key.toLowerCase().includes("auth") || key.toLowerCase().includes("secret") || key.toLowerCase().includes("token")) {
+        headerLines.push(`${key}: <len=${value.length}, first8=${value.slice(0, 8)}>`);
+      } else {
+        headerLines.push(`${key}: ${value}`);
+      }
+    });
     const expectedLen = context.env.SUPABASE_WEBHOOK_SECRET?.length ?? 0;
-    const diagPayload = `${authInfo}\nexpected_secret_len=${expectedLen}\n---\n${rawBody.slice(0, 4000)}`;
+    const diagPayload = `=== headers ===\n${headerLines.join("\n")}\n=== meta ===\nexpected_secret_len=${expectedLen}\n=== body ===\n${rawBody.slice(0, 4000)}`;
     const debugId = `diag:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`;
     await context.env.DB
       .prepare(
@@ -83,10 +88,19 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     /* never block real flow on diag failure */
   }
 
-  // 1. Verify shared secret (constant-time)
-  const auth = context.request.headers.get("Authorization") ?? "";
-  if (!auth.startsWith(BEARER_PREFIX)) return err401();
-  const presented = auth.slice(BEARER_PREFIX.length).trim();
+  // 1. Verify shared secret. Accept either header name:
+  //    - X-Webhook-Secret: <secret>          (preferred; some webhook systems
+  //                                            strip Authorization headers for
+  //                                            SSRF safety)
+  //    - Authorization: Bearer <secret>       (fallback for compat with the
+  //                                            original config)
+  const xSecret = context.request.headers.get("X-Webhook-Secret")?.trim() ?? "";
+  const authHeader = context.request.headers.get("Authorization") ?? "";
+  const bearerSecret = authHeader.startsWith(BEARER_PREFIX)
+    ? authHeader.slice(BEARER_PREFIX.length).trim()
+    : "";
+  const presented = xSecret || bearerSecret;
+  if (!presented) return err401();
   if (!timingSafeEqual(presented, context.env.SUPABASE_WEBHOOK_SECRET)) {
     return err401();
   }
