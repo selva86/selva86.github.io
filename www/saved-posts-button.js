@@ -139,9 +139,33 @@
     }
   }
 
-  // Init pass for buttons before hydration completes (in case auth-hydrate.js
-  // fires before us); subsequent hydration sets correct state.
+  // Inject the actionbar (bookmark button + sign-in hint) after the first H1
+  // inside #content on tutorial pages. Idempotent. If page already has a
+  // .bookmark-btn (e.g. injected manually elsewhere), skip injection.
+  function injectActionbarIfTutorial() {
+    if (document.querySelector('.bookmark-btn')) return;
+    const slug = getSlugFromPath();
+    if (!slug) return;
+    const content = document.getElementById('content');
+    if (!content) return;
+    const h1 = content.querySelector('h1');
+    if (!h1) return;
+    const bar = document.createElement('div');
+    bar.className = 'actionbar';
+    bar.innerHTML =
+      '<button class="act bookmark-btn" type="button" data-slug="' + slug.replace(/"/g, '&quot;') + '" aria-pressed="false" title="Save this post">' +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>' +
+        '<span class="bookmark-label">Save</span>' +
+      '</button>' +
+      '<span class="actionbar-sync auth-user"><b>Synced</b> to your account</span>' +
+      '<span class="actionbar-sync auth-anon"><a href="/signin.html">Sign in</a> to save and track progress</span>';
+    h1.insertAdjacentElement('afterend', bar);
+  }
+
+  // Init pass: inject actionbar (if applicable), then wire any bookmark
+  // buttons that exist (either injected just now or pre-existing).
   function preInit() {
+    injectActionbarIfTutorial();
     document.querySelectorAll('.bookmark-btn').forEach(initButton);
   }
 
