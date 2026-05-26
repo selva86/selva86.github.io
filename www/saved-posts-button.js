@@ -15,9 +15,11 @@
   const PENDING_KEY = 'rs-pending-intent';
 
   function getSlugFromPath() {
-    // /<slug>.html -> <slug>
-    const m = window.location.pathname.match(/\/([^\/]+)\.html?$/);
-    return m ? decodeURIComponent(m[1]) : null;
+    // Tutorial URL is /<slug>.html (legacy / GH Pages) OR /<slug> (CF Pages
+    // auto-strips .html extensions and 308-redirects). Handle both forms.
+    // Match: ^/<slug>(.html|.htm)?(/)?$ where slug is non-empty and has no slashes.
+    const m = window.location.pathname.match(/^\/([^\/]+?)(?:\.html?)?\/?$/);
+    return m && m[1] ? decodeURIComponent(m[1]) : null;
   }
 
   function setBtnState(btn, saved) {
