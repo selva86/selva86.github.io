@@ -84,6 +84,17 @@ CREATE TABLE IF NOT EXISTS exercise_attempts (
 );
 CREATE INDEX IF NOT EXISTS idx_attempts_user ON exercise_attempts(user_id, submitted_at);
 CREATE INDEX IF NOT EXISTS idx_attempts_hub  ON exercise_attempts(hub_slug);
+-- Partial UNIQUE index (Phase 3, 2026-05-28) is THE first-pass dedup guard.
+-- Two tabs racing to record the same first-pass: the second INSERT fails the
+-- unique constraint, recordAttempt() turns it into a no-op, XP is awarded
+-- exactly once. SQLite/D1 supports partial indexes natively.
+-- Existing deploys must apply manually (idempotent):
+--   wrangler d1 execute r-stats-prod --remote --command \
+--     "CREATE UNIQUE INDEX IF NOT EXISTS idx_attempts_first_pass \
+--      ON exercise_attempts(user_id, hub_slug, exercise_id) WHERE passed = 1"
+CREATE UNIQUE INDEX IF NOT EXISTS idx_attempts_first_pass
+  ON exercise_attempts(user_id, hub_slug, exercise_id)
+  WHERE passed = 1;
 
 -- ===== quiz / mastery assessments (audit-grade snapshot) =====
 CREATE TABLE IF NOT EXISTS quiz_attempts (

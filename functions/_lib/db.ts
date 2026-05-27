@@ -252,3 +252,237 @@ export async function listReadingProgress(
   const has_more = rows.length > opts.limit;
   return { items: rows.slice(0, opts.limit), has_more };
 }
+
+// ===== Exercises + XP + streak (Phase 3) =====
+import { utcDay, isYesterdayUtc } from "./exercises";
+
+export interface AttemptResult {
+  xp_awarded_now: number;     // 0 if this wasn't a first-pass
+  total_xp: number;           // user's running total after this attempt
+  current_streak_days: number;
+  longest_streak_days: number;
+  first_pass: boolean;        // true if this attempt was the first-ever pass for this exercise
+}
+
+export interface UserStats {
+  total_xp: number;
+  current_streak_days: number;
+  longest_streak_days: number;
+  last_active_date: string | null;
+}
+
+// Record an attempt. Always inserts into exercise_attempts (every attempt
+// logged for analytics). On a passing attempt, attempts to claim the
+// first-pass XP via the partial UNIQUE index on (user_id, hub_slug,
+// exercise_id) WHERE passed=1 — second concurrent first-pass insert from
+// another tab fails silently, so xp is awarded exactly once.
+//
+// Streak is touched only on passes (failed attempts don't extend streaks).
+// Streak day-boundary is UTC; see _lib/exercises.ts utcDay() rationale.
+export async function recordAttempt(
+  db: D1Database,
+  userId: string,
+  hubSlug: string,
+  exerciseId: string,
+  passed: boolean,
+  hintsUsed: number,
+  xpIfFirstPass: number,
+): Promise<AttemptResult> {
+  const now = Math.floor(Date.now() / 1000);
+
+  let xpAwarded = 0;
+  let firstPass = false;
+
+  if (passed) {
+    // Atomic claim of first-pass via the partial UNIQUE index. The first
+    // INSERT with passed=1 for this (user, hub, exercise) succeeds; any
+    // subsequent first-pass insert hits the unique constraint and is
+    // turned into a no-op by INSERT OR IGNORE. This is our race-free
+    // "did I already award XP for this?" check.
+    const insRes = await db
+      .prepare(
+        `INSERT OR IGNORE INTO exercise_attempts
+           (user_id, hub_slug, exercise_id, passed, hints_used, xp_awarded, submitted_at)
+         VALUES (?, ?, ?, 1, ?, ?, ?)`,
+      )
+      .bind(userId, hubSlug, exerciseId, hintsUsed, xpIfFirstPass, now)
+      .run();
+    firstPass = (insRes.meta?.changes ?? 0) === 1;
+    if (firstPass) {
+      xpAwarded = xpIfFirstPass;
+      // Audit log: one xp_ledger row per XP grant.
+      await db
+        .prepare(
+          `INSERT INTO xp_ledger (user_id, action, ref, xp, at)
+           VALUES (?, 'exercise.passed', ?, ?, ?)`,
+        )
+        .bind(userId, `${hubSlug}/${exerciseId}`, xpAwarded, now)
+        .run();
+      await db
+        .prepare("UPDATE users SET total_xp = total_xp + ? WHERE id = ?")
+        .bind(xpAwarded, userId)
+        .run();
+    } else {
+      // Wasn't a first-pass (already solved before, or another tab won the
+      // race). Still record this attempt for analytics — passed=1 but
+      // xp_awarded=0. The partial UNIQUE index would block another
+      // passed=1 insert, so we record as passed=0 to keep the log honest
+      // about the *attempt result* without re-awarding XP. (Alternative
+      // considered: a separate retries table; rejected as over-engineering.)
+      await db
+        .prepare(
+          `INSERT INTO exercise_attempts
+             (user_id, hub_slug, exercise_id, passed, hints_used, xp_awarded, submitted_at)
+           VALUES (?, ?, ?, 0, ?, 0, ?)`,
+        )
+        .bind(userId, hubSlug, exerciseId, hintsUsed, now)
+        .run();
+    }
+  } else {
+    // Failing attempt: plain insert, no XP, no streak touch.
+    await db
+      .prepare(
+        `INSERT INTO exercise_attempts
+           (user_id, hub_slug, exercise_id, passed, hints_used, xp_awarded, submitted_at)
+         VALUES (?, ?, ?, 0, ?, 0, ?)`,
+      )
+      .bind(userId, hubSlug, exerciseId, hintsUsed, now)
+      .run();
+  }
+
+  // Touch streak on any pass (whether or not it was a first-pass — engaging
+  // with previously-solved exercises still counts as "showed up today").
+  if (passed) {
+    await touchStreak(db, userId, now);
+  }
+
+  const stats = await getStats(db, userId);
+  return {
+    xp_awarded_now: xpAwarded,
+    total_xp: stats.total_xp,
+    current_streak_days: stats.current_streak_days,
+    longest_streak_days: stats.longest_streak_days,
+    first_pass: firstPass,
+  };
+}
+
+// Streak math. Reads current state, applies one of four transitions, writes
+// back. Idempotent within a single UTC day (multiple calls same-day are
+// no-ops after the first).
+export async function touchStreak(
+  db: D1Database, userId: string, nowSec: number,
+): Promise<void> {
+  const today = utcDay(nowSec);
+  const row = await db
+    .prepare(
+      "SELECT last_active_date, current_streak_days, longest_streak_days FROM users WHERE id = ?",
+    )
+    .bind(userId)
+    .first<{
+      last_active_date: string | null;
+      current_streak_days: number;
+      longest_streak_days: number;
+    }>();
+  if (!row) return; // user_id should always exist by now; defensive bail
+
+  const last = row.last_active_date;
+  let current = row.current_streak_days ?? 0;
+  const longest = row.longest_streak_days ?? 0;
+
+  if (last === today) {
+    return; // already counted today
+  } else if (last && isYesterdayUtc(last, today)) {
+    current += 1;
+  } else {
+    // null OR a date older than yesterday → fresh streak
+    current = 1;
+  }
+  const newLongest = current > longest ? current : longest;
+  await db
+    .prepare(
+      `UPDATE users SET
+         current_streak_days = ?,
+         longest_streak_days = ?,
+         last_active_date    = ?
+       WHERE id = ?`,
+    )
+    .bind(current, newLongest, today, userId)
+    .run();
+}
+
+export async function getStats(db: D1Database, userId: string): Promise<UserStats> {
+  const row = await db
+    .prepare(
+      `SELECT total_xp, current_streak_days, longest_streak_days, last_active_date
+       FROM users WHERE id = ?`,
+    )
+    .bind(userId)
+    .first<UserStats>();
+  return row ?? {
+    total_xp: 0,
+    current_streak_days: 0,
+    longest_streak_days: 0,
+    last_active_date: null,
+  };
+}
+
+export async function listSolvedInHub(
+  db: D1Database, userId: string, hubSlug: string,
+): Promise<string[]> {
+  const result = await db
+    .prepare(
+      `SELECT exercise_id FROM exercise_attempts
+       WHERE user_id = ? AND hub_slug = ? AND passed = 1`,
+    )
+    .bind(userId, hubSlug)
+    .all<{ exercise_id: string }>();
+  return (result.results || []).map(r => r.exercise_id);
+}
+
+// Backfill many anon-era solves in one call. Each item awards XP if it's a
+// first-pass (per the same UNIQUE-index dedup as recordAttempt). Caller has
+// already validated every (hub, exercise_id) against the manifest. Returns
+// counts so the client can report "N solves restored".
+//
+// Streak is touched once at the END with "now" so backfilling doesn't lie
+// about historical engagement.
+export async function backfillAttempts(
+  db: D1Database,
+  userId: string,
+  items: Array<{ hub: string; exercise_id: string; xp: number }>,
+): Promise<{ recorded: number; total_xp_added: number }> {
+  const now = Math.floor(Date.now() / 1000);
+  let recorded = 0;
+  let xpAdded = 0;
+  for (const it of items) {
+    const insRes = await db
+      .prepare(
+        `INSERT OR IGNORE INTO exercise_attempts
+           (user_id, hub_slug, exercise_id, passed, hints_used, xp_awarded, submitted_at)
+         VALUES (?, ?, ?, 1, 0, ?, ?)`,
+      )
+      .bind(userId, it.hub, it.exercise_id, it.xp, now)
+      .run();
+    if ((insRes.meta?.changes ?? 0) === 1) {
+      recorded += 1;
+      xpAdded += it.xp;
+      await db
+        .prepare(
+          `INSERT INTO xp_ledger (user_id, action, ref, xp, at)
+           VALUES (?, 'exercise.backfill', ?, ?, ?)`,
+        )
+        .bind(userId, `${it.hub}/${it.exercise_id}`, it.xp, now)
+        .run();
+    }
+  }
+  if (xpAdded > 0) {
+    await db
+      .prepare("UPDATE users SET total_xp = total_xp + ? WHERE id = ?")
+      .bind(xpAdded, userId)
+      .run();
+    // Single streak touch at "now" — backfill represents recent engagement,
+    // not a reconstruction of historical activity.
+    await touchStreak(db, userId, now);
+  }
+  return { recorded, total_xp_added: xpAdded };
+}
