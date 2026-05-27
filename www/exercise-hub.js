@@ -39,10 +39,18 @@
     error: '⚠ Error'
   };
 
-  // Social-proof counter — wired to a backend AFTER the login project.
-  // Set COUNTER_ENDPOINT to the counter URL to switch it on; empty = off.
-  // reportSolve() is the single integration point (see below).
-  var COUNTER_ENDPOINT = '';
+  // Phase 3 (2026-05-28) wired exercise-hub.js to the live D1 backend.
+  // The widget now POSTs each first-solve to /api/exercise/<hub>/<id>/attempt
+  // when the user is authenticated, hydrates from /api/me/exercises on
+  // auth-hydrated, and backfills anon-era localStorage solves on first
+  // sign-in via /api/exercise/backfill. Anon users keep working entirely
+  // offline against localStorage as before.
+  var BACKFILL_FLAG_PREFIX = 'rsc-backfill-done-';     // suffixed with user_id
+  var BACKFILL_BATCH_SIZE = 200;
+  var LOCALSTORAGE_HUB_PREFIX = 'rsc-exercise-hub-v1:';
+  // Module-scope reference so multiple init/hydrate calls cooperate.
+  var authToken = null;
+  var authedUserId = null;
 
   /* ---------------------------------------------------------------
      Small helpers
@@ -107,23 +115,183 @@
     }
   };
 
-  /* Report the first solve of an exercise to the social-proof counter.
-     COUNTER-READY HOOK: the backend (counter service) is set up after the
-     login project. Until COUNTER_ENDPOINT is set this is a no-op. markSolved
-     calls this only on the genuine first solve, so it fires at most once per
-     exercise per browser - i.e. it counts unique solvers, not page reloads.
-     When wiring the backend, this function body is the only thing to change. */
-  function reportSolve(exerciseId) {
-    if (!COUNTER_ENDPOINT) return;
-    try {
-      fetch(COUNTER_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ exercise: exerciseId, page: location.pathname }),
-        keepalive: true
-      }).catch(function () {});
-    } catch (e) { /* counter is best-effort; never block the UI */ }
+  /* Derive hub slug from the current URL path. CF Pages strips .html with
+     a 308 redirect, so the canonical URL might be /Foo or /Foo.html — accept
+     either. Matches the regex used in saved-posts-button.js so server-side
+     dedup against save+read endpoints aligns. */
+  function hubSlugFromPath() {
+    var m = location.pathname.match(/^\/([^\/]+?)(?:\.html?)?\/?$/);
+    return m && m[1] ? decodeURIComponent(m[1]) : '';
   }
+
+  /* Read the freshest access token from auth-hydrate.js. This may return
+     null even after auth-hydrated fires if the user signed out in another
+     tab — every caller treats null as "go anon". */
+  function getAuthToken() {
+    return (window.__auth && window.__auth.getAccessToken && window.__auth.getAccessToken()) || null;
+  }
+
+  /* POST one solve to the server. Best-effort and non-blocking — UI never
+     waits on this. keepalive:true lets the request survive a navigation
+     started in COLLAPSE_DELAY ms (the auto-collapse + scroll sequence).
+     Anon users: silent no-op; their progress lives in localStorage and
+     migrates on first sign-in via backfillIfNeeded. */
+  function reportSolve(card) {
+    if (!authToken) return;
+    var hub = hubSlugFromPath();
+    if (!hub || !card || !card.id) return;
+    var hints = (typeof card.hintsUsed === 'number') ? card.hintsUsed : 0;
+    try {
+      fetch('/api/exercise/' + encodeURIComponent(hub) +
+            '/' + encodeURIComponent(card.id) + '/attempt', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ' + authToken
+        },
+        body: JSON.stringify({ passed: true, hints_used: hints }),
+        keepalive: true
+      })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (result) {
+        if (result && typeof result.total_xp === 'number') {
+          // Avatar dropdown listens for this and refreshes its XP / streak
+          // pills without an extra round-trip to /api/me/stats.
+          document.dispatchEvent(new CustomEvent('exercise-progress-changed', {
+            detail: {
+              total_xp: result.total_xp,
+              current_streak_days: result.current_streak_days,
+              longest_streak_days: result.longest_streak_days
+            }
+          }));
+        }
+      })
+      .catch(function () {});
+    } catch (e) { /* never block the UI on a network error */ }
+  }
+
+  /* GET /api/me/exercises?hub=<slug> and merge solved IDs into localStorage
+     state, then repaint card UI. Called on auth-hydrated (after backfill).
+     Idempotent: marking an already-solved card is a no-op. */
+  function hydrateSolvedFromServer() {
+    if (!authToken) return Promise.resolve();
+    var hub = hubSlugFromPath();
+    if (!hub) return Promise.resolve();
+    return fetch('/api/me/exercises?hub=' + encodeURIComponent(hub), {
+      headers: { 'Authorization': 'Bearer ' + authToken, 'Accept': 'application/json' }
+    })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (body) {
+      if (!body || !Array.isArray(body.solved)) return;
+      var ids = body.solved;
+      var dirty = false;
+      for (var i = 0; i < ids.length; i++) {
+        var id = ids[i];
+        if (!progressState.solved[id]) {
+          progressState.solved[id] = true;
+          dirty = true;
+        }
+        // Find the card if it's currently rendered on this page.
+        for (var c = 0; c < cards.length; c++) {
+          var card = cards[c];
+          if (card.id === id && !card.solved) {
+            card.solved = true;
+            card.section.classList.add('is-solved');
+          }
+        }
+      }
+      if (dirty) {
+        STORE.saveProgress(progressState);
+        updateProgress(solvedCount(), totalCount);
+        updateXp(false);
+        if (solvedCount() >= totalCount && badgeEl) showBadge();
+      }
+    })
+    .catch(function () { /* best-effort */ });
+  }
+
+  /* Enumerate every rsc-exercise-hub-v1:* key in localStorage and collect
+     {hub, exercise_id} pairs for /api/exercise/backfill. The per-user flag
+     ensures this runs at most once per (user, browser) — repeat hydrations
+     of the same session skip the round-trip. Account switch: a different
+     user_id has its own flag, so backfill re-runs for them. signOut clears
+     localStorage entirely (see auth-hydrate.js) to prevent Account B from
+     inheriting Account A's anon progress. */
+  function collectLocalSolves() {
+    var items = [];
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var key = localStorage.key(i);
+        if (!key || key.indexOf(LOCALSTORAGE_HUB_PREFIX) !== 0) continue;
+        var path = key.slice(LOCALSTORAGE_HUB_PREFIX.length);
+        // path is the URL pathname for that hub. Derive slug via same regex.
+        var m = path.match(/^\/([^\/]+?)(?:\.html?)?\/?$/);
+        if (!m || !m[1]) continue;
+        var hub = decodeURIComponent(m[1]);
+        var data;
+        try { data = JSON.parse(localStorage.getItem(key)); } catch (e) { continue; }
+        if (!data || !data.solved || typeof data.solved !== 'object') continue;
+        for (var ex in data.solved) {
+          if (data.solved[ex]) items.push({ hub: hub, exercise_id: ex });
+        }
+      }
+    } catch (e) {}
+    return items;
+  }
+
+  function backfillIfNeeded(userId) {
+    if (!authToken || !userId) return Promise.resolve();
+    var flagKey = BACKFILL_FLAG_PREFIX + userId;
+    try {
+      if (localStorage.getItem(flagKey) === '1') return Promise.resolve();
+    } catch (e) {}
+    var items = collectLocalSolves();
+    if (!items.length) {
+      try { localStorage.setItem(flagKey, '1'); } catch (e) {}
+      return Promise.resolve();
+    }
+    // Chunk into batches the server accepts (max 200/call).
+    var batches = [];
+    for (var i = 0; i < items.length; i += BACKFILL_BATCH_SIZE) {
+      batches.push(items.slice(i, i + BACKFILL_BATCH_SIZE));
+    }
+    return batches.reduce(function (p, batch) {
+      return p.then(function () {
+        return fetch('/api/exercise/backfill', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + authToken
+          },
+          body: JSON.stringify({ items: batch })
+        }).then(function (r) { return r.ok ? r.json() : null; });
+      });
+    }, Promise.resolve()).then(function (lastResult) {
+      try { localStorage.setItem(flagKey, '1'); } catch (e) {}
+      if (lastResult && typeof lastResult.total_xp === 'number') {
+        document.dispatchEvent(new CustomEvent('exercise-progress-changed', {
+          detail: {
+            total_xp: lastResult.total_xp,
+            current_streak_days: lastResult.current_streak_days,
+            longest_streak_days: lastResult.longest_streak_days
+          }
+        }));
+      }
+    }).catch(function () { /* leave flag unset so we retry next session */ });
+  }
+
+  /* Top-level hook: backfill first (so XP for anon solves is awarded
+     before /api/me/exercises is queried), then hydrate card UI. */
+  function onAuthHydrated(ev) {
+    var detail = ev && ev.detail || {};
+    var newToken = detail.token || null;
+    var newUserId = (detail.me && detail.me.user && detail.me.user.id) || null;
+    authToken = newToken;
+    authedUserId = newUserId;
+    if (!newToken || !newUserId) return; // anon path: nothing more to do
+    backfillIfNeeded(newUserId).then(hydrateSolvedFromServer);
+  }
+  document.addEventListener('auth-hydrated', onAuthHydrated);
 
   /* Bump the site-wide streak for today's visit. */
   function updateStreak() {
@@ -700,6 +868,16 @@
         link.textContent = 'Hint ' + (h + 1) + ' shown';
         var nextLink = bar.querySelectorAll('.xh-hint-link')[h + 1];
         if (nextLink) nextLink.disabled = false;
+        // Track hints used per card so reportSolve can include it in the
+        // attempt payload (analytics only — no XP penalty per 2026-05-28
+        // decision).
+        var hostCard = null;
+        for (var ci = 0; ci < cards.length; ci++) {
+          if (cards[ci].section === section) { hostCard = cards[ci]; break; }
+        }
+        if (hostCard) {
+          hostCard.hintsUsed = (hostCard.hintsUsed || 0) + 1;
+        }
       });
     });
 
@@ -903,7 +1081,7 @@
       card.solved = true;
       progressState.solved[card.id] = true;
       STORE.saveProgress(progressState);
-      reportSolve(card.id);   // counter-ready hook (no-op until backend wired)
+      reportSolve(card);      // POSTs to /api/exercise/.../attempt when authed
     }
     card.section.classList.add('is-solved');
     updateProgress(solvedCount(), totalCount);

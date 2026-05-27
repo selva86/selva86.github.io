@@ -206,12 +206,21 @@
         await supa.auth.signOut();
       }
     } catch (_) { /* fall through */ }
-    // Belt+suspenders: clear sb-* localStorage entries.
+    // Belt+suspenders: clear sb-* localStorage entries. Also clear any
+    // anon-era exercise progress + the per-user backfill flag so a subsequent
+    // sign-in (possibly as a different account) cannot inherit this user's
+    // localStorage state. Same applies to pending intents.
     try {
       for (let i = localStorage.length - 1; i >= 0; i--) {
         const k = localStorage.key(i);
-        if (k && k.startsWith('sb-')) localStorage.removeItem(k);
+        if (!k) continue;
+        if (k.startsWith('sb-') ||
+            k.startsWith('rsc-exercise-hub-v1:') ||
+            k.startsWith('rsc-backfill-done-')) {
+          localStorage.removeItem(k);
+        }
       }
+      sessionStorage.removeItem('rs-pending-intent');
     } catch (_) {}
     window.location.reload();
   }
