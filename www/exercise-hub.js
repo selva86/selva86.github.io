@@ -1143,6 +1143,110 @@
     requestAnimationFrame(function () {
       badgeEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
     });
+    // Phase 5: when the hub completion celebration plays, also check if any
+    // certification track is newly eligible (or pre-existing eligible-but-not-
+    // minted) and surface a 'Claim certificate' CTA inside the badge. Anon
+    // users: skipped (no token).
+    surfaceCertClaim();
+  }
+
+  // ===== Phase 5: certificate-claim CTA on hub completion =====
+  // Fires once per page load. Fetches /api/me/tracks, filters for tracks the
+  // user is eligible for and has not yet minted, then injects a claim button
+  // into the existing hub-completion badge. The track may or may not include
+  // the current hub - either way, this is the right moment to surface the
+  // earnable cert: the user is in a 'just-finished-something' headspace.
+  var certClaimChecked = false;
+  function surfaceCertClaim() {
+    if (certClaimChecked) return;
+    certClaimChecked = true;
+    if (!authToken || !badgeEl) return;
+    fetch('/api/me/tracks', {
+      headers: { 'Authorization': 'Bearer ' + authToken, 'Accept': 'application/json' },
+    })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (body) {
+        if (!body || !Array.isArray(body.tracks)) return;
+        var claimable = body.tracks.filter(function (t) { return t.eligible && !t.minted; });
+        if (!claimable.length) return;
+        renderClaimBlock(claimable);
+      })
+      .catch(function () {});
+  }
+
+  function renderClaimBlock(tracks) {
+    var actions = badgeEl.querySelector('.xh-badge-actions') || badgeEl;
+    var block = document.createElement('div');
+    block.className = 'xh-cert-claim';
+    block.style.cssText =
+      'margin-top:18px;padding-top:18px;border-top:1px dashed rgba(0,0,0,.12);' +
+      'display:flex;flex-direction:column;gap:10px';
+    var headline = document.createElement('div');
+    headline.style.cssText = 'font-weight:600;color:#0a0d14';
+    headline.textContent = tracks.length === 1
+      ? 'You’ve earned a certificate.'
+      : 'You’ve earned ' + tracks.length + ' certificates.';
+    block.appendChild(headline);
+    tracks.forEach(function (t) {
+      var row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:12px;' +
+        'background:#fff;border:1px solid #d4d9e3;border-radius:8px;padding:10px 14px';
+      row.innerHTML =
+        '<div><div style="font-family:\'IBM Plex Serif\',Georgia,serif;font-weight:600;font-size:14.5px;color:' + t.color_primary + '">' +
+        escapeHtml(t.name) + '</div>' +
+        '<div style="font-size:12px;color:#6b7280;margin-top:2px">' + t.solved + ' of ' + t.total_exercises + ' exercises</div></div>';
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.style.cssText = 'background:' + t.color_primary + ';color:#fff;border:none;border-radius:6px;' +
+        'padding:8px 16px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;flex:none';
+      btn.textContent = 'Claim';
+      btn.addEventListener('click', function () { claimCert(t, btn, row); });
+      row.appendChild(btn);
+      block.appendChild(row);
+    });
+    actions.appendChild(block);
+  }
+
+  function claimCert(track, btn, row) {
+    if (!authToken) return;
+    btn.disabled = true;
+    var orig = btn.textContent;
+    btn.textContent = 'Minting...';
+    fetch('/api/cert/mint', {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + authToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ track_id: track.id }),
+    })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, body: j }; }); })
+      .then(function (resp) {
+        if (!resp.ok) throw new Error(resp.body && resp.body.message || 'Mint failed');
+        btn.textContent = 'View certificate';
+        btn.disabled = false;
+        btn.onclick = function () { window.open(resp.body.verify_url, '_blank', 'noopener'); };
+        // Also notify the avatar dropdown of the new XP.
+        if (typeof resp.body.total_xp === 'number') {
+          document.dispatchEvent(new CustomEvent('exercise-progress-changed', {
+            detail: {
+              total_xp: resp.body.total_xp,
+              current_streak_days: resp.body.current_streak_days,
+              longest_streak_days: resp.body.longest_streak_days,
+            },
+          }));
+        }
+        // Open the freshly-minted cert immediately so the user sees the prize.
+        window.open(resp.body.verify_url, '_blank', 'noopener');
+      })
+      .catch(function (e) {
+        btn.disabled = false;
+        btn.textContent = orig;
+        var err = document.createElement('div');
+        err.style.cssText = 'font-size:12px;color:#9a1f1f;margin-top:6px';
+        err.textContent = e.message || 'Could not mint';
+        row.appendChild(err);
+      });
   }
 
   function buildCTA(lastSection) {

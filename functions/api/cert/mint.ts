@@ -24,6 +24,7 @@ import { isProActive, getSolvedByHub, mintCertificate, getStats } from "../../_l
 import {
   getTrack, computeTrackProgress, generatePublicId, getIssuer,
 } from "../../_lib/tracks";
+import { sendCertificateEmail } from "../../_lib/email";
 
 async function isCertFreeFlag(kv: KVNamespace): Promise<boolean> {
   try {
@@ -101,9 +102,38 @@ export const onRequestPost: PagesFunction<Env, string, RequestData> = async (con
 
   const stats = await getStats(context.env.DB, u.id);
   const origin = new URL(context.request.url).origin;
+  const verifyUrl = `${origin}/cert/${cert.public_id}`;
+
+  // Fire-and-forget email send on newly-minted certs. context.waitUntil keeps
+  // the Worker alive after we've returned to the client so the mint response
+  // isn't gated on ZeptoMail latency. On success, mark email_sent_at so the
+  // dashboard / future cron can tell which certs need a retry.
+  if (newly_minted && u.email && cert.public_id) {
+    context.waitUntil(
+      (async () => {
+        try {
+          const result = await sendCertificateEmail(context.env, {
+            to: { email: u.email, name: cert.recipient_name || u.email },
+            trackName: cert.track_name || track.name,
+            verifyUrl,
+            publicId: cert.public_id as string,
+          });
+          if (result.ok) {
+            await context.env.DB
+              .prepare("UPDATE certificates SET email_sent_at = ? WHERE id = ?")
+              .bind(Math.floor(Date.now() / 1000), cert.id)
+              .run();
+          }
+        } catch (e) {
+          console.warn("[cert.mint] background email failed:", (e as Error).message);
+        }
+      })(),
+    );
+  }
+
   return json({
     public_id: cert.public_id,
-    verify_url: `${origin}/cert/${cert.public_id}`,
+    verify_url: verifyUrl,
     issued_at: cert.issued_at,
     recipient_name: cert.recipient_name,
     track_name: cert.track_name,
