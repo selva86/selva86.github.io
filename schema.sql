@@ -117,9 +117,32 @@ CREATE TABLE IF NOT EXISTS certificates (
   issued_at   INTEGER NOT NULL,
   pdf_r2_key  TEXT,
   revoked_at  INTEGER,
-  revoke_reason TEXT
+  revoke_reason TEXT,
+  -- Phase 5 additions (2026-05-28). Existing deploys must apply:
+  --   ALTER TABLE certificates ADD COLUMN public_id      TEXT
+  --   ALTER TABLE certificates ADD COLUMN track_name     TEXT
+  --   ALTER TABLE certificates ADD COLUMN recipient_name TEXT
+  --   ALTER TABLE certificates ADD COLUMN skills_json    TEXT
+  --   ALTER TABLE certificates ADD COLUMN status         TEXT DEFAULT 'active'
+  --   ALTER TABLE certificates ADD COLUMN email_sent_at  INTEGER
+  --   ALTER TABLE certificates ADD COLUMN evidence_json  TEXT
+  --   CREATE UNIQUE INDEX IF NOT EXISTS idx_certs_public_id ON certificates(public_id)
+  --   CREATE UNIQUE INDEX IF NOT EXISTS idx_certs_user_track_active
+  --     ON certificates(user_id, track) WHERE status != 'revoked'
+  public_id        TEXT,              -- 'RST-2026-A7K3F9' user-visible ID
+  track_name       TEXT,              -- snapshot of track display name at mint time
+  recipient_name   TEXT,              -- snapshot of users.display_name at mint time
+  skills_json      TEXT,              -- JSON array of skill tags from manifest snapshot
+  status           TEXT DEFAULT 'active',  -- 'active' | 'unlisted' | 'revoked'
+  email_sent_at    INTEGER,           -- timestamp when notification email was delivered
+  evidence_json    TEXT               -- JSON array of hub URLs used as evidence
 );
 CREATE INDEX IF NOT EXISTS idx_certs_user ON certificates(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_certs_public_id ON certificates(public_id);
+-- Partial UNIQUE keeps one ACTIVE/UNLISTED cert per (user, track). Revoked
+-- rows don't block re-mint (admin revoke leaves room for a later re-issue).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_certs_user_track_active
+  ON certificates(user_id, track) WHERE status != 'revoked';
 
 -- ===== XP ledger (single source of truth) =====
 CREATE TABLE IF NOT EXISTS xp_ledger (
