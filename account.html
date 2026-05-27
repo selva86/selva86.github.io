@@ -109,7 +109,47 @@
       margin-top:14px;line-height:1.5;
     }
     .msg.error{background:var(--danger-soft);color:var(--danger);border:1px solid #f0b4b4}
+    .msg.ok{background:var(--success-soft);color:var(--success);border:1px solid #b9dfc4}
     .hidden{display:none!important}
+
+    /* Active sessions */
+    .session-card{
+      display:flex;align-items:center;gap:14px;padding:11px 0;
+      border-bottom:1px solid var(--line);
+    }
+    .session-card:last-child{border-bottom:none}
+    .session-icon{
+      width:34px;height:34px;border-radius:8px;background:var(--acc-soft);
+      color:var(--acc-h);display:flex;align-items:center;justify-content:center;
+      font-size:15px;flex:none;
+    }
+    .session-meta{flex:1;min-width:0}
+    .session-device{font-weight:500;font-size:13.5px;color:var(--ink);
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .session-last{color:var(--faint);font-size:12px;margin-top:1px}
+    .session-current-tag{
+      display:inline-block;font-size:10.5px;font-weight:600;padding:1px 7px;
+      border-radius:999px;background:var(--success-soft);color:var(--success);
+      text-transform:uppercase;letter-spacing:.04em;margin-left:6px;vertical-align:1px;
+    }
+    .btn-revoke{
+      padding:5px 10px;background:#fff;color:var(--mute);
+      border:1px solid var(--border);border-radius:var(--r-sm);
+      font-family:inherit;font-size:12px;font-weight:500;cursor:pointer;
+      transition:border-color .15s var(--ease),color .15s var(--ease);
+    }
+    .btn-revoke:hover{border-color:var(--danger);color:var(--danger)}
+    .btn-revoke:disabled{opacity:.55;cursor:wait}
+    .sessions-empty{color:var(--faint);font-size:13px;padding:8px 0}
+    .sessions-actions{margin-top:14px;display:flex;justify-content:flex-end}
+    .btn-revoke-all{
+      padding:7px 14px;background:#fff;color:var(--danger);
+      border:1px solid #f0b4b4;border-radius:var(--r-sm);
+      font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;
+      transition:background .15s var(--ease);
+    }
+    .btn-revoke-all:hover{background:var(--danger-soft)}
+    .btn-revoke-all:disabled{opacity:.55;cursor:wait}
   </style>
 </head>
 <body>
@@ -148,6 +188,21 @@
       <div class="row"><a href="/saved-posts.html" style="color:var(--acc);font-weight:500;">Saved posts</a><span class="row-v" style="color:var(--faint)">Bookmarked tutorials</span></div>
     </div>
 
+    <div class="section">
+      <h2>Active sessions</h2>
+      <p style="color:var(--mute);font-size:13px;margin-bottom:8px">
+        Devices currently signed in. Revoke any session you don't recognise.
+      </p>
+      <div id="sessions-list">
+        <div class="sessions-empty"><span class="spinner"></span>Loading sessions...</div>
+      </div>
+      <div class="sessions-actions hidden" id="sessions-actions">
+        <button class="btn-revoke-all" id="btn-revoke-all" type="button">Sign out everywhere</button>
+      </div>
+      <div class="msg ok hidden" id="sessions-msg-ok"></div>
+      <div class="msg error hidden" id="sessions-msg-err"></div>
+    </div>
+
     <div class="roadmap-card">
       <h2>Coming soon <span class="pill">Phase 3+</span></h2>
       <p>Reading progress, exercise XP and streaks, certifications, billing, and the dashboard land in upcoming releases. You'll see them here as they ship.</p>
@@ -177,6 +232,22 @@ function initials(nameOrEmail) {
   const parts = nameOrEmail.split(/[\s@]+/).filter(Boolean);
   if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
   return parts[0].slice(0, 2).toUpperCase();
+}
+
+function fmtRelative(unixSec) {
+  if (!unixSec) return 'never';
+  const diff = Math.floor(Date.now() / 1000) - unixSec;
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return Math.floor(diff / 60) + ' min ago';
+  if (diff < 86400) return Math.floor(diff / 3600) + ' hr ago';
+  if (diff < 86400 * 7) return Math.floor(diff / 86400) + ' days ago';
+  return fmtDate(unixSec);
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]),
+  );
 }
 
 (async function init() {
@@ -279,10 +350,133 @@ function initials(nameOrEmail) {
     btn.disabled = true;
     btn.textContent = 'Signing out...';
     await supa.auth.signOut();
-    // After signOut, redirect to signin (or home — pick signin since user is
+    // After signOut, redirect to signin (or home pick signin since user is
     // clearly engaged with auth).
     window.location.replace('/signin.html');
   });
+
+  // -------- Active sessions --------
+  const sessionsListEl = document.getElementById('sessions-list');
+  const sessionsActionsEl = document.getElementById('sessions-actions');
+  const sessionsMsgOk = document.getElementById('sessions-msg-ok');
+  const sessionsMsgErr = document.getElementById('sessions-msg-err');
+
+  function showSessionsMsg(kind, text) {
+    const el = kind === 'ok' ? sessionsMsgOk : sessionsMsgErr;
+    const other = kind === 'ok' ? sessionsMsgErr : sessionsMsgOk;
+    el.textContent = text;
+    el.classList.remove('hidden');
+    other.classList.add('hidden');
+  }
+
+  function clearSessionsMsg() {
+    sessionsMsgOk.classList.add('hidden');
+    sessionsMsgErr.classList.add('hidden');
+  }
+
+  function renderSessions(sessions) {
+    if (!sessions.length) {
+      sessionsListEl.innerHTML = '<div class="sessions-empty">No active sessions found.</div>';
+      sessionsActionsEl.classList.add('hidden');
+      return;
+    }
+    sessionsActionsEl.classList.remove('hidden');
+    sessionsListEl.innerHTML = sessions.map(s => {
+      const lastSeen = s.last_seen_at || s.created_at;
+      const currentTag = s.current ? '<span class="session-current-tag">This device</span>' : '';
+      return (
+        '<div class="session-card" data-sid="' + escapeHtml(s.session_id) + '">' +
+          '<div class="session-icon">&#x1F5A5;</div>' +
+          '<div class="session-meta">' +
+            '<div class="session-device">' + escapeHtml(s.device) + currentTag + '</div>' +
+            '<div class="session-last">Last seen ' + escapeHtml(fmtRelative(lastSeen)) + '</div>' +
+          '</div>' +
+          '<button class="btn-revoke" type="button" data-sid="' + escapeHtml(s.session_id) +
+            '" data-current="' + (s.current ? '1' : '0') + '">Revoke</button>' +
+        '</div>'
+      );
+    }).join('');
+
+    sessionsListEl.querySelectorAll('.btn-revoke').forEach(btn => {
+      btn.addEventListener('click', () => revokeOne(btn));
+    });
+  }
+
+  async function loadSessions() {
+    try {
+      const resp = await fetch('/api/me/sessions', {
+        headers: { 'Authorization': 'Bearer ' + session.access_token },
+        cache: 'no-store',
+      });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const body = await resp.json();
+      renderSessions(body.sessions || []);
+    } catch (e) {
+      sessionsListEl.innerHTML =
+        '<div class="sessions-empty">Could not load sessions: ' +
+        escapeHtml(e.message || 'unknown error') + '</div>';
+    }
+  }
+
+  async function revokeOne(btn) {
+    const sid = btn.getAttribute('data-sid');
+    const isCurrent = btn.getAttribute('data-current') === '1';
+    clearSessionsMsg();
+    btn.disabled = true;
+    btn.textContent = 'Revoking...';
+    try {
+      const resp = await fetch('/api/me/sessions/' + encodeURIComponent(sid), {
+        method: 'DELETE',
+        headers: { 'Authorization': 'Bearer ' + session.access_token },
+      });
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => ({}));
+        throw new Error(body.message || ('HTTP ' + resp.status));
+      }
+      const body = await resp.json();
+      if (body.revoked_self || isCurrent) {
+        // We just killed our own session locally clear Supabase state and
+        // bounce to /signin. The JWT in localStorage is still valid for ~1h
+        // but middleware will reject it because revoked:<sid> is in KV.
+        await supa.auth.signOut();
+        window.location.replace('/signin.html?revoked=self');
+        return;
+      }
+      showSessionsMsg('ok', 'Session revoked.');
+      await loadSessions();
+    } catch (e) {
+      showSessionsMsg('err', 'Could not revoke: ' + (e.message || 'unknown error'));
+      btn.disabled = false;
+      btn.textContent = 'Revoke';
+    }
+  }
+
+  document.getElementById('btn-revoke-all').addEventListener('click', async () => {
+    const btn = document.getElementById('btn-revoke-all');
+    clearSessionsMsg();
+    if (!confirm('Sign out of every device, including this one?')) return;
+    btn.disabled = true;
+    btn.textContent = 'Signing out everywhere...';
+    try {
+      const resp = await fetch('/api/me/sessions-revoke-all', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + session.access_token },
+      });
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => ({}));
+        throw new Error(body.message || ('HTTP ' + resp.status));
+      }
+      // Clear local Supabase session and redirect.
+      await supa.auth.signOut();
+      window.location.replace('/signin.html?revoked=all');
+    } catch (e) {
+      showSessionsMsg('err', 'Could not sign out everywhere: ' + (e.message || 'unknown error'));
+      btn.disabled = false;
+      btn.textContent = 'Sign out everywhere';
+    }
+  });
+
+  loadSessions();
 })();
 </script>
 
