@@ -164,6 +164,25 @@ function resolveRedirectAfterAuth() {
 }
 const REDIRECT_AFTER_AUTH = resolveRedirectAfterAuth();
 
+// The OAuth / magic-link round-trip MUST land on a page that can parse the
+// access_token from the URL hash and persist it to localStorage — that's
+// signin.html itself (and /account.html). Tutorial pages and most other
+// pages only have auth-hydrate.js, which reads from localStorage but does
+// NOT process the URL hash. So we always send Google / email back to
+// signin.html, carrying the eventual destination as ?next=. After
+// detectSessionInUrl stores the session, getSession() succeeds at the top
+// of the init flow and we redirect on to REDIRECT_AFTER_AUTH.
+function buildOauthCallback() {
+  const params = new URLSearchParams(window.location.search);
+  const next = params.get('next');
+  const u = new URL('/signin.html', window.location.origin);
+  if (next && next.startsWith('/') && !next.startsWith('//')) {
+    u.searchParams.set('next', next);
+  }
+  return u.toString();
+}
+const OAUTH_CALLBACK_URL = buildOauthCallback();
+
 function showMsg(kind, text) {
   const m = document.getElementById('msg');
   m.className = 'msg ' + kind;
@@ -229,7 +248,7 @@ function showMsg(kind, text) {
       labelSpan.innerHTML = '<span class="spinner"></span>Redirecting...';
       const { error } = await supa.auth.signInWithOAuth({
         provider,
-        options: { redirectTo: REDIRECT_AFTER_AUTH },
+        options: { redirectTo: OAUTH_CALLBACK_URL },
       });
       if (error) {
         showMsg('error', error.message || 'Could not start OAuth flow.');
@@ -250,7 +269,7 @@ function showMsg(kind, text) {
     labelSpan.innerHTML = '<span class="spinner"></span>Sending...';
     const { error } = await supa.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: REDIRECT_AFTER_AUTH },
+      options: { emailRedirectTo: OAUTH_CALLBACK_URL },
     });
     btn.disabled = false;
     labelSpan.textContent = 'Send magic link';

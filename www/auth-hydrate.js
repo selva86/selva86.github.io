@@ -220,12 +220,39 @@
     if (e.key && e.key.startsWith('sb-') && e.key.endsWith('-auth-token')) hydrate();
   });
 
+  // Rewrite every <a href="/signin.html"> on the page so it carries
+  // ?next=<current_url>. Without this, the user signs in but then lands on
+  // /account.html instead of returning to the post / tool / page they
+  // started from. Idempotent: skips signin links that already have a query.
+  // Skipped entirely when we are already on signin.html or account.html
+  // (auth surfaces — no point routing back to themselves).
+  function rewriteSigninLinks() {
+    const path = window.location.pathname.replace(/\/$/, '');
+    if (path === '/signin.html' || path === '/signin' ||
+        path === '/account.html' || path === '/account') return;
+    const nextPath = window.location.pathname + window.location.search + window.location.hash;
+    const encoded = encodeURIComponent(nextPath);
+    document.querySelectorAll('a[href]').forEach(a => {
+      const href = a.getAttribute('href');
+      if (!href) return;
+      // Only rewrite bare /signin or /signin.html (no existing query/hash).
+      if (href === '/signin' || href === '/signin.html') {
+        a.setAttribute('href', '/signin.html?next=' + encoded);
+      }
+    });
+  }
+
   async function hydrate() {
     injectCssOnce();
+    rewriteSigninLinks();
     const token = readAccessToken();
     cachedAccessToken = token;
     const me = await fetchMe(token);
     setAuthState(me);
+    // Re-run after setAuthState because anon-state may have injected the
+    // sign-in dropdown link (and saved-posts-button.js may have just
+    // inserted the actionbar's "Sign in" anchor).
+    rewriteSigninLinks();
     document.dispatchEvent(new CustomEvent('auth-hydrated', { detail: { me, token } }));
   }
 
