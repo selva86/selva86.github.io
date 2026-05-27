@@ -204,7 +204,15 @@ def minify_assets(force=False):
         if force or not os.path.exists(min_path):
             return False
         try:
-            return os.path.getmtime(min_path) >= os.path.getmtime(src_path)
+            # STRICT > (not >=): on CI (CF Pages) the repo is freshly cloned
+            # and every file gets the same mtime. With >=, the existing .min
+            # (which is whatever was last committed) is treated as fresh and
+            # the actual source edits never get bundled. Strict > forces a
+            # re-minify on first build after every clone, which guarantees the
+            # .min reflects the current source. Local incremental builds still
+            # benefit from caching because the .min picks up a newer mtime as
+            # soon as it's written once.
+            return os.path.getmtime(min_path) > os.path.getmtime(src_path)
         except OSError:
             return False
 
