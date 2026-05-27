@@ -150,3 +150,105 @@ export async function isSessionRevoked(kv: KVNamespace, sessionId: string): Prom
   const v = await kv.get(`revoked:${sessionId}`);
   return v === "1";
 }
+
+// ===== Reading progress (Phase 2) =====
+export interface ReadingProgressRow {
+  user_id: string;
+  post_slug: string;
+  scroll_pct: number | null;
+  last_section: string | null;
+  read_at: number | null;
+  marked_read: number; // 0 or 1
+}
+
+export type ReadingKind = "in_progress" | "read" | "all";
+
+// In-progress definition: actively-read but not yet finished. Excludes posts
+// the user explicitly marked read or scrolled past 90% (we treat that as
+// effectively done so the Continue chip doesn't suggest a tutorial they
+// already finished).
+const IN_PROGRESS_MIN = 5;
+const IN_PROGRESS_MAX = 90;
+
+export async function getReadingProgress(
+  db: D1Database, userId: string, slug: string,
+): Promise<ReadingProgressRow | null> {
+  return await db
+    .prepare(
+      `SELECT user_id, post_slug, scroll_pct, last_section, read_at, marked_read
+       FROM reading_progress WHERE user_id = ? AND post_slug = ?`,
+    )
+    .bind(userId, slug)
+    .first<ReadingProgressRow>();
+}
+
+// Idempotent upsert. Only the fields you pass are updated; omitted fields
+// preserve their stored value. This is critical so that a scroll-tracking
+// POST doesn't accidentally clear marked_read (and vice versa).
+export async function upsertReadingProgress(
+  db: D1Database,
+  userId: string,
+  slug: string,
+  patch: { scroll_pct?: number; last_section?: string; marked_read?: boolean },
+): Promise<ReadingProgressRow> {
+  const now = Math.floor(Date.now() / 1000);
+  // Clamp scroll_pct to [0, 100]; coerce undefined → null for binding.
+  const scrollPct =
+    typeof patch.scroll_pct === "number"
+      ? Math.max(0, Math.min(100, Math.round(patch.scroll_pct)))
+      : null;
+  const lastSection =
+    typeof patch.last_section === "string" ? patch.last_section.slice(0, 200) : null;
+  const markedRead =
+    typeof patch.marked_read === "boolean" ? (patch.marked_read ? 1 : 0) : null;
+
+  // ON CONFLICT preserves prior values when the incoming bind is NULL. COALESCE
+  // chooses the incoming value when not-null, else falls back to the stored
+  // value. read_at is always bumped to "now" because any POST means activity.
+  await db
+    .prepare(
+      `INSERT INTO reading_progress (user_id, post_slug, scroll_pct, last_section, read_at, marked_read)
+       VALUES (?, ?, ?, ?, ?, COALESCE(?, 0))
+       ON CONFLICT(user_id, post_slug) DO UPDATE SET
+         scroll_pct   = COALESCE(excluded.scroll_pct,   reading_progress.scroll_pct),
+         last_section = COALESCE(excluded.last_section, reading_progress.last_section),
+         read_at      = excluded.read_at,
+         marked_read  = COALESCE(?, reading_progress.marked_read)`,
+    )
+    .bind(userId, slug, scrollPct, lastSection, now, markedRead, markedRead)
+    .run();
+
+  const row = await getReadingProgress(db, userId, slug);
+  // Row must exist after the upsert; return non-null guarantee for the caller.
+  return row as ReadingProgressRow;
+}
+
+export async function listReadingProgress(
+  db: D1Database,
+  userId: string,
+  opts: { kind: ReadingKind; limit: number; offset: number },
+): Promise<{ items: ReadingProgressRow[]; has_more: boolean }> {
+  let where = "user_id = ?";
+  const binds: unknown[] = [userId];
+  if (opts.kind === "in_progress") {
+    where += " AND marked_read = 0 AND scroll_pct >= ? AND scroll_pct < ?";
+    binds.push(IN_PROGRESS_MIN, IN_PROGRESS_MAX);
+  } else if (opts.kind === "read") {
+    where += " AND (marked_read = 1 OR scroll_pct >= ?)";
+    binds.push(IN_PROGRESS_MAX);
+  }
+  // Fetch one extra to detect has_more (same pattern as /api/me/saved).
+  const result = await db
+    .prepare(
+      `SELECT user_id, post_slug, scroll_pct, last_section, read_at, marked_read
+       FROM reading_progress
+       WHERE ${where}
+       ORDER BY read_at DESC NULLS LAST
+       LIMIT ? OFFSET ?`,
+    )
+    .bind(...binds, opts.limit + 1, opts.offset)
+    .all<ReadingProgressRow>();
+  const rows = result.results || [];
+  const has_more = rows.length > opts.limit;
+  return { items: rows.slice(0, opts.limit), has_more };
+}

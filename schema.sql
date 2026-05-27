@@ -57,6 +57,11 @@ CREATE TABLE IF NOT EXISTS reading_progress (
   marked_read   INTEGER DEFAULT 0,
   PRIMARY KEY (user_id, post_slug)
 );
+-- Index added 2026-05-27 (Phase 2). Supports /api/me/reading?kind=in_progress
+-- ordered by read_at DESC. Existing deploys: apply manually with
+--   wrangler d1 execute r-stats-prod --remote --command "CREATE INDEX IF NOT EXISTS idx_reading_user_read_at ON reading_progress(user_id, read_at DESC)"
+CREATE INDEX IF NOT EXISTS idx_reading_user_read_at
+  ON reading_progress(user_id, read_at DESC);
 
 -- ===== saved posts =====
 CREATE TABLE IF NOT EXISTS saved_posts (
