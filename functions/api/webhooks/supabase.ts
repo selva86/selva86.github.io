@@ -133,10 +133,23 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         .prepare("UPDATE users SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL")
         .bind(now, target.id)
         .run();
-      // Revoke any active sessions for this user (immediate logout everywhere).
-      // KV revocation list keyed by session_id; we don't have those here without
-      // a query, so we revoke at the user level via a KV flag the middleware
-      // checks. (Active sessions audit log still preserved in D1.)
+      // Phase 1.4: revoke all active sessions for this user (D1 + KV).
+      const sids = await context.env.DB
+        .prepare("SELECT session_id FROM sessions WHERE user_id = ? AND revoked_at IS NULL")
+        .bind(target.id)
+        .all<{ session_id: string }>();
+      await context.env.DB
+        .prepare("UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL")
+        .bind(now, target.id)
+        .run();
+      const sessionIds = (sids.results || []).map(r => r.session_id);
+      await Promise.all(
+        sessionIds.map(sid =>
+          context.env.KV.put(`revoked:${sid}`, "1", { expirationTtl: 7200 }).catch(() => {}),
+        ),
+      );
+      // Belt+suspenders: also flip the user-level KV flag (used by anything
+      // that checks user-revoked rather than session-revoked).
       await context.env.KV
         .put(`user-revoked:${target.id}`, "1", { expirationTtl: 7 * 24 * 60 * 60 })
         .catch((e) => console.warn(`[webhook.supabase] KV revoke failed: ${e}`));

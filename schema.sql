@@ -165,17 +165,26 @@ CREATE TABLE IF NOT EXISTS audit_log (
 -- session_id is pulled from Supabase Auth v2 JWT 'session_id' claim (NOT 'jti';
 -- Supabase JWTs don't include jti). Worker handler writes this row on first hit
 -- of a new session_id; revocation flips revoked_at AND adds to KV revoked:<id>.
+-- ip column is intentionally NOT populated (privacy decision 2026-05-27); kept
+-- for future use if a fraud/abuse case ever justifies it.
 CREATE TABLE IF NOT EXISTS sessions (
-  session_id TEXT PRIMARY KEY,           -- from JWT.session_id (Supabase Auth v2)
-  user_id    TEXT NOT NULL,
-  device     TEXT,
-  ip         TEXT,
-  user_agent TEXT,
-  created_at INTEGER NOT NULL,
-  expires_at INTEGER NOT NULL,
-  revoked_at INTEGER
+  session_id   TEXT PRIMARY KEY,         -- from JWT.session_id (Supabase Auth v2)
+  user_id      TEXT NOT NULL,
+  device       TEXT,                     -- UA-derived label like 'Chrome on Mac'
+  ip           TEXT,                     -- NOT populated; kept for schema stability
+  user_agent   TEXT,                     -- full UA string (for fallback if device parse fails)
+  created_at   INTEGER NOT NULL,
+  expires_at   INTEGER NOT NULL,
+  revoked_at   INTEGER,
+  last_seen_at INTEGER                   -- updated on every authenticated request (with 60s throttle)
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+
+-- Existing-deploy migration: add last_seen_at column if missing (SQLite ALTER).
+-- Wrangler d1 execute will error on duplicate-column when re-run; that's
+-- harmless after the first apply.
+-- (Apply manually with: wrangler d1 execute r-stats-prod --remote --command
+--  "ALTER TABLE sessions ADD COLUMN last_seen_at INTEGER" -- ignore errors)
 
 -- ===== teams (Phase v2; ship schema now to avoid later migration) =====
 CREATE TABLE IF NOT EXISTS orgs (
