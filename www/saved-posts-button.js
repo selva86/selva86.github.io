@@ -110,10 +110,15 @@
     if (!slug) return null;
     const bar = document.createElement('div');
     bar.className = 'actionbar';
+    const slugAttr = slug.replace(/"/g, '&quot;');
     bar.innerHTML =
-      '<button class="act bookmark-btn" type="button" data-slug="' + slug.replace(/"/g, '&quot;') + '" aria-pressed="false" title="Save this post">' +
+      '<button class="act bookmark-btn" type="button" data-slug="' + slugAttr + '" aria-pressed="false" title="Save this post">' +
         '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>' +
         '<span class="bookmark-label">Save</span>' +
+      '</button>' +
+      '<button class="act markread-btn" type="button" data-slug="' + slugAttr + '" aria-pressed="false" title="Mark this post as read">' +
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
+        '<span class="markread-label">Mark as read</span>' +
       '</button>' +
       '<button class="act share-btn" type="button" title="Share this post">' +
         '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>' +
@@ -238,23 +243,216 @@
     btn.addEventListener('click', e => { e.preventDefault(); handleShareClick(); });
   }
 
+  // ===== Mark-as-read button =====
+  function setMarkReadState(btn, read) {
+    btn.dataset.read = read ? '1' : '0';
+    btn.setAttribute('aria-pressed', read ? 'true' : 'false');
+    const label = btn.querySelector('.markread-label');
+    if (label) label.textContent = read ? 'Read' : 'Mark as read';
+    btn.title = read ? 'Unmark as read' : 'Mark this post as read';
+  }
+
+  async function postReadProgress(slug, token, body) {
+    try {
+      const resp = await fetch('/api/read/' + encodeURIComponent(slug), {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(body || {}),
+        keepalive: true, // allows the final pagehide flush to complete
+      });
+      if (!resp.ok) return null;
+      return await resp.json();
+    } catch (_) { return null; }
+  }
+
+  async function fetchReadStatus(slug, token) {
+    try {
+      const resp = await fetch('/api/read/' + encodeURIComponent(slug), {
+        headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' },
+      });
+      if (!resp.ok) return null;
+      return await resp.json();
+    } catch (_) { return null; }
+  }
+
+  async function handleMarkReadClick(btn, slug) {
+    const token = window.__auth && window.__auth.getAccessToken();
+    if (!token) {
+      recordIntent({ action: 'mark_read', slug: slug, ts: Date.now() });
+      redirectToSignin();
+      return;
+    }
+    const isRead = btn.dataset.read === '1';
+    btn.disabled = true;
+    const result = await postReadProgress(slug, token, { marked_read: !isRead });
+    btn.disabled = false;
+    if (result && typeof result.marked_read === 'number') {
+      setMarkReadState(btn, !!result.marked_read);
+    } else if (!result && window.__auth) {
+      window.__auth.rehydrate();
+    }
+  }
+
+  function initMarkReadButton(btn) {
+    if (btn.dataset.wired === '1') return;
+    btn.dataset.wired = '1';
+    let slug = btn.dataset.slug;
+    if (!slug) {
+      slug = getSlugFromPath();
+      if (slug) btn.dataset.slug = slug;
+    }
+    if (!slug) { btn.style.display = 'none'; return; }
+    setMarkReadState(btn, false);
+    btn.addEventListener('click', e => { e.preventDefault(); handleMarkReadClick(btn, slug); });
+  }
+
+  // ===== Scroll progress tracker =====
+  // Throttled POST to /api/read/<slug>. Only fires when:
+  //   - delta from last-sent scroll_pct is >= MIN_DELTA_PCT, AND
+  //   - at least MIN_INTERVAL_MS has passed since the previous POST.
+  // Plus a final flush on pagehide / visibilitychange:hidden so the last
+  // position is always recorded even if the user navigates away mid-page.
+  const SCROLL_MIN_DELTA = 5;
+  const SCROLL_MIN_INTERVAL_MS = 5000;
+  const SCROLL_HEARTBEAT_MS = 60000; // periodic flush even without scroll movement
+
+  function computeScrollPct() {
+    const doc = document.documentElement;
+    const total = (doc.scrollHeight || document.body.scrollHeight) - window.innerHeight;
+    if (total <= 0) return 100; // page fits in viewport — counts as fully seen
+    const pct = (window.scrollY / total) * 100;
+    return Math.max(0, Math.min(100, pct));
+  }
+
+  function findNearestSection() {
+    const headings = document.querySelectorAll('#content h2[id], #content h2');
+    if (!headings.length) return '';
+    const fold = window.scrollY + 120; // account for sticky offset
+    let nearest = '';
+    for (const h of headings) {
+      const top = h.getBoundingClientRect().top + window.scrollY;
+      if (top <= fold) {
+        nearest = (h.textContent || '').trim().slice(0, 200);
+      } else {
+        break;
+      }
+    }
+    return nearest;
+  }
+
+  function initScrollTracker(slug, token) {
+    if (window.__rsScrollTracker) return; // singleton — only attach once per page
+    let lastSentPct = -100;
+    let lastSentAt = 0;
+    let pending = null; // timer handle for trailing-edge flush
+    let lastSection = '';
+
+    function snapshot() {
+      const pct = Math.round(computeScrollPct());
+      const section = findNearestSection();
+      return { pct, section };
+    }
+
+    function flush(force) {
+      const now = Date.now();
+      const { pct, section } = snapshot();
+      const delta = Math.abs(pct - lastSentPct);
+      const intervalOk = now - lastSentAt >= SCROLL_MIN_INTERVAL_MS;
+      if (!force && (delta < SCROLL_MIN_DELTA || !intervalOk)) return;
+      lastSentPct = pct;
+      lastSentAt = now;
+      lastSection = section || lastSection;
+      const body = { scroll_pct: pct };
+      if (lastSection) body.last_section = lastSection;
+      postReadProgress(slug, token, body);
+    }
+
+    function onScroll() {
+      if (document.visibilityState === 'hidden') return;
+      if (pending) return; // already scheduled
+      pending = setTimeout(() => { pending = null; flush(false); }, 500);
+    }
+
+    function onPageExit() {
+      if (pending) { clearTimeout(pending); pending = null; }
+      // Force-flush regardless of throttle on exit.
+      const now = Date.now();
+      const { pct, section } = snapshot();
+      // Only emit if there's been ANY movement since the previous POST,
+      // or if we never posted at all this session.
+      if (lastSentAt === 0 || Math.abs(pct - lastSentPct) >= 1) {
+        lastSentPct = pct;
+        lastSentAt = now;
+        const body = { scroll_pct: pct };
+        if (section) body.last_section = section;
+        postReadProgress(slug, token, body);
+      }
+    }
+
+    // Periodic heartbeat — keeps read_at fresh for long readers who park on a
+    // page without scrolling. Doesn't move scroll_pct unless the delta gate
+    // also opens.
+    const heartbeatId = setInterval(() => {
+      if (document.visibilityState === 'visible') flush(false);
+    }, SCROLL_HEARTBEAT_MS);
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('pagehide', onPageExit);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') onPageExit();
+    });
+
+    window.__rsScrollTracker = {
+      flushNow: () => flush(true),
+      stop: () => {
+        clearInterval(heartbeatId);
+        window.removeEventListener('scroll', onScroll);
+        window.removeEventListener('pagehide', onPageExit);
+      },
+    };
+  }
+
   // ===== Hydration handler =====
   async function onAuthHydrated(ev) {
     const me = ev.detail && ev.detail.me;
     const token = ev.detail && ev.detail.token;
     const slug = getSlugFromPath();
     document.querySelectorAll('.bookmark-btn').forEach(initBookmarkButton);
+    document.querySelectorAll('.markread-btn').forEach(initMarkReadButton);
     document.querySelectorAll('.share-btn').forEach(initShareButton);
     if (!me || !token || !slug) return;
 
-    const saved = await fetchStatus(slug, token);
+    // Parallel fetch of save + read status — both are independent.
+    const [saved, readStatus] = await Promise.all([
+      fetchStatus(slug, token),
+      fetchReadStatus(slug, token),
+    ]);
     document.querySelectorAll('.bookmark-btn').forEach(btn => setBtnState(btn, saved));
+    const isRead = !!(readStatus && readStatus.marked_read);
+    document.querySelectorAll('.markread-btn').forEach(btn => setMarkReadState(btn, isRead));
 
+    // Start scroll tracking only on real tutorial pages (slug derived + #content exists).
+    if (document.getElementById('content')) {
+      initScrollTracker(slug, token);
+    }
+
+    // Replay any pre-auth intents stored before redirect to /signin.
     const intent = consumeIntent();
-    if (intent && intent.action === 'save' && intent.slug === slug && !saved) {
-      const result = await setSaveState(slug, token, true);
-      if (result && result.saved) {
-        document.querySelectorAll('.bookmark-btn').forEach(btn => setBtnState(btn, true));
+    if (intent && intent.slug === slug) {
+      if (intent.action === 'save' && !saved) {
+        const result = await setSaveState(slug, token, true);
+        if (result && result.saved) {
+          document.querySelectorAll('.bookmark-btn').forEach(btn => setBtnState(btn, true));
+        }
+      } else if (intent.action === 'mark_read' && !isRead) {
+        const result = await postReadProgress(slug, token, { marked_read: true });
+        if (result && result.marked_read) {
+          document.querySelectorAll('.markread-btn').forEach(btn => setMarkReadState(btn, true));
+        }
       }
     }
   }
@@ -264,6 +462,7 @@
     const insertAfter = newByline || (document.getElementById('content') && document.getElementById('content').querySelector('h1'));
     if (insertAfter) injectActionbar(insertAfter);
     document.querySelectorAll('.bookmark-btn').forEach(initBookmarkButton);
+    document.querySelectorAll('.markread-btn').forEach(initMarkReadButton);
     document.querySelectorAll('.share-btn').forEach(initShareButton);
   }
 

@@ -182,34 +182,84 @@ function saveStarted(s) {
   // Continue-reading chip + end-of-page block: both point to the page
   // visited just before this one. rstat_continue is rolled forward from
   // rstat_last_visited at page load (see top of file).
+  //
+  // Source-of-truth priority:
+  //   1. Server in-progress entry  (only when signed in; via auth-hydrated)
+  //   2. Server most-recently-read entry (signed-in fallback)
+  //   3. localStorage rstat_continue (anon, or if server returned nothing)
+  //
+  // We render (3) immediately so anon users + cache-warm sessions never see
+  // an empty chip; then upgrade to (1)/(2) once the auth-hydrated event
+  // fires with a valid token.
+  function applyChip(href, title) {
+    if (!href || href === currentPage) return;
+    var chip = sidebarEl.querySelector('[data-continue-chip]');
+    if (chip) {
+      var chipLink = chip.querySelector('[data-continue-link]');
+      if (chipLink) {
+        chipLink.href = href;
+        chipLink.textContent = title || href;
+        chip.classList.add('has-link');
+      }
+    }
+    var bottomBlock = document.querySelector('[data-continue-block]');
+    if (bottomBlock) {
+      var bottomLink = bottomBlock.querySelector('[data-continue-link]');
+      if (bottomLink) {
+        bottomLink.href = href;
+        bottomLink.textContent = title || href;
+        bottomBlock.classList.add('has-link');
+      }
+    }
+  }
+
+  // (3) Render from localStorage immediately.
   (function() {
     var raw;
     try { raw = localStorage.getItem('rstat_continue'); } catch(e) { return; }
     if (!raw) return;
     var lv;
     try { lv = JSON.parse(raw); } catch(e) { return; }
-    if (!lv || !lv.href || lv.href === currentPage) return;
-
-    var chip = sidebarEl.querySelector('[data-continue-chip]');
-    if (chip) {
-      var chipLink = chip.querySelector('[data-continue-link]');
-      if (chipLink) {
-        chipLink.href = lv.href;
-        chipLink.textContent = lv.title || lv.href;
-        chip.classList.add('has-link');
-      }
-    }
-
-    var bottomBlock = document.querySelector('[data-continue-block]');
-    if (bottomBlock) {
-      var bottomLink = bottomBlock.querySelector('[data-continue-link]');
-      if (bottomLink) {
-        bottomLink.href = lv.href;
-        bottomLink.textContent = lv.title || lv.href;
-        bottomBlock.classList.add('has-link');
-      }
-    }
+    if (!lv || !lv.href) return;
+    applyChip(lv.href, lv.title);
   })();
+
+  // (1) + (2) Upgrade to server data on auth-hydrated.
+  document.addEventListener('auth-hydrated', function(ev) {
+    var token = ev.detail && ev.detail.token;
+    if (!token) return;
+    // Build a slug -> {href, title} lookup from the rendered sidebar links.
+    var lookup = {};
+    sidebarEl.querySelectorAll('.sidebar-section-items a').forEach(function(a) {
+      var href = a.getAttribute('href');
+      if (!href) return;
+      var slug = href.replace(/^\//, '').replace(/\.html?$/, '');
+      lookup[slug] = { href: href, title: (a.textContent || '').trim() };
+    });
+    function chooseAndApply(slug) {
+      if (!slug) return false;
+      var entry = lookup[slug];
+      var href = entry ? entry.href : ('/' + slug + '.html');
+      var title = entry ? entry.title : slug.replace(/-/g, ' ');
+      if (href === currentPage) return false;
+      applyChip(href, title);
+      return true;
+    }
+    function fetchKind(kind) {
+      return fetch('/api/me/reading?kind=' + kind + '&limit=1', {
+        headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' },
+      }).then(function(r) { return r.ok ? r.json() : null; }).catch(function(){ return null; });
+    }
+    fetchKind('in_progress').then(function(j) {
+      if (j && j.items && j.items.length && chooseAndApply(j.items[0].slug)) return;
+      // Fallback: most-recent-any (the user finished reading something — point
+      // them to the next thing in the sidebar comes Phase 3+; for now we just
+      // surface the latest read so they know we remember).
+      fetchKind('all').then(function(j2) {
+        if (j2 && j2.items && j2.items.length) chooseAndApply(j2.items[0].slug);
+      });
+    });
+  });
 
   // Apply collapsed-subsection state from localStorage
   sidebarEl.querySelectorAll('.sidebar-subsection-toggle').forEach(function(divider) {

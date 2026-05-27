@@ -93,6 +93,17 @@
     .srow .remove:hover{border-color:var(--danger);color:var(--danger);background:var(--danger-soft)}
     .srow .remove:disabled{opacity:.5;cursor:wait}
 
+    /* Reading-progress badges (Phase 2) */
+    .srow .badge-prog,
+    .srow .badge-read{
+      display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;
+      padding:2px 8px;border-radius:999px;text-transform:uppercase;letter-spacing:.04em;
+      margin-left:8px;vertical-align:1px;line-height:1.5;white-space:nowrap;
+    }
+    .srow .badge-prog{background:var(--acc-soft);color:var(--acc-h)}
+    .srow .badge-read{background:#dff1e3;color:var(--success)}
+    .srow .badge-read svg{flex:none}
+
     .empty{
       text-align:center;background:var(--surface);border:1px dashed var(--border);
       border-radius:var(--r-md);padding:60px 30px;color:var(--mute);
@@ -175,6 +186,7 @@ let currentOffset = 0;
 let supabaseClient = null;
 let accessToken = null;
 let titlesIndex = null; // slug -> title from sidebar.json
+let progressIndex = null; // slug -> {scroll_pct, marked_read} from /api/me/reading?kind=all
 
 function showError(msg) {
   const el = document.getElementById('error-msg');
@@ -236,6 +248,43 @@ async function fetchPage(offset) {
   return await resp.json();
 }
 
+// Build slug -> {scroll_pct, marked_read} map from /api/me/reading. We fetch
+// kind=all once and join client-side (same pattern as title lookup) instead of
+// per-row requests. Cached for the session; a hard reload re-fetches.
+async function loadProgress() {
+  if (progressIndex) return progressIndex;
+  progressIndex = {};
+  try {
+    const resp = await fetch('/api/me/reading?kind=all&limit=200', {
+      headers: { 'Authorization': 'Bearer ' + accessToken, 'Accept': 'application/json' },
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      for (const r of (data.items || [])) {
+        progressIndex[r.slug] = {
+          scroll_pct: r.scroll_pct == null ? null : Math.round(r.scroll_pct),
+          marked_read: !!r.marked_read,
+        };
+      }
+    }
+  } catch (_) { /* fall through; badges simply won't render */ }
+  return progressIndex;
+}
+
+function progressBadgeHtml(slug) {
+  const p = progressIndex && progressIndex[slug];
+  if (!p) return '';
+  if (p.marked_read || (p.scroll_pct != null && p.scroll_pct >= 90)) {
+    return '<span class="badge-read" title="Marked as read">' +
+      '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' +
+      'Read</span>';
+  }
+  if (p.scroll_pct != null && p.scroll_pct >= 5) {
+    return '<span class="badge-prog" title="In progress">' + p.scroll_pct + '%</span>';
+  }
+  return '';
+}
+
 async function removeOne(slug, btn) {
   btn.disabled = true;
   try {
@@ -263,10 +312,11 @@ async function removeOne(slug, btn) {
 function rowHtml(item) {
   const title = titleFor(item.slug);
   const href = urlFor(item.slug);
+  const badge = progressBadgeHtml(item.slug);
   return `
     <div class="srow" data-slug="${item.slug.replace(/"/g, '&quot;')}">
       <a class="main" href="${href}">
-        <h3>${title}</h3>
+        <h3>${title}${badge}</h3>
         <div class="slug">${item.slug}</div>
       </a>
       <div class="mt">Saved ${relativeTime(item.saved_at)}</div>
@@ -349,8 +399,9 @@ async function render(offset) {
   }
   accessToken = session.access_token;
 
-  // Load titles index in parallel with first render attempt.
-  await loadTitles();
+  // Load titles + reading-progress indices in parallel — both needed before
+  // first render so badges paint with their row.
+  await Promise.all([loadTitles(), loadProgress()]);
 
   document.getElementById('booting').classList.add('hidden');
   document.getElementById('ui').classList.remove('hidden');
