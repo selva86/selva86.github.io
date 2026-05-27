@@ -32,6 +32,21 @@
         '<b class="auth-display-name"></b>' +
         '<span class="auth-email"></span>' +
       '</div>' +
+      // Stats rows (Phase 3) — XP always shown (0 motivates first solve);
+      // streak only shown when >= 1 so we never say "0 day streak".
+      // Populated by hydrateStats() after a /api/me/stats fetch + on every
+      // 'exercise-progress-changed' event from exercise-hub.js.
+      '<div class="udrop-stats">' +
+        '<div class="udrop-stat" data-stat="xp">' +
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>' +
+          '<span class="udrop-stat-label"><b data-xp-num>--</b> XP</span>' +
+        '</div>' +
+        '<div class="udrop-stat" data-stat="streak" hidden>' +
+          '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/></svg>' +
+          '<span class="udrop-stat-label"><b data-streak-num>--</b> <span data-streak-label>day streak</span></span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="udrop-sep"></div>' +
       '<a href="/saved-posts.html" role="menuitem">' +
         '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>' +
         '<span>Saved posts</span>' +
@@ -75,13 +90,21 @@
     '.auth-user .masthead-udrop a:hover, .auth-user .masthead-udrop .udrop-item:hover{background:#f1f3f6}' +
     '.auth-user .masthead-udrop a svg, .auth-user .masthead-udrop .udrop-item svg{flex:none;color:#6b7280}' +
     '.auth-user .masthead-udrop .udrop-sep{height:1px;background:#e4e7ee;margin:4px 0}' +
+    /* Phase 3 stats rows (XP + streak) */
+    '.auth-user .masthead-udrop .udrop-stats{padding:8px 15px 4px;display:flex;flex-direction:column;gap:3px}' +
+    '.auth-user .masthead-udrop .udrop-stat{display:flex;align-items:center;gap:9px;font-size:12.5px;color:#4b5260;line-height:1.4}' +
+    '.auth-user .masthead-udrop .udrop-stat svg{flex:none;color:#2056d2}' +
+    '.auth-user .masthead-udrop .udrop-stat[data-stat="streak"] svg{color:#d76d2a}' +
+    '.auth-user .masthead-udrop .udrop-stat-label b{font-weight:700;color:#0a0d14;font-variant-numeric:tabular-nums}' +
     /* Dark mode (when page sets html.dark) */
     'html.dark .auth-user .masthead-udrop{background:#14161a;border-color:#262a31}' +
     'html.dark .auth-user .masthead-udrop .udrop-head{border-bottom-color:#262a31}' +
     'html.dark .auth-user .masthead-udrop .udrop-head b{color:#eef2fa}' +
     'html.dark .auth-user .masthead-udrop a, html.dark .auth-user .masthead-udrop .udrop-item{color:#eef2fa}' +
     'html.dark .auth-user .masthead-udrop a:hover, html.dark .auth-user .masthead-udrop .udrop-item:hover{background:#1f242c}' +
-    'html.dark .auth-user .masthead-udrop .udrop-sep{background:#262a31}'
+    'html.dark .auth-user .masthead-udrop .udrop-sep{background:#262a31}' +
+    'html.dark .auth-user .masthead-udrop .udrop-stat{color:#aeb6c2}' +
+    'html.dark .auth-user .masthead-udrop .udrop-stat-label b{color:#eef2fa}'
   );
 
   function injectCssOnce() {
@@ -251,17 +274,71 @@
     });
   }
 
+  // Cache so the dropdown can paint without an extra fetch when it re-opens.
+  let cachedStats = null;
+
+  function paintStats(stats) {
+    if (!stats) return;
+    cachedStats = stats;
+    document.querySelectorAll('.auth-user [data-xp-num]').forEach(el => {
+      el.textContent = (stats.total_xp || 0).toLocaleString();
+    });
+    document.querySelectorAll('.auth-user .udrop-stat[data-stat="streak"]').forEach(row => {
+      const n = stats.current_streak_days || 0;
+      const num = row.querySelector('[data-streak-num]');
+      const label = row.querySelector('[data-streak-label]');
+      if (num) num.textContent = n;
+      if (label) label.textContent = n === 1 ? 'day streak' : 'day streak';
+      // Hide entirely when streak is 0 — "0 day streak" reads worse than absence.
+      row.hidden = n < 1;
+    });
+  }
+
+  async function hydrateStats(token) {
+    if (!token) return null;
+    try {
+      const resp = await fetch('/api/me/stats', {
+        headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/json' },
+      });
+      if (!resp.ok) return null;
+      const stats = await resp.json();
+      paintStats(stats);
+      return stats;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // exercise-hub.js dispatches this whenever an attempt or backfill changes
+  // the user's XP / streak. We update the dropdown in-place without an extra
+  // /api/me/stats round-trip — the event detail already carries the totals.
+  document.addEventListener('exercise-progress-changed', ev => {
+    const d = ev && ev.detail;
+    if (!d || typeof d.total_xp !== 'number') return;
+    paintStats({
+      total_xp: d.total_xp,
+      current_streak_days: d.current_streak_days || (cachedStats && cachedStats.current_streak_days) || 0,
+      longest_streak_days: d.longest_streak_days || (cachedStats && cachedStats.longest_streak_days) || 0,
+      last_active_date: (cachedStats && cachedStats.last_active_date) || null,
+    });
+  });
+
   async function hydrate() {
     injectCssOnce();
     rewriteSigninLinks();
     const token = readAccessToken();
     cachedAccessToken = token;
-    const me = await fetchMe(token);
+    // Fetch /api/me and /api/me/stats in parallel — both gated on the same
+    // bearer token. Stats failure (network, server) is non-blocking; the
+    // dropdown shows the user without the XP/streak rows.
+    const [me, stats] = await Promise.all([fetchMe(token), hydrateStats(token)]);
     setAuthState(me);
     // Re-run after setAuthState because anon-state may have injected the
     // sign-in dropdown link (and saved-posts-button.js may have just
-    // inserted the actionbar's "Sign in" anchor).
+    // inserted the actionbar's "Sign in" anchor). Also re-paint stats in
+    // case fillAuthUser replaced the dropdown contents with a fresh tree.
     rewriteSigninLinks();
+    if (stats) paintStats(stats);
     document.dispatchEvent(new CustomEvent('auth-hydrated', { detail: { me, token } }));
   }
 
