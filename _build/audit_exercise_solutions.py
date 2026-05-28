@@ -130,6 +130,12 @@ class Exercise:
     task_text: str
     expected_text: str
     expected_normalized: str
+    # Per-exercise setup cell (e.g. data-block-title="Setup data"). Some
+    # exercises define inline data (`experiment <- tibble(...)`) in a setup
+    # cell BETWEEN the task and the Your-turn editor. This code is meant to
+    # be run before the exercise's solution. Captured separately from
+    # solution_code so the runner can prepend it.
+    exercise_setup_code: str = ""
 
 
 @dataclass
@@ -208,17 +214,41 @@ def extract_hub(path: Path) -> HubAudit:
         sol_code = strip_decorative_output(html_text_of(sol_editor))
         if not sol_code.strip():
             continue
-        # Starter code (outside the details). We don't currently use it
-        # because the solution typically REPLACES the starter and includes
-        # any setup code. Captured for future use if needed.
-        starter_editor = None
+        # Per-exercise scaffolding cells (outside <details>). These come in
+        # two flavours by data-block-title:
+        #   'Setup data'  -> setup code that defines variables the exercise
+        #                    needs (e.g. inline tibble of experiment data).
+        #                    Run BEFORE the solution. Captured to
+        #                    exercise_setup_code.
+        #   'Your turn'   -> the editable starter cell (placeholder + intent
+        #                    comment). NOT run as part of the audit because
+        #                    the solution replaces it.
+        # Any container without a recognisable title gets treated as the
+        # starter cell (Your turn fallback).
+        starter_code = ""
+        exercise_setup_code = ""
         for div in sec.select(".webr-container"):
-            # Skip the one inside .exercise-solution
             if div.find_parent("details"):
+                continue  # solution lives in details; handled above
+            title = (div.get("data-block-title") or "").strip().lower()
+            editor = div.select_one(".webr-editor")
+            if not editor:
                 continue
-            starter_editor = div.select_one(".webr-editor")
-            break
-        starter_code = strip_decorative_output(html_text_of(starter_editor)) if starter_editor else ""
+            code = strip_decorative_output(html_text_of(editor))
+            if not code.strip():
+                continue
+            # Setup-data style titles (case-insensitive contains). The
+            # 'Run this once' title only appears at hub-level, but if it
+            # somehow appears at exercise-level treat it as setup too.
+            if ("setup" in title or "data" in title or "run this once" in title) \
+               and "your turn" not in title:
+                # Concatenate multiple setup-cells in document order.
+                exercise_setup_code = (exercise_setup_code + "\n\n" + code).strip() \
+                    if exercise_setup_code else code
+            else:
+                # First non-setup, non-solution container = the starter cell.
+                if not starter_code:
+                    starter_code = code
         # Expected
         exp_block = sec.select_one(".exercise-expected pre code")
         if not exp_block:
@@ -236,6 +266,7 @@ def extract_hub(path: Path) -> HubAudit:
             task_text=task_text,
             expected_text=expected_text,
             expected_normalized=normalize_output(expected_text),
+            exercise_setup_code=exercise_setup_code,
         ))
     return hub
 
@@ -293,6 +324,16 @@ def build_hub_r_script(hub: HubAudit) -> str:
             "",
         ])
     for ex in hub.exercises:
+        # If the exercise has its own setup cell (e.g. inline data), run
+        # that silently FIRST so the variables it defines are in .GlobalEnv
+        # before the solution runs. Same suppress trick as hub-level setup.
+        if ex.exercise_setup_code.strip():
+            setup_enc = ex.exercise_setup_code.replace("\\", "\\\\").replace("'", "\\'")
+            parts.append(
+                "invisible(suppressPackageStartupMessages(suppressMessages({"
+                f"  exprs <- parse(text = '{setup_enc}');"
+                "  for (e in exprs) eval(e, envir = .GlobalEnv) })))"
+            )
         # Inline the solution code as an R string literal; escape backslashes
         # and double quotes. Triple-quoted not supported in R, so use single
         # quotes and escape via a helper.
