@@ -146,6 +146,12 @@ class HubAudit:
     hub_slug: str
     file_path: Path
     exercises: list[Exercise] = field(default_factory=list)
+    # Setup code (library loads + shared data) collected from every
+    # .webr-container that appears BEFORE the first <section class="exercise">.
+    # Prepended to the hub R script so exercises that rely on libraries or
+    # shared tables resolve their dependencies, matching the on-page
+    # 'Run this once before any exercise' affordance.
+    setup_code: str = ""
     # Filled by run_hub:
     actuals: dict[str, str] = field(default_factory=dict)        # exercise_id -> raw actual
     errors: dict[str, str] = field(default_factory=dict)         # exercise_id -> R error text
@@ -162,6 +168,32 @@ def html_text_of(node) -> str:
 def extract_hub(path: Path) -> HubAudit:
     hub = HubAudit(hub_slug=path.stem, file_path=path)
     soup = BeautifulSoup(path.read_text(encoding="utf-8"), "html.parser")
+
+    # Collect any .webr-container .webr-editor blocks that appear BEFORE
+    # the first <section class="exercise">. These are setup cells the
+    # hub page tells learners to run first (libraries + shared data).
+    # Concatenated in document order with a blank line between, prepended
+    # to the per-hub R script in build_hub_r_script().
+    setup_parts: list[str] = []
+    first_section = soup.select_one("section.exercise")
+    for container in soup.select(".webr-container"):
+        # Stop at the first exercise section (sourceline-based ordering;
+        # BeautifulSoup returns elements in document order so this works).
+        if first_section and container.sourceline and first_section.sourceline \
+           and container.sourceline >= first_section.sourceline:
+            break
+        # Skip setup cells that are themselves inside an exercise (defensive;
+        # shouldn't happen in practice but cheap to check).
+        if container.find_parent("section", class_="exercise"):
+            continue
+        editor = container.select_one(".webr-editor")
+        if not editor:
+            continue
+        code = strip_decorative_output(html_text_of(editor))
+        if code.strip():
+            setup_parts.append(code)
+    hub.setup_code = "\n\n".join(setup_parts)
+
     for sec in soup.select("section.exercise"):
         ex_id = sec.get("data-exercise-id") or ""
         mode = sec.get("data-grade-mode") or ""
@@ -216,7 +248,13 @@ MARK_END = "##__RSCAUDIT_END__:{id}__##"
 def build_hub_r_script(hub: HubAudit) -> str:
     """Generate a single R script that runs every exercise's solution in
     order within ONE R session, emitting per-exercise markers so Python can
-    slice the output back into per-exercise chunks."""
+    slice the output back into per-exercise chunks.
+
+    Setup code (library loads + shared data) from any .webr-container that
+    appears BEFORE the first exercise on the hub page is prepended verbatim,
+    matching the on-page 'Run this once before any exercise' affordance.
+    Suppress its output so it doesn't leak into the first marker block.
+    """
     parts: list[str] = [
         "options(warn = 1)  # print warnings as they occur, not deferred",
         "options(useFancyQuotes = FALSE)",
@@ -240,6 +278,20 @@ def build_hub_r_script(hub: HubAudit) -> str:
         "}",
         "",
     ]
+    if hub.setup_code.strip():
+        # Run setup silently in .GlobalEnv. Wrap with suppressMessages and
+        # suppressPackageStartupMessages so library() banners don't pollute
+        # the per-exercise capture. Errors here surface globally and fail
+        # the hub script — easy to spot in the report.
+        encoded = hub.setup_code.replace("\\", "\\\\").replace("'", "\\'")
+        parts.extend([
+            "# === Hub setup (libraries + shared data) ===",
+            "invisible(suppressPackageStartupMessages(suppressMessages({",
+            "  exprs <- parse(text = '" + encoded + "')",
+            "  for (e in exprs) eval(e, envir = .GlobalEnv)",
+            "})))",
+            "",
+        ])
     for ex in hub.exercises:
         # Inline the solution code as an R string literal; escape backslashes
         # and double quotes. Triple-quoted not supported in R, so use single
