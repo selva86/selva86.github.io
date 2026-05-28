@@ -268,9 +268,16 @@ def run_hub(hub: HubAudit, rscript: str, tmpdir: Path, timeout: int = 120) -> Hu
     script_path = tmpdir / f"{hub.hub_slug}.R"
     script_path.write_text(build_hub_r_script(hub), encoding="utf-8")
     try:
+        # Merge stderr into stdout so R warnings (which go to stderr by
+        # default even with options(warn=1)) appear interleaved with the
+        # results, matching WebR's behaviour of showing both in the same
+        # output pane. Without this, exercises with warnings have actual
+        # output missing the warning text, leading to false 'safe to
+        # auto-fix' verdicts.
         proc = subprocess.run(
             [rscript, "--vanilla", str(script_path)],
-            capture_output=True, text=True, timeout=timeout,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, timeout=timeout,
             encoding="utf-8", errors="replace",
         )
     except subprocess.TimeoutExpired:
@@ -283,17 +290,11 @@ def run_hub(hub: HubAudit, rscript: str, tmpdir: Path, timeout: int = 120) -> Hu
         return hub
     hub.runtime_ms = int((time.perf_counter() - t0) * 1000)
 
-    # We capture both streams. R's warnings go to stderr by default; with
-    # options(warn=1) they print immediately, so concatenating gives a
-    # reasonable approximation of WebR's interleaved output, even though
-    # stderr is appended at the end of the per-marker chunk. Acceptable.
     combined = proc.stdout or ""
-    if proc.stderr:
-        # Append stderr at the very end with a header so it shows up in
-        # the report but doesn't pollute the per-exercise capture.
-        # (Most exercises don't emit stderr; when they do, it's usually
-        # warnings about non-fatal R behaviour.)
-        hub.hub_error = (proc.stderr.strip() or "")[:600] if proc.returncode != 0 else ""
+    # Note: with stderr merged into stdout, we no longer have a separate
+    # stderr to inspect. Any process-level R error will still show up
+    # somewhere in `combined` and the per-exercise tryCatch will catch
+    # eval errors via the ##__RSCAUDIT_ERROR__ marker.
 
     # Slice the combined output by exercise markers.
     for ex in hub.exercises:
