@@ -206,10 +206,19 @@ def verify_hub_after_patch(
     new_solution: Optional[str], new_expected: Optional[str],
     target_ex_id: Optional[str],
     rscript: str, tmpdir: Path,
+    pre_patch_status: Optional[dict[str, str]] = None,
 ) -> tuple[bool, str]:
     """Apply the proposal in-memory (a shallow patched copy of the hub),
-    re-run via R, check the target exercise's output against (proposal-updated)
-    expected. Returns (verified, actual_output_after_patch)."""
+    re-run via R, check (a) the target exercise's output matches the
+    (proposal-updated) expected AND (b) no exercise that was MATCHED before
+    the patch is now broken (cascade regression). Returns (verified,
+    actual_output_after_patch).
+
+    pre_patch_status maps exercise_id -> 'matched' | 'mismatched' | 'errored'.
+    When supplied, the patch is rejected if ANY previously-matched exercise
+    becomes mismatched or errored after the patch — catches LLM fixes that
+    silently break downstream exercises in the same chained R session.
+    """
     # Build a shallow copy of the hub with the patch applied.
     patched = HubAudit(
         hub_slug=hub.hub_slug,
@@ -258,13 +267,35 @@ def verify_hub_after_patch(
     target_ex = next((e for e in patched.exercises if e.exercise_id == ex_id), None)
     if not target_ex:
         return False, actual
-    return (normalize_output(actual) == target_ex.expected_normalized, actual)
+    target_ok = normalize_output(actual) == target_ex.expected_normalized
+    if not target_ok:
+        return False, actual
+
+    # Cascade-regression check: if any other exercise in the hub that was
+    # previously MATCHED is now mismatched or errored, the patch is rejected.
+    # Solution-rewrite patches can mutate variables that later exercises
+    # depend on; without this check, LLM 'fixes' silently break downstream
+    # exercises that were working before.
+    if pre_patch_status:
+        for other_ex in patched.exercises:
+            if other_ex.exercise_id == ex_id:
+                continue
+            prior = pre_patch_status.get(other_ex.exercise_id)
+            if prior != "matched":
+                continue  # only protect things that were working
+            if other_ex.exercise_id in patched.errors:
+                return False, actual
+            other_actual = patched.actuals.get(other_ex.exercise_id, "")
+            if normalize_output(other_actual) != other_ex.expected_normalized:
+                return False, actual
+    return True, actual
 
 
 def attempt_repair(
     ex: Exercise, hub: HubAudit, error: str, actual: str,
     client, model: str, rscript: str, tmpdir: Path,
     max_attempts: int = 3,
+    pre_patch_status: Optional[dict[str, str]] = None,
 ) -> RepairOutcome:
     """Run the strategies in order until one verifies."""
     # Build the prior-solutions block once: every earlier exercise's solution
@@ -287,7 +318,8 @@ def attempt_repair(
                                      prior_block_text, error, actual)
         if p and p.new_solution:
             ok, _ = verify_hub_after_patch(
-                hub, ex.exercise_id, p.new_solution, None, None, rscript, tmpdir)
+                hub, ex.exercise_id, p.new_solution, None, None, rscript, tmpdir,
+                pre_patch_status=pre_patch_status)
             if ok:
                 outcome.succeeded = True
                 outcome.strategy_used = "FIX_SOLUTION"
@@ -329,7 +361,8 @@ def attempt_repair(
                                      prior_block_text, error, actual)
         if p and p.new_solution:
             ok, _ = verify_hub_after_patch(
-                hub, ex.exercise_id, p.new_solution, None, None, rscript, tmpdir)
+                hub, ex.exercise_id, p.new_solution, None, None, rscript, tmpdir,
+                pre_patch_status=pre_patch_status)
             if ok:
                 outcome.succeeded = True
                 outcome.strategy_used = "FIX_SOLUTION_NUDGED"
@@ -422,16 +455,25 @@ def main() -> int:
             ):
                 fut.result()
 
-        # Collect broken exercises (errors + mismatches)
+        # Collect broken exercises (errors + mismatches) + snapshot the
+        # pre-patch status of EVERY exercise so the cascade-regression
+        # check in verify_hub_after_patch can reject patches that silently
+        # break a previously-matched downstream exercise.
         broken: list[tuple[Exercise, HubAudit, str, str]] = []
+        pre_status_by_hub: dict[str, dict[str, str]] = {}
         for hub in hubs:
+            pre_status_by_hub[hub.hub_slug] = {}
             for ex in hub.exercises:
                 if ex.exercise_id in hub.errors:
+                    pre_status_by_hub[hub.hub_slug][ex.exercise_id] = "errored"
                     broken.append((ex, hub, hub.errors[ex.exercise_id], ""))
                 else:
                     actual = hub.actuals.get(ex.exercise_id, "")
                     if normalize_output(actual) != ex.expected_normalized:
+                        pre_status_by_hub[hub.hub_slug][ex.exercise_id] = "mismatched"
                         broken.append((ex, hub, "", actual))
+                    else:
+                        pre_status_by_hub[hub.hub_slug][ex.exercise_id] = "matched"
         if args.limit:
             broken = broken[:args.limit]
         print(f"[repair] {len(broken)} broken exercises to attempt repair")
@@ -450,8 +492,11 @@ def main() -> int:
             local: list[RepairOutcome] = []
             for ex, hub, err, act in items:
                 try:
-                    o = attempt_repair(ex, hub, err, act, client, args.model,
-                                       rscript, tmpdir, args.max_attempts)
+                    o = attempt_repair(
+                        ex, hub, err, act, client, args.model,
+                        rscript, tmpdir, args.max_attempts,
+                        pre_patch_status=pre_status_by_hub.get(hub.hub_slug),
+                    )
                 except Exception as e:
                     o = RepairOutcome(exercise_id=ex.exercise_id,
                                       hub_slug=hub.hub_slug, succeeded=False,
