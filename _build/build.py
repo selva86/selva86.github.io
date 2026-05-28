@@ -1045,8 +1045,12 @@ def build_post(
 
     meta, content = parse_front_matter(raw)
 
-    content = re.sub(r'^\s*\{%\s*raw\s*%\}\s*\n?', '', content)
-    content = re.sub(r'\n?\s*\{%\s*endraw\s*%\}\s*$', '', content)
+    # Strip every Liquid raw/endraw tag (not just anchored at start/end).
+    # auto_link.py and fr_cards.py can inject sections AFTER the original
+    # closing {% endraw %}, which leaves the tag stranded in the middle
+    # of the body where the end-anchored regex misses it. CF Pages has
+    # no Liquid processor so any surviving tag renders as page text.
+    content = re.sub(r'\{%\s*(?:raw|endraw)\s*%\}\s*\n?', '', content)
 
     healed = heal_fragment(content)
     if healed != content:
