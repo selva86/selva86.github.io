@@ -15,7 +15,25 @@
 (function () {
   'use strict';
 
-  document.body.classList.add('state-anon');
+  // Optimistic initial state: if there's any Supabase auth token in
+  // localStorage, assume state-pro at first paint so the avatar slot stays
+  // hidden-but-reserved instead of briefly showing 'Sign in'. /api/me will
+  // correct course (back to state-anon) within ~300ms if the token turns
+  // out to be invalid. Net effect: zero flash for signed-in users; anon
+  // users still see Sign in immediately.
+  function hasLocalSupabaseToken() {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('sb-') && k.endsWith('-auth-token')) {
+          const v = localStorage.getItem(k);
+          if (v && v.length > 0) return true;
+        }
+      }
+    } catch (_) {}
+    return false;
+  }
+  document.body.classList.add(hasLocalSupabaseToken() ? 'state-pro' : 'state-anon');
 
   const ME_TIMEOUT_MS = 3000;
   let cachedAccessToken = null;
