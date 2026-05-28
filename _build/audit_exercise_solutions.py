@@ -40,6 +40,7 @@ from __future__ import annotations
 import argparse
 import concurrent.futures
 import html
+import json
 import os
 import re
 import shutil
@@ -60,6 +61,7 @@ except ImportError:
 REPO_ROOT = Path(__file__).resolve().parent.parent
 POSTS_DIR = REPO_ROOT / "_posts"
 REPORT_PATH = REPO_ROOT / "_build" / "exercise-audit-report.md"
+VERIFY_CACHE_PATH = REPO_ROOT / "_build" / ".audit-verify-cache.json"
 
 RSCRIPT_GUESS_PATHS = [
     "C:/Program Files/R/R-4.6.0/bin/Rscript.exe",
@@ -125,8 +127,18 @@ class Exercise:
     grade_mode: str
     solution_code: str
     starter_code: str
+    task_text: str
     expected_text: str
     expected_normalized: str
+
+
+@dataclass
+class Verdict:
+    """Result of LLM correctness check on a (task, solution, actual) triple."""
+    correct: bool
+    confidence: str            # 'high' | 'medium' | 'low'
+    reasoning: str
+    cached: bool = False
 
 
 @dataclass
@@ -180,6 +192,8 @@ def extract_hub(path: Path) -> HubAudit:
         if not exp_block:
             continue
         expected_text = html_text_of(exp_block)
+        task_node = sec.select_one(".exercise-task")
+        task_text = html_text_of(task_node).strip() if task_node else ""
         hub.exercises.append(Exercise(
             hub_slug=hub.hub_slug,
             file_path=path,
@@ -187,6 +201,7 @@ def extract_hub(path: Path) -> HubAudit:
             grade_mode=mode,
             solution_code=sol_code,
             starter_code=starter_code,
+            task_text=task_text,
             expected_text=expected_text,
             expected_normalized=normalize_output(expected_text),
         ))
@@ -297,10 +312,177 @@ def run_hub(hub: HubAudit, rscript: str, tmpdir: Path, timeout: int = 120) -> Hu
     return hub
 
 
-def apply_fixes_to_file(file_path: Path, hub: HubAudit) -> int:
-    """Rewrite .exercise-expected blocks for exercises that mismatched but
-    did NOT error. Returns count of rewrites."""
+# ===== Optional LLM-based correctness verification =====
+#
+# Auto-fix is dangerous if the canonical solution itself is wrong: we would
+# propagate the wrong output as the new 'correct' expected. Pre-flight
+# safety: ask Claude to judge each mismatched exercise's solution against
+# the task statement + actual output. Only mismatches with verdict.correct=
+# true AND confidence != 'low' are auto-fixed; the rest are flagged
+# REVIEW: in the report.
+#
+# Cache on disk so re-runs (after fixing prompts, re-running tests) don't
+# re-pay for the same triples. Cache key = sha256 of (task + solution +
+# actual). Invalidates automatically if any of those three change.
+
+_VERIFY_SYSTEM = (
+    "You are auditing R programming exercise solutions for an educational "
+    "site. For each exercise you receive the task statement, the canonical "
+    "solution R code, and the actual R output when that code is run. Your "
+    "job is to decide whether the actual output correctly answers the task. "
+    "Reply with strict JSON only, matching the schema "
+    '{"correct": bool, "confidence": "high"|"medium"|"low", "reasoning": str}. '
+    "Set confidence=low if the task is ambiguous, the solution is partially "
+    "wrong, or the output is suspicious. Keep reasoning to ONE short sentence."
+)
+
+
+def _verify_cache_key(task: str, solution: str, actual: str) -> str:
+    import hashlib
+    h = hashlib.sha256()
+    h.update(b"v1\n")  # cache version; bump to invalidate on prompt changes
+    h.update(task.encode("utf-8")); h.update(b"\n---\n")
+    h.update(solution.encode("utf-8")); h.update(b"\n---\n")
+    h.update(actual.encode("utf-8"))
+    return h.hexdigest()
+
+
+def load_verify_cache() -> dict[str, dict]:
+    if not VERIFY_CACHE_PATH.is_file():
+        return {}
+    try:
+        return json.loads(VERIFY_CACHE_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def save_verify_cache(cache: dict[str, dict]) -> None:
+    VERIFY_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    VERIFY_CACHE_PATH.write_text(
+        json.dumps(cache, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def verify_one(ex: Exercise, actual: str, client, model: str,
+               cache: dict[str, dict]) -> Verdict:
+    key = _verify_cache_key(ex.task_text, ex.solution_code, actual)
+    if key in cache:
+        c = cache[key]
+        return Verdict(
+            correct=bool(c.get("correct", False)),
+            confidence=str(c.get("confidence", "low")),
+            reasoning=str(c.get("reasoning", "")),
+            cached=True,
+        )
+    user_msg = (
+        f"TASK STATEMENT:\n{ex.task_text}\n\n"
+        f"CANONICAL SOLUTION (R):\n```r\n{ex.solution_code}\n```\n\n"
+        f"ACTUAL R OUTPUT when this solution runs:\n```\n{actual}\n```\n\n"
+        f"Does the actual output correctly answer the task? Reply with strict JSON only."
+    )
+    try:
+        resp = client.messages.create(
+            model=model,
+            max_tokens=300,
+            system=_VERIFY_SYSTEM,
+            messages=[{"role": "user", "content": user_msg}],
+        )
+        raw = "".join(b.text for b in resp.content if hasattr(b, "text")).strip()
+    except Exception as e:
+        return Verdict(correct=False, confidence="low",
+                       reasoning=f"API error: {type(e).__name__}: {e}")
+    # Strip code fences if the model wrapped the JSON.
+    if raw.startswith("```"):
+        raw = re.sub(r"^```(?:json)?\s*", "", raw)
+        raw = re.sub(r"\s*```$", "", raw)
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        return Verdict(correct=False, confidence="low",
+                       reasoning=f"Unparseable LLM reply: {raw[:120]}")
+    verdict = Verdict(
+        correct=bool(parsed.get("correct", False)),
+        confidence=str(parsed.get("confidence", "low")).lower(),
+        reasoning=str(parsed.get("reasoning", "")).strip(),
+    )
+    cache[key] = {"correct": verdict.correct,
+                  "confidence": verdict.confidence,
+                  "reasoning": verdict.reasoning}
+    return verdict
+
+
+def run_verification(hubs: list[HubAudit], model: str, workers: int) -> dict[str, Verdict]:
+    """Verify every mismatched exercise. Returns {exercise_id: Verdict}.
+    Skips exercises that matched or errored."""
+    try:
+        import anthropic
+    except ImportError:
+        sys.exit("[FATAL] --verify needs the anthropic package. Run: pip install anthropic")
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        sys.exit("[FATAL] ANTHROPIC_API_KEY not set. Export it before --verify.")
+    client = anthropic.Anthropic(api_key=api_key)
+
+    cache = load_verify_cache()
+    cache_size_start = len(cache)
+
+    # Collect work items.
+    work: list[Exercise] = []
+    actuals: dict[str, str] = {}
+    for hub in hubs:
+        for ex in hub.exercises:
+            if ex.exercise_id in hub.errors:
+                continue
+            actual = hub.actuals.get(ex.exercise_id, "")
+            if not actual.strip():
+                continue
+            if normalize_output(actual) == ex.expected_normalized:
+                continue  # match — no need to verify
+            work.append(ex)
+            actuals[ex.exercise_id] = actual
+
+    if not work:
+        return {}
+
+    print(f"[verify] {len(work)} mismatched exercises to verify "
+          f"({sum(1 for ex in work if _verify_cache_key(ex.task_text, ex.solution_code, actuals[ex.exercise_id]) in cache)} cached, "
+          f"{len(work) - sum(1 for ex in work if _verify_cache_key(ex.task_text, ex.solution_code, actuals[ex.exercise_id]) in cache)} fresh)")
+
+    verdicts: dict[str, Verdict] = {}
+    t0 = time.perf_counter()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {
+            pool.submit(verify_one, ex, actuals[ex.exercise_id], client, model, cache): ex
+            for ex in work
+        }
+        done = 0
+        for fut in concurrent.futures.as_completed(futures):
+            ex = futures[fut]
+            v = fut.result()
+            verdicts[ex.exercise_id] = v
+            done += 1
+            if done % 25 == 0 or done == len(work):
+                elapsed = time.perf_counter() - t0
+                rate = done / elapsed if elapsed else 0
+                eta = (len(work) - done) / rate if rate else 0
+                print(f"[verify] {done}/{len(work)}  ({rate:.1f}/s  ETA {eta:.0f}s)")
+
+    # Persist any new entries.
+    if len(cache) > cache_size_start:
+        save_verify_cache(cache)
+        print(f"[verify] cached {len(cache) - cache_size_start} new verdicts -> {VERIFY_CACHE_PATH}")
+    return verdicts
+
+
+def apply_fixes_to_file(file_path: Path, hub: HubAudit,
+                        verdicts: Optional[dict[str, Verdict]] = None) -> tuple[int, int]:
+    """Rewrite .exercise-expected blocks for exercises that mismatched, did
+    NOT error, AND (if verdicts supplied) passed the correctness check with
+    confidence != 'low'. Returns (rewritten_count, skipped_for_review_count).
+    """
     candidates: list[tuple[str, str]] = []
+    skipped_review = 0
     for ex in hub.exercises:
         if ex.exercise_id in hub.errors:
             continue
@@ -309,9 +491,14 @@ def apply_fixes_to_file(file_path: Path, hub: HubAudit) -> int:
             continue
         if normalize_output(actual) == ex.expected_normalized:
             continue
+        if verdicts is not None:
+            v = verdicts.get(ex.exercise_id)
+            if not v or not v.correct or v.confidence == "low":
+                skipped_review += 1
+                continue
         candidates.append((ex.exercise_id, actual))
     if not candidates:
-        return 0
+        return 0, skipped_review
     bak = file_path.with_suffix(file_path.suffix + ".bak")
     if not bak.exists():
         shutil.copy2(file_path, bak)
@@ -333,10 +520,11 @@ def apply_fixes_to_file(file_path: Path, hub: HubAudit) -> int:
         rewritten += 1
     if rewritten:
         file_path.write_text(str(soup), encoding="utf-8")
-    return rewritten
+    return rewritten, skipped_review
 
 
-def write_report(hubs: list[HubAudit]) -> tuple[int, int, int]:
+def write_report(hubs: list[HubAudit],
+                 verdicts: Optional[dict[str, Verdict]] = None) -> tuple[int, int, int]:
     matched = mismatched = errored = 0
     for hub in hubs:
         for ex in hub.exercises:
@@ -347,6 +535,21 @@ def write_report(hubs: list[HubAudit]) -> tuple[int, int, int]:
             else:
                 mismatched += 1
 
+    safe_to_fix = needs_review = 0
+    if verdicts is not None:
+        for hub in hubs:
+            for ex in hub.exercises:
+                if ex.exercise_id in hub.errors:
+                    continue
+                actual = hub.actuals.get(ex.exercise_id, "")
+                if not actual.strip() or normalize_output(actual) == ex.expected_normalized:
+                    continue
+                v = verdicts.get(ex.exercise_id)
+                if v and v.correct and v.confidence != "low":
+                    safe_to_fix += 1
+                else:
+                    needs_review += 1
+
     REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
     with REPORT_PATH.open("w", encoding="utf-8") as fh:
         fh.write("# Exercise solution audit\n\n")
@@ -355,7 +558,11 @@ def write_report(hubs: list[HubAudit]) -> tuple[int, int, int]:
         fh.write(f"- Total output-compare exercises: {matched + mismatched + errored}\n")
         fh.write(f"- Matched: {matched}\n")
         fh.write(f"- Mismatched: {mismatched}\n")
-        fh.write(f"- R errors: {errored}\n\n")
+        fh.write(f"- R errors: {errored}\n")
+        if verdicts is not None:
+            fh.write(f"- Verified safe to auto-fix: {safe_to_fix}\n")
+            fh.write(f"- Needs manual review (verdict said solution wrong / low confidence): {needs_review}\n")
+        fh.write("\n")
 
         # Errors first
         for hub in hubs:
@@ -365,23 +572,68 @@ def write_report(hubs: list[HubAudit]) -> tuple[int, int, int]:
                 fh.write(f"## ERROR  {hub.hub_slug} / {ex.exercise_id}\n\n")
                 fh.write("```\n" + hub.errors[ex.exercise_id][:1500] + "\n```\n\n")
 
-        # Mismatches
+        # Manual-review block (if verifying): solutions Claude flagged.
+        if verdicts is not None:
+            review_items: list[tuple[HubAudit, Exercise, Verdict]] = []
+            for hub in hubs:
+                for ex in hub.exercises:
+                    if ex.exercise_id in hub.errors:
+                        continue
+                    actual = hub.actuals.get(ex.exercise_id, "")
+                    if not actual.strip() or normalize_output(actual) == ex.expected_normalized:
+                        continue
+                    v = verdicts.get(ex.exercise_id)
+                    if v and v.correct and v.confidence != "low":
+                        continue
+                    review_items.append((hub, ex, v))
+            if review_items:
+                fh.write("## MANUAL REVIEW (auto-fix skipped these)\n\n")
+                fh.write("Claude judged these solutions as wrong or low-confidence. "
+                         "Fix the SOLUTION code (not the expected) for any that are "
+                         "genuinely buggy, then re-run the audit.\n\n")
+                for hub, ex, v in review_items:
+                    verdict_label = "unknown" if not v else (
+                        f"{'WRONG' if not v.correct else 'CORRECT'} (confidence: {v.confidence})"
+                    )
+                    fh.write(f"### `{ex.exercise_id}` — verdict: {verdict_label}\n\n")
+                    if v:
+                        fh.write(f"_Reasoning:_ {v.reasoning}\n\n")
+                    fh.write(f"**Task:** {ex.task_text}\n\n")
+                    fh.write("**Solution:**\n\n```r\n" + ex.solution_code.rstrip() + "\n```\n\n")
+                    fh.write("**Authored expected:**\n\n```\n" + ex.expected_text.rstrip() + "\n```\n\n")
+                    fh.write("**Actual:**\n\n```\n" + hub.actuals[ex.exercise_id].rstrip() + "\n```\n\n---\n\n")
+
+        # Safe-to-fix (or all mismatches if no verification)
+        section_header = "## Safe to auto-fix (--apply will rewrite these)" if verdicts else "## Mismatches (--apply will rewrite these)"
+        per_hub: dict[str, list[tuple[Exercise, Optional[Verdict]]]] = {}
         for hub in hubs:
-            file_mismatch = [
-                ex for ex in hub.exercises
-                if ex.exercise_id not in hub.errors
-                and normalize_output(hub.actuals.get(ex.exercise_id, "")) != ex.expected_normalized
-            ]
-            if not file_mismatch:
-                continue
-            fh.write(f"## {hub.hub_slug}\n\n")
-            for ex in file_mismatch:
-                fh.write(f"### `{ex.exercise_id}`\n\n")
-                fh.write("**Authored expected:**\n\n```\n")
-                fh.write(ex.expected_text.rstrip() + "\n")
-                fh.write("```\n\n**Actual output of solution:**\n\n```\n")
-                fh.write(hub.actuals[ex.exercise_id].rstrip() + "\n")
-                fh.write("```\n\n---\n\n")
+            for ex in hub.exercises:
+                if ex.exercise_id in hub.errors:
+                    continue
+                actual = hub.actuals.get(ex.exercise_id, "")
+                if not actual.strip() or normalize_output(actual) == ex.expected_normalized:
+                    continue
+                v = verdicts.get(ex.exercise_id) if verdicts else None
+                # If verifying, only include verdicts that passed.
+                if verdicts is not None and (not v or not v.correct or v.confidence == "low"):
+                    continue
+                per_hub.setdefault(hub.hub_slug, []).append((ex, v))
+        if per_hub:
+            fh.write(section_header + "\n\n")
+            for hub_slug in sorted(per_hub):
+                fh.write(f"### {hub_slug}\n\n")
+                for ex, v in per_hub[hub_slug]:
+                    verdict_note = f" — _verified: {v.reasoning}_" if v else ""
+                    fh.write(f"#### `{ex.exercise_id}`{verdict_note}\n\n")
+                    fh.write("**Authored expected:**\n\n```\n")
+                    fh.write(ex.expected_text.rstrip() + "\n")
+                    fh.write("```\n\n**Actual output of solution:**\n\n```\n")
+                    # Find the right hub for actuals lookup
+                    for h in hubs:
+                        if h.hub_slug == hub_slug:
+                            fh.write(h.actuals[ex.exercise_id].rstrip() + "\n")
+                            break
+                    fh.write("```\n\n---\n\n")
     return matched, mismatched, errored
 
 
@@ -394,6 +646,14 @@ def main() -> int:
     p.add_argument("--workers", type=int, default=min(4, (os.cpu_count() or 4)),
                    help="Parallel R processes (one per hub)")
     p.add_argument("--timeout", type=int, default=120, help="Per-hub timeout (sec)")
+    p.add_argument("--verify", action="store_true",
+                   help="Use Claude to verify each mismatched solution actually "
+                        "answers the task. Auto-fix skips exercises Claude marks wrong "
+                        "or low-confidence. Needs ANTHROPIC_API_KEY in env.")
+    p.add_argument("--verify-model", default="claude-haiku-4-5-20251001",
+                   help="Anthropic model id for --verify (default: Haiku 4.5)")
+    p.add_argument("--verify-workers", type=int, default=10,
+                   help="Concurrent LLM verification calls")
     args = p.parse_args()
 
     rscript = find_rscript(args.rscript)
@@ -428,11 +688,20 @@ def main() -> int:
                     eta = (len(hubs) - done) / rate if rate else 0
                     print(f"[audit] {done}/{len(hubs)} hubs  ({rate:.1f}/s  ETA {eta:.0f}s)")
 
-    matched, mismatched, errored = write_report(hubs)
+    verdicts: Optional[dict[str, Verdict]] = None
+    if args.verify:
+        verdicts = run_verification(hubs, args.verify_model, args.verify_workers)
+
+    matched, mismatched, errored = write_report(hubs, verdicts)
     print()
     print(f"[audit] matched:    {matched}")
     print(f"[audit] mismatched: {mismatched}")
     print(f"[audit] R errors:   {errored}")
+    if verdicts is not None:
+        safe = sum(1 for v in verdicts.values() if v.correct and v.confidence != "low")
+        review = len(verdicts) - safe
+        print(f"[audit] verified safe to auto-fix: {safe}")
+        print(f"[audit] flagged for manual review:  {review}")
     print(f"[audit] report -> {REPORT_PATH}")
 
     if args.apply:
@@ -440,13 +709,17 @@ def main() -> int:
             print("[audit] --apply set but nothing to fix.")
         else:
             print("[audit] applying fixes...")
-            total = 0
+            total_fixed = 0
+            total_skipped = 0
             for hub in hubs:
-                n = apply_fixes_to_file(hub.file_path, hub)
-                if n:
-                    print(f"  rewrote {n} expected blocks in {hub.file_path.name}")
-                    total += n
-            print(f"[audit] applied {total} fixes (.bak files written)")
+                n_fixed, n_skipped = apply_fixes_to_file(hub.file_path, hub, verdicts)
+                if n_fixed:
+                    print(f"  rewrote {n_fixed} expected blocks in {hub.file_path.name}")
+                    total_fixed += n_fixed
+                total_skipped += n_skipped
+            print(f"[audit] applied {total_fixed} fixes (.bak files written)")
+            if total_skipped:
+                print(f"[audit] {total_skipped} skipped for manual review (see report)")
             print("[audit] re-run without --apply to verify.")
 
     return 1 if (mismatched or errored) else 0
