@@ -69,11 +69,40 @@
      whitespace, drop blank lines. Imperfect by design - a mismatch falls
      back to a "compare them" verdict, never a hard failure. */
   function normalizeOutput(text) {
-    return String(text || '')
-      .replace(/×/g, 'x')      // tibble "N × M" header -> ASCII "N x M"
-      .replace(/…/g, '...')    // unicode ellipsis -> ASCII (truncated tibbles)
-      .replace(/ /g, ' ')      // non-breaking space -> normal space
-      .split('\n')
+    var t = String(text || '')
+      .replace(/×/g, 'x')
+      .replace(/…/g, '...')
+      .replace(/ /g, ' ');
+
+    // Strip R warning blocks BEFORE collapsing whitespace so we can use
+    // line indentation to detect continuation lines. WebR may surface
+    // warnings differently from Rscript (the audit captures the latter),
+    // and the warning text itself varies by R version. Both sides strip
+    // them so the comparison is robust no matter where/whether a warning
+    // appears. The warning text stays in the authored expected for
+    // pedagogy; only the comparison ignores it.
+    var rawLines = t.split('\n');
+    var kept = [];
+    var inWarning = false;
+    for (var i = 0; i < rawLines.length; i++) {
+      var raw = rawLines[i];
+      var trimmed = raw.trim();
+      var classifyable = trimmed.replace(/^#>\s?/, '');
+      if (/^(?:Warning message|Warning messages|Warning in\b)/i.test(classifyable)) {
+        inWarning = true;
+        continue;
+      }
+      if (inWarning) {
+        var preStripped = raw.replace(/^\s*#>\s?/, '');
+        if (/^\s+\S/.test(preStripped) || /^\d+:\s+/.test(classifyable) || trimmed === '') {
+          continue;
+        }
+        inWarning = false;
+      }
+      kept.push(raw);
+    }
+
+    return kept
       .map(function (l) {
         return l.replace(/^\s*#>\s?/, '').replace(/\s+/g, ' ').trim();
       })

@@ -99,10 +99,45 @@ _LINE_PROMPT = re.compile(r"^\s*#>\s?")
 _WS = re.compile(r"\s+")
 
 
+_WARNING_START = re.compile(
+    r"^(?:Warning message|Warning messages|Warning in\b)", re.IGNORECASE,
+)
+_WARNING_NUMBERED = re.compile(r"^\d+:\s+")
+_INDENTED = re.compile(r"^\s+\S")
+
+
+def _strip_warning_blocks(text: str) -> str:
+    """Drop R warning blocks before further normalisation. Mirrors the
+    matching logic in www/exercise-hub.js normalizeOutput() so the audit
+    and the runtime grader agree on what counts as 'just a warning'.
+    Warning continuation lines are detected by indentation, numbered
+    'N:' prefixes, or blank-line separators.
+    """
+    out: list[str] = []
+    in_warning = False
+    for raw in text.split("\n"):
+        trimmed = raw.strip()
+        classifyable = _LINE_PROMPT.sub("", trimmed)
+        if _WARNING_START.search(classifyable):
+            in_warning = True
+            continue
+        if in_warning:
+            # Strip leading "#>" prompt before checking indentation so
+            # authored expecteds like "#>   In a + b : longer object length"
+            # are still recognised as warning continuations.
+            pre_stripped = _LINE_PROMPT.sub("", raw)
+            if _INDENTED.match(pre_stripped) or _WARNING_NUMBERED.match(classifyable) or trimmed == "":
+                continue
+            in_warning = False
+        out.append(raw)
+    return "\n".join(out)
+
+
 def normalize_output(text: str) -> str:
     text = _TIBBLE_TIMES.sub("x", text or "")
     text = _UNI_ELLIPSIS.sub("...", text)
     text = _NBSP.sub(" ", text)
+    text = _strip_warning_blocks(text)
     out_lines = []
     for line in text.split("\n"):
         line = _LINE_PROMPT.sub("", line)
