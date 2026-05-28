@@ -119,6 +119,46 @@ def strip_decorative_output(code: str) -> str:
     return "\n".join(lines)
 
 
+# Pattern for the "fill-in placeholder" line in a Your-turn cell:
+#   ex_1_1 <- # your code here     -OR-  ex_1_1 <- # your answer
+# Used by extract_starter_setup() to split the starter into a
+# data-definitions prefix (which we want to run before the solution) and
+# the placeholder-and-after (which we want to discard).
+_PLACEHOLDER_RE = re.compile(
+    r"^\s*[\w.]+\s*<-\s*#\s*(your|fill|write|your code|your answer)",
+    re.IGNORECASE,
+)
+
+
+def extract_starter_setup(starter_code: str) -> str:
+    """Return the data-definition prefix of a Your-turn cell.
+
+    Many exercises define inline data in the editable starter cell:
+        txns <- tibble(...)            <-- setup
+        ex_1_1 <- # your code here     <-- placeholder
+        ex_1_1                          <-- trailing reference
+    The grader runs the LEARNER's modified cell, which has the data
+    setup + their answer. To mirror that, the audit must run the data
+    setup portion BEFORE the solution. This helper keeps everything
+    above the placeholder line.
+
+    If no placeholder pattern is found, returns empty string (the
+    starter is assumed to be all placeholder / boilerplate and not
+    useful as setup).
+    """
+    if not starter_code.strip():
+        return ""
+    lines = starter_code.split("\n")
+    for i, line in enumerate(lines):
+        if _PLACEHOLDER_RE.search(line):
+            prefix = "\n".join(lines[:i]).strip()
+            return prefix
+    # No placeholder pattern. Don't treat as setup (risks running
+    # boilerplate like a final `ex_1_1` reference that would itself
+    # error if ex_1_1 isn't defined).
+    return ""
+
+
 @dataclass
 class Exercise:
     hub_slug: str
@@ -327,8 +367,20 @@ def build_hub_r_script(hub: HubAudit) -> str:
         # If the exercise has its own setup cell (e.g. inline data), run
         # that silently FIRST so the variables it defines are in .GlobalEnv
         # before the solution runs. Same suppress trick as hub-level setup.
+        #
+        # Also extract any data-definition prefix from the Your-turn
+        # starter cell — many exercises put their inline data right in the
+        # editable cell above a "<- # your code here" placeholder. Without
+        # this we miss the data the solution needs.
+        setup_parts = []
         if ex.exercise_setup_code.strip():
-            setup_enc = ex.exercise_setup_code.replace("\\", "\\\\").replace("'", "\\'")
+            setup_parts.append(ex.exercise_setup_code)
+        starter_setup = extract_starter_setup(ex.starter_code)
+        if starter_setup:
+            setup_parts.append(starter_setup)
+        if setup_parts:
+            combined_setup = "\n\n".join(setup_parts)
+            setup_enc = combined_setup.replace("\\", "\\\\").replace("'", "\\'")
             parts.append(
                 "invisible(suppressPackageStartupMessages(suppressMessages({"
                 f"  exprs <- parse(text = '{setup_enc}');"
