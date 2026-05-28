@@ -51,7 +51,10 @@
       .img-responsive{max-width:100%;height:auto}
       .pull-right{float:right}
       a{color:#1d3158;text-decoration:none}a:hover{text-decoration:underline}
-      html,body{overflow-x:hidden;max-width:100vw}
+      /* overflow-x:clip (not hidden) so html/body don't become a
+         scrolling container, which would break position:sticky on the
+         right TOC rail under layout-v2. */
+      html,body{overflow-x:clip;max-width:100vw}
       #sidebar-nav{position:sticky;top:20px;max-height:calc(100vh - 40px);overflow-y:auto;padding:8px 0}
       .breadcrumb-nav{font-size:13.5px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#6c757d;margin-bottom:2px;padding:0}
       .breadcrumb-nav a{color:#6c757d;text-decoration:none}
@@ -92,11 +95,13 @@
       .nav-dropdown-trigger{cursor:pointer}
       .nav-dropdown-trigger::after{content:' \25BE';font-size:10px;color:#8a8f99}
       .nav-dropdown-panel{display:none;position:absolute;top:calc(100% + 6px);left:0;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:14px 0;box-shadow:0 8px 24px rgba(13,17,23,0.10);min-width:260px;z-index:40;flex-direction:column}
+      .nav-dropdown-panel::before{content:"";position:absolute;top:-6px;left:0;right:0;height:6px}
       .nav-dropdown:hover .nav-dropdown-panel,.nav-dropdown.open .nav-dropdown-panel{display:flex}
       .nav-cat{position:relative;display:flex;align-items:center;justify-content:space-between;padding:7px 18px;font-family:'IBM Plex Sans',sans-serif;font-size:13px;font-weight:500;color:#3a3f4a;cursor:pointer;transition:background 0.1s}
       .nav-cat:hover{background:#f1f3f6;color:#0d1117}
       .nav-cat::after{content:' \25B8';font-size:10px;color:#8a8f99;margin-left:8px}
       .nav-sub{display:none;position:absolute;top:0;left:100%;background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:14px 18px;box-shadow:0 8px 24px rgba(13,17,23,0.10);min-width:230px;z-index:50}
+      .nav-sub::before{content:"";position:absolute;top:0;left:-8px;bottom:0;width:8px}
       .nav-cat:hover .nav-sub{display:block}
       .nav-sub a{display:block;padding:5px 0;font-size:13px;color:#3a3f4a;text-decoration:none;font-weight:400;line-height:1.4}
       .nav-sub a:hover{color:#1d3158;text-decoration:underline}
@@ -152,13 +157,227 @@
       .webr-editor{min-height:60px}
       /* CLS prevention: images in content always reserve aspect ratio */
       #content img{max-width:100%;height:auto}
+
+      /* =====================================================
+         LAYOUT V2 (opt-in via body.layout-v2). Retry 2026-05-29.
+         Differences from the first attempt:
+           1. Sidebar columns use clamp(180px, 16vw, 260px) so they
+              SHRINK on narrow viewports (first attempt used minmax
+              which pinned both sides at 260px, squeezing content on
+              typical laptops to ~460px).
+           2. Sidebar links get overflow-wrap so long tutorial titles
+              don't escape the narrower column.
+           3. min-width:0 on every grid child so they can shrink.
+           4. Right TOC breakpoint raised from 1100px -> 1280px so it
+              only shows when the viewport can actually afford it.
+           5. The inline-code background restyle is dropped - kept
+              current syntax-highlighter behavior.
+         All rules scoped under body.layout-v2 so pages without it
+         render identically.
+         ===================================================== */
+      body.layout-v2{
+        --lv2-bg:#f8f9fb;--lv2-card:#fff;--lv2-ink:#0d1117;
+        --lv2-mut:#4b5260;--lv2-faint:#5b6573;
+        --lv2-navy:#1c2c4f;--lv2-navy-h:#2d4173;--lv2-navy-soft:#eef1f7;
+        --lv2-accent:#2056d2;--lv2-accent-soft:#e9efff;
+        --lv2-line:#e4e7ee;--lv2-border:#d4d9e3;
+        --lv2-green:#15803d;
+        background:var(--lv2-bg);color:var(--lv2-ink);
+      }
+      html.dark body.layout-v2{
+        --lv2-bg:#0a0f1c;--lv2-card:#0f1525;--lv2-ink:#eef2fa;
+        --lv2-mut:#a5afc4;--lv2-faint:#9aa6c0;
+        --lv2-navy:#5170b3;--lv2-navy-h:#6587c4;--lv2-navy-soft:#192240;
+        --lv2-accent:#7faaff;--lv2-accent-soft:#1a2748;
+        --lv2-line:#1f2a48;--lv2-border:#2c3a62;
+      }
+
+      /* Wider container; clamp-based grid that scales with viewport.
+         width:auto is REQUIRED because the base critical CSS has
+         @media(min-width:1200px){.container{width:1170px}} which would
+         otherwise pin width to 1170 and ignore max-width:1340. */
+      body.layout-v2 .container{max-width:1340px;width:auto;padding:0 22px}
+      body.layout-v2 .site-masthead-inner{max-width:1340px}
+      /* The legacy .site-masthead has margin:0 -15px to cancel the
+         Bootstrap .container padding of 15px. Under layout-v2 the
+         container padding is 22px, so the negative margin leaves a
+         7px inset. Zero it so the masthead aligns flush with the
+         article shell. */
+      body.layout-v2 .site-masthead{margin-left:0;margin-right:0}
+      body.layout-v2 .row{
+        display:grid;
+        grid-template-columns:
+          clamp(180px, 16vw, 260px)
+          minmax(0, 1fr)
+          clamp(180px, 16vw, 260px);
+        gap:0;margin-left:0;margin-right:0;
+      }
+      /* Bootstrap inserts .row::before AND .row::after pseudo-elements
+         (content:" "; display:table) as a clearfix. Under display:grid
+         these pseudos count as grid items. ::before grabs col 1, pushing
+         every real child one column to the right and wrapping the last
+         child to a new row. The 2026-05-29 first attempt only disabled
+         ::after, resulting in nav in col 2, content in col 3, and toc
+         wrapping to a new row at col 1 (the bug the user reported as
+         "sidebar wide, content narrow"). BOTH pseudos must be killed. */
+      body.layout-v2 .row::before,
+      body.layout-v2 .row::after{display:none;content:none}
+      /* min-width:0 lets grid children shrink below their content's
+         intrinsic min-width; without this, long unbreakable text in any
+         child forces the column wider than the grid template intended. */
+      /* Drop Bootstrap's float and width on the legacy .col-sm-* hooks
+         so the parent .row's CSS grid owns sizing. DO NOT zero horizontal
+         padding here — per-column padding lives in the dedicated rules
+         below (sidebar, main#content, #toc-sidebar) and gives the article
+         the 44px breathing room the mock has. */
+      body.layout-v2 #nav.col-sm-3,
+      body.layout-v2 main#content.col-sm-7,
+      body.layout-v2 #toc-sidebar.col-sm-2{
+        width:auto!important;float:none!important;
+        min-width:0;min-height:0;
+      }
+      body.layout-v2 #nav.col-sm-3{
+        padding:14px 10px 40px;border-right:1px solid var(--lv2-line);
+        position:sticky;top:60px;height:calc(100vh - 60px);overflow-y:auto;
+      }
+      /* Inner #sidebar-nav had its own sticky + overflow from the legacy critical
+         CSS; under layout-v2 the outer #nav owns scrolling, so flatten the inner
+         one to avoid a double scrollbar. */
+      body.layout-v2 #sidebar-nav{
+        position:static;max-height:none;overflow:visible;padding:0;
+      }
+      /* Wrap long tutorial titles in the sidebar so they never overflow */
+      body.layout-v2 #nav a,
+      body.layout-v2 #nav span,
+      body.layout-v2 #sidebar-nav a,
+      body.layout-v2 #sidebar-nav li{
+        overflow-wrap:break-word;word-break:break-word;
+      }
+      body.layout-v2 main#content{padding:24px 44px 60px}
+      body.layout-v2 #toc-sidebar{padding:24px 18px;position:sticky;top:74px;align-self:start}
+      @media(max-width:1280px){
+        body.layout-v2 .row{grid-template-columns:clamp(180px, 18vw, 260px) minmax(0,1fr)}
+        body.layout-v2 #toc-sidebar{display:none}
+      }
+      @media(max-width:820px){
+        body.layout-v2 .row{grid-template-columns:1fr}
+        body.layout-v2 #nav{display:none}
+        body.layout-v2 main#content{padding:20px}
+      }
+
+      /* Typography refresh - sized to mock spec */
+      body.layout-v2 #content{
+        font-size:16.5px;line-height:1.7;color:var(--lv2-ink);
+        font-feature-settings:"tnum","ss01","cv11";text-rendering:optimizeLegibility;
+      }
+      body.layout-v2 #content p{line-height:1.7;margin:13px 0;color:var(--lv2-ink);text-wrap:pretty}
+      body.layout-v2 #content h1{
+        font-size:38px;font-weight:700;line-height:1.2;letter-spacing:-0.018em;
+        margin:10px 0 13px;text-wrap:balance;color:var(--lv2-ink);
+      }
+      body.layout-v2 #content h2{
+        font-size:25px;font-weight:600;line-height:1.25;letter-spacing:-0.018em;
+        margin:34px 0 11px;padding-top:0;border-top:none;text-wrap:balance;color:var(--lv2-ink);
+      }
+      body.layout-v2 #content h2:first-of-type{margin-top:24px}
+      body.layout-v2 #content h3,body.layout-v2 #content h4{
+        font-size:18px;font-weight:600;line-height:1.3;margin:24px 0 8px;text-wrap:balance;color:var(--lv2-ink);
+      }
+      /* Specificity bump: `body.layout-v2 #content p` (1 id + 1 class
+         + 2 elements) was beating `body.layout-v2 p.lead` (2 classes +
+         2 elements) and forcing the dek to var(--lv2-ink) instead of
+         var(--lv2-mut). Adding #content here matches that specificity. */
+      body.layout-v2 #content p.lead{
+        font-size:18.5px;line-height:1.6;color:var(--lv2-mut);
+        border-left:3px solid var(--lv2-navy);padding-left:17px;margin:-2px 0 20px;font-weight:400;
+      }
+
+      /* Body link color: legacy a{color:#1d3158} and Bootstrap .text-muted
+         leave inline links almost indistinguishable from body text. Use
+         the mock accent so links are obviously clickable. Excludes
+         buttons, cards, prev/next nav, and TOC items which have their
+         own palette. */
+      body.layout-v2 #content a:not(.btn):not(.rt-card):not(.pn-link):not(.lv2-anchor):not([class*="toc"]){
+        color:var(--lv2-accent);
+      }
+      body.layout-v2 #content a:not(.btn):not(.rt-card):not(.pn-link):not(.lv2-anchor):not([class*="toc"]):hover{
+        text-decoration:underline;
+      }
+
+      /* Inline <code> palette: match the mock's navy-soft tint instead
+         of the legacy purple-blue (#eef vs #eef1f7). */
+      body.layout-v2 #content :not(pre) > code{
+        background:var(--lv2-navy-soft);color:var(--lv2-ink);
+        border-radius:4px;padding:2px 5px;font-size:0.92em;
+      }
+
+      /* TOC right rail */
+      body.layout-v2 #toc-sidebar .toc-title{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--lv2-faint);margin-bottom:9px}
+      body.layout-v2 #toc{font-size:13px}
+      body.layout-v2 #toc li{margin:0;line-height:1.45}
+      body.layout-v2 #toc li a{
+        display:block;padding:5px 0 5px 11px;
+        border-left:2px solid var(--lv2-line);
+        color:var(--lv2-faint);font-size:13px;
+        transition:color .15s,border-color .15s;
+      }
+      body.layout-v2 #toc li a:hover{color:var(--lv2-ink)}
+      body.layout-v2 #toc li a.toc-active{
+        border-left-color:var(--lv2-navy);color:var(--lv2-ink);font-weight:600;
+      }
+
+      /* Reading progress bar - uses transform:scaleX so we don't fight any
+         containing-block / overflow quirks that can pin a width-% bar to 0. */
+      .lv2-progress{
+        position:fixed;top:0;left:0;width:100vw;height:3px;
+        background:var(--lv2-accent,#2056d2);z-index:90;
+        transform:scaleX(0);transform-origin:left center;
+        transition:transform .1s ease-out;pointer-events:none;
+      }
+
+      /* Heading anchor links (hover-reveal) */
+      body.layout-v2 #content h2,body.layout-v2 #content h3{position:relative}
+      body.layout-v2 .lv2-anchor{
+        position:absolute;left:-26px;top:50%;transform:translateY(-50%);
+        font-size:.55em;color:var(--lv2-faint);text-decoration:none;
+        opacity:0;transition:opacity .15s,color .15s;
+        cursor:pointer;padding:4px 6px;line-height:1;font-weight:400;
+      }
+      body.layout-v2 #content h2:hover .lv2-anchor,
+      body.layout-v2 #content h3:hover .lv2-anchor,
+      body.layout-v2 .lv2-anchor:focus-visible{opacity:1}
+      body.layout-v2 .lv2-anchor:hover{color:var(--lv2-accent)}
+      @media(max-width:820px){body.layout-v2 .lv2-anchor{left:0;top:-22px;transform:none}}
+
+      /* Focus ring refresh */
+      body.layout-v2 a:focus-visible,
+      body.layout-v2 button:focus-visible,
+      body.layout-v2 input:focus-visible,
+      body.layout-v2 textarea:focus-visible{
+        outline:none;
+        box-shadow:0 0 0 3px rgba(32,86,210,.22);
+        border-radius:4px;
+      }
+      html.dark body.layout-v2 a:focus-visible,
+      html.dark body.layout-v2 button:focus-visible,
+      html.dark body.layout-v2 input:focus-visible{box-shadow:0 0 0 3px rgba(127,170,255,.22)}
+
+      /* Reduced motion: shut everything down for users who request it */
+      @media (prefers-reduced-motion: reduce){
+        body.layout-v2 *,body.layout-v2 *::before,body.layout-v2 *::after{
+          animation-duration:0.01ms!important;
+          animation-iteration-count:1!important;
+          transition-duration:0.01ms!important;
+          scroll-behavior:auto!important;
+        }
+      }
     </style>
     <!-- Full Bootstrap deferred (non-render-blocking) -->
     <link href="www/bootstrap.min.css?h=dae0a568" rel="stylesheet" media="print" onload="this.media='all'">
     <noscript><link href="www/bootstrap.min.css?h=dae0a568" rel="stylesheet"></noscript>
     <link href="www/highlight.min.css?h=f103014a" rel="stylesheet" media="print" onload="this.media='all'">
-    <link href="css/main.min.css?h=a790c278" rel="stylesheet" media="print" onload="this.media='all'">
-    <noscript><link href="css/main.min.css?h=a790c278" rel="stylesheet"></noscript>
+    <link href="css/main.css?h=8b7f449f" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="css/main.css?h=8b7f449f" rel="stylesheet"></noscript>
     <style>
       a{color:#1d3158}a:hover{text-decoration:underline}
       li{line-height:1.65}
@@ -299,6 +518,16 @@
   </head>
 
   <body>
+    <!-- LAYOUT V2 OPT-IN (staging rollout). Activates only on the listed
+         reference paths; promotes to default by replacing the if-guard
+         with an unconditional add. -->
+    <script>
+      (function(){
+        var p = location.pathname.replace(/\/$/, '');
+        var V2_PAGES = ['/R-Vectors','/R-Vectors.html'];
+        if (V2_PAGES.indexOf(p) !== -1) document.body.classList.add('layout-v2');
+      })();
+    </script>
     <!-- Mobile sidebar overlay -->
     <div class="mobile-sidebar-overlay" id="mobile-sidebar">
       <div class="mobile-sidebar-panel">
@@ -903,7 +1132,7 @@ read_excel(&quot;f.xlsx&quot;, range = anchored(&quot;B4&quot;, c(10,3)))# ancho
 
 <p><code>skip</code> removes rows from the top before reading, while <code>n_max</code> caps how many data rows are read after the header. They work together: <code>skip = 2, n_max = 100</code> ignores two title rows and then reads at most 100 data rows. Both are ignored when <code>range</code> is set.</p>
 <aside class="continue-reading-block" data-continue-block><div class="cr-eyebrow">Continue Reading</div><a class="cr-link" data-continue-link href="#"></a></aside>
-<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="Tidy-Data-in-R.html"><span class="rt-title">Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable</span><span class="rt-meta">Data Wrangling &middot; 7 min read</span></a><a class="rt-card" href="Apache-Arrow-in-R.html"><span class="rt-title">Apache Arrow in R: Read Parquet Files &amp; Run Fast In-Memory Analytics</span><span class="rt-meta">8 min read</span></a><a class="rt-card" href="R-Pipe-Operator.html"><span class="rt-title">R Pipe Operator: %&gt;% vs |&gt;, The Complete Guide to Both Pipes</span><span class="rt-meta">Data Wrangling &middot; 5 min read</span></a><a class="rt-card" href="readr-vs-read-csv-vs-fread.html"><span class="rt-title">readr vs read.csv vs fread in R: Which Data Import Function Is Fastest?</span><span class="rt-meta">7 min read</span></a></div></section>
+<section class="related-tutorials" aria-label="Related tutorials"><h2 class="rt-heading">Related Tutorials</h2><div class="rt-grid"><a class="rt-card" href="readr-vs-read-csv-vs-fread.html"><span class="rt-title">readr vs read.csv vs fread in R: Which Data Import Function Is Fastest?</span><span class="rt-meta">7 min read</span></a><a class="rt-card" href="R-Data-Import-Exercises.html"><span class="rt-title">R Data Import Exercises: 17 read_csv() and fread() Practice Problems</span><span class="rt-meta">Practice Exercises &middot; 11 min read</span></a><a class="rt-card" href="Importing-Data-in-R.html"><span class="rt-title">Import Any Data Format Into R: CSV, Excel, JSON, and 12 Others</span><span class="rt-meta">Data Wrangling &middot; 5 min read</span></a><a class="rt-card" href="Tidy-Data-in-R.html"><span class="rt-title">Tidy Data: The One Rule That Makes R Code Readable, Reusable, and Debuggable</span><span class="rt-meta">Data Wrangling &middot; 7 min read</span></a></div></section>
 
           
 
@@ -1123,5 +1352,56 @@ read_excel(&quot;f.xlsx&quot;, range = anchored(&quot;B4&quot;, c(10,3)))# ancho
   </script>
   <script defer src="/www/auth-hydrate.js?v=9"></script>
   <script defer src="/www/saved-posts-button.js?v=6"></script>
+  <!-- Layout v2 enhancements: reading progress bar + heading anchor links.
+       Gated on body.layout-v2 so non-v2 pages skip the work entirely. -->
+  <script>
+  (function(){
+    if (!document.body.classList.contains('layout-v2')) return;
+
+    // Reading progress bar
+    var bar = document.createElement('div');
+    bar.className = 'lv2-progress';
+    document.body.appendChild(bar);
+    var article = document.getElementById('content') || document.body;
+    function updateProgress(){
+      var rect = article.getBoundingClientRect();
+      var totalScrollable = article.offsetHeight - window.innerHeight;
+      if (totalScrollable <= 0){ bar.style.transform = 'scaleX(1)'; return; }
+      var scrolled = Math.max(0, -rect.top);
+      var pct = Math.max(0, Math.min(1, scrolled / totalScrollable));
+      bar.style.transform = 'scaleX(' + pct + ')';
+    }
+    var rafId = 0;
+    function rafProgress(){
+      if (rafId) return;
+      rafId = requestAnimationFrame(function(){ rafId = 0; updateProgress(); });
+    }
+    window.addEventListener('scroll', rafProgress, { passive: true });
+    window.addEventListener('resize', rafProgress);
+    updateProgress();
+
+    // Heading anchor links - hover-reveal '#', click copies the URL
+    var headings = document.querySelectorAll('#content h2[id], #content h3[id]');
+    headings.forEach(function(h){
+      var a = document.createElement('a');
+      a.className = 'lv2-anchor';
+      a.href = '#' + h.id;
+      a.textContent = '#';
+      a.setAttribute('aria-label', 'Copy link to section');
+      a.addEventListener('click', function(e){
+        e.preventDefault();
+        var url = window.location.origin + window.location.pathname + '#' + h.id;
+        if (history.replaceState) history.replaceState(null, '', '#' + h.id);
+        if (navigator.clipboard){
+          navigator.clipboard.writeText(url).then(function(){
+            a.textContent = '✓';
+            setTimeout(function(){ a.textContent = '#'; }, 1500);
+          }).catch(function(){ /* clipboard blocked - URL is in address bar anyway */ });
+        }
+      });
+      h.insertBefore(a, h.firstChild);
+    });
+  })();
+  </script>
   </body>
 </html>
