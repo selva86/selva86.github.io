@@ -49,6 +49,20 @@ export interface RequestData {
 const TOUCH_THROTTLE_SEC = 60; // skip session upsert if we touched it < 60s ago
 
 export const onRequest: PagesFunction<Env, string, RequestData> = async (context) => {
+  // --- Phase 8: block source/config files from being served ---
+  // This legacy pages_build_output_dir project ignores .assetsignore, and
+  // _redirects cannot 404 files that exist as static assets. Middleware runs
+  // ahead of the asset server, so a 404 here is the reliable block.
+  // CAREFUL: /posts/ is the user-facing Compendium, so only *.md under it is
+  // blocked here, never the directory or its generated HTML.
+  const path = new URL(context.request.url).pathname;
+  const BLOCK_DIRS = /^\/(?:_posts|_build|Scripts|Plan|Plans|_archive|_mocks|post_plans)(?:\/|$)/i;
+  const BLOCK_FILES = /^\/(?:wrangler\.toml|schema\.sql|package\.json|package-lock\.json|tsconfig\.json|BUILD-PHASE-0\.md|post_queue\.json|curriculum-status\.json|pseo-status\.json|\.dev\.vars(?:\.example)?|\.gitignore|\.claudecodeignore)$/i;
+  const BLOCK_POSTS_MD = /^\/posts\/.+\.md$/i;
+  if (BLOCK_DIRS.test(path) || BLOCK_FILES.test(path) || BLOCK_POSTS_MD.test(path)) {
+    return new Response("Not Found", { status: 404 });
+  }
+
   context.data.user = null;
   context.data.payload = null;
   context.data.session_id = null;
