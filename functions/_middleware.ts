@@ -49,6 +49,41 @@ export interface RequestData {
 const TOUCH_THROTTLE_SEC = 60; // skip session upsert if we touched it < 60s ago
 
 export const onRequest: PagesFunction<Env, string, RequestData> = async (context) => {
+  // --- Phase 8: block source/config files from being served ---
+  // This legacy pages_build_output_dir project ignores .assetsignore, and
+  // _redirects cannot 404 files that exist as static assets. Middleware runs
+  // ahead of the asset server, so a 404 here is the reliable block.
+  // CAREFUL: /posts/ is the user-facing Compendium, so only *.md under it is
+  // blocked here, never the directory or its generated HTML.
+  const path = new URL(context.request.url).pathname;
+  const BLOCK_DIRS = /^\/(?:_posts|_build|Scripts|Plan|Plans|_archive|_mocks|post_plans)(?:\/|$)/i;
+  const BLOCK_FILES = /^\/(?:wrangler\.toml|schema\.sql|package\.json|package-lock\.json|tsconfig\.json|BUILD-PHASE-0\.md|post_queue\.json|curriculum-status\.json|pseo-status\.json|\.dev\.vars(?:\.example)?|\.gitignore|\.claudecodeignore|CNAME)$/i;
+  const BLOCK_POSTS_MD = /^\/posts\/.+\.md$/i;
+  if (BLOCK_DIRS.test(path) || BLOCK_FILES.test(path) || BLOCK_POSTS_MD.test(path)) {
+    return new Response("Not Found", { status: 404 });
+  }
+
+  // --- Phase 8: preserve .html URLs (serve 200, no 308 redirect to clean) ---
+  // CF Pages default 308-redirects /X.html -> /X. All ~1,300 pages are indexed
+  // and canonical-tagged as .html, so we keep .html serving 200 by rewriting
+  // the request to the clean path (which the asset server serves 200) and
+  // returning that response at the original .html URL. No loop: context.next()
+  // goes to the asset server, not back through this middleware.
+  if (path.endsWith(".html")) {
+    const url = new URL(context.request.url);
+    url.pathname = path.endsWith("/index.html")
+      ? path.slice(0, -"index.html".length) // /foo/index.html -> /foo/ ; /index.html -> /
+      : path.slice(0, -".html".length);      // /foo.html -> /foo
+    const res = await context.next(new Request(url.toString(), context.request));
+    // Restore edge/browser caching for HTML. Worker responses default to
+    // no-store; pages are static shells (auth/personalization is client-side
+    // via /api/me, which stays no-store), so a short TTL + stale-while-
+    // revalidate is safe and balances freshness against frequent republishes.
+    const out = new Response(res.body, res);
+    out.headers.set("Cache-Control", "public, max-age=300, stale-while-revalidate=86400");
+    return out;
+  }
+
   context.data.user = null;
   context.data.payload = null;
   context.data.session_id = null;
