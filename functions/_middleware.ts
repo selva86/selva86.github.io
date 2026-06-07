@@ -63,6 +63,20 @@ export const onRequest: PagesFunction<Env, string, RequestData> = async (context
     return new Response("Not Found", { status: 404 });
   }
 
+  // --- Phase 8: preserve .html URLs (serve 200, no 308 redirect to clean) ---
+  // CF Pages default 308-redirects /X.html -> /X. All ~1,300 pages are indexed
+  // and canonical-tagged as .html, so we keep .html serving 200 by rewriting
+  // the request to the clean path (which the asset server serves 200) and
+  // returning that response at the original .html URL. No loop: context.next()
+  // goes to the asset server, not back through this middleware.
+  if (path.endsWith(".html")) {
+    const url = new URL(context.request.url);
+    url.pathname = path.endsWith("/index.html")
+      ? path.slice(0, -"index.html".length) // /foo/index.html -> /foo/ ; /index.html -> /
+      : path.slice(0, -".html".length);      // /foo.html -> /foo
+    return context.next(new Request(url.toString(), context.request));
+  }
+
   context.data.user = null;
   context.data.payload = null;
   context.data.session_id = null;
