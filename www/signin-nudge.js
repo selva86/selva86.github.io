@@ -3,7 +3,7 @@
 // so they can save posts and resume progress.
 //
 // Behaviour (locked with Selva 2026-06-11):
-//   - Shows ONLY for anonymous visitors (body.state-anon, no Supabase token).
+//   - Shows ONLY for anonymous visitors (body.state-anon, set by auth-hydrate).
 //   - Triggers for ENGAGED readers: after ~40% scroll OR ~20s, whichever first.
 //   - Two states, toggled in place:
 //       SIGNUP   "Save your progress across devices" — email magic link +
@@ -52,20 +52,16 @@
     if (until && Date.now() < until) return;
   } catch (_) {}
 
-  function looksSignedIn() {
-    if (document.body.classList.contains('state-pro')) return true;
-    try {
-      for (var i = 0; i < localStorage.length; i++) {
-        var k = localStorage.key(i);
-        if (k && k.indexOf('sb-') === 0 && k.indexOf('-auth-token') === k.length - 11) {
-          var v = localStorage.getItem(k);
-          if (v && v.length > 0) return true;
-        }
-      }
-    } catch (_) {}
-    return false;
+  // Whether the visitor is signed in. We trust auth-hydrate.js's body class as
+  // the source of truth: it optimistically sets state-pro at first paint when a
+  // Supabase token exists, then /api/me CORRECTS it to state-anon if that token
+  // is invalid/expired. Since the nudge only fires after the engagement trigger
+  // (10s / 20% scroll) — well after /api/me resolves — state-pro/state-anon is
+  // authoritative by then. (Earlier versions bailed on raw token presence, which
+  // wrongly suppressed the nudge for logged-out users holding a stale token.)
+  function isSignedIn() {
+    return document.body.classList.contains('state-pro');
   }
-  if (looksSignedIn()) return;
 
   // ---- Styles (light default + html.dark overrides) ------------------------
 
@@ -262,7 +258,7 @@
 
   function show() {
     if (shown) return;
-    if (looksSignedIn()) return; // /api/me may have flipped state since load
+    if (isSignedIn()) return; // authoritative by now (post /api/me hydration)
     shown = true;
     teardownTriggers();
 
