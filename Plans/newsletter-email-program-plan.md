@@ -5,7 +5,7 @@
 > | Phase | What | Status |
 > |---|---|---|
 > | Quick-win 0 | Admin "new signup" email to selva86@gmail.com | ✅ **DONE & LIVE** (merge `7defdb15b`; `flag:signup-admin-email`=on; confirmed working). Code: `functions/_lib/notify.ts`. |
-> | Phase A | Foundation: consent sync, Zoho list + sender domain, subscribe + double-opt-in, preference center, DMARC/SPF | 🔧 **IN PROGRESS** — consent sync started on branch `newsletter-consent-sync` (makes the audience real). **Blocked on owner provisioning:** Zoho Campaigns API token + new list key + sender-domain DNS. |
+> | Phase A | Foundation: consent sync, Zoho list + sender domain, subscribe + double-opt-in, preference center, DMARC/SPF | ⏸️ **PAUSED — NEXT UP.** Nothing built yet for Phase A. **Resume here** (see "▶ RESUME HERE" below). Sending is also **blocked on owner provisioning:** Zoho Campaigns API token + new list key + sender-domain DNS. |
 > | Phase B | Flagship broadcast + welcome sequence (Zoho Campaigns) | ⏳ pending Phase A |
 > | Phase C | Mini-course drip (Zoho autoresponder) | ⏳ pending |
 > | Phase D | Lifecycle engine (D1-triggered, ZeptoMail, cron Worker + dedupe table) | ⏳ pending |
@@ -16,6 +16,18 @@
 > **Owner provisioning needed to unblock sending:** (1) Zoho Campaigns self-client API token [scopes `ZohoCampaigns.contact.ALL`+`campaign.ALL`] → `ZOHO_AUTH_TOKEN`; (2) NEW dedicated list "r-statistics.co platform" → its List Key → `ZOHO_LIST_KEY`; (3) add `r-statistics.co` as a Zoho sender domain (DKIM CNAME + SPF merge `include:zoho.com`). Set token+key as CF Pages secrets.
 >
 > Mirror of the working plan at `~/.claude/plans/rustling-singing-hummingbird.md`; cross-session memory: `project_newsletter_program`.
+>
+> ### ▶ RESUME HERE (next session)
+> **Next concrete step = build the consent sync** (Phase A item A below). It's pure code, no Zoho dependency, and it makes the opt-ins we already ship actually set `users.newsletter_opt_in=1` in D1 (today they're stranded — the Supabase webhook ignores the `marketing_opt_in` metadata, and OAuth opt-ins sit only in `localStorage`). Steps:
+> 1. New branch off master (e.g. `newsletter-consent-sync`).
+> 2. `functions/_lib/db.ts`: add `recordNewsletterOptIn(db, userId, email, source)` — sets `users.newsletter_opt_in=1` + `newsletter_subscribed_at` (COALESCE; never downgrade), upserts `newsletter_subs` (`confirmed_at=now` for account signups, `source`). Never flip to 0 here (only an explicit unsubscribe does that).
+> 3. `functions/api/webhooks/supabase.ts`: on first-processing INSERT/UPDATE, if `record.raw_user_meta_data.marketing_opt_in` truthy → call it (email/magic-link path).
+> 4. `functions/api/me.ts`: in the lazy-create block, if `payload.user_metadata.marketing_opt_in` truthy → call it.
+> 5. New `functions/api/newsletter/claim-optin.ts` (POST, authed via middleware `context.data.user`) → calls it for the current user (OAuth path).
+> 6. `www/auth-hydrate.js`: after state-pro, if `localStorage['rs-marketing-optin']` has `opted_in:true` → POST `/api/newsletter/claim-optin`, then remove the key. (High-blast-radius file — keep minimal, guard tightly.)
+> 7. Verify: typecheck (`tsc --noEmit` adds 0 errors vs baseline 27 pre-existing); since preview lacks Supabase secrets + webhooks point to prod, verify on prod by signing up (email + Google) with the box ticked, then `SELECT newsletter_opt_in FROM users` + `newsletter_subs` via `wrangler d1 execute r-stats-prod --remote`. Branch → merge.
+>
+> After consent sync: provisioning lands (Zoho token/list/sender-domain) → build `functions/_lib/zoho.ts` (Phase A item C) → then Phases B–E. Open decisions still pending (see end).
 
 ---
 
@@ -84,7 +96,7 @@ Give relentlessly via the free newsletter → identify most-engaged segment → 
 
 **Reuse:** `functions/_lib/email.ts` (`sendMail` + `emailShell`); `functions/_lib/db.ts` (`listReadingProgress`, `getStats`, `getSolvedByHub`, `listCertificates`); `functions/_lib/tracks.ts` (`computeTrackProgress`); KV flags; schema `newsletter_subs` + `users.newsletter_opt_in`/`newsletter_subscribed_at` (present, unused).
 
-**A. Consent sync** (IN PROGRESS — branch `newsletter-consent-sync`): extend `webhooks/supabase.ts` + a `db.ts` helper to read `raw_user_meta_data.marketing_opt_in` → set `users.newsletter_opt_in` + `newsletter_subscribed_at` + upsert `newsletter_subs`; `/api/me` lazy-create also syncs; OAuth path (localStorage `rs-marketing-optin`) via a post-auth `/api/newsletter/claim-optin` call.
+**A. Consent sync** (⏸️ NOT STARTED — this is the resume point; see "▶ RESUME HERE" at top): extend `webhooks/supabase.ts` + a `db.ts` helper to read `raw_user_meta_data.marketing_opt_in` → set `users.newsletter_opt_in` + `newsletter_subscribed_at` + upsert `newsletter_subs`; `/api/me` lazy-create also syncs; OAuth path (localStorage `rs-marketing-optin`) via a post-auth `/api/newsletter/claim-optin` call.
 
 **B. Subscribe + double opt-in** (public): `api/newsletter/subscribe.ts` (insert `confirmed_at=NULL`, send confirm email) + `api/newsletter/confirm.ts` (set `confirmed_at`, sync to Zoho). Public form behind `flag:newsletter`.
 
