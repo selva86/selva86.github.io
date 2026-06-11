@@ -23,6 +23,7 @@
 import type { Env } from "../../_middleware";
 import { json, jsonError, err401 } from "../../_lib/errors";
 import { upsertUserFromSupabase } from "../../_lib/db";
+import { notifyNewSignup } from "../../_lib/notify";
 
 interface SupabaseAuthRecord {
   id: string;
@@ -192,6 +193,22 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       .bind(target.id, `supabase.user.${payload.type.toLowerCase()}`, target.id, now)
       .run()
       .catch((e) => console.warn(`[webhook.supabase] audit_log insert failed: ${e}`));
+
+    // 7. Admin "new signup" notification — on a CONFIRMED signup only.
+    //    INSERT with email already confirmed = OAuth (Google/GitHub).
+    //    UPDATE that flips email_confirmed_at null -> set = magic-link confirm.
+    //    Raw INSERTs without confirmation (unclicked magic links / typos) are
+    //    intentionally skipped. notifyNewSignup() is flag-gated + KV-deduped.
+    const rec = payload.record;
+    const justConfirmed =
+      (payload.type === "INSERT" && !!rec?.email_confirmed_at) ||
+      (payload.type === "UPDATE" && !!rec?.email_confirmed_at && !payload.old_record?.email_confirmed_at);
+    if (justConfirmed && rec?.email) {
+      const provider = (rec.raw_app_meta_data?.provider as string) || undefined;
+      context.waitUntil(
+        notifyNewSignup(context.env, { id: rec.id, email: rec.email, provider }),
+      );
+    }
   }
 
   return json({ ok: true, type: payload.type, user_id: target.id, replay: isReplay });

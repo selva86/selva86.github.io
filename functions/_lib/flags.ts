@@ -32,4 +32,5 @@ export const FLAGS = {
   NEWSLETTER: "newsletter",
   COMMENTS: "comments",
   LEADERBOARD: "leaderboard",
+  SIGNUP_ADMIN_EMAIL: "signup-admin-email",
 } as const;
