@@ -14,6 +14,7 @@
 import type { Env, RequestData } from "../_middleware";
 import { json } from "../_lib/errors";
 import { getUserById, isProActive, upsertUserFromSupabase, type User } from "../_lib/db";
+import { notifyNewSignup } from "../_lib/notify";
 
 export const onRequestGet: PagesFunction<Env, string, RequestData> = async (context) => {
   let u = context.data.user;
@@ -34,6 +35,19 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
         country: context.request.headers.get("CF-IPCountry") || undefined,
       });
       u = await getUserById(context.env.DB, payload.sub);
+      // Fallback admin signup notification for webhook-missed signups. A valid
+      // JWT means the user is authenticated/confirmed. KV-deduped against the
+      // webhook path so we never double-notify.
+      if (u) {
+        const meta2 = (payload.app_metadata ?? {}) as Record<string, unknown>;
+        context.waitUntil(
+          notifyNewSignup(context.env, {
+            id: u.id,
+            email: u.email,
+            provider: meta2.provider as string | undefined,
+          }),
+        );
+      }
     } catch (e) {
       console.error(`[api/me] lazy-create failed for ${payload.sub}: ${(e as Error).message}`);
       // Fall through and return null rather than 500 — page can still load anon.
