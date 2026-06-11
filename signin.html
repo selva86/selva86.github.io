@@ -96,6 +96,12 @@
     }
     @keyframes spin{to{transform:rotate(360deg)}}
     .booting{text-align:center;color:var(--faint);padding:20px 0;font-size:13.5px}
+    /* Newsletter opt-in — sits between the email field and the submit button.
+       Unticked by default (GDPR), separate from the Terms line in the footer. */
+    .newsletter-optin{display:flex;align-items:flex-start;gap:8px;margin-top:12px;
+      font-size:13px;color:var(--mute);cursor:pointer;font-weight:400}
+    .newsletter-optin input{flex:0 0 auto;width:16px;height:16px;margin-top:1px;
+      accent-color:var(--acc);cursor:pointer}
   </style>
 </head>
 <body>
@@ -133,6 +139,10 @@
       <label for="email">Email address</label>
       <input type="email" id="email" name="email" autocomplete="email" required
              placeholder="you@example.com">
+      <label class="newsletter-optin">
+        <input type="checkbox" id="newsletter-optin">
+        <span>Send me R tips &amp; updates</span>
+      </label>
       <button class="btn-primary" id="btn-magic" type="submit">
         <span>Send magic link</span>
       </button>
@@ -238,12 +248,30 @@ function showMsg(kind, text) {
     showMsg('info', 'Signed out of every device. Sign in to start a fresh session.');
   }
 
+  // Newsletter opt-in (unticked by default). Captured here as an audit signal;
+  // the actual Zoho Campaigns sync is Phase 6. Mirrors www/signin-nudge.js so
+  // the key/shape is identical regardless of where the user opted in. Applies to
+  // every method: email passes it as user metadata; OAuth stores it locally for
+  // Phase 6 to apply post-auth (signInWithOAuth can't carry user metadata).
+  function wantsNewsletter() {
+    const c = document.getElementById('newsletter-optin');
+    return !!(c && c.checked);
+  }
+  function recordOptinSignal() {
+    try {
+      localStorage.setItem('rs-marketing-optin', JSON.stringify({
+        opted_in: true, source: 'signin-page', at: new Date().toISOString(),
+      }));
+    } catch (_) {}
+  }
+
   // OAuth buttons.
   document.querySelectorAll('[data-provider]').forEach(btn => {
     btn.addEventListener('click', async () => {
       const provider = btn.dataset.provider;
       const labelSpan = btn.querySelector('span');
       const origLabel = labelSpan.textContent;
+      if (wantsNewsletter()) recordOptinSignal();
       btn.disabled = true;
       labelSpan.innerHTML = '<span class="spinner"></span>Redirecting...';
       const { error } = await supa.auth.signInWithOAuth({
@@ -267,9 +295,18 @@ function showMsg(kind, text) {
     if (!email) return;
     btn.disabled = true;
     labelSpan.innerHTML = '<span class="spinner"></span>Sending...';
+    const otpOptions = { emailRedirectTo: OAUTH_CALLBACK_URL };
+    if (wantsNewsletter()) {
+      recordOptinSignal();
+      otpOptions.data = {
+        marketing_opt_in: true,
+        marketing_opt_in_source: 'signin-page',
+        marketing_opt_in_at: new Date().toISOString(),
+      };
+    }
     const { error } = await supa.auth.signInWithOtp({
       email,
-      options: { emailRedirectTo: OAUTH_CALLBACK_URL },
+      options: otpOptions,
     });
     btn.disabled = false;
     labelSpan.textContent = 'Send magic link';
