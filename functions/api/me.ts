@@ -13,7 +13,7 @@
 
 import type { Env, RequestData } from "../_middleware";
 import { json } from "../_lib/errors";
-import { getUserById, isProActive, upsertUserFromSupabase, type User } from "../_lib/db";
+import { getUserById, isProActive, recordNewsletterOptIn, upsertUserFromSupabase, type User } from "../_lib/db";
 import { notifyNewSignup } from "../_lib/notify";
 
 export const onRequestGet: PagesFunction<Env, string, RequestData> = async (context) => {
@@ -55,6 +55,29 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
   }
 
   if (!u) return json({ user: null, pro: false });
+
+  // Newsletter consent sync, self-healing (Phase 6/A): if signup metadata
+  // carries the opt-in but the D1 flag never got set (missed webhook, failed
+  // waitUntil write), fix it here — u is already loaded so the check is free.
+  // recordNewsletterOptIn respects prior explicit unsubscribes, so a stale
+  // metadata flag can never resurrect a dead subscription.
+  const metaOptIn = (payload?.user_metadata as Record<string, unknown> | undefined)
+    ?.marketing_opt_in;
+  if (!u.newsletter_opt_in && metaOptIn) {
+    const source =
+      ((payload?.user_metadata as Record<string, unknown>)
+        ?.marketing_opt_in_source as string) || "signup";
+    const user = u;
+    context.waitUntil(
+      recordNewsletterOptIn(context.env.DB, {
+        userId: user.id,
+        email: user.email,
+        source,
+      }).catch((e) =>
+        console.warn(`[api/me] newsletter opt-in sync failed: ${e}`),
+      ),
+    );
+  }
 
   return renderMe(u);
 };

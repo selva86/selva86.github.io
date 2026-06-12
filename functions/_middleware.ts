@@ -44,6 +44,10 @@ export interface RequestData {
   user: User | null;
   payload: JWTPayload | null;
   session_id: string | null;
+  // PagesFunction's Data generic is constrained to Record<string, unknown>;
+  // without this index signature every endpoint using RequestData raises
+  // TS2344. Type-only; no runtime effect.
+  [key: string]: unknown;
 }
 
 const TOUCH_THROTTLE_SEC = 60; // skip session upsert if we touched it < 60s ago

@@ -341,6 +341,24 @@
     });
   });
 
+  // Newsletter opt-in replay (Phase 6/A). The sign-in nudge stores the
+  // opt-in in localStorage before auth completes; Supabase metadata cannot
+  // carry it on the OAuth and existing-user magic-link paths. Key is removed
+  // only on a 2xx so a transient failure retries on the next page view.
+  function claimNewsletterOptIn(me, token) {
+    if (!me || !me.user || !token) return;
+    let rec = null;
+    try { rec = JSON.parse(localStorage.getItem('rs-marketing-optin') || 'null'); } catch (_) {}
+    if (!rec || rec.opted_in !== true) return;
+    fetch('/api/newsletter/claim-optin', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ source: rec.source || 'signin-nudge' }),
+    }).then(function (resp) {
+      if (resp.ok) { try { localStorage.removeItem('rs-marketing-optin'); } catch (_) {} }
+    }).catch(function () { /* retry next page view */ });
+  }
+
   async function hydrate() {
     injectCssOnce();
     rewriteSigninLinks();
@@ -351,6 +369,7 @@
     // dropdown shows the user without the XP/streak rows.
     const [me, stats] = await Promise.all([fetchMe(token), hydrateStats(token)]);
     setAuthState(me);
+    claimNewsletterOptIn(me, token);
     // Re-run after setAuthState because anon-state may have injected the
     // sign-in dropdown link (and saved-posts-button.js may have just
     // inserted the actionbar's "Sign in" anchor). Also re-paint stats in
