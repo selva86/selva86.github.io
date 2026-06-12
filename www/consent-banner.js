@@ -10,6 +10,11 @@
   function persist(v) { try { localStorage.setItem(KEY, v); } catch (e) {} }
   function get() { try { return localStorage.getItem(KEY); } catch (e) { return null; } }
 
+  // Test hook: ?rs-cc=eu forces the banner regardless of region or stored
+  // choice, WITHOUT persisting Accept/Reject (so a test click can never
+  // silently disable the tester's own analytics). Geo detection is skipped.
+  if (/[?&]rs-cc=eu(&|$)/.test(location.search)) { showBanner(true); return; }
+
   var choice = get();
   if (choice === 'granted') { update('granted'); return; }
   if (choice === 'denied') { return; } // stay denied -> modeled measurement
@@ -23,7 +28,7 @@
     else { showBanner(); }                                  // EU/UK: ask (stays denied until Accept)
   }).catch(function () { showBanner(); });                  // unknown region -> safe: show banner
 
-  function showBanner() {
+  function showBanner(testMode) {
     if (document.getElementById('rs-cc')) return;
     var st = document.createElement('style');
     st.textContent = '#rs-cc{position:fixed;left:16px;right:16px;bottom:16px;z-index:99999;max-width:560px;margin:0 auto;background:#fff;color:#1a1a1a;border:1px solid #d9dee6;border-radius:12px;box-shadow:0 12px 44px -12px rgba(0,0,0,.32);padding:16px 18px;font-family:"IBM Plex Sans",system-ui,sans-serif;font-size:14px;line-height:1.5}#rs-cc p{margin:0 0 12px}#rs-cc a{color:#2056d2}#rs-cc .row{display:flex;gap:10px}#rs-cc button{font:inherit;font-weight:600;border-radius:8px;padding:9px 16px;cursor:pointer;border:1px solid transparent}#rs-cc .acc{background:#2056d2;color:#fff;flex:1}#rs-cc .rej{background:#fff;border-color:#d9dee6;color:#555}html.dark #rs-cc{background:#161a20;color:#e6e9ef;border-color:#2a2f37}html.dark #rs-cc .rej{background:#161a20;color:#c3cad9;border-color:#2a2f37}';
@@ -32,7 +37,7 @@
     d.id = 'rs-cc'; d.setAttribute('role', 'dialog'); d.setAttribute('aria-label', 'Cookie consent');
     d.innerHTML = '<p>We use privacy-friendly analytics to see what helps people learn R. Essential sign-in cookies are always on. See our <a href="/privacy.html">Privacy Policy</a>.</p><div class="row"><button class="acc" type="button">Accept analytics</button><button class="rej" type="button">Reject</button></div>';
     document.body.appendChild(d);
-    d.querySelector('.acc').addEventListener('click', function () { persist('granted'); update('granted'); d.remove(); });
-    d.querySelector('.rej').addEventListener('click', function () { persist('denied'); d.remove(); });
+    d.querySelector('.acc').addEventListener('click', function () { if (!testMode) { persist('granted'); update('granted'); } d.remove(); });
+    d.querySelector('.rej').addEventListener('click', function () { if (!testMode) persist('denied'); d.remove(); });
   }
 })();

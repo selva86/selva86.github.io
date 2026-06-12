@@ -136,6 +136,7 @@
   // ---- Build + show --------------------------------------------------------
 
   var shown = false;
+  var waitingForConsent = false;
   var el = null;
 
   function dismiss() {
@@ -259,6 +260,20 @@
   function show() {
     if (shown) return;
     if (isSignedIn()) return; // authoritative by now (post /api/me hydration)
+    // Cookie consent banner (#rs-cc, EU/UK first visit) owns the bottom of the
+    // viewport; both fixed-bottom elements overlap on mobile. Defer the nudge
+    // until the visitor resolves the banner; give up after 60s.
+    if (document.getElementById('rs-cc')) {
+      if (waitingForConsent) return; // one poller; scroll can re-trigger show()
+      waitingForConsent = true;
+      var waited = 0;
+      var wait = setInterval(function () {
+        waited += 1000;
+        if (!document.getElementById('rs-cc')) { clearInterval(wait); waitingForConsent = false; show(); }
+        else if (waited >= 60000) { clearInterval(wait); waitingForConsent = false; }
+      }, 1000);
+      return;
+    }
     shown = true;
     teardownTriggers();
 
