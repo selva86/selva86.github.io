@@ -2,32 +2,31 @@
 
 > **STATUS (updated 2026-06-12)** — approved plan, in progress.
 >
+> ⚠️ **ESP SWAP (2026-06-12): Zoho Campaigns is OUT, Sender (sender.net) is IN** for marketing/broadcasts. Reason: Zoho Campaigns carries real cost; Sender's free tier (2,500 subs, 15,000 emails/mo, unlimited automation workflows, API) covers Phases B+C at $0 for the entire 0-2,500 bracket. Runners-up evaluated: EmailOctopus (10k emails/mo cap busts weekly sends at full list), Kit (10k subs free but 1 automation), listmonk+SES (needs a VPS). ZeptoMail unchanged (transactional/lifecycle only). All "Zoho Campaigns" references below should be read as "Sender" until the doc is fully rewritten.
+>
 > | Phase | What | Status |
 > |---|---|---|
 > | Quick-win 0 | Admin "new signup" email to selva86@gmail.com | ✅ **DONE & LIVE** (merge `7defdb15b`; `flag:signup-admin-email`=on; confirmed working). Code: `functions/_lib/notify.ts`. |
-> | Phase A | Foundation: consent sync, Zoho list + sender domain, subscribe + double-opt-in, preference center, DMARC/SPF | ⏸️ **PAUSED — NEXT UP.** Nothing built yet for Phase A. **Resume here** (see "▶ RESUME HERE" below). Sending is also **blocked on owner provisioning:** Zoho Campaigns API token + new list key + sender-domain DNS. |
-> | Phase B | Flagship broadcast + welcome sequence (Zoho Campaigns) | ⏳ pending Phase A |
-> | Phase C | Mini-course drip (Zoho autoresponder) | ⏳ pending |
+> | Phase A item A | **Consent sync** (opt-ins -> D1) | ✅ **DONE 2026-06-12** (branch `newsletter-consent-sync`): `recordNewsletterOptIn()` in `_lib/db.ts`; webhook syncs on confirmed signup; `/api/me` self-heals every hydration; `POST /api/newsletter/claim-optin` + auth-hydrate v10 replay the localStorage opt-in (OAuth + existing-user magic-link). Unsubscribe guard: prior `unsubscribed_at` blocks all passive re-opt-in. |
+> | Phase A rest | Sender list + sender domain, public subscribe + double-opt-in, preference center, DMARC/SPF | ⏳ **NEXT.** Sending blocked on owner provisioning (below). |
+> | Phase B | Flagship broadcast + welcome sequence (Sender) | ⏳ pending Phase A |
+> | Phase C | Mini-course drip (Sender automation) | ⏳ pending |
 > | Phase D | Lifecycle engine (D1-triggered, ZeptoMail, cron Worker + dedupe table) | ⏳ pending |
 > | Phase E | Every-other-day opt-in micro-track | ⏳ pending |
 >
 > **Open decisions** (see end of doc): cadence architecture; newsletter name/voice; account-only vs public subscribe form; lifecycle cron approach (companion Worker vs GitHub-Actions).
 >
-> **Owner provisioning needed to unblock sending:** (1) Zoho Campaigns self-client API token [scopes `ZohoCampaigns.contact.ALL`+`campaign.ALL`] → `ZOHO_AUTH_TOKEN`; (2) NEW dedicated list "r-statistics.co platform" → its List Key → `ZOHO_LIST_KEY`; (3) add `r-statistics.co` as a Zoho sender domain (DKIM CNAME + SPF merge `include:zoho.com`). Set token+key as CF Pages secrets.
+> **Owner provisioning needed to unblock sending (Sender, replaces the old Zoho list):** (1) create the Sender account (passes their manual new-account review before first send) + API token → CF Pages secret `SENDER_API_TOKEN`; (2) dedicated group/list "r-statistics.co platform" → group ID as a secret; (3) verify `r-statistics.co` as a Sender sending domain (its DKIM record coexists with ZeptoMail's `2492047._domainkey`; SPF merge into the ONE apex record per Sender's setup screen). The 62k legacy Zoho list stays untouched and unused. Set token+key as CF Pages secrets.
 >
 > Mirror of the working plan at `~/.claude/plans/rustling-singing-hummingbird.md`; cross-session memory: `project_newsletter_program`.
 >
 > ### ▶ RESUME HERE (next session)
-> **Next concrete step = build the consent sync** (Phase A item A below). It's pure code, no Zoho dependency, and it makes the opt-ins we already ship actually set `users.newsletter_opt_in=1` in D1 (today they're stranded — the Supabase webhook ignores the `marketing_opt_in` metadata, and OAuth opt-ins sit only in `localStorage`). Steps:
-> 1. New branch off master (e.g. `newsletter-consent-sync`).
-> 2. `functions/_lib/db.ts`: add `recordNewsletterOptIn(db, userId, email, source)` — sets `users.newsletter_opt_in=1` + `newsletter_subscribed_at` (COALESCE; never downgrade), upserts `newsletter_subs` (`confirmed_at=now` for account signups, `source`). Never flip to 0 here (only an explicit unsubscribe does that).
-> 3. `functions/api/webhooks/supabase.ts`: on first-processing INSERT/UPDATE, if `record.raw_user_meta_data.marketing_opt_in` truthy → call it (email/magic-link path).
-> 4. `functions/api/me.ts`: in the lazy-create block, if `payload.user_metadata.marketing_opt_in` truthy → call it.
-> 5. New `functions/api/newsletter/claim-optin.ts` (POST, authed via middleware `context.data.user`) → calls it for the current user (OAuth path).
-> 6. `www/auth-hydrate.js`: after state-pro, if `localStorage['rs-marketing-optin']` has `opted_in:true` → POST `/api/newsletter/claim-optin`, then remove the key. (High-blast-radius file — keep minimal, guard tightly.)
-> 7. Verify: typecheck (`tsc --noEmit` adds 0 errors vs baseline 27 pre-existing); since preview lacks Supabase secrets + webhooks point to prod, verify on prod by signing up (email + Google) with the box ticked, then `SELECT newsletter_opt_in FROM users` + `newsletter_subs` via `wrangler d1 execute r-stats-prod --remote`. Branch → merge.
->
-> After consent sync: provisioning lands (Zoho token/list/sender-domain) → build `functions/_lib/zoho.ts` (Phase A item C) → then Phases B–E. Open decisions still pending (see end).
+> Consent sync (Phase A item A) is ✅ DONE (see status table; built 2026-06-12 on branch `newsletter-consent-sync`, typecheck improved 27 -> 2 errors via a RequestData index-signature fix). **Next concrete steps:**
+> 1. **Owner provisioning** (Sender account + API token + group + sending domain DNS; see status block above).
+> 2. `functions/_lib/sender.ts`: D1-to-Sender contact sync (subscribe on `newsletter_opt_in=1`, Sender API v2 subscribers endpoint).
+> 3. Sender unsubscribe webhook -> `functions/api/webhooks/sender.ts`: MUST write back `users.newsletter_opt_in=0` + `newsletter_subs.unsubscribed_at` so ZeptoMail lifecycle also stops (unified suppression).
+> 4. Then Phase A rest (public subscribe + double opt-in behind `flag:newsletter`, preference center) and Phases B-E.
+> Open decisions still pending (see end).
 
 ---
 
