@@ -139,7 +139,16 @@
   var waitingForConsent = false;
   var el = null;
 
+  // GA4 funnel events. gtag is the inline stub on every template page, so
+  // events queue even before the GA library loads; no-op where GA is absent.
+  function track(name, params) {
+    try {
+      if (typeof window.gtag === 'function') window.gtag('event', name, params || {});
+    } catch (_) {}
+  }
+
   function dismiss() {
+    track('nudge_dismissed');
     if (el) el.classList.remove('show');
     try { localStorage.setItem(DISMISS_KEY, String(Date.now() + DISMISS_DAYS * 864e5)); } catch (_) {}
     if (el) setTimeout(function () { if (el) el.remove(); el = null; }, 400);
@@ -162,7 +171,7 @@
       '</div>' +
       '<p class="rs-nudge-body">' +
         (signup
-          ? 'Never lose your code, challenges, or XP. Sign up free — no password needed.'
+          ? 'Never lose your code, challenges, or XP. Sign up free, no password needed.'
           : 'Enter your email to restore your progress.') +
       '</p>';
 
@@ -226,6 +235,7 @@
     if (!email) return;
     var optin = el.querySelector('[data-optin]');
     var wantsNewsletter = !!(optin && optin.checked);
+    track('nudge_email_submitted', { mode: mode, newsletter_opt_in: wantsNewsletter });
     if (wantsNewsletter) recordOptinSignal();
 
     var orig = btn.textContent;
@@ -245,14 +255,17 @@
       btn.disabled = false;
       btn.textContent = orig;
       if (res.error) {
+        track('nudge_error', { mode: mode, reason: String(res.error.message || 'otp_error').slice(0, 80) });
         msg('err', res.error.message || 'Could not send link. Try again.');
       } else {
-        msg('ok', 'Check your inbox — link is good for 60 minutes. You can close this tab.');
+        track('nudge_magic_link_sent', { mode: mode, newsletter_opt_in: wantsNewsletter });
+        msg('ok', 'Check your inbox. The link is good for 60 minutes; you can close this tab.');
         input.value = '';
       }
     } catch (err) {
       btn.disabled = false;
       btn.textContent = orig;
+      track('nudge_error', { mode: mode, reason: String((err && err.message) || 'exception').slice(0, 80) });
       msg('err', (err && err.message) || 'Something went wrong. Try again.');
     }
   }
@@ -290,6 +303,7 @@
 
     void el.offsetWidth; // reflow so the slide-in transition runs
     el.classList.add('show');
+    track('nudge_shown');
   }
 
   // ---- Engagement triggers: 40% scroll OR 20s -----------------------------
