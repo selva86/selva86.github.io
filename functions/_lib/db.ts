@@ -59,6 +59,51 @@ export async function upsertUserFromSupabase(
     .run();
 }
 
+// ===== Newsletter consent sync (Phase 6 / Phase A) =====
+// Records a newsletter opt-in captured at signup (Supabase user_metadata on
+// the magic-link path, localStorage replay via /api/newsletter/claim-optin on
+// the OAuth path). Idempotent; never downgrades. Only an explicit unsubscribe
+// flow may set users.newsletter_opt_in back to 0 or touch unsubscribed_at.
+//
+// Guard: if this email previously unsubscribed (newsletter_subs.unsubscribed_at
+// set), all passive sync paths no-op — the signup metadata keeps saying
+// marketing_opt_in=true forever, and it must not resurrect a dead subscription.
+export async function recordNewsletterOptIn(
+  db: D1Database,
+  args: { userId: string; email: string; source: string },
+): Promise<{ recorded: boolean }> {
+  const now = Math.floor(Date.now() / 1000);
+  const sub = await db
+    .prepare("SELECT unsubscribed_at FROM newsletter_subs WHERE email = ?")
+    .bind(args.email)
+    .first<{ unsubscribed_at: number | null }>();
+  if (sub?.unsubscribed_at) return { recorded: false };
+
+  await db
+    .prepare(
+      `UPDATE users SET
+         newsletter_opt_in = 1,
+         newsletter_subscribed_at = COALESCE(newsletter_subscribed_at, ?)
+       WHERE id = ? AND deleted_at IS NULL`,
+    )
+    .bind(now, args.userId)
+    .run();
+  // Account signups are already email-verified + explicitly ticked, so
+  // confirmed_at is set on first opt-in (no double opt-in needed; see plan).
+  await db
+    .prepare(
+      `INSERT INTO newsletter_subs (email, user_id, confirmed_at, source)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(email) DO UPDATE SET
+         user_id      = COALESCE(newsletter_subs.user_id, excluded.user_id),
+         confirmed_at = COALESCE(newsletter_subs.confirmed_at, excluded.confirmed_at),
+         source       = COALESCE(newsletter_subs.source, excluded.source)`,
+    )
+    .bind(args.email, args.userId, now, args.source)
+    .run();
+  return { recorded: true };
+}
+
 export function isProActive(user: User | null, nowSec = Math.floor(Date.now() / 1000)): boolean {
   if (!user || !user.pro_until) return false;
   if (user.pro_until === -1) return true; // lifetime

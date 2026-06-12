@@ -22,7 +22,7 @@
 
 import type { Env } from "../../_middleware";
 import { json, jsonError, err401 } from "../../_lib/errors";
-import { upsertUserFromSupabase } from "../../_lib/db";
+import { upsertUserFromSupabase, recordNewsletterOptIn } from "../../_lib/db";
 import { notifyNewSignup } from "../../_lib/notify";
 
 interface SupabaseAuthRecord {
@@ -208,6 +208,24 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       context.waitUntil(
         notifyNewSignup(context.env, { id: rec.id, email: rec.email, provider }),
       );
+      // 8. Newsletter consent sync (Phase 6/A): the sign-in nudge records the
+      //    opt-in as marketing_opt_in in user_metadata on the magic-link path.
+      //    Confirmed-only, same gate as the admin email — an unclicked or
+      //    typo'd magic-link address must never enter newsletter_subs.
+      //    (OAuth opt-ins arrive via /api/newsletter/claim-optin instead.)
+      if (rec.raw_user_meta_data?.marketing_opt_in) {
+        const source =
+          (rec.raw_user_meta_data?.marketing_opt_in_source as string) || "signup";
+        context.waitUntil(
+          recordNewsletterOptIn(context.env.DB, {
+            userId: rec.id,
+            email: rec.email,
+            source,
+          }).catch((e) =>
+            console.warn(`[webhook.supabase] newsletter opt-in sync failed: ${e}`),
+          ),
+        );
+      }
     }
   }
 
