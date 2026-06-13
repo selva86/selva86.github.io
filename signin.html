@@ -159,6 +159,7 @@
   </p>
 </div>
 
+<script defer src="/www/google-onetap.js?v=1"></script>
 <script type="module">
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
@@ -285,6 +286,29 @@ function showMsg(kind, text) {
       }
     });
   });
+
+  // White-label Google (GIS + signInWithIdToken): renders Google's own button
+  // with no supabase.co line. Progressive enhancement — the OAuth button above
+  // stays as the fallback and is only hidden once GIS actually renders.
+  if (cfg.googleClientId && window.rsGoogleOneTap) {
+    const oauthGoogleBtn = document.querySelector('[data-provider="google"]');
+    if (oauthGoogleBtn) {
+      const holder = document.createElement('div');
+      holder.id = 'gsi-holder';
+      oauthGoogleBtn.parentNode.insertBefore(holder, oauthGoogleBtn);
+      window.rsGoogleOneTap.mount({
+        clientId: cfg.googleClientId,
+        container: holder,
+        getSupabase: () => Promise.resolve(supa),
+        onBeforeSignIn: () => { if (wantsNewsletter()) recordOptinSignal(); },
+        onSuccess: () => { window.location.replace(REDIRECT_AFTER_AUTH); },
+        onError: (m) => showMsg('error', m),
+      }).then(ok => {
+        if (ok) oauthGoogleBtn.style.display = 'none';
+        else holder.remove();
+      });
+    }
+  }
 
   // Magic link form.
   document.getElementById('magic-form').addEventListener('submit', async e => {
