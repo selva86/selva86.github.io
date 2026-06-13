@@ -113,6 +113,7 @@
     '.rs-nudge-oauth svg{width:17px;height:17px;flex:0 0 auto}' +
     '.rs-nudge-or{display:flex;align-items:center;gap:10px;margin:11px 0;color:#8a909c;font-size:11.5px}' +
     '.rs-nudge-or::before,.rs-nudge-or::after{content:"";flex:1;height:1px;background:#e4e8ef}' +
+    '.rs-nudge-gsi{display:flex;justify-content:center;min-height:40px}' +
     // dark theme
     'html.dark .rs-nudge{background:#161b22;color:#e6edf3;border-color:#262a31;box-shadow:0 12px 32px rgba(0,0,0,.55)}' +
     'html.dark .rs-nudge-ico{background:#1f2b46;color:#7aa2ff}' +
@@ -132,13 +133,23 @@
   var next = encodeURIComponent(location.pathname + location.search);
   var CALLBACK_URL = location.origin + '/signin.html?next=' + next;
 
+  var cfgPromise = null;
+  function getConfig() {
+    if (!cfgPromise) {
+      cfgPromise = (async function () {
+        var resp = await fetch('/api/_auth-config');
+        if (!resp.ok) throw new Error('config ' + resp.status);
+        return await resp.json();
+      })();
+    }
+    return cfgPromise;
+  }
+
   var supaPromise = null;
   function getSupa() {
     if (!supaPromise) {
       supaPromise = (async function () {
-        var resp = await fetch('/api/_auth-config');
-        if (!resp.ok) throw new Error('config ' + resp.status);
-        var cfg = await resp.json();
+        var cfg = await getConfig();
         var mod = await import('https://esm.sh/@supabase/supabase-js@' + SUPA_VERSION);
         return mod.createClient(cfg.url, cfg.anonKey, {
           auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: 'implicit' },
@@ -146,6 +157,40 @@
       })();
     }
     return supaPromise;
+  }
+
+  // White-label Google (GIS + signInWithIdToken): replaces the OAuth Google
+  // button with Google's own rendered button, whose consent screen has no
+  // supabase.co line. Progressive enhancement, called after each render — the
+  // OAuth button (data-google) stays as the fallback and is hidden only once
+  // GIS actually renders. Loads GIS lazily (post-engagement, like the nudge).
+  function enhanceGoogleButton(mode) {
+    if (!window.rsGoogleOneTap || !el) return;
+    var oauthBtn = el.querySelector('[data-google]');
+    if (!oauthBtn) return;
+    getConfig().then(function (cfg) {
+      if (!cfg || !cfg.googleClientId || !el || !el.contains(oauthBtn)) return;
+      var holder = document.createElement('div');
+      holder.className = 'rs-nudge-gsi';
+      oauthBtn.parentNode.insertBefore(holder, oauthBtn);
+      var width = Math.round(oauthBtn.getBoundingClientRect().width) || 300;
+      window.rsGoogleOneTap.mount({
+        clientId: cfg.googleClientId,
+        container: holder,
+        getSupabase: getSupa,
+        buttonWidth: width,
+        onBeforeSignIn: function () {
+          track('nudge_google_click', { mode: mode, method: 'gis' });
+          var o = el && el.querySelector('[data-optin]');
+          if (o && o.checked) recordOptinSignal();
+        },
+        onSuccess: function () { location.reload(); },
+        onError: function (m) { if (el) msg('err', m); },
+      }).then(function (ok) {
+        if (ok) oauthBtn.style.display = 'none';
+        else if (holder.parentNode) holder.parentNode.removeChild(holder);
+      });
+    }).catch(function () {});
   }
 
   // ---- Build + show --------------------------------------------------------
@@ -231,6 +276,7 @@
 
     el.innerHTML = inner;
     wire(mode);
+    enhanceGoogleButton(mode);
   }
 
   function wire(mode) {

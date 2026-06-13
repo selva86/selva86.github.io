@@ -12,6 +12,14 @@
 import type { Env } from "../_middleware";
 import { json, jsonError } from "../_lib/errors";
 
+// Public Google OAuth web client id (not a secret — it's embedded in every
+// OAuth/One-Tap flow). Exposing it enables the white-label Google sign-in
+// (GIS + signInWithIdToken) in www/google-onetap.js. The client must have the
+// page origin in its "Authorized JavaScript origins" (Google Cloud Console) or
+// GIS won't render and the client falls back to signInWithOAuth.
+const GOOGLE_CLIENT_ID =
+  "539295726438-9o4rqnfc9rsdhmeu22bg82adml82vvci.apps.googleusercontent.com";
+
 export const onRequestGet: PagesFunction<Env> = async (context) => {
   const url = context.env.SUPABASE_URL;
   const anonKey = context.env.SUPABASE_ANON_KEY;
@@ -19,11 +27,12 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     return jsonError(503, "config_missing", "Auth config not yet provisioned");
   }
   return json(
-    { url, anonKey, env: context.env.ENVIRONMENT },
+    { url, anonKey, env: context.env.ENVIRONMENT, googleClientId: GOOGLE_CLIENT_ID },
     {
       headers: {
         // Override the default no-store from json() since this IS cacheable.
-        "Cache-Control": "public, max-age=600, s-maxage=600",
+        // 60s (not 10m) so a revert of the white-label propagates quickly.
+        "Cache-Control": "public, max-age=60, s-maxage=60",
       },
     },
   );
