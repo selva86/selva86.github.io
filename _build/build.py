@@ -2101,6 +2101,11 @@ def render_compendium_page(sections, post_titles_map=None):
     parts.append('<a href="/">Home</a>·<a href="/about/">About</a>·<a href="/feed.xml">RSS</a>')
     parts.append('</div></div></footer>')
 
+    # Cloudflare Web Analytics (cookieless; no consent gating required).
+    parts.append(
+        '<script defer src="https://static.cloudflareinsights.com/beacon.min.js" '
+        'data-cf-beacon=\'{"token": "edf7e3d50c3e4130a913e7f144643624"}\'></script>'
+    )
     parts.append('</body></html>')
     return ''.join(parts)
 

@@ -187,6 +187,8 @@ def render():
     Looking for the matching R tutorials? Browse the full <a href="/posts/">compendium</a> of long-form articles on probability, regression, ANOVA, time series, and machine learning in R.
   </div>
 </div>
+<!-- Cloudflare Web Analytics (cookieless; no consent required) -->
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{{"token": "edf7e3d50c3e4130a913e7f144643624"}}'></script>
 </body>
 </html>
 '''
