@@ -2094,12 +2094,8 @@ def render_compendium_page(sections, post_titles_map=None):
             parts.append('<div class="band-item band-item-empty"></div>')
         parts.append('</div></section>')
 
-    # Footer
-    parts.append('<footer class="comp-footer"><div class="comp-footer-inner">')
-    parts.append(f'<p class="colophon">Hand-edited since 2014. © 2014–{datetime.date.today().year} Selva Prabhakaran</p>')
-    parts.append('<div class="links">')
-    parts.append('<a href="/">Home</a>·<a href="/about/">About</a>·<a href="/feed.xml">RSS</a>')
-    parts.append('</div></div></footer>')
+    # Shared site footer (rich, dark, full-width).
+    parts.append(open(os.path.join(REPO_ROOT, '_build', 'site_footer.html'), encoding='utf-8').read())
 
     # Cloudflare Web Analytics (cookieless; no consent gating required).
     parts.append(
@@ -2550,7 +2546,10 @@ def patch_tool_pages(sections, asset_hrefs):
             f'<script src="/{toc_js_href}"></script>'
             f'<script src="/www/r-syntax-highlight.js"></script>'
         )
-        html = body_close_re.sub(wrapper_close + '</body>', html, count=1)
+        # Add the shared site footer once (skip if already present, e.g. the
+        # tools landing page already gets it from gen_tools_landing).
+        _site_footer = '' if 'SITE-FOOTER-V2' in html else open(os.path.join(REPO_ROOT, '_build', 'site_footer.html'), encoding='utf-8').read()
+        html = body_close_re.sub(lambda _m: wrapper_close + _site_footer + '</body>', html, count=1)
 
         with open(path, 'w', encoding='utf-8') as f:
             f.write(html)

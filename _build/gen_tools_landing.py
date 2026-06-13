@@ -192,6 +192,8 @@ def render():
 </body>
 </html>
 '''
+    _footer = open(os.path.join(REPO_ROOT, '_build', 'site_footer.html'), encoding='utf-8').read()
+    page = page.replace('</body>', _footer + '</body>', 1)
     out = os.path.join(REPO_ROOT, 'tools', 'index.html')
     with open(out, 'w', encoding='utf-8') as f:
         f.write(page)
