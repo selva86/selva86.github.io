@@ -104,6 +104,15 @@
     '.rs-nudge-spin{display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;' +
     'border-radius:50%;animation:rs-nudge-spin .7s linear infinite;vertical-align:-1px}' +
     '@keyframes rs-nudge-spin{to{transform:rotate(360deg)}}' +
+    // Google one-click button + "or" divider
+    '.rs-nudge-oauth{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;box-sizing:border-box;' +
+    'background:#fff;color:#0a0d14;border:1px solid #d4d9e3;border-radius:7px;font-family:inherit;font-size:13.5px;' +
+    'font-weight:600;padding:10px 12px;cursor:pointer;transition:background .15s,border-color .15s}' +
+    '.rs-nudge-oauth:hover:not(:disabled){background:#f6f8fc;border-color:#c2c9d6}' +
+    '.rs-nudge-oauth:disabled{opacity:.6;cursor:wait}' +
+    '.rs-nudge-oauth svg{width:17px;height:17px;flex:0 0 auto}' +
+    '.rs-nudge-or{display:flex;align-items:center;gap:10px;margin:11px 0;color:#8a909c;font-size:11.5px}' +
+    '.rs-nudge-or::before,.rs-nudge-or::after{content:"";flex:1;height:1px;background:#e4e8ef}' +
     // dark theme
     'html.dark .rs-nudge{background:#161b22;color:#e6edf3;border-color:#262a31;box-shadow:0 12px 32px rgba(0,0,0,.55)}' +
     'html.dark .rs-nudge-ico{background:#1f2b46;color:#7aa2ff}' +
@@ -111,6 +120,10 @@
     'html.dark .rs-nudge-email{background:#0d1117;border-color:#30363d;color:#e6edf3}' +
     'html.dark .rs-nudge-optin,html.dark .rs-nudge-foot{color:#9aa4b2}' +
     'html.dark .rs-nudge-x:hover{background:#1f242c;color:#e6edf3}' +
+    'html.dark .rs-nudge-oauth{background:#0d1117;color:#e6edf3;border-color:#30363d}' +
+    'html.dark .rs-nudge-oauth:hover:not(:disabled){background:#161b22;border-color:#3d444d}' +
+    'html.dark .rs-nudge-or{color:#6b7280}' +
+    'html.dark .rs-nudge-or::before,html.dark .rs-nudge-or::after{background:#262a31}' +
     '@media (prefers-reduced-motion:reduce){.rs-nudge{transition:opacity .2s}.rs-nudge.show{transform:none}}' +
     '@media (max-width:480px){.rs-nudge{left:16px;right:16px;width:auto}}';
 
@@ -174,8 +187,22 @@
       '<p class="rs-nudge-body">' +
         (signup
           ? 'Never lose your code, challenges, or XP. Sign up free, no password needed.'
-          : 'Enter your email to restore your progress.') +
+          : 'Sign in to pick up where you left off.') +
       '</p>';
+
+    // Google one-click (same signInWithOAuth flow as signin.html). Shown in
+    // both modes; one tap for the ~1-in-4 users who prefer social over email.
+    inner +=
+      '<button class="rs-nudge-oauth" type="button" data-google>' +
+        '<svg viewBox="0 0 18 18" aria-hidden="true">' +
+          '<path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.92c1.7-1.57 2.68-3.88 2.68-6.62z"/>' +
+          '<path fill="#34A853" d="M9 18c2.43 0 4.47-.81 5.96-2.18l-2.92-2.26c-.81.54-1.84.86-3.04.86-2.34 0-4.32-1.58-5.03-3.7H.96v2.33A9 9 0 0 0 9 18z"/>' +
+          '<path fill="#FBBC05" d="M3.97 10.72A5.41 5.41 0 0 1 3.68 9c0-.6.1-1.18.29-1.72V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.05l3.01-2.33z"/>' +
+          '<path fill="#EA4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58A9 9 0 0 0 9 0 9 9 0 0 0 .96 4.95l3.01 2.33C4.68 5.16 6.66 3.58 9 3.58z"/>' +
+        '</svg>' +
+        '<span>Continue with Google</span>' +
+      '</button>' +
+      '<div class="rs-nudge-or">or</div>';
 
     inner +=
       '<form class="rs-nudge-form">' +
@@ -209,6 +236,9 @@
   function wire(mode) {
     el.querySelector('.rs-nudge-x').addEventListener('click', dismiss);
 
+    var gbtn = el.querySelector('[data-google]');
+    if (gbtn) gbtn.addEventListener('click', function () { doGoogle(mode); });
+
     var toSignin = el.querySelector('[data-to-signin]');
     if (toSignin) toSignin.addEventListener('click', function () { render('signin'); });
     var toSignup = el.querySelector('[data-to-signup]');
@@ -218,6 +248,42 @@
       e.preventDefault();
       doMagicLink(mode);
     });
+  }
+
+  // Google one-click via Supabase hosted OAuth (identical mechanism to
+  // signin.html). signInWithOAuth full-page-redirects to Google, then back to
+  // CALLBACK_URL (/signin.html?next=...), which parses the session and forwards
+  // to the originating page. Newsletter opt-in (if ticked) is stored to
+  // localStorage and claimed post-auth by auth-hydrate -> /api/newsletter/claim-optin,
+  // since OAuth can't carry user metadata.
+  async function doGoogle(mode) {
+    var gbtn = el.querySelector('[data-google]');
+    var label = gbtn ? gbtn.querySelector('span') : null;
+    var optin = el.querySelector('[data-optin]');
+    if (optin && optin.checked) recordOptinSignal();
+    track('nudge_google_click', { mode: mode });
+    if (gbtn) { gbtn.disabled = true; if (label) label.textContent = 'Redirecting...'; }
+    function reset() {
+      if (gbtn) { gbtn.disabled = false; if (label) label.textContent = 'Continue with Google'; }
+    }
+    try {
+      var supa = await getSupa();
+      var res = await supa.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: CALLBACK_URL },
+      });
+      // On success the browser is already navigating to Google; only errors
+      // return control here.
+      if (res.error) {
+        reset();
+        track('nudge_error', { mode: mode, reason: String(res.error.message || 'oauth_error').slice(0, 80) });
+        msg('err', res.error.message || 'Could not start Google sign-in. Try again.');
+      }
+    } catch (err) {
+      reset();
+      track('nudge_error', { mode: mode, reason: String((err && err.message) || 'exception').slice(0, 80) });
+      msg('err', (err && err.message) || 'Something went wrong. Try again.');
+    }
   }
 
   function recordOptinSignal() {
