@@ -38,10 +38,12 @@
   var DISMISS_KEY = 'rs-signin-nudge-dismissed';
   var OPTIN_KEY = 'rs-marketing-optin';
   var DISMISS_DAYS = 30;
-  // Relaxed 2026-06-13 from 20%/10s (owner: nudge fired too early). Tune
-  // against nudge_shown vs nudge_dismissed rates in GA4.
-  var SCROLL_TRIGGER_PCT = 40;
-  var TIME_TRIGGER_MS = 30000;
+  // Relaxed again 2026-06-13 (owner: still fired too early). Was 40%/30s.
+  // The scroll trigger is usually the early one (a fast scroller hits 40% in
+  // seconds); raised to 60% and the timer to 45s. Tune against nudge_shown vs
+  // nudge_dismissed rates in GA4.
+  var SCROLL_TRIGGER_PCT = 60;
+  var TIME_TRIGGER_MS = 45000;
   var SUPA_VERSION = '2.45.4';
 
   // ---- Bail-out gates (cheapest first) -------------------------------------
