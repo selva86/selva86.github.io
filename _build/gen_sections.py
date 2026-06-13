@@ -179,10 +179,40 @@ def _render_smoketest():
                 sprite=SPARK_SPRITE, active='')
 
 
+SECTIONS_DIR = os.path.join(REPO_ROOT, '_build', 'sections')
+
+
+def load_fragment(name):
+    """Read _build/sections/<name>-fragment.html and split on the CSS/SPRITE/BODY markers."""
+    with open(os.path.join(SECTIONS_DIR, name + '-fragment.html'), encoding='utf-8') as f:
+        raw = f.read()
+    css = raw.split('<!--===CSS===-->', 1)[1].split('<!--===SPRITE===-->', 1)[0].strip()
+    sprite = raw.split('<!--===SPRITE===-->', 1)[1].split('<!--===BODY===-->', 1)[0].strip()
+    body = raw.split('<!--===BODY===-->', 1)[1].strip()
+    return css, sprite, body
+
+
+def build_certification():
+    css, sprite, body = load_fragment('certification')
+    breadcrumb = {'@context': 'https://schema.org', '@type': 'BreadcrumbList', 'itemListElement': [
+        {'@type': 'ListItem', 'position': 1, 'name': 'Home', 'item': SITE + '/'},
+        {'@type': 'ListItem', 'position': 2, 'name': 'Certifications', 'item': SITE + '/certifications'}]}
+    webpage = {'@context': 'https://schema.org', '@type': 'WebPage',
+               'name': 'R Certifications, r-statistics.co',
+               'url': SITE + '/certifications',
+               'description': 'Verifiable, evidence-based R programming certifications, earned by solving real exercises and a code-based assessment.'}
+    render_page(
+        'certifications.html', SITE + '/certifications',
+        'Certifications · r-statistics.co',
+        'Verifiable, evidence-based R programming certifications. Earn one by solving 80% of the exercises across a curated track of hubs. Free to attempt; Pro to claim.',
+        body, page_css=css, sprite=sprite, active='certification',
+        page_js=['/www/cert-page.js?v=1'], jsonld=[webpage, breadcrumb],
+        keywords='R certification, R programming certificate, verifiable credential, data science certificate, tidyverse certification, machine learning R certificate, statistics certificate, open badges')
+
+
 def build_all():
     """Build every wired section page. Section builders are added per phase."""
-    # Phase 1+: cert / tools / tutorials / exercises / roadmap / topic builders go here.
-    pass
+    build_certification()
 
 
 if __name__ == '__main__':

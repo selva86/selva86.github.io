@@ -4,9 +4,10 @@ Plan: `Plans/sections-v3-implementation-plan.md`. Memory: `project_sections_v3`.
 Branch: **`sections-v3`** (NEVER work on master; master deploys to GH Pages + CF Pages prod).
 
 ## ▶ RESUME HERE
-**Current status:** Phase 0 COMPLETE + verified (foundation renders: masthead, anon Sign-in via auth-hydrate, dark mode, reveal, italic serif, footer). On branch `sections-v3`.
-**Next action:** Phase 1 — Certification. Add free/Pro tier flag to `functions/_data/tracks.json`, then author the cert page body in `_build/gen_sections.py` (from `certification-mock-v3.html`), build `certifications.html`, write `www/cert-page.js`.
-**Foundation notes:** fonts = Google Fonts (italics needed, not self-hosted) — deliberate deviation. Dark = `html.dark`+`localStorage['theme']`. Generator = `_build/gen_sections.py` (`render_page()` does head+masthead+footer+scripts; add per-section builders to `build_all()`). Wired into `build_with_pagefind.py` (step 1b). Smoke test verified at `/_sections-smoketest.html` (deleted).
+**Current status:** Phase 0 + Phase 1 (Certification) COMPLETE + verified in-browser (light + dark; exact look/feel; real masthead+auth+nudge+footer; full page renders incl. ladder + verify box). On branch `sections-v3`.
+**Next action:** Phase 2 — Tools. Rewrite `_build/gen_tools_landing.py` to emit the v3 design via `gen_sections.render_page` (real t-test calc hero, "ones I reach for" curated, 27-tool index by category, Pro band). Keep `/tools/` URL. (Pattern to follow: create `_build/sections/tools-fragment.html` like cert, OR keep gen_tools_landing's tool-scan + v3 chrome.)
+**Foundation notes:** fonts = Google Fonts (italics needed, not self-hosted) — deliberate deviation. Dark = `html.dark`+`localStorage['theme']`. Generator `_build/gen_sections.py`: `render_page()` (head+masthead+footer+scripts), `load_fragment(name)` (splits `_build/sections/<name>-fragment.html` on `<!--===CSS===-->/SPRITE/BODY` markers), per-section builders in `build_all()`. Wired into `build_with_pagefind.py` step 1b.
+**Cert (Phase 1) notes:** page fragment `_build/sections/certification-fragment.html` (full mock CSS w/ body.dark→html.dark + cert body w/ `data-track` attrs on the 6 ladder cards + sprite). `www/cert-page.js` = mintCert (editable-name demo), doVerify (→ `/cert/<id>` on valid RST format), + signed-in personalization via `/api/me/tracks`+`/api/me/certificates` (anon = silent no-op, verified). DID NOT modify `tracks.json` (free-set hardcoded in cert-page.js: r-fundamentals + tidyverse-practitioner). Canonical preserved `/certifications` (no slash).
 
 ## How to resume on a fresh session
 1. Read `Plans/sections-v3-implementation-plan.md` (full plan) + this file.
@@ -24,12 +25,12 @@ Branch: **`sections-v3`** (NEVER work on master; master deploys to GH Pages + CF
 - [x] Wire generator into `_build/build_with_pagefind.py` (step 1b, before Pagefind)
 - [x] Verify foundation renders (smoke test): masthead+anon Sign-in+dark+reveal+italic+footer all confirmed in browser. (local server only; CF preview comes after first commit push)
 
-### Phase 1 — Certification (flagship)
-- [ ] Add free/Pro tier flag to `functions/_data/tracks.json`
-- [ ] Author cert body from `certification-mock-v3` (strip DESIGN MOCK + Jordan; cert = labeled sample; ladder from tracks.json)
-- [ ] `www/cert-page.js` (anon "start a track"; signed-in `/api/me/tracks`+`/api/me/certificates` overlay; verify box → `/cert/<id>`)
-- [ ] Generate `certifications.html` (keep `/certifications/` URL + canonical)
-- [ ] Verify e2e: anon, signed-in, light+dark, mobile, all links, cert verify flow
+### Phase 1 — Certification (flagship) ✅ DONE
+- [x] (skipped tracks.json edit — free-set hardcoded in cert-page.js instead; lower risk to live backend)
+- [x] Author cert body -> `_build/sections/certification-fragment.html` (strip DESIGN MOCK + mock masthead/footer; cert = labeled sample; data-track attrs added)
+- [x] `www/cert-page.js` (mintCert demo; doVerify → `/cert/<id>`; signed-in `/api/me/tracks`+`/api/me/certificates` overlay, anon no-op)
+- [x] `build_certification()` in gen_sections.py generates `certifications.html` (canonical `/certifications` preserved)
+- [x] Verified in-browser: anon, light+dark, full page, verify box, nudge, footer. (signed-in overlay = wired, anon-safe; needs a real session on CF preview to fully exercise. mobile = pending CF-preview QA in Phase 6.)
 
 ### Phase 2 — Tools
 - [ ] v3 rewrite of `_build/gen_tools_landing.py` (real t-test calc hero, curated, 27-tool index, Pro). Keep `/tools/` URL+canonical.
