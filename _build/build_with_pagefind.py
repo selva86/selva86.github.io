@@ -25,6 +25,9 @@ def main() -> None:
     # 1. Existing static build (HTML pages, sitemap, feed)
     run([sys.executable, "_build/build.py"])
 
+    # 1b. v3 standalone section pages (certification/tools/tutorials/exercises/roadmap/topic)
+    run([sys.executable, "_build/gen_sections.py"])
+
     # 2. Refresh tools sitemap (mtimes change after content edits)
     run([sys.executable, "Scripts/build_tools_sitemap.py"])
 
