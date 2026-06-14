@@ -271,10 +271,33 @@ def build_tools():
     print(f'  (tools index: {total} tools across {len(CATEGORIES)} categories)')
 
 
+def build_tutorials():
+    import glob
+    css, sprite, body = load_fragment('tutorials')
+    # Total published pages = one _posts/*.html fragment per built page (committed; curriculum-status.json is gitignored).
+    total = len(glob.glob(os.path.join(REPO_ROOT, '_posts', '*.html')))
+    body = body.replace('{{TOTAL}}', f'{total:,}')
+    webpage = {'@context': 'https://schema.org', '@type': 'CollectionPage',
+               'name': 'R Tutorials, r-statistics.co', 'url': SITE + '/tutorials/',
+               'description': 'Free, runnable R tutorials across nine learning paths.'}
+    breadcrumb = {'@context': 'https://schema.org', '@type': 'BreadcrumbList', 'itemListElement': [
+        {'@type': 'ListItem', 'position': 1, 'name': 'Home', 'item': SITE + '/'},
+        {'@type': 'ListItem', 'position': 2, 'name': 'Tutorials', 'item': SITE + '/tutorials/'}]}
+    render_page(
+        'tutorials/index.html', SITE + '/tutorials/',
+        'R Tutorials · r-statistics.co',
+        'Free, runnable R tutorials across nine learning paths: base R, data wrangling, visualization, statistics, time series, and machine learning. Every lesson runs live in the browser, and it has never been behind a paywall.',
+        body, page_css=css, sprite=sprite, active='tutorials',
+        page_js=['/www/tutorials-page.js?v=1'], jsonld=[webpage, breadcrumb],
+        keywords='R tutorials, learn R, R programming tutorial, tidyverse, ggplot2, dplyr, R statistics, data science in R, runnable R examples')
+    print(f'  (tutorials: total={total:,})')
+
+
 def build_all():
     """Build every wired section page. Section builders are added per phase."""
     build_certification()
     build_tools()
+    build_tutorials()
 
 
 if __name__ == '__main__':
