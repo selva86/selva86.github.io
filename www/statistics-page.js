@@ -1,4 +1,4 @@
-// statistics-page.js — the hero's live two-sample t-test visualization.
+// statistics-page.js - the hero's live two-sample t-test visualization.
 // Vanilla JS, no libraries. Drag the gap, two bell curves separate, and a real
 // one-sided two-sample t approximation (equal n, pooled SD) recomputes the
 // p-value with a plain-English read. Reveal-on-scroll and dark mode come from

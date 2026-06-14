@@ -1,4 +1,4 @@
-// cert-page.js — interaction + personalization for the real certification page.
+// cert-page.js - interaction + personalization for the real certification page.
 //
 // Provides window.doVerify (referenced by the verify form's inline onclick in
 // the page fragment), plus signed-in personalization that decorates the

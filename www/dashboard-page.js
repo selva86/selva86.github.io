@@ -1,4 +1,4 @@
-// dashboard-page.js — the signed-in dashboard. Fetches the real /api/me/* data
+// dashboard-page.js - the signed-in dashboard. Fetches the real /api/me/* data
 // and renders it. Anonymous visitors are redirected to sign-in. Everything shown
 // is real: no fabricated metrics, sessions, or recommendations.
 //
@@ -80,11 +80,11 @@
     sub.style.maxWidth = '';
     var streak = num(stats && stats.current_streak_days);
     if (isNew) {
-      sub.innerHTML = "Let's get your first win on the board &mdash; one exercise is all it takes to start.";
+      sub.innerHTML = "Let's get your first win on the board, one exercise is all it takes to start.";
     } else if (streak >= 1) {
       sub.innerHTML = "You're on a <span class=\"fire\">" + streak + "-day streak</span>"
         + ' <svg class="ic pulse" style="width:15px;height:15px;color:var(--fire,#f97316);vertical-align:-2px"><use href="#i-flame"/></svg>'
-        + ' &mdash; pick up where you left off.';
+        + ', pick up where you left off.';
     } else {
       sub.innerHTML = 'Pick up where you left off, and start a new streak today.';
     }
@@ -154,7 +154,7 @@
     if (sub && near) {
       var needed = Math.max(1, Math.ceil(num(near.total_exercises) * (num(near.threshold) || 0.8)) - num(near.solved));
       if (near.eligible) {
-        sub.innerHTML = '<span class="milestone" style="margin-top:2px"><svg class="ic"><use href="#i-trophy"/></svg> You’ve cleared <b>' + esc(near.name) + '</b> — it’s ready to claim.</span>';
+        sub.innerHTML = '<span class="milestone" style="margin-top:2px"><svg class="ic"><use href="#i-trophy"/></svg> You’ve cleared <b>' + esc(near.name) + '</b>, it’s ready to claim.</span>';
       } else {
         sub.innerHTML = '<span class="milestone" style="margin-top:2px"><svg class="ic"><use href="#i-target"/></svg> <b>' + needed + '</b>&nbsp;more exercise' + (needed === 1 ? '' : 's') + ' to earn your <b>' + esc(near.name) + '</b> certificate.</span>';
       }
@@ -167,7 +167,7 @@
         ? '<div class="snum" style="background:var(--green);border-color:var(--green)"><svg class="ic"><use href="#i-check"/></svg></div>'
         : '<div class="snum" style="background:var(--accent);border-color:var(--accent)">' + (i + 1) + '</div>';
       var sub2 = minted ? 'Certificate earned' :
-        t.eligible ? 'Cleared the bar — ready to claim' :
+        t.eligible ? 'Cleared the bar, ready to claim' :
         num(t.solved) + ' of ' + num(t.total_exercises) + ' exercises solved';
       var action = minted
         ? '<a href="' + esc(t.minted.verify_url) + '">View &rarr;</a>'

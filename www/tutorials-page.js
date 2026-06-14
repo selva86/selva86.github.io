@@ -1,4 +1,4 @@
-// tutorials-page.js — hero "Run it" demo + signed-in resume strip.
+// tutorials-page.js - hero "Run it" demo + signed-in resume strip.
 // Vanilla JS, no libraries. Guards every DOM access; never throws.
 // Dark-mode toggle and reveal-on-scroll are provided by sections-v3.js
 // (the shared chrome), NOT here.

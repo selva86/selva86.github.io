@@ -220,7 +220,7 @@
         ' certificate &middot; ' + t.solved + '/' + t.total + ' exercises solved.';
     } else if (USER_TRACKS) {
       pf.style.width = '0';
-      cap.innerHTML = '<b>You:</b> signed in &mdash; complete exercises in these paths and your progress shows up here.';
+      cap.innerHTML = '<b>You:</b> signed in, complete exercises in these paths and your progress shows up here.';
     } else {
       pf.style.width = '0';
       cap.innerHTML = 'Sign in to track your place on this route.';

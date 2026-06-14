@@ -1,4 +1,4 @@
-// verify-page.js — standalone credential lookup.
+// verify-page.js - standalone credential lookup.
 // Valid RST-YYYY-XXXXXX -> navigate to the real public verification page
 // (/cert/<id>). Invalid format -> inline error, no navigation. Never throws.
 (function () {
@@ -23,7 +23,7 @@
     var foot = card.querySelector('.vfoot');
     if (vok) vok.innerHTML = '<svg class="ic"><use href="#i-search"/></svg>';
     if (vt) vt.textContent = 'Not a valid ID format';
-    if (vm) vm.innerHTML = 'Expected <b>RST-YYYY-XXXXXX</b> &mdash; RST, a year, then six letters or digits.';
+    if (vm) vm.innerHTML = 'Expected <b>RST-YYYY-XXXXXX</b>: RST, a year, then six letters or digits.';
     if (foot) foot.innerHTML = '<svg class="ic ic-sm"><use href="#i-search"/></svg> check the format and try again';
   }
   window.doVerify = doVerify;

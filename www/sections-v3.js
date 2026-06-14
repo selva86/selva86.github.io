@@ -1,4 +1,4 @@
-/* sections-v3.js — shared behavior for the v3 standalone section pages.
+/* sections-v3.js - shared behavior for the v3 standalone section pages.
    (1) reveal-on-scroll for .reveal elements
    (2) dark-mode toggle synced to html.dark + localStorage['theme'] (site-wide convention)
    The avatar dropdown + auth state are handled by www/auth-hydrate.js. */

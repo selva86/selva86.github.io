@@ -1,4 +1,4 @@
-// exercises-page.js — live grader hero + signed-in streak/XP personalization.
+// exercises-page.js - live grader hero + signed-in streak/XP personalization.
 // Vanilla JS, no libraries. Guards every DOM access; never throws.
 // Dark-mode toggle and reveal-on-scroll are provided by sections-v3.js
 // (the shared chrome), NOT here.
@@ -44,7 +44,7 @@
     } else if (hasSecond && !/\b42\b/.test(code.replace(/c\([^)]*\)/, ''))) {
       solved = true;
       show(v, 'ok', 'Correct. <code>max(x[x &lt; max(x)])</code> reads as "the biggest value that is not the biggest value", which is exactly the second largest. That is the kind of indexing that stops being scary on about the third try.',
-        'That is +10 XP once you sign in &mdash; and 1 down, 49 to go in this hub.');
+        'That is +10 XP once you sign in, and 1 down, 49 to go in this hub.');
     } else {
       show(v, 'hint', 'Not quite there yet, and that is fine, this is the whole point. You want an expression that lands on <code>23</code>. One clean route: filter out the maximum with a logical test, then take the max of the rest. Have a go, then hit "Show me one way" if you want the answer.');
     }
@@ -118,7 +118,7 @@
     if (!streak || !stats) return;
 
     var cap = document.getElementById('streakCap');
-    if (cap) cap.textContent = '';   // no longer a preview — this is the real user
+    if (cap) cap.textContent = '';   // no longer a preview, this is the real user
 
     var name = me && me.user && me.user.display_name;
     var lab = document.getElementById('streakLab');
@@ -146,7 +146,7 @@
     var sub = document.getElementById('streakSub');
     if (sub) {
       sub.textContent = best
-        ? 'Furthest along: ' + best.name + ' — ' + num(best.solved) + '/' + num(best.total_exercises) + ' solved'
+        ? 'Furthest along: ' + best.name + ', ' + num(best.solved) + '/' + num(best.total_exercises) + ' solved'
         : 'Pick a hub below and keep the streak alive.';
     }
     var resume = document.getElementById('streakResume');
