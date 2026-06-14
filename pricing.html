@@ -414,7 +414,7 @@
       <button class="iconbtn" id="darkBtn" onclick="toggleDark()" aria-label="Toggle theme"><svg class="ic"><use href="#i-moon"/></svg></button>
       <span class="auth-anon">
         <a href="/signin.html" style="font-size:13px;font-weight:500;color:var(--ink);text-decoration:none;padding:7px 10px;">Sign in</a>
-        <a class="btn btn-accent btn-sm" href="#signup-notify" style="padding:7px 14px;font-size:13px;">Join waitlist</a>
+        <a class="btn btn-accent btn-sm" href="#signup-notify" data-plan="pro" style="padding:7px 14px;font-size:13px;">Join waitlist</a>
       </span>
       <span class="auth-user">
         <a href="/account.html" class="auth-display-name" style="font-size:13px;color:var(--ink);text-decoration:none;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></a>
@@ -472,7 +472,7 @@
           <li><b>Pro-only community</b>, fast answers, no noise<span class="lpill launch">At launch</span></li>
           <li><b>Early access</b> to every new course and tool we ship<span class="lpill live">Live</span></li>
         </ul>
-        <a class="btn btn-accent btn-lg" href="#signup-notify">Join the waitlist<svg class="ic"><use href="#i-arrow-right"/></svg></a>
+        <a class="btn btn-accent btn-lg" href="#signup-notify" data-plan="pro">Join the waitlist<svg class="ic"><use href="#i-arrow-right"/></svg></a>
       </div>
 
       <div class="tier">
@@ -503,7 +503,7 @@
         <p>Lock in lifetime Pro access. Every Pro feature, every Pro course, for as long as the site is online. Pays back in ~28 months vs. annual. Founding-member lifetime is $199; we expect to raise this after the first 200.</p>
       </div>
       <div class="lt-price"><b>$199</b><span>Founding price - first 200 only</span></div>
-      <a class="btn" href="#signup-notify">Reserve founding lifetime price<svg class="ic"><use href="#i-arrow-right"/></svg></a>
+      <a class="btn" href="#signup-notify" data-plan="lifetime">Reserve founding lifetime price<svg class="ic"><use href="#i-arrow-right"/></svg></a>
     </div>
   </div>
 </section>
@@ -700,14 +700,23 @@
     </h2>
     <p style="font-size:16px;line-height:1.65;color:#4b5260;margin:0 0 20px;">
       We are finalizing payment processing and billing infrastructure now. Drop your email
-      and we will write to you the day Pro opens for subscriptions, with founding-member
-      pricing locked in.
+      and we will write to you once &mdash; the day Pro opens for subscriptions, with
+      founding-member pricing locked in. No card today; your access begins when the paid
+      features go live.
     </p>
-    <a href="mailto:selva86@gmail.com?subject=Notify%20when%20Pro%20launches"
-       style="display:inline-block;background:#1c2c4f;color:#fff;padding:11px 22px;
-              border-radius:8px;font-weight:600;font-size:15px;text-decoration:none;">
-      Email selva86@gmail.com to be notified
-    </a>
+    <form id="waitlist-form" style="display:flex;gap:10px;max-width:440px;margin:0 auto;flex-wrap:wrap;justify-content:center;">
+      <input type="hidden" id="wl-plan" name="plan" value="">
+      <input type="email" id="wl-email" name="email" required autocomplete="email"
+             placeholder="you@example.com" aria-label="Your email"
+             style="flex:1;min-width:220px;padding:12px 14px;border:1px solid #cfd6e4;border-radius:8px;
+                    font-size:15px;font-family:'IBM Plex Sans',sans-serif;background:#fff;color:#0a0d14;">
+      <button type="submit" id="wl-submit"
+              style="background:#1c2c4f;color:#fff;padding:12px 22px;border:0;border-radius:8px;
+                     font-weight:600;font-size:15px;cursor:pointer;font-family:'IBM Plex Sans',sans-serif;">
+        Join the waitlist
+      </button>
+    </form>
+    <p id="wl-msg" role="status" aria-live="polite" style="min-height:20px;font-size:14px;margin:12px 0 0;"></p>
     <p style="font-size:13px;color:#6b7280;margin:14px 0 0;">
       Read the <a href="/refund-policy.html" style="color:#2056d2;">refund policy</a>,
       <a href="/terms-of-service.html" style="color:#2056d2;">terms</a>, and
@@ -795,5 +804,41 @@
   </div>
 </footer>
 <!-- /SITE-FOOTER-V2 -->
+<script>
+(function(){
+  var form=document.getElementById('waitlist-form'); if(!form) return;
+  var planField=document.getElementById('wl-plan');
+  var msg=document.getElementById('wl-msg');
+  var btn=document.getElementById('wl-submit');
+  document.querySelectorAll('a[href="#signup-notify"][data-plan]').forEach(function(a){
+    a.addEventListener('click',function(){
+      var p=a.getAttribute('data-plan');
+      if(p==='pro'){ var on=document.querySelector('[data-bill].on'); p=on?on.getAttribute('data-bill'):'annual'; }
+      if(planField) planField.value=p||'';
+      setTimeout(function(){var e=document.getElementById('wl-email'); if(e) e.focus();},500);
+    });
+  });
+  form.addEventListener('submit',function(ev){
+    ev.preventDefault();
+    var email=(document.getElementById('wl-email').value||'').trim();
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(email)){ msg.style.color='#b42318'; msg.textContent='Please enter a valid email.'; return; }
+    btn.disabled=true; btn.textContent='Joining…';
+    fetch('/api/waitlist',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email:email, plan:(planField&&planField.value)||'', source:'pricing'})})
+      .then(function(r){return r.json().catch(function(){return null;}).then(function(d){return {ok:r.ok,d:d};});})
+      .then(function(res){
+        if(res.ok && res.d && res.d.ok){
+          form.style.display='none'; msg.style.color='#15803d';
+          msg.textContent=res.d.already ? "You're already on the list — we'll email you the day Pro opens."
+                                        : "You're on the list. Check your inbox for a confirmation.";
+        } else {
+          btn.disabled=false; btn.textContent='Join the waitlist'; msg.style.color='#b42318';
+          msg.textContent=(res.d&&res.d.message)||'Something went wrong. Please try again.';
+        }
+      })
+      .catch(function(){ btn.disabled=false; btn.textContent='Join the waitlist'; msg.style.color='#b42318'; msg.textContent='Network error. Please try again.'; });
+  });
+})();
+</script>
 </body>
 </html>
