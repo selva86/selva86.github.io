@@ -58,6 +58,9 @@ Branch: **`sections-v3`** (NEVER work on master; master deploys to GH Pages + CF
 - [ ] No regressions (old `/tools/`+`/certifications/` URLs+canonicals; article pages untouched)
 - [ ] Merge `sections-v3` → master after CF preview sign-off
 
+## Deferred follow-ups (do AFTER the 6 section pages are built, before/at launch)
+- [ ] **Build a dedicated "Verify a credential" page** (e.g. `/verify/` or `/verify-credential.html`, same v3 chrome): a clean standalone lookup where anyone pastes an RST-YYYY-XXXXXX id and is taken to / shown the real `/cert/<id>` result. Then **update the certification page** so its "Verify a credential" hero button (currently `href="#verify"` anchoring the inline section) points to this new page. (Requested by Selva 2026-06-14: the verify-credential link should go to a separate page, not just an in-page anchor.) Decide whether to keep the inline verify section on /certifications as well or replace it with a link.
+
 ## Decisions log
 - Nav: v3 masthead on new section pages only.
 - Roadmap: static routes + signed-in `/api/me/tracks` (no new backend).
