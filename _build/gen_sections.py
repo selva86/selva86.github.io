@@ -432,6 +432,25 @@ def build_statistics():
     print('  (statistics topic pilot built)')
 
 
+def build_verify():
+    """Dedicated credential-lookup page: /verify/ (RST id -> /cert/<id>)."""
+    css, sprite, body = load_fragment('verify')
+    webpage = {'@context': 'https://schema.org', '@type': 'WebPage',
+               'name': 'Verify a credential, r-statistics.co', 'url': SITE + '/verify/',
+               'description': 'Verify any r-statistics.co certificate by its public credential ID. See the holder, track, assessment score and issue date. No account needed.'}
+    breadcrumb = {'@context': 'https://schema.org', '@type': 'BreadcrumbList', 'itemListElement': [
+        {'@type': 'ListItem', 'position': 1, 'name': 'Home', 'item': SITE + '/'},
+        {'@type': 'ListItem', 'position': 2, 'name': 'Verify a credential', 'item': SITE + '/verify/'}]}
+    render_page(
+        'verify/index.html', SITE + '/verify/',
+        'Verify a Credential · r-statistics.co',
+        'Verify any r-statistics.co certificate by its public credential ID. See the holder, track, assessment score and issue date — no account needed.',
+        body, page_css=css, sprite=sprite, active='',
+        page_js=['/www/verify-page.js?v=1'], jsonld=[webpage, breadcrumb],
+        keywords='verify R certificate, credential verification, r-statistics.co credential, check certificate ID, verify data science certificate')
+    print('  (verify credential page built)')
+
+
 def build_all():
     """Build every wired section page. Section builders are added per phase."""
     build_certification()
@@ -440,6 +459,7 @@ def build_all():
     build_exercises()
     build_roadmap()
     build_statistics()
+    build_verify()
 
 
 if __name__ == '__main__':
