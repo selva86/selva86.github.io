@@ -107,7 +107,7 @@ def render_scripts(page_js=None):
 def render_page(out_relpath, canonical, title, description, body_html, *,
                 page_css='', sprite='', active='', page_js=None,
                 keywords='', jsonld=None, og_image='/screenshots/og-default.png',
-                inline_js=''):
+                inline_js='', robots='index, follow'):
     """Assemble + write one standalone section page; inject the site footer."""
     jsonld_blocks = ''
     for obj in (jsonld or []):
@@ -122,7 +122,7 @@ def render_page(out_relpath, canonical, title, description, body_html, *,
 <meta name="description" content="{_esc(description)}">
 <meta name="keywords" content="{_esc(keywords)}">
 <meta name="author" content="Selva Prabhakaran">
-<meta name="robots" content="index, follow">
+<meta name="robots" content="{robots}">
 <link rel="canonical" href="{canonical}">
 <link rel="icon" type="image/png" href="/screenshots/iconb-64.png">
 <meta property="og:type" content="website">
@@ -451,6 +451,18 @@ def build_verify():
     print('  (verify credential page built)')
 
 
+def build_dashboard():
+    """Private signed-in dashboard: /dashboard.html (anon -> redirected to sign-in by JS)."""
+    css, sprite, body = load_fragment('dashboard')
+    render_page(
+        'dashboard.html', SITE + '/dashboard.html',
+        'Dashboard · r-statistics.co',
+        'Your r-statistics.co dashboard: progress, streak, certificates and saved posts.',
+        body, page_css=css, sprite=sprite, active='',
+        page_js=['/www/dashboard-page.js?v=1'], robots='noindex, nofollow')
+    print('  (dashboard built)')
+
+
 def build_all():
     """Build every wired section page. Section builders are added per phase."""
     build_certification()
@@ -460,6 +472,7 @@ def build_all():
     build_roadmap()
     build_statistics()
     build_verify()
+    build_dashboard()
 
 
 if __name__ == '__main__':
