@@ -4,8 +4,10 @@ Plan: `Plans/sections-v3-implementation-plan.md`. Memory: `project_sections_v3`.
 Branch: **`sections-v3`** (NEVER work on master; master deploys to GH Pages + CF Pages prod).
 
 ## ▶ RESUME HERE
-**Current status:** Phases 0-3 COMPLETE (Foundation, Certification, Tools, Tutorials). Plus several user-requested fixes (see below). On branch `sections-v3`. Local screenshot tool is DOWN (harness `params.clip.scale` bug) so visual checks are on the CF preview `https://sections-v3.r-statistics-co.pages.dev/<page>`.
-**Next action:** Phase 4 — Exercises. New `/exercises/`. Delegate `_build/sections/exercises-fragment.html` + `www/exercises-page.js` from `exercises-mock-v3.html` (real graded-exercise hero via exercise-hub.js patterns or a labeled sample; browse by track/difficulty). Add `build_exercises()` to gen_sections (`exercises/index.html`). Personalization: signed-in XP/streak via `/api/me/stats`, solved markers via `/api/me/exercises`. Real counts from `functions/_data/exercise-manifest.json` (2,904 exercises/127 hubs) + tracks.json.
+**Current status:** ALL PHASES (0-6) COMPLETE + Verify-credential page + Dashboard overhaul. Everything is on branch `sections-v3` and verified on the CF preview `https://sections-v3.r-statistics-co.pages.dev/`. Local screenshot tool is still down (harness `params.clip.scale`), but Playwright MCP works for screenshots (save to an ABSOLUTE path under the repo, e.g. `D:\09_rstatisticsco\selva86.github.io\_qa_shots\`).
+**Next action:** MERGE `sections-v3` → master (awaiting Selva's sign-off). master deploys to BOTH GH Pages AND CF Pages prod, so only merge after a final eyeball on preview. Use `git merge --no-ff`. Nothing else outstanding.
+**Pages shipped this round (all verified):** `/exercises/`, `/roadmap/`, `/statistics/` (topic pilot), `/verify/`, `/dashboard.html` (private, noindex). Plus a foundation fix: responsive masthead hamburger (sections-v3.css/js bumped to ?v=2). Persona "Jordan A. Mercer" stripped to "Your Name" on cert + tutorials sample certs.
+**Dashboard note:** full real-data overhaul of `dashboard-mock.html` (was ~40-50%). Wired to `/api/me/{stats,tracks,certificates,reading,saved}`; cut all fabricated features (office-hours sessions, fake premium-course recs, weekly calendar, +deltas, 28-mo payback). Two states (new-user "first win" + active), contextual Pro conversion (eligible→"claim it" > furthest-track % > generic; hidden for Pro members), delight (count-ups, flame, animated bars, real "N more exercises to <track> cert" milestone). Anon→/signin redirect. Verify it on preview by stubbing `/api/me/*` (see `_qa_shots` method in session) since it needs a session.
 **Pattern (cert/tools/tutorials):** delegate mock→fragment+page-JS extraction to a focused agent (3 markers CSS/SPRITE/BODY, body.dark→html.dark, strip head/masthead/footer/DESIGN-MOCK/scripts, `{{PLACEHOLDER}}` for data-driven bits, repoint `*-mock*` links to real URLs), then add `build_X()` to gen_sections (load fragment, fill placeholders, render_page). Counts: use COMMITTED data only (curriculum-status.json is gitignored/absent on CF). Tutorials total = `len(_posts/*.html)` (=1,267). Tools index data-driven from `gen_tools_landing.collect_tools`. ALWAYS audit links after build (grep `href="#"`, `*-mock*`, self-page anchors) - the agents miss a few in the body.
 **User fixes applied (post Phase 1-2):** cert ladder cards cleaned (removed floating "proves you", "You can.." sentences, dropped per-card free/Pro tag); cert section asides moved from far-right hang to serif-italic subtitles under each heading; tools hero "Start with the t-test" -> /tools/t-test-calculator.html; cert leftover mock links fixed (pricing-mock, about-mock); cert ladder CTAs -> per-track first hub; **cert editable certificate name REMOVED** (misuse/screenshot-faking risk - cert-page.js mint logic deleted, name now fixed). Deferred verify page still pending (see below).
 **Foundation notes:** fonts = Google Fonts (italics needed, not self-hosted) — deliberate deviation. Dark = `html.dark`+`localStorage['theme']`. Generator `_build/gen_sections.py`: `render_page()` (head+masthead+footer+scripts), `load_fragment(name)` (splits `_build/sections/<name>-fragment.html` on `<!--===CSS===-->/SPRITE/BODY` markers), per-section builders in `build_all()`. Wired into `build_with_pagefind.py` step 1b.
@@ -45,22 +47,28 @@ Branch: **`sections-v3`** (NEVER work on master; master deploys to GH Pages + CF
 - [x] Verified structurally (total filled, no leftovers, resume hidden, JS valid, path cards->/posts/). Visual=CF preview.
 - [ ] FOLLOW-UP: path-card counts are currently static (from mock); make data-driven from sidebar.json item-counts-per-section later (deferred, low priority).
 
-### Phase 4 — Exercises
-- [ ] New `/exercises/` (real grader hero, browse by track/difficulty)
-- [ ] `www/exercises-page.js` XP/streak `/api/me/stats`, solved `/api/me/exercises`
-- [ ] Verify
+### Phase 4 — Exercises ✅ DONE
+- [x] New `/exercises/` (live client-side grader hero, anon, no signup)
+- [x] `www/exercises-page.js` XP/streak `/api/me/stats`, furthest track `/api/me/tracks`, anon-safe
+- [x] Real counts: 2,904 ex / 127 hubs; topic cards via first-match-wins classifier (sums to 127); 22 quizzes; starter per-hub counts
+- [x] Verified (desktop + mobile, grader correct/sort/show-solution, no leftovers)
 
-### Phase 5 — Roadmap + Topic
-- [ ] New `/roadmap/` (routes from tracks.json + validated slugs; `www/roadmap-page.js` `/api/me/tracks`)
-- [ ] New `/statistics/` topic pilot (reusable; distribution interactive plain JS dnorm/pnorm)
-- [ ] Verify
+### Phase 5 — Roadmap + Topic ✅ DONE
+- [x] New `/roadmap/` — 5 goal routes (new/analyst/ml/researcher/ts), client-rendered, NEUTRAL nodes (no fake done-state), real per-route track progress via `/api/me/tracks` when signed in
+- [x] New `/statistics/` topic pilot — live two-sample t-test viz (slider, honest p-value via normCdf), curated order + full-path-by-family, links validated on disk
+- [x] Verified (goal switcher, slider math, links)
 
-### Phase 6 — Cross-cutting + launch
-- [ ] Cross-links (5 nav targets), sitemap/canonical/og/JSON-LD/breadcrumbs
-- [ ] Pagefind index + middleware sanity (new dirs not blocked; `.html` intact)
-- [ ] Full QA matrix (page × anon/signed-in × light/dark × desktop/mobile × links × hero interactions)
-- [ ] No regressions (old `/tools/`+`/certifications/` URLs+canonicals; article pages untouched)
-- [ ] Merge `sections-v3` → master after CF preview sign-off
+### Phase 6 — Cross-cutting + launch ✅ DONE (merge pending)
+- [x] Cross-links (5 nav targets all resolve); JSON-LD/breadcrumbs/canonical per page
+- [x] Sitemap: 6 public section pages registered via `gen_sections.register_sitemap` (dashboard excluded — noindex)
+- [x] Pagefind: dashboard excluded via `data-pagefind-ignore` (noindex pages); middleware doesn't block new output dirs
+- [x] QA: all pages 200 on preview; dashboard anon→/signin verified live; responsive masthead fixed
+- [x] No regressions (old `/tools/`+`/certifications` canonicals intact; `/certifications` extensionless resolves)
+- [ ] **Merge `sections-v3` → master after Selva's CF preview sign-off** (only remaining step)
+
+### Bonus — deferred follow-ups DONE
+- [x] Dedicated `/verify/` credential-lookup page; cert hero "Verify a credential" repointed from `#verify` to `/verify/`
+- [x] Dashboard (`/dashboard.html`) real-data overhaul (see RESUME HERE note)
 
 ## Deferred follow-ups (do AFTER the 6 section pages are built, before/at launch)
 - [ ] **Build a dedicated "Verify a credential" page** (e.g. `/verify/` or `/verify-credential.html`, same v3 chrome): a clean standalone lookup where anyone pastes an RST-YYYY-XXXXXX id and is taken to / shown the real `/cert/<id>` result. Then **update the certification page** so its "Verify a credential" hero button (currently `href="#verify"` anchoring the inline section) points to this new page. (Requested by Selva 2026-06-14: the verify-credential link should go to a separate page, not just an in-page anchor.) Decide whether to keep the inline verify section on /certifications as well or replace it with a link.
