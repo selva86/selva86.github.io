@@ -143,7 +143,7 @@ def render_page(out_relpath, canonical, title, description, body_html, *,
 {page_css}
 </style>
 </head>
-<body>
+<body{' data-pagefind-ignore' if 'noindex' in robots else ''}>
 {sprite}
 {render_masthead(active)}
 {body_html}
@@ -463,6 +463,43 @@ def build_dashboard():
     print('  (dashboard built)')
 
 
+# Public section pages to register in sitemap.xml (canonical URL -> built file).
+# Dashboard is deliberately excluded (private, noindex).
+_SITEMAP_PAGES = [
+    ('https://r-statistics.co/certifications', 'certifications.html'),
+    ('https://r-statistics.co/tutorials/', 'tutorials/index.html'),
+    ('https://r-statistics.co/exercises/', 'exercises/index.html'),
+    ('https://r-statistics.co/roadmap/', 'roadmap/index.html'),
+    ('https://r-statistics.co/statistics/', 'statistics/index.html'),
+    ('https://r-statistics.co/verify/', 'verify/index.html'),
+]
+
+
+def register_sitemap():
+    """Insert the public section pages into sitemap.xml if absent. Runs after
+    build.py has (re)written the sitemap, so it only ever appends new <url>s."""
+    import datetime
+    path = os.path.join(REPO_ROOT, 'sitemap.xml')
+    if not os.path.exists(path):
+        return
+    xml = open(path, encoding='utf-8').read()
+    added = 0
+    for url, relfile in _SITEMAP_PAGES:
+        if f'<loc>{url}</loc>' in xml:
+            continue
+        fp = os.path.join(REPO_ROOT, *relfile.split('/'))
+        lastmod = (datetime.date.fromtimestamp(os.path.getmtime(fp)).isoformat()
+                   if os.path.exists(fp) else datetime.date.today().isoformat())
+        block = (f'  <url>\n    <loc>{url}</loc>\n    <changefreq>weekly</changefreq>\n'
+                 f'    <lastmod>{lastmod}</lastmod>\n    <priority>0.9</priority>\n  </url>\n')
+        xml = xml.replace('</urlset>', block + '</urlset>', 1)
+        added += 1
+    if added:
+        with open(path, 'w', encoding='utf-8') as f:
+            f.write(xml)
+    print(f'  (sitemap: +{added} section pages)')
+
+
 def build_all():
     """Build every wired section page. Section builders are added per phase."""
     build_certification()
@@ -473,6 +510,7 @@ def build_all():
     build_statistics()
     build_verify()
     build_dashboard()
+    register_sitemap()
 
 
 if __name__ == '__main__':
