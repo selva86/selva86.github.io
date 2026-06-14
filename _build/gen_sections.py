@@ -298,11 +298,95 @@ def build_tutorials():
     print(f'  (tutorials: total={total:,})')
 
 
+# Topic classifier for the exercises landing: ordered, first-match-wins over the
+# exercise-manifest hub slugs. Every one of the 127 hubs maps to exactly one topic.
+_EX_TOPIC_RULES = [
+    ('T_WRANGLE', ['dplyr', 'tidyr', 'tidyverse', 'data-table', 'data.table', 'stringr', 'lubridate',
+                   'forcats', 'readr', 'broom', 'Data-Cleaning', 'Missing-Data', 'Data-Import', 'dbplyr',
+                   'Web-Scraping', 'API-Calls', 'Data-Wrangling', 'Regex', 'Date-Time']),
+    ('T_VIZ', ['ggplot2', 'plotly', 'leaflet', 'gt-Tables', 'Data-Visualization', 'Visualization-Project', 'EDA-']),
+    ('T_ML', ['Machine-Learning', 'Cross-Validation', 'Decision-Tree', 'Random-Forest', 'XGBoost', 'caret',
+              'tidymodels', 'Clustering', 'Cluster-Analysis', 'PCA', 'Ridge', 'Time-Series', 'ARIMA']),
+    ('T_STATS', ['Hypothesis', 't-Test', 'ANOVA', 'Chi-Square', 'Correlation', 'Confidence', 'Regression',
+                 'GLM', 'GAM', 'Logistic', 'Poisson', 'Linear', 'Multiple-Testing', 'Nonparametric', 'Post-Hoc',
+                 'Power-Analysis', 'Probability', 'Distribution', 'Central-Limit', 'Bayesian', 'Sampling',
+                 'Experimental', 'Mixed-Effects', 'Repeated', 'SEM', 'Survey', 'A-B-Testing', 'AB-Testing']),
+    ('T_ADV', ['purrr', 'OOP', 'Debugging', 'Performance', 'Parallel', 'Package-Development', 'testthat',
+               'Functional-Programming', 'Shiny', 'Markdown']),
+    ('T_SPEC', ['Finance', 'Genomics', 'Biostatistics', 'Healthcare', 'Marketing', 'Sports', 'Text-Mining',
+                'Network', 'Spatial', 'Survival']),
+    ('T_FUND', ['R-Basics', 'R-Beginner', 'R-Vectors', 'R-Lists', 'R-Data-Frames', 'R-Subsetting',
+                'R-Control-Flow', 'R-Functions', 'R-Apply', 'Apply-Family', 'R-String', 'Loops-vs',
+                'Interview', 'R-for-Data-Science']),
+]
+
+
+def build_exercises():
+    import glob
+    css, sprite, body = load_fragment('exercises')
+    manifest = json.load(open(os.path.join(REPO_ROOT, 'functions', '_data', 'exercise-manifest.json'), encoding='utf-8'))
+    hubs = manifest['hubs']
+
+    # classify every hub into exactly one topic (first-match-wins, fail loudly)
+    counts = {key: 0 for key, _ in _EX_TOPIC_RULES}
+    for slug in hubs:
+        for key, subs in _EX_TOPIC_RULES:
+            if any(s in slug for s in subs):
+                counts[key] += 1
+                break
+        else:
+            raise RuntimeError(f'exercises: hub not classified into any topic: {slug}')
+    if sum(counts.values()) != len(hubs):
+        raise RuntimeError(f'exercises: topic counts {sum(counts.values())} != hub total {len(hubs)}')
+
+    quizzes = len(glob.glob(os.path.join(REPO_ROOT, '*-quiz.html')))
+
+    vals = {
+        'TOTAL_EX': f"{manifest['_meta']['exercises']:,}",
+        'TOTAL_HUBS': str(manifest['_meta']['hubs']),
+        'T_QUIZ': str(quizzes),
+        'S_BASICS': str(len(hubs['R-Basics-Exercises'])),
+        'S_VECTORS': str(len(hubs['R-Vectors-Exercises'])),
+        'S_DPLYR': str(len(hubs['dplyr-filter-select-Exercises'])),
+        'S_GGPLOT': str(len(hubs['ggplot2-Exercises'])),
+        'S_HYP': str(len(hubs['Hypothesis-Testing-Exercises-in-R'])),
+    }
+    vals.update({k: str(v) for k, v in counts.items()})
+    for k, v in vals.items():
+        body = body.replace('{{' + k + '}}', v)
+    if '{{' in body:
+        import re as _re
+        raise RuntimeError('exercises: unfilled placeholders: ' + str(_re.findall(r'\{\{[A-Z_]+\}\}', body)))
+
+    # validate every internal hub/page link target exists on disk (fail loudly)
+    import re as _re
+    for href in set(_re.findall(r'href="/([A-Za-z0-9._-]+\.html)"', body)):
+        if not os.path.exists(os.path.join(REPO_ROOT, href)):
+            raise RuntimeError(f'exercises: link target missing on disk: /{href}')
+
+    collection = {'@context': 'https://schema.org', '@type': 'CollectionPage',
+                  'name': 'R Exercises, r-statistics.co', 'url': SITE + '/exercises/',
+                  'description': f"{manifest['_meta']['exercises']} auto-graded R exercises across {manifest['_meta']['hubs']} practice hubs."}
+    breadcrumb = {'@context': 'https://schema.org', '@type': 'BreadcrumbList', 'itemListElement': [
+        {'@type': 'ListItem', 'position': 1, 'name': 'Home', 'item': SITE + '/'},
+        {'@type': 'ListItem', 'position': 2, 'name': 'Exercises', 'item': SITE + '/exercises/'}]}
+    render_page(
+        'exercises/index.html', SITE + '/exercises/',
+        'R Exercises · r-statistics.co',
+        '2,904 auto-graded R exercises across 127 hubs: base R, dplyr, ggplot2, statistics, and machine learning. Write real R, get it checked instantly. Free to attempt, no signup.',
+        body, page_css=css, sprite=sprite, active='exercises',
+        page_js=['/www/exercises-page.js?v=1'], jsonld=[collection, breadcrumb],
+        keywords='R exercises, R practice problems, learn R by doing, dplyr exercises, ggplot2 exercises, R coding challenges, auto-graded R, R interview questions')
+    print(f"  (exercises: {manifest['_meta']['exercises']} exercises / {len(hubs)} hubs · topics "
+          + ', '.join(f"{k}={counts[k]}" for k, _ in _EX_TOPIC_RULES) + f", quizzes={quizzes})")
+
+
 def build_all():
     """Build every wired section page. Section builders are added per phase."""
     build_certification()
     build_tools()
     build_tutorials()
+    build_exercises()
 
 
 if __name__ == '__main__':
