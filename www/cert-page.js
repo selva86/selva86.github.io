@@ -1,6 +1,6 @@
 // cert-page.js — interaction + personalization for the real certification page.
 //
-// Provides window.mintCert and window.doVerify (referenced by inline onclick in
+// Provides window.doVerify (referenced by the verify form's inline onclick in
 // the page fragment), plus signed-in personalization that decorates the
 // credential ladder with real per-track progress and credentials.
 //
@@ -16,48 +16,12 @@
 
   var FREE_TRACKS = ['r-fundamentals', 'tidyverse-practitioner'];
 
-  // ===== 1. mintCert (copied verbatim behavior from the mock) =====
-  var minted = false;
-  function mintCert() {
-    var frame = document.getElementById('certframe');
-    var btn = document.getElementById('mintBtn');
-    if (!frame) return;
-    if (btn) btn.classList.add('gone');
-    frame.classList.add('minting');
-    setTimeout(function () {
-      frame.classList.remove('minting');
-      minted = true;
-      // make the recipient name editable so it really feels like "yours"
-      var nm = document.getElementById('certName');
-      if (!nm) return;
-      nm.setAttribute('contenteditable', 'true');
-      nm.setAttribute('spellcheck', 'false');
-      nm.addEventListener('input', function () {
-        // keep the verify card name in sync, as a small touch
-        var t = nm.textContent.trim() || 'Your Name';
-        var meta = document.getElementById('vmeta');
-        if (meta) {
-          meta.innerHTML = '<b>Certified Tidyverse Practitioner</b> · ' + t +
-            '<br>issued 13 June 2026 · assessment 91% · not revoked';
-        }
-      });
-    }, 520);
-  }
-  window.mintCert = mintCert;
+  // NOTE: the sample certificate's recipient name is intentionally NOT editable.
+  // An editable name on a public sample credential would invite screenshot-faking
+  // (anyone could type their name and photograph a "credential"). The real proof
+  // is always the public /cert/<id> verification page.
 
-  // let the caption hint trigger the mint + focus too
-  function wireCaption() {
-    var cap = document.querySelector('.certcap');
-    if (!cap) return;
-    cap.addEventListener('click', function () {
-      var nm = document.getElementById('certName');
-      if (!nm) return;
-      if (nm.getAttribute('contenteditable') !== 'true' && !minted) { mintCert(); }
-      setTimeout(function () { nm.focus(); }, 560);
-    });
-  }
-
-  // ===== 2. doVerify =====
+  // ===== doVerify =====
   // Valid RST-ID -> navigate to the real public verification page (/cert/<id>).
   // Invalid format -> show the mock's inline error state, no navigation.
   function doVerify() {
@@ -197,9 +161,8 @@
     }).catch(function () {});
   }
 
-  // ===== 5. boot =====
+  // ===== boot =====
   function init() {
-    wireCaption();
     try { personalize(); } catch (_) { /* never throw */ }
   }
 
