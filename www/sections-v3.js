@@ -20,6 +20,25 @@
     syncDarkBtn();
   };
 
+  // ---- mobile nav (hamburger) ----
+  window.toggleNav = function () {
+    var m = document.querySelector('.masthead');
+    if (!m) return;
+    var open = m.classList.toggle('nav-open');
+    var b = document.getElementById('burgerBtn');
+    if (b) b.setAttribute('aria-expanded', open ? 'true' : 'false');
+  };
+  document.addEventListener('click', function (e) {
+    var m = document.querySelector('.masthead.nav-open');
+    if (!m) return;
+    var t = e.target;
+    if (t.closest && t.closest('#burgerBtn')) return;      // toggle handles it
+    if (t.closest && t.closest('.nav a')) { m.classList.remove('nav-open'); }   // link tapped
+    else if (!(t.closest && t.closest('.nav'))) { m.classList.remove('nav-open'); } // outside
+    var b = document.getElementById('burgerBtn');
+    if (b && !m.classList.contains('nav-open')) b.setAttribute('aria-expanded', 'false');
+  });
+
   // ---- reveal-on-scroll ----
   function revealAll() {
     var els = document.querySelectorAll('.reveal');

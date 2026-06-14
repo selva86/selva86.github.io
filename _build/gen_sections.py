@@ -76,14 +76,19 @@ def render_masthead(active):
     return f'''<header class="masthead">
   <div class="wrap">
     <a class="wordmark" href="/"><span class="mark">R</span>r-statistics<span class="co">.co</span></a>
-    <nav class="nav">
+    <nav class="nav" id="navmenu">
 {nav}
+      <div class="nav-cta">
+        <a class="btn-pro" href="/pricing.html"><svg class="ic"><use href="#i-spark"/></svg> Try Pro free</a>
+        <span class="auth-anon"><a class="masthead-auth-link" href="/signin.html">Sign in</a></span>
+      </div>
     </nav>
     <div class="mh-right">
-      <a class="btn-pro" href="/pricing.html"><svg class="ic"><use href="#i-spark"/></svg> Try Pro free</a>
+      <a class="btn-pro mh-pro" href="/pricing.html"><svg class="ic"><use href="#i-spark"/></svg> Try Pro free</a>
       <button class="iconbtn" id="darkBtn" onclick="toggleDark()" aria-label="Toggle dark mode" type="button">&#9789;</button>
-      <span class="auth-anon"><a class="masthead-auth-link" href="/signin.html">Sign in</a></span>
+      <span class="auth-anon mh-signin"><a class="masthead-auth-link" href="/signin.html">Sign in</a></span>
       <span class="auth-user"></span>
+      <button class="iconbtn mh-burger" id="burgerBtn" onclick="toggleNav()" aria-label="Open menu" aria-expanded="false" type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg></button>
     </div>
   </div>
 </header>'''
@@ -92,7 +97,7 @@ def render_masthead(active):
 def render_scripts(page_js=None):
     parts = [ANALYTICS,
              '  <script defer src="/www/auth-hydrate.js?v=10"></script>',
-             '  <script defer src="/www/sections-v3.js?v=1"></script>',
+             '  <script defer src="/www/sections-v3.js?v=2"></script>',
              '  <script defer src="/www/signin-nudge.js?v=10"></script>']
     for src in (page_js or []):
         parts.append(f'  <script defer src="{src}"></script>')
@@ -133,7 +138,7 @@ def render_page(out_relpath, canonical, title, description, body_html, *,
 <meta name="twitter:image" content="{SITE}{og_image}">{jsonld_blocks}
 {FOUC}
 {FONTS}
-<link rel="stylesheet" href="/www/sections-v3.css?v=1">
+<link rel="stylesheet" href="/www/sections-v3.css?v=2">
 <style>
 {page_css}
 </style>
