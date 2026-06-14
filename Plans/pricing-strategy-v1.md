@@ -1,6 +1,16 @@
 # Pricing & launch strategy (v1, for decision)
 
-Status: DRAFT for Selva's decision. Supersedes the current `/pricing.html` packaging once a direction is locked. Companion to the pricing-page critique (2026-06-15).
+Status: **DECISION LOCKED 2026-06-15.** Supersedes the current `/pricing.html` packaging. Companion to the pricing-page critique (2026-06-15).
+
+## DECISION (locked by Selva)
+- **Architecture: C-then-B** — launch as the annual *R Certification Program*, evolve to per-track one-time + Teams later.
+- **Price: $149/yr, founding $99/yr** (locked for founders). Optional monthly later.
+- **Launch wedge: R Fundamentals certification first.**
+- **Lifetime: dropped** from the launch page (revisit post-launch; default = do not offer).
+- **Launch gate: removed** (no "200" vanity count). Founding-cohort framing; commit a real window when set (placeholder until Selva provides a date).
+- Open/soft: exact launch date, how hard to lean on Selva/MLP+ brand (defaulting to rigor-first, brand as support).
+
+
 
 ---
 
