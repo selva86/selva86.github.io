@@ -82,7 +82,7 @@
     var tright = card.querySelector('.tright');
     if (!tright) return;
 
-    var pct = clamp(t.pct);
+    var pct = clamp(t.pct * 100);
     var solved = Number(t.solved) || 0;
     var total = Number(t.total_exercises) || 0;
 

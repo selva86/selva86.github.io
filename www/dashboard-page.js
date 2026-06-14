@@ -90,9 +90,8 @@
     }
   }
 
-  function renderStats(stats, tracks, certCount) {
-    var solved = 0;
-    (tracks || []).forEach(function (t) { solved += num(t.solved); });
+  function renderStats(stats, solvedCount, certCount) {
+    var solved = num(solvedCount);
     var strip = el('statsStrip');
     if (!strip) return;
     strip.innerHTML =
@@ -190,7 +189,7 @@
 
   function renderCerts(certs) {
     var active = (certs && Array.isArray(certs.items) ? certs.items : [])
-      .filter(function (c) { return c && (c.status == null || c.status === 'active'); });
+      .filter(function (c) { return c && c.status !== 'revoked'; });  // earned = any non-revoked
     var cc = el('certsCount'); if (cc) cc.textContent = active.length;
     var pl = el('certsPlural'); if (pl) pl.textContent = active.length === 1 ? '' : 's';
     var list = el('certsList');
@@ -288,14 +287,19 @@
     var me = r[0], stats = r[1] || {}, tracksData = r[2], certs = r[3], reading = r[4], saved = r[5];
     if (!me || !me.user) { location.replace(SIGNIN); return; }
     var tracks = tracksData && Array.isArray(tracksData.tracks) ? tracksData.tracks : [];
+    // /api/me/tracks returns pct as a 0..1 ratio; the renderers below expect 0..100.
+    tracks.forEach(function (t) { if (t) t.pct = clampPct((Number(t.pct) || 0) * 100); });
+    // Accurate total solved across ALL hubs (api adds total_solved); fall back to track sum.
+    var totalSolved = (tracksData && typeof tracksData.total_solved === 'number')
+      ? tracksData.total_solved
+      : tracks.reduce(function (a, t) { return a + num(t.solved); }, 0);
 
     var certCount = renderCerts(certs);
-    var solvedSum = 0; tracks.forEach(function (t) { solvedSum += num(t.solved); });
     var hasReading = reading && Array.isArray(reading.items) && reading.items.length > 0;
-    var isNew = num(stats.total_xp) === 0 && certCount === 0 && solvedSum === 0 && !hasReading;
+    var isNew = num(stats.total_xp) === 0 && certCount === 0 && totalSolved === 0 && !hasReading;
 
     renderGreeting(me, stats, isNew);
-    renderStats(stats, tracks, certCount);
+    renderStats(stats, totalSolved, certCount);
     renderResume(reading, tracks, isNew);
     renderTracks(tracks);
     renderSaved(saved);

@@ -293,7 +293,7 @@
         USER_TRACKS = {};
         d.tracks.forEach(function (t) {
           if (t && t.id) USER_TRACKS[t.id] = {
-            pct: Math.max(0, Math.min(100, Math.round(Number(t.pct) || 0))),
+            pct: Math.max(0, Math.min(100, Math.round((Number(t.pct) || 0) * 100))),
             solved: Number(t.solved) || 0,
             total: Number(t.total_exercises) || 0,
             name: t.name

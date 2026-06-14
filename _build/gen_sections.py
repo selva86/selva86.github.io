@@ -211,7 +211,7 @@ def build_certification():
         'Certifications · r-statistics.co',
         'Verifiable, evidence-based R programming certifications. Earn one by solving 80% of the exercises across a curated track of hubs. Free to attempt; Pro to claim.',
         body, page_css=css, sprite=sprite, active='certification',
-        page_js=['/www/cert-page.js?v=1'], jsonld=[webpage, breadcrumb],
+        page_js=['/www/cert-page.js?v=2'], jsonld=[webpage, breadcrumb],
         keywords='R certification, R programming certificate, verifiable credential, data science certificate, tidyverse certification, machine learning R certificate, statistics certificate, open badges')
 
 
@@ -375,7 +375,7 @@ def build_exercises():
         'R Exercises · r-statistics.co',
         '2,904 auto-graded R exercises across 127 hubs: base R, dplyr, ggplot2, statistics, and machine learning. Write real R, get it checked instantly. Free to attempt, no signup.',
         body, page_css=css, sprite=sprite, active='exercises',
-        page_js=['/www/exercises-page.js?v=1'], jsonld=[collection, breadcrumb],
+        page_js=['/www/exercises-page.js?v=2'], jsonld=[collection, breadcrumb],
         keywords='R exercises, R practice problems, learn R by doing, dplyr exercises, ggplot2 exercises, R coding challenges, auto-graded R, R interview questions')
     print(f"  (exercises: {manifest['_meta']['exercises']} exercises / {len(hubs)} hubs · topics "
           + ', '.join(f"{k}={counts[k]}" for k, _ in _EX_TOPIC_RULES) + f", quizzes={quizzes})")
@@ -400,7 +400,7 @@ def build_roadmap():
         'R Learning Roadmap · r-statistics.co',
         'A guided route through R, sequenced by your goal: new to R, data analyst, machine learning, researcher, or time series. Each stage earns the next, ending in a verifiable certificate.',
         body, page_css=css, sprite=sprite, active='roadmap',
-        page_js=['/www/roadmap-page.js?v=1'], jsonld=[webpage, breadcrumb],
+        page_js=['/www/roadmap-page.js?v=2'], jsonld=[webpage, breadcrumb],
         keywords='R learning roadmap, learn R path, R study plan, data science roadmap, how to learn R, R curriculum, R learning order')
     print(f'  (roadmap: total={total:,})')
 
@@ -459,7 +459,7 @@ def build_dashboard():
         'Dashboard · r-statistics.co',
         'Your r-statistics.co dashboard: progress, streak, certificates and saved posts.',
         body, page_css=css, sprite=sprite, active='',
-        page_js=['/www/dashboard-page.js?v=1'], robots='noindex, nofollow')
+        page_js=['/www/dashboard-page.js?v=2'], robots='noindex, nofollow')
     print('  (dashboard built)')
 
 

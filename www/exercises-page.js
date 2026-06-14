@@ -140,7 +140,7 @@
       tracksData.tracks.forEach(function (t) {
         if (!t) return;
         var pct = num(t.pct);
-        if (pct > 0 && pct < 100 && (!best || pct > num(best.pct))) best = t;
+        if (pct > 0 && pct < 1 && (!best || pct > num(best.pct))) best = t;
       });
     }
     var sub = document.getElementById('streakSub');
