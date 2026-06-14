@@ -381,12 +381,65 @@ def build_exercises():
           + ', '.join(f"{k}={counts[k]}" for k, _ in _EX_TOPIC_RULES) + f", quizzes={quizzes})")
 
 
+def build_roadmap():
+    import glob
+    css, sprite, body = load_fragment('roadmap')
+    total = len(glob.glob(os.path.join(REPO_ROOT, '_posts', '*.html')))
+    body = body.replace('{{TOTAL}}', f'{total:,}')
+    if '{{' in body:
+        import re as _re
+        raise RuntimeError('roadmap: unfilled placeholders: ' + str(_re.findall(r'\{\{[A-Z_]+\}\}', body)))
+    webpage = {'@context': 'https://schema.org', '@type': 'WebPage',
+               'name': 'R Learning Roadmap, r-statistics.co', 'url': SITE + '/roadmap/',
+               'description': 'Guided routes through the r-statistics.co library, sequenced by where you are headed: new to R, data analyst, machine learning, research, or time series.'}
+    breadcrumb = {'@context': 'https://schema.org', '@type': 'BreadcrumbList', 'itemListElement': [
+        {'@type': 'ListItem', 'position': 1, 'name': 'Home', 'item': SITE + '/'},
+        {'@type': 'ListItem', 'position': 2, 'name': 'Roadmap', 'item': SITE + '/roadmap/'}]}
+    render_page(
+        'roadmap/index.html', SITE + '/roadmap/',
+        'R Learning Roadmap · r-statistics.co',
+        'A guided route through R, sequenced by your goal: new to R, data analyst, machine learning, researcher, or time series. Each stage earns the next, ending in a verifiable certificate.',
+        body, page_css=css, sprite=sprite, active='roadmap',
+        page_js=['/www/roadmap-page.js?v=1'], jsonld=[webpage, breadcrumb],
+        keywords='R learning roadmap, learn R path, R study plan, data science roadmap, how to learn R, R curriculum, R learning order')
+    print(f'  (roadmap: total={total:,})')
+
+
+def build_statistics():
+    """Topic pilot page: /statistics/ (reusable pattern for the other 8 paths later)."""
+    css, sprite, body = load_fragment('statistics')
+    if '{{' in body:
+        import re as _re
+        raise RuntimeError('statistics: unfilled placeholders: ' + str(_re.findall(r'\{\{[A-Z_]+\}\}', body)))
+    # validate internal links exist on disk (fail loudly)
+    import re as _re
+    for href in set(_re.findall(r'href="/([A-Za-z0-9._-]+\.html)"', body)):
+        if not os.path.exists(os.path.join(REPO_ROOT, href)):
+            raise RuntimeError(f'statistics: link target missing on disk: /{href}')
+    webpage = {'@context': 'https://schema.org', '@type': 'CollectionPage',
+               'name': 'Statistics with R, r-statistics.co', 'url': SITE + '/statistics/',
+               'description': 'The statistics learning path in R: probability, inference, regression, ANOVA, categorical analysis, and Bayesian methods, in the order to learn them.'}
+    breadcrumb = {'@context': 'https://schema.org', '@type': 'BreadcrumbList', 'itemListElement': [
+        {'@type': 'ListItem', 'position': 1, 'name': 'Home', 'item': SITE + '/'},
+        {'@type': 'ListItem', 'position': 2, 'name': 'Statistics', 'item': SITE + '/statistics/'}]}
+    render_page(
+        'statistics/index.html', SITE + '/statistics/',
+        'Statistics with R · r-statistics.co',
+        'Learn statistics in R the right way round: probability, inference, regression, ANOVA, and Bayesian methods, in a sequence that builds. Every concept runs live in the browser.',
+        body, page_css=css, sprite=sprite, active='',
+        page_js=['/www/statistics-page.js?v=1'], jsonld=[webpage, breadcrumb],
+        keywords='statistics in R, learn statistics with R, R hypothesis testing, R regression, ANOVA in R, probability in R, Bayesian statistics R, statistical inference R')
+    print('  (statistics topic pilot built)')
+
+
 def build_all():
     """Build every wired section page. Section builders are added per phase."""
     build_certification()
     build_tools()
     build_tutorials()
     build_exercises()
+    build_roadmap()
+    build_statistics()
 
 
 if __name__ == '__main__':
