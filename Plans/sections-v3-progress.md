@@ -4,8 +4,9 @@ Plan: `Plans/sections-v3-implementation-plan.md`. Memory: `project_sections_v3`.
 Branch: **`sections-v3`** (NEVER work on master; master deploys to GH Pages + CF Pages prod).
 
 ## ▶ RESUME HERE
-**Current status:** Phase 0 + Phase 1 (Certification) COMPLETE + verified in-browser (light + dark; exact look/feel; real masthead+auth+nudge+footer; full page renders incl. ladder + verify box). On branch `sections-v3`.
-**Next action:** Phase 2 — Tools. Rewrite `_build/gen_tools_landing.py` to emit the v3 design via `gen_sections.render_page` (real t-test calc hero, "ones I reach for" curated, 27-tool index by category, Pro band). Keep `/tools/` URL. (Pattern to follow: create `_build/sections/tools-fragment.html` like cert, OR keep gen_tools_landing's tool-scan + v3 chrome.)
+**Current status:** Phase 0 + 1 (Certification) + 2 (Tools) COMPLETE. Cert verified in-browser; Tools verified structurally (27 cards/6 cats, calc JS valid, no leftovers) - local screenshot tool was down so visual check is on CF preview. On branch `sections-v3`.
+**Next action:** Phase 3 — Tutorials. New `/tutorials/` (NEW page; v3 masthead links there). Create `_build/sections/tutorials-fragment.html` from `tutorials-mock-v3.html` (WebR hero via real `webr-init.js`; curated "start here" 5; 9 path cards with REAL counts from curriculum-status.json+sidebar.json; "browse all" → `/posts/`). Add `build_tutorials()` to gen_sections (output `tutorials/index.html`). `www/tutorials-page.js`: signed-in resume via `/api/me/reading`. Note real total tutorials count (~1,333) from curriculum-status + pseo-status.
+**Pattern established (cert + tools):** delegate the mock→fragment+page-JS extraction to a focused agent (precise spec: 3 markers CSS/SPRITE/BODY, body.dark→html.dark, strip head/masthead/footer/DESIGN-MOCK/scripts, `{{PLACEHOLDER}}` for any data-driven block), then add a `build_X()` to gen_sections that loads the fragment, fills data placeholders, render_page(). Tools' index is data-driven (`{{TOOL_INDEX}}` filled from gen_tools_landing.collect_tools + `_TOOLS_CAT_META`). gen_tools_landing.render() now DELEGATES to gen_sections.build_tools().
 **Foundation notes:** fonts = Google Fonts (italics needed, not self-hosted) — deliberate deviation. Dark = `html.dark`+`localStorage['theme']`. Generator `_build/gen_sections.py`: `render_page()` (head+masthead+footer+scripts), `load_fragment(name)` (splits `_build/sections/<name>-fragment.html` on `<!--===CSS===-->/SPRITE/BODY` markers), per-section builders in `build_all()`. Wired into `build_with_pagefind.py` step 1b.
 **Cert (Phase 1) notes:** page fragment `_build/sections/certification-fragment.html` (full mock CSS w/ body.dark→html.dark + cert body w/ `data-track` attrs on the 6 ladder cards + sprite). `www/cert-page.js` = mintCert (editable-name demo), doVerify (→ `/cert/<id>` on valid RST format), + signed-in personalization via `/api/me/tracks`+`/api/me/certificates` (anon = silent no-op, verified). DID NOT modify `tracks.json` (free-set hardcoded in cert-page.js: r-fundamentals + tidyverse-practitioner). Canonical preserved `/certifications` (no slash).
 
@@ -32,9 +33,10 @@ Branch: **`sections-v3`** (NEVER work on master; master deploys to GH Pages + CF
 - [x] `build_certification()` in gen_sections.py generates `certifications.html` (canonical `/certifications` preserved)
 - [x] Verified in-browser: anon, light+dark, full page, verify box, nudge, footer. (signed-in overlay = wired, anon-safe; needs a real session on CF preview to fully exercise. mobile = pending CF-preview QA in Phase 6.)
 
-### Phase 2 — Tools
-- [ ] v3 rewrite of `_build/gen_tools_landing.py` (real t-test calc hero, curated, 27-tool index, Pro). Keep `/tools/` URL+canonical.
-- [ ] Verify
+### Phase 2 — Tools ✅ DONE
+- [x] `_build/sections/tools-fragment.html` (hero t-test calc + curated + `{{TOOL_INDEX}}` placeholder in `section#index` + Pro) ; `www/tools-page.js` (the calc)
+- [x] `gen_sections.build_tools()` (data-driven 27-tool index from collect_tools + `_TOOLS_CAT_META`); `gen_tools_landing.render()` delegates to it. Title/canonical/desc preserved.
+- [x] Verified structurally (27 cards/6 cats, JS valid, no leftovers). Visual = CF preview.
 
 ### Phase 3 — Tutorials
 - [ ] New `/tutorials/` (WebR hero, curated 5, 9 path cards real counts, browse-all → `/posts/`)

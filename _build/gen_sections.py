@@ -210,9 +210,71 @@ def build_certification():
         keywords='R certification, R programming certificate, verifiable credential, data science certificate, tidyverse certification, machine learning R certificate, statistics certificate, open badges')
 
 
+# Tools index: (display name, monogram letter, tagline) aligned to gen_tools_landing.CATEGORIES order.
+_TOOLS_CAT_META = [
+    ('Calculators', 'C', 'run a test, get a number'),
+    ('Bayesian', 'B', 'update beliefs with evidence'),
+    ('R Output Interpreters', 'R', 'paste output, get plain English'),
+    ('Pickers &amp; Decision Tools', 'P', 'choose the right method'),
+    ('Study Design &amp; Power', 'S', 'plan before you collect data'),
+    ('Specialized', 'X', 'domain-specific tests'),
+]
+
+
+def build_tools():
+    css, sprite, body = load_fragment('tools')
+    from gen_tools_landing import collect_tools, CATEGORIES  # lazy: avoids import cycle
+    tools = collect_tools()
+    blocks, total = [], 0
+    for (cat_name, slugs), (disp, letter, tagline) in zip(CATEGORIES, _TOOLS_CAT_META):
+        present = [s for s in slugs if s in tools]
+        total += len(present)
+        cards = []
+        for slug in present:
+            t = tools[slug]
+            title = t['title'].replace('<', '&lt;').replace('>', '&gt;')
+            desc = t['desc'].replace('<', '&lt;').replace('>', '&gt;')
+            cards.append(
+                f'      <a class="trow" href="/tools/{slug}.html">'
+                f'<span class="tname">{title} <span class="arr">&rarr;</span></span>'
+                f'<p class="tdesc">{desc}</p></a>')
+        blocks.append(
+            '  <div class="cat">\n'
+            f'    <div class="cathd"><span class="lm">{letter}</span><h3>{disp}</h3>'
+            f'<span class="cc">{len(present)} tools</span><span class="gtag">{tagline}</span></div>\n'
+            '    <div class="rows">\n' + '\n'.join(cards) + '\n    </div>\n  </div>')
+    body = body.replace('{{TOOL_INDEX}}', '\n'.join(blocks))
+
+    item_list = {'@context': 'https://schema.org', '@type': 'CollectionPage',
+                 'name': 'Statistical Tools, r-statistics.co', 'url': SITE + '/tools/',
+                 'mainEntity': {'@type': 'ItemList', 'numberOfItems': total, 'itemListElement': []}}
+    pos = 1
+    for cat_name, slugs in CATEGORIES:
+        for slug in slugs:
+            t = tools.get(slug)
+            if not t:
+                continue
+            item_list['mainEntity']['itemListElement'].append(
+                {'@type': 'ListItem', 'position': pos, 'name': t['title'],
+                 'description': t['desc'], 'url': f'{SITE}/tools/{slug}.html'})
+            pos += 1
+    breadcrumb = {'@context': 'https://schema.org', '@type': 'BreadcrumbList', 'itemListElement': [
+        {'@type': 'ListItem', 'position': 1, 'name': 'Home', 'item': SITE + '/'},
+        {'@type': 'ListItem', 'position': 2, 'name': 'Tools', 'item': SITE + '/tools/'}]}
+    render_page(
+        'tools/index.html', SITE + '/tools/',
+        'Statistical Tools · r-statistics.co',
+        '27 free in-browser statistical calculators and R output interpreters: t-test, A/B test, ANOVA, lm/glm interpreters, Bayes factor, power analysis, ROC/AUC, and more. Reproducible R code included.',
+        body, page_css=css, sprite=sprite, active='tools',
+        page_js=['/www/tools-page.js?v=1'], jsonld=[item_list, breadcrumb],
+        keywords='statistical calculator, R output interpreter, t-test calculator, A/B test calculator, power analysis, lm summary interpreter, glm interpreter, ANOVA, Bayes factor, ROC AUC, confusion matrix, online statistics tools')
+    print(f'  (tools index: {total} tools across {len(CATEGORIES)} categories)')
+
+
 def build_all():
     """Build every wired section page. Section builders are added per phase."""
     build_certification()
+    build_tools()
 
 
 if __name__ == '__main__':
