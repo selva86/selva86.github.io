@@ -8,6 +8,74 @@
 (function () {
   'use strict';
 
+  // Each stage stop links to its real tutorial. Titles not present here fall
+  // back to the Tutorials index. Targets are verified to exist at build time.
+  var STOP_LINKS = {
+      'Bar Charts': '/ggplot2-Bar-Charts.html',
+      'Bivariate EDA': '/Bivariate-EDA-in-R.html',
+      'Bootstrap (boot package)': '/Bootstrap-in-R.html',
+      'Central Limit Theorem': '/Central-Limit-Theorem-in-R.html',
+      'Choosing the Right Test': '/Which-Statistical-Test-in-R.html',
+      'Clustering (k-Means / HC / DBSCAN)': '/Clustering-with-R.html',
+      'Communicating Uncertainty': '/Communicating-Uncertainty.html',
+      'Confidence Intervals': '/Confidence-Intervals-in-R.html',
+      'Correlation Analysis': '/Correlation-Analysis-in-R.html',
+      'Descriptive Statistics': '/Descriptive-Statistics-in-R.html',
+      'Distribution Charts': '/ggplot2-Distribution-Charts.html',
+      'EDA (7-Step Framework)': '/Exploratory-Data-Analysis-in-R.html',
+      'Feature Selection': '/Variable-Selection-in-R.html',
+      'Getting Help in R': '/Getting-Help-in-R.html',
+      'Grammar of Graphics': '/ggplot2-Grammar-of-Graphics.html',
+      'Hypothesis Testing': '/Hypothesis-Testing-in-R.html',
+      'Importing Data': '/Importing-Data-in-R.html',
+      'Interaction Effects': '/Interaction-Effects-in-R.html',
+      'Interpreting PCA Output': '/PCA-in-R.html',
+      'Line Charts': '/ggplot2-Line-Charts.html',
+      'Linear Regression': '/Linear-Regression.html',
+      'Linear Regression Assumptions': '/Linear-Regression-Assumptions-in-R.html',
+      'Logistic Regression': '/Logistic-Regression-With-R.html',
+      'Missing Values (NA)': '/Missing-Values-in-R-Detect-Count-Remove-Impute-NA.html',
+      'Model Selection': '/Model-Selection-in-R.html',
+      'More Time Series Forecasting': '/Time-Series-Forecasting-With-R-part2.html',
+      'Multiple Testing Correction': '/Multiple-Comparisons-in-R.html',
+      'Normal, t, F, Chi-Squared': '/Normal-t-F-and-Chi-Squared-Distributions-in-R.html',
+      'One-Way ANOVA': '/One-Way-ANOVA-in-R.html',
+      'PCA with prcomp()': '/PCA-in-R.html',
+      'Poisson Regression': '/Poisson-Regression-in-R.html',
+      'Post-Hoc Tests After ANOVA': '/Post-Hoc-Tests-After-ANOVA.html',
+      'Publication-Ready Figures': '/Publication-Quality-Figures-in-R.html',
+      'R Data Frames': '/R-Data-Frames.html',
+      'R Joins': '/R-Joins.html',
+      'R Project Structure': '/R-Project-Structure.html',
+      'R Subsetting': '/R-Subsetting.html',
+      'R Syntax 101': '/R-Syntax-101.html',
+      'R Vectors': '/R-Vectors.html',
+      'R for Excel Users': '/R-for-Excel-Users.html',
+      'Random Variables': '/Random-Variables-in-R.html',
+      'Regression Diagnostics': '/Regression-Diagnostics-in-R.html',
+      'Regression Tables (3 packages)': '/Regression-Tables-in-R.html',
+      'Reporting Statistics': '/Reporting-Statistics-in-R.html',
+      'Reproducibility': '/Reproducibility-Crisis.html',
+      'Ridge & Lasso Regression': '/Ridge-and-Lasso-Regression-in-R.html',
+      'Sampling Distributions': '/Sampling-Distributions-in-R.html',
+      'Scatter Plots': '/ggplot2-Scatter-Plots.html',
+      'Secondary Axis': '/ggplot2-Secondary-Axis.html',
+      'Tidy Data': '/Tidy-Data-in-R.html',
+      'Time Series Analysis': '/Time-Series-Analysis-With-R.html',
+      'Time Series Forecasting': '/Time-Series-Forecasting-With-R.html',
+      'Univariate EDA': '/Univariate-EDA-in-R.html',
+      'Variable Selection': '/Variable-Selection-in-R.html',
+      'Writing R Functions': '/R-Functions.html',
+      'dplyr filter & select': '/dplyr-filter-select.html',
+      'dplyr group_by & summarise': '/dplyr-group-by-summarise.html',
+      'geom_smooth()': '/geom_smooth-in-R.html',
+      'ggplot2 Getting Started': '/ggplot2-Getting-Started.html',
+      'lubridate': '/lubridate-in-R.html',
+      'pivot_longer & pivot_wider': '/pivot_longer-pivot_wider-Reshape-Data-in-R.html',
+      't-SNE and UMAP': '/t-SNE-and-UMAP-in-R.html',
+      't-Tests': '/t-Tests-in-R.html'
+    };
+
   var ROUTES = {
       new: {
         title:'The way in, <em>from scratch</em>',
@@ -155,7 +223,7 @@
 
   function stageHTML(s, idx) {
     var stops = s.stops.map(function (t) {
-      return '<a class="stop" href="/tutorials/">' +
+      return '<a class="stop" href="' + (STOP_LINKS[t] || '/tutorials/') + '">' +
         '<svg class="mk"><use href="#i-dot"/></svg>' +
         '<span class="mt">' + t + '</span>' +
         '<span class="arr"><svg class="ic ic-sm"><use href="#i-arrow-right"/></svg></span>' +
