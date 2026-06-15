@@ -244,3 +244,19 @@ CREATE TABLE IF NOT EXISTS org_members (
 );
 
 -- comments table omitted: v1 uses Giscus per Section 11 decision.
+
+-- ===== waitlist (Pro founding-member waitlist; pre-Lemon-Squeezy) =====
+-- Captures email + plan interest before payments are live. When LS launches we
+-- email this list a checkout link; access/validity begins at the paid-features
+-- go-live date (honored at activation, not at waitlist signup).
+CREATE TABLE IF NOT EXISTS waitlist (
+  id            TEXT PRIMARY KEY,
+  email         TEXT NOT NULL UNIQUE,
+  plan_interest TEXT,                       -- 'monthly' | 'annual' | 'lifetime' | NULL
+  source        TEXT,                       -- where they signed up (e.g. 'pricing')
+  country       TEXT,                        -- CF-IPCountry at signup
+  user_id       TEXT,                        -- linked Supabase user id if signed in
+  created_at    INTEGER NOT NULL,
+  notified_at   INTEGER                      -- set when we email them that Pro is live
+);
+CREATE INDEX IF NOT EXISTS idx_waitlist_created ON waitlist(created_at);

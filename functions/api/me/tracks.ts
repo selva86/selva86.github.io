@@ -60,5 +60,11 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
     };
   });
 
-  return json({ tracks });
+  // True total of solved exercises across ALL hubs (not just the 5 cert
+  // tracks) — the dashboard's "Exercises solved" stat. solvedByHub is already
+  // loaded, so this is free.
+  let total_solved = 0;
+  for (const ids of solvedByHub.values()) total_solved += ids.size;
+
+  return json({ tracks, total_solved });
 };

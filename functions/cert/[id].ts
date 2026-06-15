@@ -365,6 +365,9 @@ export const onRequestGet: PagesFunction<Env, "id", RequestData> = async (contex
     <p>
       <span class="verify-url">${escapeHtml(verifyUrl)}</span>
     </p>
+    <p style="margin-top:14px">
+      <a href="/verify/" style="font-weight:600;color:#2056d2;text-decoration:none">Verify another credential &rarr;</a>
+    </p>
     ${evidence.length ? `<details class="evidence"><summary>View evidence (${evidence.length} exercise hubs completed)</summary><ul>${evidenceList}</ul></details>` : ""}
   </section>
 
