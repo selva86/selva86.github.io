@@ -23,7 +23,7 @@ NAV = [
     ('Tutorials', '/tutorials/', 'tutorials'),
     ('Exercises', '/exercises/', 'exercises'),
     ('Tools', '/tools/', 'tools'),
-    ('Certification', '/certifications/', 'certification'),
+    ('Certification', '/certifications', 'certification'),
 ]
 
 FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com">\n'
