@@ -1372,6 +1372,10 @@ def build_post(
         if not hub_short:
             hub_short = hub_short_raw
         quiz_url = '/' + os.path.splitext(slug)[0] + '-quiz.html'
+        # Only link the assessment CTA when the quiz page actually exists.
+        # Quizzes roll out per hub; a missing one shows a "coming soon" state
+        # instead of a dead link. Rebuilding flips it live automatically.
+        quiz_exists = os.path.exists(os.path.join(REPO_ROOT, os.path.splitext(slug)[0] + '-quiz.html'))
         # hub_slug = short kebab key for the localStorage record + tier lookup.
         _slug_base = os.path.splitext(slug)[0]
         if '-Exercises' in _slug_base:
@@ -1386,7 +1390,8 @@ def build_post(
         # page bottom, and an assessment CTA before practising is premature.
         cert_top = ''
         cert_bottom = make_cert_final(hub_short, quiz_url, hub_slug,
-                                       topics=topics, issuance_base=issuance_base)
+                                       topics=topics, issuance_base=issuance_base,
+                                       quiz_available=quiz_exists)
     else:
         cert_top = ''
         cert_bottom = ''
@@ -1536,7 +1541,8 @@ def make_cert_ribbon(hub_short, quiz_url):
     )
 
 
-def make_cert_final(hub_short, quiz_url, hub_slug, topics=None, issuance_base=0):
+def make_cert_final(hub_short, quiz_url, hub_slug, topics=None, issuance_base=0,
+                    quiz_available=True):
     # The diploma hero card. Leads with the artifact ("THIS DOCUMENT CERTIFIES")
     # rather than the marketing pitch. Watermark + typography-lockup CTA.
     # data-hub-slug + the tiny inline script swap in a "you earned this" state
@@ -1547,6 +1553,19 @@ def make_cert_final(hub_short, quiz_url, hub_slug, topics=None, issuance_base=0)
         chips_html = '<div class="cert-hero-topics" aria-label="Topics tested">' + ''.join(
             f'<span class="cert-hero-chip">{t}</span>' for t in topics
         ) + '</div>'
+    # The assessment CTA links out only when the quiz exists; otherwise it
+    # degrades to a non-link "coming soon" state (no dead href).
+    if quiz_available:
+        cta_html = (
+            f'<a href="{quiz_url}" class="cert-hero-cta">'
+            'Begin assessment<span class="cert-hero-cta-arrow">&rarr;</span>'
+            '</a>'
+        )
+    else:
+        cta_html = (
+            '<span class="cert-hero-cta cert-hero-cta-soon" aria-disabled="true">'
+            'Assessment coming soon</span>'
+        )
     count_html = ''
     if issuance_base:
         count_html = (
@@ -1573,9 +1592,7 @@ def make_cert_final(hub_short, quiz_url, hub_slug, topics=None, issuance_base=0)
         '</p>'
         '<div class="cert-hero-cta-row">'
         '<span class="cert-hero-rule"></span>'
-        f'<a href="{quiz_url}" class="cert-hero-cta">'
-        'Begin assessment<span class="cert-hero-cta-arrow">&rarr;</span>'
-        '</a>'
+        f'{cta_html}'
         '<span class="cert-hero-rule"></span>'
         '</div>'
         f'{count_html}'
