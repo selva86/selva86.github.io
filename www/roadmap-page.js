@@ -240,24 +240,66 @@
 
   function esc(t) { return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
 
-  // ---- the climb map: see the whole journey at a glance, jump to any level ----
+  // ---- the climb map: an ascending ridgeline trail you read in one glance ----
+  var SHORT = { foundations: 'New to R', analyst: 'Data Analyst', ds: 'Data Scientist',
+                ts: 'Time Series', researcher: 'Researcher', developer: 'R Developer' };
+  var SHORTCERT = { foundations: 'R Fundamentals', analyst: 'Tidyverse', ds: 'Machine Learning',
+                    ts: 'Time Series', researcher: 'Applied Stats', developer: 'Advanced R' };
+
+  // Catmull-Rom spline through the waypoints -> a smooth rising trail.
+  function crPath(P) {
+    var d = 'M ' + P[0].x.toFixed(1) + ' ' + P[0].y.toFixed(1);
+    for (var i = 0; i < P.length - 1; i++) {
+      var p0 = P[i - 1] || P[i], p1 = P[i], p2 = P[i + 1], p3 = P[i + 2] || P[i + 1];
+      var c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
+      var c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
+      d += ' C ' + c1x.toFixed(1) + ' ' + c1y.toFixed(1) + ', ' +
+        c2x.toFixed(1) + ' ' + c2y.toFixed(1) + ', ' + p2.x.toFixed(1) + ' ' + p2.y.toFixed(1);
+    }
+    return d;
+  }
+
   function overviewHTML() {
-    var rungs = LEVELS.map(function (L) {
-      return '<a class="rung" href="#level-' + L.key + '" style="--lc:' + L.color + '">' +
-        '<span class="rung-n">' + L.n + '</span>' +
-        '<span class="rung-b">' +
-          '<span class="rung-p">' + esc(L.persona) + '</span>' +
-          '<span class="rung-c">' + esc(L.cert) + ' certificate</span>' +
-        '</span>' +
-      '</a>';
-    }).join('<span class="rung-link" aria-hidden="true"></span>');
-    return '<div class="climb">' + rungs +
-      '<span class="rung-link" aria-hidden="true"></span>' +
-      '<a class="rung rung-cap" href="#capstone">' +
-        '<span class="rung-n"><svg class="ic ic-sm"><use href="#i-award"/></svg></span>' +
-        '<span class="rung-b"><span class="rung-p">R Data Scientist</span>' +
-        '<span class="rung-c">capstone</span></span>' +
-      '</a></div>';
+    var W = 1040, baseY = 232, topY = 60, padX = 92, n = LEVELS.length;
+    var step = (W - 2 * padX) / n;
+    var pts = [];
+    for (var i = 0; i < n; i++) pts.push({ x: padX + i * step, y: baseY - (baseY - topY) * (i / n), L: LEVELS[i] });
+    var sx = padX + n * step, sy = topY;
+    pts.push({ x: sx, y: sy, summit: true });
+    var trail = crPath(pts);
+    var area = trail + ' L ' + sx.toFixed(1) + ' 268 L ' + pts[0].x.toFixed(1) + ' 268 Z';
+    var nodes = pts.map(function (p) {
+      if (p.summit) {
+        return '<g class="cn cn-cap" data-jump="capstone" transform="translate(' + p.x.toFixed(1) + ',' + p.y.toFixed(1) + ')">' +
+          '<circle class="cn-halo" r="24"/>' +
+          '<rect class="cn-dot" x="-18" y="-18" width="36" height="36" rx="11"/>' +
+          '<path class="cn-star" d="M0 -9 2.6 -2.5 9.4 -2.5 3.9 1.7 6 8.5 0 4.3 -6 8.5 -3.9 1.7 -9.4 -2.5 -2.6 -2.5 Z"/>' +
+          '<text class="cn-p" y="-28" text-anchor="middle">The summit</text>' +
+          '<text class="cn-c cn-c-cap" y="34" text-anchor="middle">R Data Scientist</text>' +
+        '</g>';
+      }
+      var L = p.L;
+      return '<g class="cn" data-jump="level-' + L.key + '" transform="translate(' + p.x.toFixed(1) + ',' + p.y.toFixed(1) + ')" style="--lc:' + L.color + '">' +
+        '<circle class="cn-halo" r="23"/>' +
+        '<circle class="cn-dot" r="16"/>' +
+        '<text class="cn-num" y="5" text-anchor="middle">' + L.n + '</text>' +
+        '<text class="cn-p" y="-26" text-anchor="middle">' + esc(SHORT[L.key]) + '</text>' +
+        '<text class="cn-c" y="33" text-anchor="middle">' + esc(SHORTCERT[L.key]) + '</text>' +
+      '</g>';
+    }).join('');
+    var svg = '<svg class="climb-svg" viewBox="0 0 ' + W + ' 286" preserveAspectRatio="xMidYMid meet" role="img" aria-label="A six-level climb from New to R up to R Developer, ending in the R Data Scientist capstone">' +
+      '<defs><linearGradient id="trailg" x1="0" y1="1" x2="1" y2="0">' +
+        '<stop offset="0" stop-color="#2056d2"/><stop offset=".45" stop-color="#0d9488"/><stop offset="1" stop-color="#c79b3e"/>' +
+      '</linearGradient></defs>' +
+      '<path class="trail-area" d="' + area + '"/>' +
+      '<path class="trail-line" d="' + trail + '"/>' +
+      nodes + '</svg>';
+    var list = '<ol class="climb-list">' + LEVELS.map(function (L) {
+      return '<li style="--lc:' + L.color + '"><a data-jump="level-' + L.key + '"><span class="cl-n">' + L.n + '</span>' +
+        '<span class="cl-b"><b>' + esc(L.persona) + '</b><i>' + esc(L.cert) + ' certificate</i></span></a></li>';
+    }).join('') + '<li class="cl-cap"><a data-jump="capstone"><span class="cl-n">&#9733;</span>' +
+      '<span class="cl-b"><b>R Data Scientist</b><i>the capstone</i></span></a></li></ol>';
+    return '<figure class="climb">' + svg + list + '</figure>';
   }
 
   function stageHTML(s) {
@@ -358,12 +400,14 @@
 
   render();
 
-  // smooth-scroll for the climb map / in-page anchors
+  // smooth-scroll for the climb map (SVG waypoints use data-jump) + in-page anchors
   document.addEventListener('click', function (e) {
-    var a = e.target.closest && e.target.closest('a[href^="#"]');
-    if (!a) return;
-    var id = a.getAttribute('href').slice(1);
-    var t = id && document.getElementById(id);
+    if (!e.target.closest) return;
+    var j = e.target.closest('[data-jump]');
+    var a = e.target.closest('a[href^="#"]');
+    var id = j ? j.getAttribute('data-jump') : (a ? a.getAttribute('href').slice(1) : null);
+    if (!id) return;
+    var t = document.getElementById(id);
     if (t) { e.preventDefault(); t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   });
 
