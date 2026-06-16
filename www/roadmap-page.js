@@ -96,7 +96,7 @@
   // ---- THE JOURNEY: ordered levels, each ending in a credential. ----
   // track: the /api/me/tracks id that powers signed-in progress (null = not wired yet).
   var LEVELS = [
-    { n: 1, key: 'foundations', persona: 'New to R', color: '#2056d2',
+    { n: 1, key: 'foundations', persona: 'New to R', color: '#2056d2', head: 'Find your <em>feet</em> in R',
       become: 'read R fluently instead of fighting it', weeks: '~3 weeks',
       cert: 'R Fundamentals', track: 'r-fundamentals',
       arrive: 'You can hold your own in any R script. Stop here and you are already dangerous.',
@@ -113,7 +113,7 @@
           hub: 'R Subsetting (10 problems)', tool: 'R project starter', time: 'a few days' }
       ] },
 
-    { n: 2, key: 'analyst', persona: 'Data Analyst', color: '#2e7d4f',
+    { n: 2, key: 'analyst', persona: 'Data Analyst', color: '#2e7d4f', head: 'Become a <em>Data Analyst</em>',
       become: 'turn raw data into the answer, and the chart that proves it', weeks: '~4 weeks',
       cert: 'Tidyverse Practitioner', track: 'tidyverse-practitioner',
       arrive: 'You can wrangle and present data end to end. This is the job most analyst roles are hiring for.',
@@ -135,7 +135,7 @@
           hub: 'EDA Exercises in R', tool: 'summary stats explorer', time: 'about a week' }
       ] },
 
-    { n: 3, key: 'ds', persona: 'Data Scientist', color: '#d68910',
+    { n: 3, key: 'ds', persona: 'Data Scientist', color: '#d68910', head: 'Think like a <em>Data Scientist</em>',
       become: 'build and defend models that survive data they have never seen', weeks: '~6 weeks',
       cert: 'Machine Learning with R', track: 'machine-learning',
       arrive: 'You can carry a problem from raw data to an evaluated model, and know when not to trust it.',
@@ -157,7 +157,7 @@
           hub: 'Cross Validation Exercises', tool: 'model comparison board', time: 'about two weeks' }
       ] },
 
-    { n: 4, key: 'ts', persona: 'Time Series Specialist', color: '#0d9488',
+    { n: 4, key: 'ts', persona: 'Time Series Specialist', color: '#0d9488', head: 'Master <em>data in motion</em>',
       become: 'forecast what comes next, with honest intervals', weeks: '~3 weeks',
       cert: 'Time Series Forecasting', track: null,
       arrive: 'You can decompose, model and forecast a series, not just plot one.',
@@ -174,7 +174,7 @@
           hub: 'Time Series Exercises in R', tool: 'forecast horizon tool', time: 'about two weeks' }
       ] },
 
-    { n: 5, key: 'researcher', persona: 'Researcher', color: '#c0392b',
+    { n: 5, key: 'researcher', persona: 'Researcher', color: '#c0392b', head: 'Earn the right to <em>conclude</em>',
       become: 'produce results that survive peer review', weeks: '~6 weeks',
       cert: 'Applied Statistics with R', track: 'statistics-for-ds',
       arrive: 'Your analysis can stand behind the methods section of a paper.',
@@ -201,7 +201,7 @@
           hub: 'R Markdown Exercises', tool: 'regression table builder', time: 'about a week' }
       ] },
 
-    { n: 6, key: 'developer', persona: 'R Developer', color: '#5b4b8a',
+    { n: 6, key: 'developer', persona: 'R Developer', color: '#5b4b8a', head: 'Go <em>deeper</em> than most ever do',
       become: 'read the source of the tools everyone else just imports', weeks: '~7 weeks',
       cert: 'Advanced R', track: null,
       arrive: 'You can read, write and debug production-grade R, and understand how it works underneath.',
@@ -291,8 +291,8 @@
       '<div class="lhead">' +
         '<span class="lnum">' + L.n + '</span>' +
         '<div class="lhead-b">' +
-          '<span class="leyebrow">Level ' + L.n + '</span>' +
-          '<h2>Become a <em>' + esc(L.persona) + '</em></h2>' +
+          '<span class="leyebrow">Level ' + L.n + ' &middot; ' + esc(L.persona) + '</span>' +
+          '<h2>' + L.head + '</h2>' +
           '<p class="lbecome">You learn to ' + esc(L.become) + '.</p>' +
           '<div class="lmeta">' +
             '<span class="lpill"><svg class="ic ic-sm"><use href="#i-clock"/></svg> ' + L.weeks + '</span>' +
