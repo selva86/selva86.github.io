@@ -400,7 +400,7 @@ def build_roadmap():
         'R Learning Roadmap · r-statistics.co',
         'A guided route through R, sequenced by your goal: new to R, data analyst, machine learning, researcher, or time series. Each stage earns the next, ending in a verifiable certificate.',
         body, page_css=css, sprite=sprite, active='roadmap',
-        page_js=['/www/roadmap-page.js?v=8'], jsonld=[webpage, breadcrumb],
+        page_js=['/www/roadmap-page.js?v=10'], jsonld=[webpage, breadcrumb],
         keywords='R learning roadmap, learn R path, R study plan, data science roadmap, how to learn R, R curriculum, R learning order')
     print(f'  (roadmap: total={total:,})')
 
