@@ -89,7 +89,10 @@
       'Conditions System': '/R-Conditions-System.html',
       'Debugging R Code': '/R-Debugging.html',
       'Parallel Computing': '/Parallel-Computing-With-R.html',
-      'Speedup R Code': '/Strategies-To-Improve-And-Speedup-R-Code.html'
+      'Speedup R Code': '/Strategies-To-Improve-And-Speedup-R-Code.html',
+      'Top 50 ggplot2 Visualizations': '/Top50-Ggplot2-Visualizations-MasterList-R-Code.html',
+      'Outlier Treatment': '/Outlier-Treatment-With-R.html',
+      'Missing Value Treatment': '/Missing-Value-Treatment-With-R.html'
     };
 
   var ROUTES = {
@@ -100,26 +103,26 @@
           blurb:'Pass the Fundamentals and dplyr mastery quizzes and you walk away with a verifiable certificate that proves you can hold your own in R.',
           quizzes:'2 mastery quizzes'},
         stages:[
-          {path:'Learn R', count:29, title:'Get fluent with the language first',
-           why:'Before anything clever, you need the grammar to read instead of decode. Twenty minutes here saves twenty hours of squinting at error messages.',
+          {path:'Learn R', count:29, title:'Read R like a sentence, not a puzzle',
+           why:'Most people who quit R quit in week one, decoding every line by hand. Get the grammar down and code starts reading like a sentence instead of a cipher. This is the twenty minutes that saves twenty hours.',
            time:'about a week', hub:'R Basics (15 problems)', tool:'R syntax cheat sheet',
-           stops:['R Syntax 101','R Vectors','R Data Frames','Writing R Functions']},
-          {path:'Learn R', count:29, title:'Learn to look before you leap',
+           stops:['R Syntax 101','R Vectors','R Data Frames','Writing R Functions'], payoff:'write your own functions and run a whole analysis without copy-pasting from Stack Overflow'},
+          {path:'Learn R', count:29, title:'The unglamorous habits that make you fast',
            why:'You came this far, good. Now the unglamorous habits that separate people who finish from people who flail: subsetting, getting help, and structuring a project so future-you can find anything.',
            time:'a few days', hub:'R Subsetting (10 problems)', tool:'R project starter',
-           stops:['R Subsetting','Getting Help in R','R Project Structure']},
+           stops:['R Subsetting','Getting Help in R','R Project Structure'], payoff:'pull any slice out of a dataset and set up a project that still makes sense in six months'},
           {path:'Data Wrangling', count:24, title:'Bend messy data to your will',
            why:'Real data never arrives clean. This is the stage where R stops feeling like a toy and starts feeling like a power tool. The dplyr verbs here are the ones you will reach for daily.',
            time:'about a week', hub:'dplyr (15 problems)', tool:'dplyr verb picker',
-           stops:['Importing Data','dplyr filter & select','dplyr group_by & summarise','Tidy Data']},
+           stops:['Importing Data','dplyr filter & select','dplyr group_by & summarise','Tidy Data'], payoff:'turn a raw, broken CSV into the exact tidy table your question needs'},
           {path:'Visualization', count:39, title:'Make a chart that earns a second look',
            why:'Once the grammar of graphics clicks, you stop memorizing chart recipes and start composing them. One idea that pays off in every chart you make after.',
            time:'about a week', hub:'ggplot2 (15 problems)', tool:'ggplot2 colour picker',
-           stops:['Grammar of Graphics','ggplot2 Getting Started','Scatter Plots','Bar Charts']},
+           stops:['Grammar of Graphics','ggplot2 Getting Started','Scatter Plots','Top 50 ggplot2 Visualizations'], payoff:'rebuild any chart from our 50-visualization gallery, from scratch'},
           {path:'Statistics', count:130, title:'Say something true about your data',
            why:'You can now load, clean and draw it. The last step in is reasoning under uncertainty: descriptive stats, correlation, and your first regression. A small bite of the deepest path here.',
            time:'a week or two', hub:'Confidence Interval (10 problems)', tool:'p-value interpreter',
-           stops:['Descriptive Statistics','Correlation Analysis','Hypothesis Testing','Linear Regression']}
+           stops:['Descriptive Statistics','Correlation Analysis','Hypothesis Testing','Linear Regression'], payoff:'fit your first regression and back a claim with a confidence interval, not a hunch'}
         ]
       },
       analyst: {
@@ -132,19 +135,19 @@
           {path:'Learn R', count:29, title:'Just enough language to be dangerous',
            why:'You do not need all of R to analyze data. You need the data frame and a handful of habits. We start narrow and move fast, because you came here to answer questions, not admire syntax.',
            time:'a few days', hub:'R Data Frames (15 problems)', tool:'R for Excel users guide',
-           stops:['R Syntax 101','R Data Frames','R Subsetting','R for Excel Users']},
+           stops:['R Syntax 101','R Data Frames','R Subsetting','R for Excel Users'], payoff:'load a dataset and start answering real questions in your first sitting'},
           {path:'Data Wrangling', count:24, title:'The core craft of the job',
            why:'This is where an analyst lives. filter, mutate, group, summarise, join, reshape. Get fluent here and most of every analysis you run stops feeling like work.',
            time:'about two weeks', hub:'dplyr (15 problems)', tool:'dplyr verb picker',
-           stops:['dplyr filter & select','dplyr group_by & summarise','R Joins','pivot_longer & pivot_wider']},
+           stops:['dplyr filter & select','dplyr group_by & summarise','R Joins','pivot_longer & pivot_wider'], payoff:'join three messy tables and answer a question your team thought needed a meeting'},
           {path:'Visualization', count:39, title:'Turn a table into an argument',
            why:'A number in a cell convinces no one. This stage is the grammar of graphics plus the charts that actually move a meeting: distributions, comparisons, and clean publication-ready output.',
            time:'about a week', hub:'ggplot2 (15 problems)', tool:'chart type chooser',
-           stops:['Grammar of Graphics','Bar Charts','Distribution Charts','Publication-Ready Figures']},
+           stops:['Grammar of Graphics','Bar Charts','Distribution Charts','Publication-Ready Figures'], payoff:'ship a publication-ready figure that makes the decision obvious'},
           {path:'Visualization', count:39, title:'Find the story before you tell it',
            why:'Good analysts explore before they conclude. A repeatable EDA framework keeps you honest, catches the outlier that would have embarrassed you, and tells you what is actually worth charting.',
            time:'about a week', hub:'EDA Exercises in R', tool:'summary stats explorer',
-           stops:['EDA (7-Step Framework)','Univariate EDA','Bivariate EDA','Correlation Analysis']}
+           stops:['EDA (7-Step Framework)','Univariate EDA','Bivariate EDA','Correlation Analysis'], payoff:'run a full EDA and catch the outlier that would have embarrassed you in the readout'}
         ]
       },
       ml: {
@@ -157,19 +160,19 @@
           {path:'Data Wrangling', count:24, title:'Earn the right to model',
            why:'Most ML courses skip this and it is exactly why people stall. A model is only as good as the frame you feed it. Wrangling is not a detour to modelling. It is the larger half of the job.',
            time:'about a week', hub:'dplyr (15 problems)', tool:'data quality checker',
-           stops:['dplyr filter & select','dplyr group_by & summarise','R Joins','Missing Values (NA)']},
+           stops:['dplyr filter & select','dplyr group_by & summarise','R Joins','Missing Values (NA)'], payoff:'hand your model a clean, leak-free feature frame instead of garbage in'},
           {path:'Statistics', count:130, title:'Understand the machine before you trust it',
            why:'Every model you will use is regression wearing a costume. Build the intuition here, on linear and logistic regression and their diagnostics, and the rest of ML stops being magic.',
            time:'about three weeks', hub:'Linear Regression (15 problems)', tool:'regression diagnostics tool',
-           stops:['Linear Regression','Logistic Regression','Regression Diagnostics','Feature Selection']},
+           stops:['Linear Regression','Logistic Regression','Regression Diagnostics','Feature Selection'], payoff:'read any regression output and say what it actually claims, and where it lies'},
           {path:'Statistics', count:130, title:'See the shape of your data',
            why:'Before you predict, you reduce and group. PCA and clustering teach you to find structure you did not know was there, the unsupervised half that every good modeller leans on.',
            time:'about two weeks', hub:'Clustering Exercises (10 problems)', tool:'PCA explorer',
-           stops:['PCA with prcomp()','Interpreting PCA Output','Clustering (k-Means / HC / DBSCAN)','t-SNE and UMAP']},
+           stops:['PCA with prcomp()','Interpreting PCA Output','Clustering (k-Means / HC / DBSCAN)','t-SNE and UMAP'], payoff:'find structure with PCA and clustering that nobody told you was there'},
           {path:'Statistics', count:130, title:'Build models that hold up out of sample',
            why:'A model that fits your training data is easy. One that survives new data is the whole point. Regularization, the right validation, and the discipline to not fool yourself.',
            time:'about two weeks', hub:'Cross Validation Exercises', tool:'model comparison board',
-           stops:['Ridge & Lasso Regression','Model Selection','Poisson Regression','Variable Selection']}
+           stops:['Ridge & Lasso Regression','Model Selection','Poisson Regression','Variable Selection'], payoff:'cross-validate honestly and pick the model that survives new data'}
         ]
       },
       researcher: {
@@ -182,19 +185,19 @@
           {path:'Statistics', count:130, title:'Get probability right in your bones',
            why:'Reviewers smell shaky foundations. Before any test, the intuition: distributions, the central limit theorem, and what a sampling distribution actually is. Simulation first, formulas second.',
            time:'about two weeks', hub:'Probability in R Exercises', tool:'distribution playground',
-           stops:['Random Variables','Normal, t, F, Chi-Squared','Central Limit Theorem','Sampling Distributions']},
+           stops:['Random Variables','Normal, t, F, Chi-Squared','Central Limit Theorem','Sampling Distributions'], payoff:'simulate a sampling distribution and explain the CLT to a skeptical reviewer'},
           {path:'Statistics', count:130, title:'Choose and run the right test',
            why:'The hardest part of inference is picking the correct test, not running it. This stage is a decision framework plus the workhorses: t-tests, chi-square, and honest handling of multiple comparisons.',
            time:'about two weeks', hub:'Hypothesis Testing Exercises', tool:'which-test chooser',
-           stops:['Hypothesis Testing','Choosing the Right Test','t-Tests','Multiple Testing Correction']},
+           stops:['Hypothesis Testing','Choosing the Right Test','t-Tests','Multiple Testing Correction'], payoff:'pick the correct test for a messy real design, and defend why'},
           {path:'Statistics', count:130, title:'Model effects, not just differences',
            why:'A p-value tells you something happened. Regression and ANOVA tell you how much, controlling for what. This is where your analysis starts answering the question a reviewer will actually ask.',
            time:'about two weeks', hub:'ANOVA Exercises (15 problems)', tool:'effect size calculator',
-           stops:['Linear Regression Assumptions','Interaction Effects','One-Way ANOVA','Post-Hoc Tests After ANOVA']},
+           stops:['Linear Regression Assumptions','Interaction Effects','One-Way ANOVA','Post-Hoc Tests After ANOVA'], payoff:'report an effect size with the right post-hoc correction, not just a p-value'},
           {path:'Reporting', count:18, title:'Write it up so it survives scrutiny',
            why:'Brilliant analysis dies in a sloppy methods section. The last stage turns your work into something reproducible and submittable: clean tables, reported statistics, and uncertainty stated plainly.',
            time:'about a week', hub:'R Markdown Exercises', tool:'regression table builder',
-           stops:['Reporting Statistics','Regression Tables (3 packages)','Communicating Uncertainty','Reproducibility']}
+           stops:['Reporting Statistics','Regression Tables (3 packages)','Communicating Uncertainty','Reproducibility'], payoff:'produce a reproducible methods section and tables a journal will accept'}
         ]
       },
       ts: {
@@ -207,19 +210,19 @@
           {path:'Learn R', count:29, title:'Steady the ground first',
            why:'Time series punishes shaky basics. You will be manipulating vectors and data frames constantly, so we lock those in (and the data structures) before a single forecast.',
            time:'a few days', hub:'R Vectors (12 problems)', tool:'R syntax cheat sheet',
-           stops:['R Vectors','R Data Frames','R Subsetting','lubridate']},
+           stops:['R Vectors','R Data Frames','R Subsetting','lubridate'], payoff:'wrangle dated, ordered data without tripping over gaps and time zones'},
           {path:'Visualization', count:39, title:'Learn to read a series by eye',
            why:'Half of forecasting is looking. Before any model, you train your eye on line charts and trends, because a model that contradicts what the plot plainly shows is a model you have mis-specified.',
            time:'a few days', hub:'ggplot2 (15 problems)', tool:'chart type chooser',
-           stops:['Line Charts','geom_smooth()','Grammar of Graphics','Secondary Axis']},
+           stops:['Line Charts','geom_smooth()','Grammar of Graphics','Secondary Axis'], payoff:'spot trend, season and the anomaly before you fit a single model'},
           {path:'Statistics', count:130, title:'Borrow the stats that forecasting leans on',
            why:'Forecasting rests on autocorrelation, stationarity and a feel for uncertainty intervals. A short, targeted detour through the stats path so the ARIMA stage actually makes sense.',
            time:'about a week', hub:'Correlation Exercises in R', tool:'distribution playground',
-           stops:['Correlation Analysis','Confidence Intervals','Descriptive Statistics','Bootstrap (boot package)']},
+           stops:['Correlation Analysis','Confidence Intervals','Descriptive Statistics','Bootstrap (boot package)'], payoff:'read an ACF plot and judge stationarity at a glance'},
           {path:'Time Series', count:4, title:'Decompose, model, and forecast',
            why:'Now the payoff. Pull a series apart into trend and season, fit a model that respects its order, and produce a forecast with honest intervals. The whole route was aimed here.',
            time:'about two weeks', hub:'Time Series Exercises in R', tool:'forecast horizon tool',
-           stops:['Time Series Analysis','Time Series Forecasting','More Time Series Forecasting']}
+           stops:['Time Series Analysis','Time Series Forecasting','More Time Series Forecasting'], payoff:'ship a 12-month forecast with honest prediction intervals'}
         ]
       },
       developer: {
@@ -232,19 +235,19 @@
           {path:'Advanced R', count:27, title:'Treat functions as your building blocks',
            why:'Most people use R. Fewer can compose it. Functional programming is the shift from writing the same loop ten times to writing one function that writes them for you. It is the habit that separates scripts from tools.',
            time:'about two weeks', hub:'Functional Programming (mastery quiz)', tool:'purrr verb picker',
-           stops:['Functional Programming','purrr map() Variants','Function Factories','Reduce, Filter, Map']},
+           stops:['Functional Programming','purrr map() Variants','Function Factories','Reduce, Filter, Map'], payoff:'replace ten near-identical loops with one function that writes them'},
           {path:'Advanced R', count:27, title:'Model your domain with R\'s object systems',
            why:'R has not one object system but three, and knowing which to reach for is its own skill. S3 for speed, S4 for rigour, R6 for state. Learn them and most package source stops looking like magic and starts looking like choices.',
            time:'about two weeks', hub:'OOP in R exercises', tool:'class system chooser',
-           stops:['OOP in R (S3/S4/R6)','S3 Classes','S4 Classes','R6 Classes']},
+           stops:['OOP in R (S3/S4/R6)','S3 Classes','S4 Classes','R6 Classes'], payoff:'pick S3, S4 or R6 on purpose and read the source of any package'},
           {path:'Advanced R', count:27, title:'Understand R from the inside out',
            why:'Why does changing one variable change another? Why does that function remember a value you thought was gone? Names, environments, scoping and closures are the mental model that turns baffling bugs into obvious ones.',
            time:'about a week', hub:'R internals exercises', tool:'environment inspector',
-           stops:['R Names & Values','R Environments','Lexical Scoping','R Closures']},
+           stops:['R Names & Values','R Environments','Lexical Scoping','R Closures'], payoff:'explain exactly why a value changed, or did not, and fix the bug in minutes'},
           {path:'Advanced R', count:27, title:'Make it robust, then make it fast',
            why:'The last mile of real R: code that fails loudly and recovers gracefully, then code that does it quickly. The conditions system, a real debugging workflow, and the two ways to make slow R fast, vectorise or parallelise.',
            time:'about two weeks', hub:'Debugging exercises', tool:'profiling guide',
-           stops:['Conditions System','Debugging R Code','Parallel Computing','Speedup R Code']}
+           stops:['Conditions System','Debugging R Code','Parallel Computing','Speedup R Code'], payoff:'make slow R fast, and write code that fails with a useful message'}
         ]
       }
     };
@@ -281,6 +284,8 @@
         '<h3>' + s.title + '</h3>' +
         '<p class="why">' + s.why + '</p>' +
         '<div class="stops">' + stops + '</div>' +
+        (s.payoff ? '<p class="payoff"><svg class="ic ic-sm"><use href="#i-flag"/></svg>' +
+          '<span>By the end, you can <b>' + s.payoff + '</b></span></p>' : '') +
         '<div class="reinforce">' +
           '<span class="chip"><svg><use href="#i-dumbbell"/></svg> practice &middot; <b>' + s.hub + '</b></span>' +
           '<span class="chip"><svg><use href="#i-tool"/></svg> tool &middot; <b>' + s.tool + '</b></span>' +
