@@ -360,7 +360,7 @@
         '<div class="lhead-b">' +
           '<span class="leyebrow">Level ' + L.n + ' &middot; ' + esc(L.persona) + '</span>' +
           '<h2>' + L.head + '</h2>' +
-          '<p class="lbecome">You learn to ' + esc(L.become) + '.</p>' +
+          '<p class="lbecome">' + esc(L.become) + '</p>' +
           '<div class="lmeta">' +
             '<span class="lpill"><svg class="ic ic-sm"><use href="#i-clock"/></svg> ' + L.weeks + '</span>' +
             '<span class="lpill lpill-cert"><svg class="ic ic-sm"><use href="#i-award"/></svg> earns the ' + esc(L.cert) + ' certificate</span>' +
