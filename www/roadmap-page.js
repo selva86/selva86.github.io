@@ -73,7 +73,23 @@
       'lubridate': '/lubridate-in-R.html',
       'pivot_longer & pivot_wider': '/pivot_longer-pivot_wider-Reshape-Data-in-R.html',
       't-SNE and UMAP': '/t-SNE-and-UMAP-in-R.html',
-      't-Tests': '/t-Tests-in-R.html'
+      't-Tests': '/t-Tests-in-R.html',
+      'Functional Programming': '/Functional-Programming-in-R.html',
+      'purrr map() Variants': '/purrr-map-Variants.html',
+      'Function Factories': '/R-Function-Factories.html',
+      'Reduce, Filter, Map': '/Reduce-Filter-Map-in-R.html',
+      'OOP in R (S3/S4/R6)': '/OOP-in-R.html',
+      'S3 Classes': '/S3-Classes-in-R.html',
+      'S4 Classes': '/S4-Classes-in-R.html',
+      'R6 Classes': '/R6-Classes-in-R.html',
+      'R Names & Values': '/R-Names-and-Values.html',
+      'R Environments': '/R-Environments.html',
+      'Lexical Scoping': '/R-Lexical-Scoping.html',
+      'R Closures': '/R-Closures.html',
+      'Conditions System': '/R-Conditions-System.html',
+      'Debugging R Code': '/R-Debugging.html',
+      'Parallel Computing': '/Parallel-Computing-With-R.html',
+      'Speedup R Code': '/Strategies-To-Improve-And-Speedup-R-Code.html'
     };
 
   var ROUTES = {
@@ -205,6 +221,31 @@
            time:'about two weeks', hub:'Time Series Exercises in R', tool:'forecast horizon tool',
            stops:['Time Series Analysis','Time Series Forecasting','More Time Series Forecasting']}
         ]
+      },
+      developer: {
+        title:'Going deeper, <em>into R itself</em>',
+        weeks:'~7 weeks', here:1,
+        cert:{name:'Advanced R',
+          blurb:'Clear the Advanced R mastery quiz and earn a certificate that says you can read, write and debug production-grade R, not just call packages but understand how they work underneath.',
+          quizzes:'1 mastery quiz'},
+        stages:[
+          {path:'Advanced R', count:27, title:'Treat functions as your building blocks',
+           why:'Most people use R. Fewer can compose it. Functional programming is the shift from writing the same loop ten times to writing one function that writes them for you. It is the habit that separates scripts from tools.',
+           time:'about two weeks', hub:'Functional Programming (mastery quiz)', tool:'purrr verb picker',
+           stops:['Functional Programming','purrr map() Variants','Function Factories','Reduce, Filter, Map']},
+          {path:'Advanced R', count:27, title:'Model your domain with R\'s object systems',
+           why:'R has not one object system but three, and knowing which to reach for is its own skill. S3 for speed, S4 for rigour, R6 for state. Learn them and most package source stops looking like magic and starts looking like choices.',
+           time:'about two weeks', hub:'OOP in R exercises', tool:'class system chooser',
+           stops:['OOP in R (S3/S4/R6)','S3 Classes','S4 Classes','R6 Classes']},
+          {path:'Advanced R', count:27, title:'Understand R from the inside out',
+           why:'Why does changing one variable change another? Why does that function remember a value you thought was gone? Names, environments, scoping and closures are the mental model that turns baffling bugs into obvious ones.',
+           time:'about a week', hub:'R internals exercises', tool:'environment inspector',
+           stops:['R Names & Values','R Environments','Lexical Scoping','R Closures']},
+          {path:'Advanced R', count:27, title:'Make it robust, then make it fast',
+           why:'The last mile of real R: code that fails loudly and recovers gracefully, then code that does it quickly. The conditions system, a real debugging workflow, and the two ways to make slow R fast, vectorise or parallelise.',
+           time:'about two weeks', hub:'Debugging exercises', tool:'profiling guide',
+           stops:['Conditions System','Debugging R Code','Parallel Computing','Speedup R Code']}
+        ]
       }
     };
 
@@ -214,7 +255,8 @@
     'analyst': 'tidyverse-practitioner',
     'ml': 'machine-learning',
     'researcher': 'statistics-for-ds',
-    'ts': null
+    'ts': null,
+    'developer': null
   };
 
   var USER_TRACKS = null;   // {id: {pct, solved, total, name}} once signed in
