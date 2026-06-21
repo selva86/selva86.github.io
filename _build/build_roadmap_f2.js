@@ -105,7 +105,7 @@ function dataScripts(render){return '<script src="/www/roadmap-data.js"></script
 
 // --- roadmap index ---
 const idx=head({title:'R Learning Roadmap · r-statistics.co',desc:'A guided route through R, sequenced by your goal: new to R, data analyst, data scientist, forecaster, researcher or R developer. Every level earns a verifiable certificate.',canon:ORIGIN+'/roadmap/',jsonld:jsonldRoadmap(),css:'roadmap-f2.css'})+
-  '\n<body data-page="roadmap">\n<div class="prog" id="prog"></div>\n'+nav()+'\n'+ROADMAP_MAIN+'\n'+foot()+'\n'+dataScripts('roadmap-f2.js')+'\n'+SHELL+'\n</body>\n</html>\n';
+  '\n<body data-page="roadmap">\n<div class="prog" id="prog"></div>\n'+nav()+'\n'+ROADMAP_MAIN+'\n'+foot()+'\n'+dataScripts('roadmap-f2.js?v=2')+'\n'+SHELL+'\n</body>\n</html>\n';
 F.writeFileSync(p.join(root,'roadmap','index.html'),idx);
 let n=1;
 

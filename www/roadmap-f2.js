@@ -9,7 +9,7 @@
 
   var lessons=CORE.concat(TRACKS).reduce(function(a,k){return a+RM2.sections[k].reduce(function(b,s){return b+s.items.length;},0);},0);
   document.getElementById('stats').innerHTML='<div><b>6</b><span>roles</span></div><div><b>'+lessons+'</b><span>lessons</span></div><div><b>'+RM2.projectList.length+'</b><span>projects</span></div><div><b>6</b><span>certificates</span></div>';
-  var RDESC={foundations:'Start here',analyst:'Wrangle & visualize',ds:'Predict & model',ts:'Forecast over time',researcher:'Infer & prove',developer:'Engineer & ship'};
+  var RDESC={foundations:'Start here',analyst:'Wrangle & visualize',ds:'Predict & model',ts:'Forecast ahead',researcher:'Infer & explain',developer:'Engineer & ship'};
   var RARR='<span class="arr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>';
   var SLUG={foundations:'new-to-r',analyst:'data-analyst',ds:'data-scientist',ts:'forecaster',researcher:'researcher',developer:'r-developer'};
   function roleHref(k){return '/roadmap/'+(SLUG[k]||k)+'.html';}
