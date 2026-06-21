@@ -5,7 +5,10 @@
 // .auth-anon visibility + .auth-user). GA4 events on open/CTA.
 (function(){
   'use strict';
-  var slots=document.querySelectorAll('.auth-anon');
+  // Masthead/nav slots ONLY. Tutorial pages also have an in-content
+  // .actionbar-sync.auth-anon (the logged-out Save/Mark-read prompt) which must
+  // keep its own sign-in behavior, so exclude anything inside main/#content/.actionbar.
+  var slots=Array.prototype.filter.call(document.querySelectorAll('.auth-anon'),function(s){return !s.closest('main,#content,.actionbar');});
   if(!slots.length)return;
   function ga(ev,extra){try{if(window.gtag)gtag('event',ev,Object.assign({event_category:'persona_menu'},extra||{}));}catch(e){}}
 
