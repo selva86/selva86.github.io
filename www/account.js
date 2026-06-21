@@ -153,7 +153,15 @@
   }
   function fail(e){ if(e&&e.a401)return toSignin(); console.error('[account]',e); var m=el('ac-error'); if(m){m.style.display='';m.textContent='Could not load this page. Please refresh.';} }
 
-  load();
+  // review-only fixtures so the F2 layouts can be eyeballed on the preview
+  // (auth does not complete on the pages.dev subdomain). ?demo=1 | ?demo=pro
+  if(/[?&]demo=(1|pro)/.test(location.search)){
+    var dn=Math.floor(Date.now()/1000), dpro=/[?&]demo=pro/.test(location.search);
+    var dme={user:{display_name:'Selva Prabhakaran',email:'selva@example.com'},pro:dpro,pro_until:dpro?dn+31000000:null};
+    if(ACCT==='settings')renderSettings(dme,{sessions:[{device:'Chrome on Windows',last_seen_at:dn,created_at:dn-2000000,current:true},{device:'Safari on iPhone',session_id:'demo2',last_seen_at:dn-90000,created_at:dn-900000}]});
+    else if(ACCT==='billing')renderBilling(dme);
+    else if(ACCT==='certificates')renderCerts({items:[{public_id:'RF-4127',track:'r-fundamentals',track_name:'R Foundations',issued_at:dn-3000000,score:94,verify_url:'https://r-statistics.co/cert/RF-4127'},{public_id:'TV-5102',track:'tidyverse-practitioner',track_name:'Tidyverse Practitioner',issued_at:dn-1000000,score:88,verify_url:'https://r-statistics.co/cert/TV-5102'}]},{tracks:[{id:'machine-learning',name:'Machine Learning',pct:46,solved:24,total_exercises:52},{id:'statistics-for-ds',name:'Statistics for Data Science',pct:100,eligible:true,minted:false,solved:40,total_exercises:40}]});
+  } else { load(); }
 
   var prog=el('prog'); if(prog){var os=function(){var h=document.documentElement,m=h.scrollHeight-h.clientHeight;prog.style.width=(m>0?(h.scrollTop/m*100):0)+'%';};window.addEventListener('scroll',os,{passive:true});os();}
 })();

@@ -121,6 +121,16 @@
   // sidebar titles (non-blocking enrichment)
   fetch('/www/sidebar.json').then(function(r){return r.ok?r.json():null;}).then(function(sb){if(!sb)return;sb.forEach(function(sec){(sec.items||[]).forEach(function(it){if(it.href&&it.text)sbTitle[String(it.href).replace(/^\//,'')]=it.text;});});}).catch(function(){});
 
+  // review-only fixtures (auth does not complete on the pages.dev subdomain). ?demo=1 | ?demo=pro
+  if(/[?&]demo=(1|pro)/.test(location.search)){
+    var dn=Math.floor(Date.now()/1000), dpro=/[?&]demo=pro/.test(location.search);
+    render({me:{user:{display_name:'Selva Prabhakaran',email:'selva@example.com'},pro:dpro,pro_until:dpro?dn+31000000:null},
+      stats:{total_xp:4820,current_streak_days:6,longest_streak_days:14},
+      tracks:{total_solved:64,tracks:[{id:'r-fundamentals',pct:100,eligible:true,minted:true},{id:'tidyverse-practitioner',pct:100,eligible:true,minted:true},{id:'machine-learning',pct:46,solved:24,eligible:false},{id:'statistics-for-ds',pct:22}]},
+      certs:{items:[{public_id:'RF-4127',track:'r-fundamentals',track_name:'R Foundations',issued_at:dn-3000000,score:94,verify_url:'https://r-statistics.co/cert/RF-4127'},{public_id:'TV-5102',track:'tidyverse-practitioner',track_name:'Tidyverse Practitioner',issued_at:dn-1000000,score:88,verify_url:'https://r-statistics.co/cert/TV-5102'}]},
+      reading:{items:[{slug:'Linear-Regression',scroll_pct:62,last_section:'Model diagnostics'}]},
+      saved:{total:3,items:[{slug:'Logistic-Regression'},{slug:'Random-Forest'},{slug:'ggplot2-Tutorial'}]}});
+  } else {
   Promise.all([
     api('/api/me'),api('/api/me/stats'),api('/api/me/tracks'),api('/api/me/certificates'),
     api('/api/me/reading?kind=in_progress&limit=1'),api('/api/me/saved?limit=5')
@@ -132,6 +142,7 @@
     console.error('[dashboard]',e);
     var sub=$('dh-sub'); if(sub){sub.classList.remove('dh-skel');sub.textContent='Could not load your dashboard. Please refresh.';}
   });
+  }
 
   var prog=$('prog');
   if(prog){var os=function(){var h=document.documentElement,m=h.scrollHeight-h.clientHeight;prog.style.width=(m>0?(h.scrollTop/m*100):0)+'%';};window.addEventListener('scroll',os,{passive:true});os();}

@@ -40,7 +40,7 @@ const FOOT = '<footer class="foot"><span>&copy; 2016&ndash;2026 r-statistics.co<
 const SCRIPTS =
 '<script src="/www/roadmap-data.js"></script>'+
 '<script src="/www/roadmap-curriculum.js"></script>'+
-'<script src="/www/account.js?v=1"></script>'+
+'<script src="/www/account.js?v=2"></script>'+
 '<script defer src="/www/consent-banner.js?v=2"></script>'+
 '<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon=\'{"token": "edf7e3d50c3e4130a913e7f144643624"}\'></script>'+
 '<script defer src="/www/auth-hydrate.js?v=11"></script>'+
