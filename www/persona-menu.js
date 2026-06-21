@@ -24,7 +24,7 @@
     return '<a class="pm-row" href="/signin.html?next='+encodeURIComponent(r.next)+'" data-pm="row"><span class="pm-ic">'+I[r.ic]+'</span><span class="pm-t">'+r.t+'</span></a>';
   }).join('');
   var MENU=
-    '<div class="pm-head"><span class="pm-av">'+I.user+'</span><span class="pm-who"><b>Browsing as guest</b><span>Sign in to pick up where you left off</span></span></div>'+
+    '<div class="pm-head"><span class="pm-av">'+I.user+'</span><span class="pm-who"><b>Browsing as guest</b><span>Sign in to save your progress</span></span></div>'+
     '<div class="pm-rows">'+rows+'</div>'+
     '<div class="pm-cta"><a class="pm-primary" href="/signin.html" data-pm="create">Create free account</a><a class="pm-secondary" href="/signin.html" data-pm="signin">Sign in</a><div class="pm-reassure">Free. Save posts, track progress, get certified.</div></div>';
 
@@ -33,7 +33,7 @@
     '.auth-anon .pm-circle{width:34px;height:34px;border-radius:50%;background:#fff;border:1px solid #e4e4df;display:flex;align-items:center;justify-content:center;color:#888e97;cursor:pointer;padding:0}'+
     '.auth-anon .pm-circle svg{width:18px;height:18px}'+
     '.auth-anon .pm-circle:hover,.auth-anon .pm-circle[aria-expanded="true"]{border-color:#14161b;color:#14161b}'+
-    '.auth-anon .pm-menu{position:absolute;top:46px;right:0;width:268px;background:#fff;border:1px solid #e9e9e4;border-radius:14px;box-shadow:0 18px 40px -18px rgba(20,23,28,.28),0 2px 8px rgba(20,23,28,.08);overflow:hidden;z-index:200;opacity:0;transform:translateY(-6px);pointer-events:none;transition:opacity .15s,transform .15s;font-family:inherit}'+
+    '.auth-anon .pm-menu{position:absolute;top:46px;right:0;width:286px;background:#fff;border:1px solid #e9e9e4;border-radius:14px;box-shadow:0 18px 40px -18px rgba(20,23,28,.28),0 2px 8px rgba(20,23,28,.08);overflow:hidden;z-index:200;opacity:0;transform:translateY(-6px);pointer-events:none;transition:opacity .15s,transform .15s;font-family:inherit}'+
     '.auth-anon .pm-menu.pm-open{opacity:1;transform:none;pointer-events:auto}'+
     '.auth-anon .pm-head{display:flex;align-items:center;gap:11px;padding:14px 16px;border-bottom:1px solid #f2f2ee}'+
     '.auth-anon .pm-av{width:38px;height:38px;border-radius:50%;border:1px solid #e9e9e4;display:flex;align-items:center;justify-content:center;color:#888e97;flex:none}.auth-anon .pm-av svg{width:20px;height:20px}'+
