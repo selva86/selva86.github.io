@@ -511,7 +511,8 @@ def build_all():
     # fragment generator must NOT regenerate roadmap/index.html or it clobbers F2.
     build_statistics()
     build_verify()
-    build_dashboard()
+    # build_dashboard() superseded 2026-06-21 by the hand-authored F2 dashboard
+    # (/dashboard.html + www/dashboard.js). Do NOT regenerate or it clobbers F2.
     register_sitemap()
 
 

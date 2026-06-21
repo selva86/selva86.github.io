@@ -21,6 +21,7 @@ export const onRequestGet: PagesFunction<Env, string, RequestData> = async (cont
       recipient_name: c.recipient_name,
       skills: c.skills_json ? JSON.parse(c.skills_json) : [],
       issued_at: c.issued_at,
+      score: c.score,
       status: c.status,
       verify_url: c.public_id ? `${origin}/cert/${c.public_id}` : null,
     })),
