@@ -27,7 +27,7 @@
       S(4, false, 'Importing and exporting real data', 'Load any common format without a fight.',
         ['Read CSV and delimited files with readr','Read Excel workbooks with readxl','Import SPSS, Stata and SAS with haven','Pull JSON from APIs with jsonlite','Scrape and parse HTML with rvest','Query databases with DBI and dbplyr','Fast columnar data with arrow and parquet','Encodings, locales and very large files'],
         'Data import exercises', 'format picker'),
-      S(5, false, 'Strings, dates and regular expressions', 'Clean messy real-world text and timestamps.',
+      S(5, false, 'Strings, dates and regular expressions', 'Clean messy text, timestamps and categories.',
         ['String manipulation with stringr','Regular expressions from the ground up','Find, extract and replace with regex','Dates and times with lubridate','Working across time zones','Ordered categories with forcats'],
         'String and regex exercises', 'regex tester'),
       S(6, false, 'Iteration: the apply family and purrr', 'Replace fragile loops with vectorized, functional iteration.',
@@ -339,7 +339,13 @@
     PJ(25, 'Deploy an end-to-end ML service', 'R Developer', 'Capstone', false, 'Take a model from tidymodels to a monitored, served API.', 'vetiver, plumber'),
     PJ(26, 'LLM text classification at scale', 'Data Scientist', 'Advanced', false, 'Classify and tag thousands of documents with an LLM, evaluated honestly.', 'ellmer, tidymodels'),
     PJ(27, 'A RAG assistant over your own docs', 'R Developer', 'Capstone', false, 'Embed a document set and answer questions over it, served from R.', 'ellmer, duckdb, plumber'),
-    PJ(28, 'Conformal prediction in production', 'Data Scientist', 'Capstone', false, 'Wrap any model in distribution-free prediction intervals with guaranteed coverage.', 'probably, tidymodels')
+    PJ(28, 'Conformal prediction in production', 'Data Scientist', 'Capstone', false, 'Wrap any model in distribution-free prediction intervals with guaranteed coverage.', 'probably, tidymodels'),
+    PJ(29, 'Electricity demand forecast', 'Forecaster', 'Core', true, 'Forecast hourly load with daily and weekly seasonality.', 'fable, feasts'),
+    PJ(30, 'Backtest a forecasting strategy', 'Forecaster', 'Core', false, 'Compare models fairly with rolling-origin cross-validation.', 'fable, tsibble'),
+    PJ(31, 'Hierarchical sales forecast', 'Forecaster', 'Advanced', false, 'Forecast every store and region so the totals reconcile.', 'fable'),
+    PJ(32, 'Volatility forecasting for risk', 'Forecaster', 'Advanced', false, 'Model changing variance with GARCH for value-at-risk.', 'rugarch'),
+    PJ(33, 'Forecasting with external drivers', 'Forecaster', 'Advanced', false, 'Add promotions, price and weather with dynamic regression.', 'fable'),
+    PJ(34, 'An automated forecasting pipeline', 'Forecaster', 'Capstone', false, 'Retrain, validate and serve forecasts on a schedule with monitored intervals.', 'targets, fable, plumber')
   ];
 
   // ---- free-lesson deep links to real published posts (Steps 1-2 + Step-3-6 Section 1) ----

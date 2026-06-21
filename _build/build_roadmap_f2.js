@@ -44,7 +44,7 @@ function head(o){
     '<link rel="canonical" href="'+o.canon+'">\n<link rel="icon" type="image/png" href="/screenshots/iconb-64.png">\n'+
     '<meta property="og:type" content="website"><meta property="og:title" content="'+o.title+'"><meta property="og:description" content="'+o.desc+'"><meta property="og:url" content="'+o.canon+'"><meta property="og:site_name" content="r-statistics.co"><meta property="og:image" content="'+ORIGIN+'/screenshots/og-default.png">\n'+
     '<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="'+o.title+'"><meta name="twitter:description" content="'+o.desc+'"><meta name="twitter:image" content="'+ORIGIN+'/screenshots/og-default.png">\n'+
-    o.jsonld+'\n'+FONTS+'\n<link rel="stylesheet" href="/www/'+o.css+'?v=3">\n'+GA+'\n'+AUTHCSS+'\n</head>';
+    o.jsonld+'\n'+FONTS+'\n<link rel="stylesheet" href="/www/'+o.css+'?v=4">\n'+GA+'\n'+AUTHCSS+'\n</head>';
 }
 const ROADMAP_MAIN=`<main class="wrap">
   <header class="hero reveal">
@@ -68,7 +68,7 @@ const ROADMAP_MAIN=`<main class="wrap">
     <div class="reveal"><div class="pctl" id="pctl"></div><div class="pindex" id="pgrid"></div></div>
   </section>
   <section class="final reveal"><div class="in">
-    <div><h2 class="disp">Read it free. Get certified to prove it.</h2><p>Every lesson is open. The graded practice, the projects and the certificate are the Program.</p></div>
+    <div><h2 class="disp">Read it free. Earn the credential.</h2><p>Every lesson is open. The graded practice, the projects and the certificate are the Program.</p></div>
     <a class="primary" href="/pricing.html">Join the Program <span class="a">&rarr;</span></a>
   </div></section>
 </main>`;
@@ -93,7 +93,7 @@ const ROLE_MAIN=`<main class="wrap">
     <div class="curric reveal" id="curric"></div>
   </section>
   <section class="section" id="projects-sec">
-    <div class="shead reveal"><h2 class="disp">Projects that prove it</h2><p>Finish two or three to build a portfolio a hiring manager can open, and earn the credential.</p></div>
+    <div class="shead reveal"><h2 class="disp">Projects you'll build</h2><p>Real, end-to-end builds for your portfolio. A few are free to start; the rest come with the Program.</p></div>
     <div class="pindex reveal" id="pgrid"></div>
   </section>
   <section class="certband reveal"><div class="in">
@@ -101,7 +101,7 @@ const ROLE_MAIN=`<main class="wrap">
     <a class="primary" href="/pricing.html">Join the Program <span class="a">&rarr;</span></a>
   </div></section>
 </main>`;
-function dataScripts(render){return '<script src="/www/roadmap-data.js"></script>\n<script src="/www/roadmap-curriculum.js"></script>\n<script src="/www/'+render+'"></script>';}
+function dataScripts(render){return '<script src="/www/roadmap-data.js"></script>\n<script src="/www/roadmap-curriculum.js?v=2"></script>\n<script src="/www/'+render+'"></script>';}
 
 // --- roadmap index ---
 const idx=head({title:'R Learning Roadmap · r-statistics.co',desc:'A guided route through R, sequenced by your goal: new to R, data analyst, data scientist, forecaster, researcher or R developer. Every level earns a verifiable certificate.',canon:ORIGIN+'/roadmap/',jsonld:jsonldRoadmap(),css:'roadmap-f2.css'})+
@@ -113,7 +113,7 @@ let n=1;
 ROLES.forEach(function(r){
   const canon=ORIGIN+'/roadmap/'+r.slug+'.html';
   const h=head({title:r.title+' · r-statistics.co',desc:r.desc,canon:canon,jsonld:jsonldRole(r),css:'roadmap-role.css'});
-  const html=h+'\n<body data-page="role" data-role="'+r.k+'">\n<div class="prog" id="prog"></div>\n'+ROLE_DEFS+'\n'+nav()+'\n'+ROLE_MAIN+'\n'+foot()+'\n'+dataScripts('roadmap-role.js?v=3')+'\n'+SHELL+'\n</body>\n</html>\n';
+  const html=h+'\n<body data-page="role" data-role="'+r.k+'">\n<div class="prog" id="prog"></div>\n'+ROLE_DEFS+'\n'+nav()+'\n'+ROLE_MAIN+'\n'+foot()+'\n'+dataScripts('roadmap-role.js?v=4')+'\n'+SHELL+'\n</body>\n</html>\n';
   F.writeFileSync(p.join(root,'roadmap',r.slug+'.html'),html);
   n++;
 });

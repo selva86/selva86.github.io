@@ -44,11 +44,12 @@
     }
     return '<a class="lsn pro" href="/pricing.html"><span class="lt">'+esc(t)+'</span><span class="go">Pro</span></a>';
   }
+  var CHK='<div class="chk"><span class="ci"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg></span><span class="ct"><b>Section checkpoint</b><span>A short quiz to test this section</span></span><span class="cb">Soon</span></div>';
   function secDetails(s,free,open){
     return '<details class="sec"'+(open?' open':'')+'><summary><span class="car"></span><span class="sn">'+(s.n<10?'0'+s.n:s.n)+'</span>'+
       '<span class="st">'+esc(s.title)+'<span class="so">'+esc(s.outcome)+'</span></span>'+
       '<span class="tag '+(free?'free':'pro')+'">'+(free?'Free':'Pro')+'</span><span class="cnt">'+s.items.length+'</span></summary>'+
-      '<div class="lsns">'+s.items.map(function(t){return lessonRow(t,free);}).join('')+'</div></details>';
+      '<div class="lsns">'+s.items.map(function(t){return lessonRow(t,free);}).join('')+CHK+'</div></details>';
   }
   document.getElementById('curric').innerHTML=secs.map(function(s,i){return secDetails(s,isFree(s),i===0);}).join('');
 
@@ -60,8 +61,8 @@
   var projs=(RM2.projectList||[]).filter(function(p){return doms.indexOf(p.domain)>=0;});
   if(projs.length){
     var meter=function(t){var n=TIER[t]||1,x='';for(var i=0;i<4;i++)x+='<i class="'+(i<n?'on':'')+'"></i>';return '<span class="meter">'+x+'<span class="ml">'+esc(t)+'</span></span>';};
-    document.getElementById('pgrid').innerHTML=projs.map(function(p){var href=p.free?'/tutorials/':'/pricing.html',cv=DCV[p.domain]||'--ds';
-      return '<a class="prow" href="'+href+'" style="--c:var('+cv+')"><span class="pn">'+(p.n<10?'0'+p.n:p.n)+'</span>'+
+    document.getElementById('pgrid').innerHTML=projs.map(function(p,i){var href=p.free?'/tutorials/':'/pricing.html',cv=DCV[p.domain]||'--ds',pn=i+1;
+      return '<a class="prow" href="'+href+'" style="--c:var('+cv+')"><span class="pn">'+(pn<10?'0'+pn:pn)+'</span>'+
         '<span class="pmid"><b>'+esc(p.name)+'</b><span class="pd"><span class="dom">'+esc(p.domain)+'.</span> '+esc(p.blurb)+'</span></span>'+
         meter(p.tier)+'<span class="ptag '+(p.free?'free':'pro')+'">'+(p.free?'Free':'Pro')+'</span></a>';}).join('');
   } else {
