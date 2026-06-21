@@ -35,8 +35,13 @@
     ? 'All '+secs.length+' sections are free to read in full.'
     : 'Section 1 is free to read. The rest is the Program, ending in the '+L.cert+' certificate.';
 
+  function postHref(t){return (RM2.links&&RM2.links[t])||(RM.STOP_LINKS&&RM.STOP_LINKS[t])||'';}
   function lessonRow(t,free){
-    if(free) return '<a class="lsn free" href="'+freeHref(t)+'"><span class="lt">'+esc(t)+'</span><span class="arr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span></a>';
+    if(free){
+      var h=postHref(t);
+      if(h) return '<a class="lsn free" href="'+h+'"><span class="lt">'+esc(t)+'</span><span class="arr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span></a>';
+      return '<span class="lsn soon"><span class="lt">'+esc(t)+'</span><span class="go">Soon</span></span>';
+    }
     return '<a class="lsn pro" href="/pricing.html"><span class="lt">'+esc(t)+'</span><span class="go">Pro</span></a>';
   }
   function secDetails(s,free,open){
