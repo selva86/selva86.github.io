@@ -44,7 +44,7 @@ function head(o){
     '<link rel="canonical" href="'+o.canon+'">\n<link rel="icon" type="image/png" href="/screenshots/iconb-64.png">\n'+
     '<meta property="og:type" content="website"><meta property="og:title" content="'+o.title+'"><meta property="og:description" content="'+o.desc+'"><meta property="og:url" content="'+o.canon+'"><meta property="og:site_name" content="r-statistics.co"><meta property="og:image" content="'+ORIGIN+'/screenshots/og-default.png">\n'+
     '<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="'+o.title+'"><meta name="twitter:description" content="'+o.desc+'"><meta name="twitter:image" content="'+ORIGIN+'/screenshots/og-default.png">\n'+
-    o.jsonld+'\n'+FONTS+'\n<link rel="stylesheet" href="/www/'+o.css+'?v=2">\n'+GA+'\n'+AUTHCSS+'\n</head>';
+    o.jsonld+'\n'+FONTS+'\n<link rel="stylesheet" href="/www/'+o.css+'?v=3">\n'+GA+'\n'+AUTHCSS+'\n</head>';
 }
 const ROADMAP_MAIN=`<main class="wrap">
   <header class="hero reveal">
@@ -105,7 +105,7 @@ function dataScripts(render){return '<script src="/www/roadmap-data.js"></script
 
 // --- roadmap index ---
 const idx=head({title:'R Learning Roadmap · r-statistics.co',desc:'A guided route through R, sequenced by your goal: new to R, data analyst, data scientist, forecaster, researcher or R developer. Every level earns a verifiable certificate.',canon:ORIGIN+'/roadmap/',jsonld:jsonldRoadmap(),css:'roadmap-f2.css'})+
-  '\n<body data-page="roadmap">\n<div class="prog" id="prog"></div>\n'+nav()+'\n'+ROADMAP_MAIN+'\n'+foot()+'\n'+dataScripts('roadmap-f2.js?v=2')+'\n'+SHELL+'\n</body>\n</html>\n';
+  '\n<body data-page="roadmap">\n<div class="prog" id="prog"></div>\n'+nav()+'\n'+ROADMAP_MAIN+'\n'+foot()+'\n'+dataScripts('roadmap-f2.js?v=3')+'\n'+SHELL+'\n</body>\n</html>\n';
 F.writeFileSync(p.join(root,'roadmap','index.html'),idx);
 let n=1;
 
@@ -113,7 +113,7 @@ let n=1;
 ROLES.forEach(function(r){
   const canon=ORIGIN+'/roadmap/'+r.slug+'.html';
   const h=head({title:r.title+' · r-statistics.co',desc:r.desc,canon:canon,jsonld:jsonldRole(r),css:'roadmap-role.css'});
-  const html=h+'\n<body data-page="role" data-role="'+r.k+'">\n<div class="prog" id="prog"></div>\n'+ROLE_DEFS+'\n'+nav()+'\n'+ROLE_MAIN+'\n'+foot()+'\n'+dataScripts('roadmap-role.js')+'\n'+SHELL+'\n</body>\n</html>\n';
+  const html=h+'\n<body data-page="role" data-role="'+r.k+'">\n<div class="prog" id="prog"></div>\n'+ROLE_DEFS+'\n'+nav()+'\n'+ROLE_MAIN+'\n'+foot()+'\n'+dataScripts('roadmap-role.js?v=3')+'\n'+SHELL+'\n</body>\n</html>\n';
   F.writeFileSync(p.join(root,'roadmap',r.slug+'.html'),html);
   n++;
 });
