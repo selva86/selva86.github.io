@@ -506,7 +506,9 @@ def build_all():
     build_tools()
     build_tutorials()
     build_exercises()
-    build_roadmap()
+    # build_roadmap() superseded 2026-06-21 by the hand-authored F2 page
+    # (roadmap/index.html + role pages via _build/build_roadmap_f2.js). The v3
+    # fragment generator must NOT regenerate roadmap/index.html or it clobbers F2.
     build_statistics()
     build_verify()
     build_dashboard()
