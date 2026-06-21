@@ -25,7 +25,11 @@
   function ic(id){return '<span class="ic"><svg><use href="#'+id+'"/></svg></span>';}
   var ARR='<span class="arr"><svg><use href="#i-arr"/></svg></span>';
 
-  function api(path){return fetch(path,{credentials:'same-origin',headers:{Accept:'application/json'}}).then(function(r){if(r.status===401){var e=new Error('401');e.a401=true;throw e;}if(!r.ok)throw new Error(path+' '+r.status);return r.json();});}
+  // Auth token from localStorage (Supabase session) -> Bearer header. Without this
+  // the API sees no auth on localStorage-only sessions (no cookie) and returns
+  // user:null, which would redirect a signed-in user to /signin and loop.
+  function readToken(){try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(!k||k.indexOf('sb-')!==0||k.indexOf('-auth-token')<0)continue;var raw=localStorage.getItem(k);if(!raw)continue;var p=JSON.parse(raw);if(p&&typeof p.access_token==='string')return p.access_token;if(Array.isArray(p)&&typeof p[0]==='string')return p[0];}}catch(e){}return null;}
+  function api(path){var t=readToken(),h={Accept:'application/json'};if(t)h.Authorization='Bearer '+t;return fetch(path,{credentials:'same-origin',headers:h}).then(function(r){if(r.status===401){var e=new Error('401');e.a401=true;throw e;}if(!r.ok)throw new Error(path+' '+r.status);return r.json();});}
   function toSignin(){location.replace('/signin.html?next=/dashboard.html');}
   function fmtDate(sec){try{return new Date(sec*1000).toLocaleDateString('en-US',{year:'numeric',month:'short',day:'numeric'});}catch(e){return '';}}
 
