@@ -58,7 +58,7 @@ const ROADMAP_MAIN=`<main class="wrap">
     <div class="shead reveal"><div class="num">01</div><div><h2 class="disp">Build your foundation.</h2><p>Start where every data role begins: solid R and strong analysis skills. Both steps are completely free.</p></div></div>
     <div class="atlas" id="core"></div>
   </section>
-  <div class="fork reveal"><div class="ln"></div><b class="disp">Earn the Data Analyst credential, then specialize.</b><span>Four specializations, all equal. Pick the one you want, take them in any order, or earn them all.</span></div>
+  <div class="fork reveal"><div class="ln"></div><b class="disp">Earn the Data Analyst credential, then specialize.</b><span>Four core specializations. Pick the one you want, take them in any order, or earn them all.</span></div>
   <section class="section" style="padding-top:8px">
     <div class="shead reveal"><div class="num">02</div><div><h2 class="disp">Choose your specialization.</h2><p>Section 1 of every track is free. The certificate, graded practice and projects come with the Program.</p></div></div>
     <div class="atlas" id="tracks"></div>
@@ -113,7 +113,7 @@ let n=1;
 ROLES.forEach(function(r){
   const canon=ORIGIN+'/roadmap/'+r.slug+'.html';
   const h=head({title:r.title+' · r-statistics.co',desc:r.desc,canon:canon,jsonld:jsonldRole(r),css:'roadmap-role.css'});
-  const html=h+'\n<body data-page="role" data-role="'+r.k+'">\n<div class="prog" id="prog"></div>\n'+ROLE_DEFS+'\n'+nav()+'\n'+ROLE_MAIN+'\n'+foot()+'\n'+dataScripts('roadmap-role.js?v=5')+'\n'+SHELL+'\n</body>\n</html>\n';
+  const html=h+'\n<body data-page="role" data-role="'+r.k+'">\n<div class="prog" id="prog"></div>\n'+ROLE_DEFS+'\n'+nav()+'\n'+ROLE_MAIN+'\n'+foot()+'\n'+dataScripts('roadmap-role.js?v=6')+'\n'+SHELL+'\n</body>\n</html>\n';
   F.writeFileSync(p.join(root,'roadmap',r.slug+'.html'),html);
   n++;
 });
