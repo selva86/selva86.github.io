@@ -44,7 +44,7 @@ function head(o){
     '<link rel="canonical" href="'+o.canon+'">\n<link rel="icon" type="image/png" href="/screenshots/iconb-64.png">\n'+
     '<meta property="og:type" content="website"><meta property="og:title" content="'+o.title+'"><meta property="og:description" content="'+o.desc+'"><meta property="og:url" content="'+o.canon+'"><meta property="og:site_name" content="r-statistics.co"><meta property="og:image" content="'+ORIGIN+'/screenshots/og-default.png">\n'+
     '<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="'+o.title+'"><meta name="twitter:description" content="'+o.desc+'"><meta name="twitter:image" content="'+ORIGIN+'/screenshots/og-default.png">\n'+
-    o.jsonld+'\n'+FONTS+'\n<link rel="stylesheet" href="/www/'+o.css+'?v=4">\n'+GA+'\n'+AUTHCSS+'\n</head>';
+    o.jsonld+'\n'+FONTS+'\n<link rel="stylesheet" href="/www/'+o.css+'?v=5">\n'+GA+'\n'+AUTHCSS+'\n</head>';
 }
 const ROADMAP_MAIN=`<main class="wrap">
   <header class="hero reveal">
@@ -113,7 +113,7 @@ let n=1;
 ROLES.forEach(function(r){
   const canon=ORIGIN+'/roadmap/'+r.slug+'.html';
   const h=head({title:r.title+' · r-statistics.co',desc:r.desc,canon:canon,jsonld:jsonldRole(r),css:'roadmap-role.css'});
-  const html=h+'\n<body data-page="role" data-role="'+r.k+'">\n<div class="prog" id="prog"></div>\n'+ROLE_DEFS+'\n'+nav()+'\n'+ROLE_MAIN+'\n'+foot()+'\n'+dataScripts('roadmap-role.js?v=4')+'\n'+SHELL+'\n</body>\n</html>\n';
+  const html=h+'\n<body data-page="role" data-role="'+r.k+'">\n<div class="prog" id="prog"></div>\n'+ROLE_DEFS+'\n'+nav()+'\n'+ROLE_MAIN+'\n'+foot()+'\n'+dataScripts('roadmap-role.js?v=5')+'\n'+SHELL+'\n</body>\n</html>\n';
   F.writeFileSync(p.join(root,'roadmap',r.slug+'.html'),html);
   n++;
 });
