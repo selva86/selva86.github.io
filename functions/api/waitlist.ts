@@ -15,7 +15,7 @@ import { sendMail, emailShell } from "../_lib/email";
 
 const ADMIN_EMAIL = "selva86@gmail.com";
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/;
-const PLANS = new Set(["monthly", "annual", "lifetime"]);
+const PLANS = new Set(["monthly", "annual", "lifetime", "single", "allaccess"]);
 const RATE_MAX = 6;          // submissions per IP per hour
 const RATE_WINDOW = 3600;    // seconds
 
