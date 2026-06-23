@@ -1446,7 +1446,8 @@ def build_post(
     if _is_lesson:
         _acc = (meta.get('lesson_access') or '').strip().lower() or lesson_access_from_curriculum(meta.get('curriculum_id'))
         _attrs = [f'data-lesson-access="{_acc}"']
-        for _attr, _key in (('data-course-title', 'course_title'), ('data-course-lesson', 'course_lesson'),
+        for _attr, _key in (('data-course-id', 'course_id'), ('data-course-title', 'course_title'),
+                            ('data-course-lesson', 'course_lesson'),
                             ('data-course-total', 'course_total'), ('data-course-landing', 'course_landing'),
                             ('data-course-next', 'course_next'), ('data-course-prev', 'course_prev')):
             _v = str(meta.get(_key, '') or '').strip()
