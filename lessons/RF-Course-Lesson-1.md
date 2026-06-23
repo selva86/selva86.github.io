@@ -38,7 +38,9 @@ By the end of this lesson you will be able to:
 
 To predict whether a customer churns, a decision tree asks a sequence of yes/no questions and follows the answers down to a verdict. "Is tenure below 8 months? If yes, are monthly charges above 70? If yes, predict churn."
 
-Each question splits the data into two cleaner groups. The tree keeps splitting until each final group (a leaf) is mostly one class, then it predicts that class. The art is choosing which question to ask at each step.
+Each question splits the data into two cleaner groups. The tree keeps splitting until each final group (a leaf) is mostly one class, then it predicts that class. The art is choosing which question to ask at each split. The tree below shows exactly that path.
+
+::widget tree-diagram {"root":"tenure under 8 mo?","l":"charges over $70?","r":"support calls over 3?","leaves":["churns","stays","churns","stays"]}
 
 === step === concept
 ::eyebrow How it chooses
