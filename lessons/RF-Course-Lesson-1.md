@@ -124,7 +124,9 @@ You grow a single deep tree and measure it: 100% accuracy on the training data, 
 
 Because of a beautiful trick. The errors of many different overfit trees tend to cancel out, while the real signal they all pick up reinforces. Average enough diverse trees and the variance collapses, leaving the low bias behind.
 
-That ensemble of trees is the random forest, and building it properly, making the trees different on purpose, is exactly what Lesson 2 is about.
+That ensemble of trees is the random forest, and building it properly, making the trees different on purpose, is exactly what Lesson 2 is about. Drag the slider below to feel it: average more overfit trees and watch the jagged boundary smooth out while accuracy climbs.
+
+::widget forest-averaging {"seed":7,"min":1,"max":80,"start":1,"labels":{"c0":"stays","c1":"churns"}}
 
 === step === concept
 ::eyebrow Go deeper

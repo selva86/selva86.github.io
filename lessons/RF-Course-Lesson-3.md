@@ -127,9 +127,19 @@ You raise `num.trees` from 100 to 500 and the OOB error barely moves. What does 
 
 A random forest is the strongest model you can train with almost no tuning. But it is not magic, and knowing the edges is what separates a practitioner from a button-pusher.
 
-**Strengths:** strong accuracy out of the box with minimal tuning; handles mixed numeric and categorical features; robust to outliers and irrelevant features; free OOB error and feature importance.
+**Strengths**
 
-**Limits:** less interpretable than a single tree; cannot extrapolate beyond the training range; big models are memory-heavy and slower to predict; gradient boosting often edges it out when carefully tuned.
+- Strong accuracy out of the box with minimal tuning
+- Handles mixed numeric and categorical features
+- Robust to outliers and irrelevant features
+- Free OOB error and feature importance, computed during training
+
+**Limits**
+
+- Less interpretable than a single tree
+- Cannot extrapolate beyond the training range
+- Big models are memory-heavy and slower to predict
+- Gradient boosting often edges it out when carefully tuned
 
 === step === concept
 ::eyebrow Go deeper

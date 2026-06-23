@@ -21,6 +21,18 @@ def run(cmd: list[str], cwd: Path = ROOT) -> None:
     if r.returncode != 0:
         sys.exit(r.returncode)
 
+def run_advisory(cmd: list[str], cwd: Path = ROOT) -> None:
+    """Run a check that must NOT fail the deploy (logs only). Used for the lesson
+    quality gate in CI: one bad lesson must never block all ~1,300 pages. The
+    HARD gate lives at publish time (/publish-lesson, batch_lessons.py)."""
+    print(f"+ (advisory) {' '.join(cmd)}", flush=True)
+    try:
+        r = subprocess.run(cmd, cwd=str(cwd))
+        if r.returncode != 0:
+            print(f"  WARNING: advisory check exited {r.returncode}; build continues.", flush=True)
+    except Exception as e:
+        print(f"  WARNING: advisory check could not run ({e}); build continues.", flush=True)
+
 def main() -> None:
     # 1. Existing static build (HTML pages, sitemap, feed)
     run([sys.executable, "_build/build.py"])
@@ -33,6 +45,10 @@ def main() -> None:
 
     # 1c. v3 standalone section pages (certification/tools/tutorials/exercises/roadmap/topic)
     run([sys.executable, "_build/gen_sections.py"])
+
+    # 1d. Lesson quality gate (ADVISORY): logs blank-slide / R6 failures but never
+    # fails the deploy. The HARD, blocking gate runs at publish time.
+    run_advisory([sys.executable, "Scripts/lesson_quality_check.py", "--all"])
 
     # 2. Refresh tools sitemap (mtimes change after content edits)
     run([sys.executable, "Scripts/build_tools_sitemap.py"])

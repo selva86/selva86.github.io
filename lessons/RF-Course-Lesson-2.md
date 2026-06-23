@@ -61,6 +61,8 @@ Averaging only cancels errors if the trees make different mistakes. Grow a hundr
 
 So the real engineering problem of a random forest is: how do we force the trees to be different on purpose? There are two tricks, and a forest uses both.
 
+::prose-only The clones-vs-diverse trees are demonstrated live in the random-features widget a few steps below; a separate diagram here would duplicate it.
+
 === step === concept
 ::eyebrow Trick 1
 ## Give each tree different data

@@ -195,6 +195,9 @@ def build_tryit(slug, n, starter_code, check_line, solution_code):
 # ---------------------------------------------------------------------------
 def parse_step(stype, smd, slug, n):
     eyebrow, lines = _pop_eyebrow(smd.split('\n'))
+    # ::prose-only <reason> is an authoring/quality-gate marker (a deliberate,
+    # justified exemption from R6); it is metadata, never rendered.
+    lines = [ln for ln in lines if not ln.strip().lower().startswith('::prose-only')]
     interactive, gated = '', False
 
     if stype == 'quiz':
