@@ -6,6 +6,7 @@ post_type: "LESSON"
 curriculum_id: "6.3.1"
 webr: true
 mathjax: true
+lesson_access: "free"
 course_id: "random-forest"
 course_title: "Random Forests, from the ground up"
 course_lesson: "1"
