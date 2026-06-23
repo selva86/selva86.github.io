@@ -25,13 +25,14 @@ def main() -> None:
     # 1. Existing static build (HTML pages, sitemap, feed)
     run([sys.executable, "_build/build.py"])
 
-    # 1b. v3 standalone section pages (certification/tools/tutorials/exercises/roadmap/topic)
-    run([sys.executable, "_build/gen_sections.py"])
-
-    # 1c. Exercise + lesson grading manifest. Authorizes every (hub, exercise_id)
-    # pair for /api/exercise/.../attempt; scans _posts/ AND _lessons/. Must run
-    # on every deploy or newly published lesson/exercise step ids get rejected.
+    # 1b. Exercise + lesson grading manifest. Authorizes every (hub, exercise_id)
+    # pair for /api/exercise/.../attempt; scans _posts/ AND _lessons/. Runs BEFORE
+    # gen_sections (which reads the manifest to build the Exercises landing) and on
+    # every deploy, or newly published lesson/exercise step ids get rejected.
     run([sys.executable, "_build/build_exercise_manifest.py"])
+
+    # 1c. v3 standalone section pages (certification/tools/tutorials/exercises/roadmap/topic)
+    run([sys.executable, "_build/gen_sections.py"])
 
     # 2. Refresh tools sitemap (mtimes change after content edits)
     run([sys.executable, "Scripts/build_tools_sitemap.py"])
