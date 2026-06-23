@@ -46,6 +46,10 @@ def main() -> None:
     # 1c. v3 standalone section pages (certification/tools/tutorials/exercises/roadmap/topic)
     run([sys.executable, "_build/gen_sections.py"])
 
+    # 1c2. Refresh the public course catalog (/courses.json) from built lessons,
+    # so the player rail + catalog stay in sync on every deploy.
+    run([sys.executable, "Scripts/build_lessons_tracker.py"])
+
     # 1d. Lesson quality gate (ADVISORY): logs blank-slide / R6 failures but never
     # fails the deploy. The HARD, blocking gate runs at publish time.
     run_advisory([sys.executable, "Scripts/lesson_quality_check.py", "--all"])
