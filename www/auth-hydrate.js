@@ -269,6 +269,7 @@
         if (!k) continue;
         if (k.startsWith('sb-') ||
             k.startsWith('rsc-exercise-hub-v1:') ||
+            k.startsWith('rsc-lesson-v1:') ||
             k.startsWith('rsc-backfill-done-')) {
           localStorage.removeItem(k);
         }

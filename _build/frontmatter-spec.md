@@ -83,3 +83,17 @@ fr_parent: "<parent-slug.html — only for [FR], [EX], and [PSEO] posts>"
 2. Find the target `sidebar_section`
 3. Count existing items in that section's `items` array
 4. Use `count + 1` as the order value
+
+---
+
+## `post_type: LESSON` (interactive lessons)
+
+Lessons are a separate content type with their own source pipeline:
+`lessons/<slug>.md` -> `_build/md2lesson.py` -> `_lessons/<slug>.html` -> `build.py` -> `/<slug>.html` (flat root URL).
+
+The full authoring grammar, frontmatter fields (`course_id`, `course_title`,
+`course_lesson`, `course_total`, `course_landing`, `course_next`, `course_prev`,
+`lesson_access`), the `=== step ===` / `::` directive syntax, and the emitted
+DOM contract live in **`_build/lesson-contract.md`** (the SSOT). A course's
+landing page is a normal `post_type: C` post in `posts/` that links the lessons
+and carries the sidebar entry; the lesson pages themselves are not in the sidebar.

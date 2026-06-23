@@ -23,6 +23,10 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 POSTS_DIR = REPO_ROOT / "_posts"
+# Interactive lesson fragments live in a parallel source dir. Their gradable
+# steps emit the same <section class="exercise"> contract, so they must be
+# scanned too or every lesson quiz/try-it POST is rejected (hub unknown).
+LESSONS_DIR = REPO_ROOT / "_lessons"
 OUT_PATH = REPO_ROOT / "functions" / "_data" / "exercise-manifest.json"
 
 # Same map as www/exercise-hub.js XP_BY_DIFF — duplicated server-side as the
@@ -79,7 +83,10 @@ def build_manifest() -> dict:
 
     hubs: dict[str, dict[str, str]] = {}
     counts = {"hubs": 0, "exercises": 0, "skipped_dup_ids": 0}
-    for post_path in sorted(POSTS_DIR.glob("*.html")):
+    scan_paths = sorted(POSTS_DIR.glob("*.html"))
+    if LESSONS_DIR.is_dir():
+        scan_paths += sorted(LESSONS_DIR.glob("*.html"))
+    for post_path in scan_paths:
         try:
             html = post_path.read_text(encoding="utf-8")
         except UnicodeDecodeError:

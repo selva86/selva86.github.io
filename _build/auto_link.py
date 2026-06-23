@@ -488,6 +488,13 @@ def count_existing_auto_links(html):
     return len(re.findall(r'<a\s+class="auto-link"', html))
 
 
+def _is_lesson_page(html):
+    """Interactive lesson-mode pages are step-players. They build to repo root
+    (flat URLs) so the root-level scan would otherwise inject inline auto-links
+    mid-step. The build stamps data-lesson-access on their <body>; skip those."""
+    return 'data-lesson-access=' in html
+
+
 def get_html_files(root_dir):
     """Get all HTML files in the root directory (not subdirs)."""
     files = []
@@ -540,6 +547,8 @@ def process_additive(links_data):
             print(f"  SKIP {fname}: cannot read ({e})")
             continue
 
+        if _is_lesson_page(html):
+            continue
         original_html = html
         links_added = 0
 
@@ -632,6 +641,8 @@ def process_reprocess(links_data):
         except Exception:
             continue
 
+        if _is_lesson_page(html):
+            continue
         new_html = strip_all_auto_links(html)
         if '<!-- fr-manual -->' in html:
             fr_kept += 1
@@ -661,6 +672,8 @@ def process_cleanup(links_data, target_url):
         except Exception:
             continue
 
+        if _is_lesson_page(html):
+            continue
         new_html = strip_auto_links_to_url(html, target_url)
         if new_html != html:
             with open(fpath, "w", encoding="utf-8", newline='') as f:

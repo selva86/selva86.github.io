@@ -22,6 +22,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.dirname(SCRIPT_DIR)
 TEMPLATE_PATH = os.path.join(SCRIPT_DIR, "template.html")
 POSTS_DIR = os.path.join(REPO_ROOT, "_posts")
+LESSONS_DIR = os.path.join(REPO_ROOT, "_lessons")  # interactive lesson fragments (parallel to _posts)
 SITEMAP_PATH = os.path.join(REPO_ROOT, "sitemap.xml")
 SIDEBAR_PATH = os.path.join(REPO_ROOT, "www", "sidebar.json")
 OG_DIR = os.path.join(REPO_ROOT, "screenshots", "og")
@@ -44,6 +45,37 @@ EDITOR_BUNDLE_NAME = 'editor-bundle.min.js'
 # Prism would auto-highlight every <code class="language-*"> on DOMContentLoaded.
 # We call Prism.highlight() manually from webr-init.js, so disable auto mode.
 EDITOR_BUNDLE_PREAMBLE = 'window.Prism=window.Prism||{};window.Prism.manual=true;'
+
+# Interactive-lesson widget modules, concatenated into one bundle served on
+# LESSON pages. index.js (the registry) must come first.
+LESSON_WIDGETS_DIR = os.path.join(REPO_ROOT, 'www', 'lesson-widgets')
+LESSON_WIDGETS_BUNDLE = os.path.join(REPO_ROOT, 'www', 'lesson-widgets.bundle.js')
+
+
+def build_lesson_widgets_bundle():
+    """Concatenate www/lesson-widgets/*.js into lesson-widgets.bundle.js.
+
+    Idempotent: only rewrites when a source widget is newer than the bundle, so
+    the bundle's mtime does not force a full rebuild every run (see minify_assets).
+    """
+    if not os.path.isdir(LESSON_WIDGETS_DIR):
+        return
+    files = sorted(f for f in os.listdir(LESSON_WIDGETS_DIR) if f.endswith('.js'))
+    if not files:
+        return
+    if 'index.js' in files:
+        files.remove('index.js')
+        files.insert(0, 'index.js')
+    src_mtime = max(os.path.getmtime(os.path.join(LESSON_WIDGETS_DIR, f)) for f in files)
+    if os.path.exists(LESSON_WIDGETS_BUNDLE) and os.path.getmtime(LESSON_WIDGETS_BUNDLE) >= src_mtime:
+        return  # fresh
+    parts = []
+    for f in files:
+        with open(os.path.join(LESSON_WIDGETS_DIR, f), encoding='utf-8') as fp:
+            parts.append(f'/* {f} */\n' + fp.read())
+    with open(LESSON_WIDGETS_BUNDLE, 'w', encoding='utf-8') as fp:
+        fp.write('\n;\n'.join(parts))
+    print(f"  Bundled {len(files)} lesson widget(s) -> lesson-widgets.bundle.js")
 
 
 def file_content_hash(filepath, length=8):
@@ -186,11 +218,15 @@ def minify_assets(force=False):
     if not js_min and not css_min:
         print("  Minification skipped (pip install rjsmin csscompressor)")
 
+    build_lesson_widgets_bundle()  # ensure the bundle exists before minifying it
     own_js = [
         os.path.join(REPO_ROOT, 'www', 'toc.js'),
         os.path.join(REPO_ROOT, 'www', 'webr-init.js'),
         os.path.join(REPO_ROOT, 'www', 'engagement.js'),
         os.path.join(REPO_ROOT, 'www', 'exercise-hub.js'),
+        os.path.join(REPO_ROOT, 'www', 'exercise-api.js'),
+        os.path.join(REPO_ROOT, 'www', 'lesson-mode.js'),
+        os.path.join(REPO_ROOT, 'www', 'lesson-widgets.bundle.js'),
     ]
     own_css = [
         os.path.join(REPO_ROOT, 'css', 'main.css'),
@@ -198,6 +234,7 @@ def minify_assets(force=False):
         os.path.join(REPO_ROOT, 'www', 'engagement.css'),
         os.path.join(REPO_ROOT, 'www', 'exercise-hub.css'),
         os.path.join(REPO_ROOT, 'www', 'highlight.css'),
+        os.path.join(REPO_ROOT, 'www', 'lesson-mode.css'),
     ]
 
     def _is_fresh(min_path, src_path):
@@ -275,6 +312,10 @@ def compute_asset_hrefs(final_paths):
         'exercise-hub.js': final_paths.get('exercise-hub.js', os.path.join(REPO_ROOT, 'www', 'exercise-hub.js')),
         'highlight.css': final_paths.get('highlight.css', os.path.join(REPO_ROOT, 'www', 'highlight.css')),
         'bootstrap.min.css': os.path.join(REPO_ROOT, 'www', 'bootstrap.min.css'),
+        'lesson-mode.css': final_paths.get('lesson-mode.css', os.path.join(REPO_ROOT, 'www', 'lesson-mode.css')),
+        'lesson-mode.js': final_paths.get('lesson-mode.js', os.path.join(REPO_ROOT, 'www', 'lesson-mode.js')),
+        'exercise-api.js': final_paths.get('exercise-api.js', os.path.join(REPO_ROOT, 'www', 'exercise-api.js')),
+        'lesson-widgets.bundle.js': final_paths.get('lesson-widgets.bundle.js', os.path.join(REPO_ROOT, 'www', 'lesson-widgets.bundle.js')),
     }
 
     asset_hashes = {k: file_content_hash(v) for k, v in asset_final_paths.items()}
@@ -924,6 +965,37 @@ def make_exercise_hub_body_block(asset_hrefs):
     js = asset_hrefs.get('exercise-hub.js', 'www/exercise-hub.js')
     return f'    <script src="{js}"></script>'
 
+
+def make_lesson_head_block(asset_hrefs):
+    css = asset_hrefs.get('lesson-mode.css', 'www/lesson-mode.css')
+    # Render-blocking on purpose: body.lesson-mode must hide the masthead +
+    # sidebar at first paint, before lesson-mode.js injects the player chrome.
+    return f'    <link rel="stylesheet" href="{css}">'
+
+
+def make_lesson_body_block(asset_hrefs):
+    widgets = asset_hrefs.get('lesson-widgets.bundle.js', 'www/lesson-widgets.bundle.js')
+    api = asset_hrefs.get('exercise-api.js', 'www/exercise-api.js')
+    player = asset_hrefs.get('lesson-mode.js', 'www/lesson-mode.js')
+    # widgets + exercise-api define their globals before the player consumes them.
+    return (
+        f'  <script src="{widgets}"></script>\n'
+        f'  <script src="{api}"></script>\n'
+        f'  <script src="{player}"></script>'
+    )
+
+
+def lesson_access_from_curriculum(cid):
+    """Positional free/Pro gate: free if curriculum level==1 (R Foundations) OR
+    section==1 of any level, else pro. Fails open to 'free' on a malformed id
+    (better SEO/UX than wrongly locking)."""
+    m = re.match(r'^\s*(\d+)\.(\d+)', str(cid or ''))
+    if not m:
+        return 'free'
+    level, section = int(m.group(1)), int(m.group(2))
+    return 'free' if (level == 1 or section == 1) else 'pro'
+
+
 DEFAULT_DESCRIPTION = "R Language Tutorials for Advanced Statistics"
 DEFAULT_KEYWORDS = "R, Tutorial, Machine learning, Statistics, Data Mining, Analytics, Data science, Linear Regression, Logistic Regression, Time series, Forecasting"
 
@@ -1352,16 +1424,37 @@ def build_post(
     # engagement.css loads on EX pages too - it styles the hub meta strip.
     post_type = meta.get('post_type', '').strip()
     _is_ex = post_type == 'EX'
-    page_html = page_html.replace('{{WEBR_HEAD}}', make_webr_head_block(_hrefs) if webr else '')
-    page_html = page_html.replace('{{WEBR_BODY}}', make_webr_body_block(_hrefs) if webr else '')
+    _is_lesson = post_type == 'LESSON'
+    _webr_on = webr or _is_lesson  # lessons always need runnable R + the editor
+    page_html = page_html.replace('{{WEBR_HEAD}}', make_webr_head_block(_hrefs) if _webr_on else '')
+    page_html = page_html.replace('{{WEBR_BODY}}', make_webr_body_block(_hrefs) if _webr_on else '')
+    # Engagement layer is for tutorials/EX hubs, never lessons (lesson-mode.js
+    # owns engagement on LESSON pages).
     page_html = page_html.replace('{{ENGAGEMENT_HEAD}}',
-                                  make_engagement_head_block(_hrefs) if (webr or _is_ex) else '')
+                                  make_engagement_head_block(_hrefs) if ((webr or _is_ex) and not _is_lesson) else '')
     page_html = page_html.replace('{{ENGAGEMENT_BODY}}',
-                                  make_engagement_body_block(_hrefs) if (webr and not _is_ex) else '')
+                                  make_engagement_body_block(_hrefs) if (webr and not _is_ex and not _is_lesson) else '')
     page_html = page_html.replace('{{EXERCISE_HUB_HEAD}}',
                                   make_exercise_hub_head_block(_hrefs) if _is_ex else '')
     page_html = page_html.replace('{{EXERCISE_HUB_BODY}}',
                                   make_exercise_hub_body_block(_hrefs) if _is_ex else '')
+    # Interactive lesson player. Reuses the exercise grading backend; the
+    # body.lesson-mode class hides masthead/sidebar; data-lesson-access gates Pro.
+    page_html = page_html.replace('{{LESSON_HEAD}}', make_lesson_head_block(_hrefs) if _is_lesson else '')
+    page_html = page_html.replace('{{LESSON_BODY}}', make_lesson_body_block(_hrefs) if _is_lesson else '')
+    page_html = page_html.replace('{{BODY_MODE_CLASS}}', ' class="lesson-mode"' if _is_lesson else '')
+    if _is_lesson:
+        _acc = (meta.get('lesson_access') or '').strip().lower() or lesson_access_from_curriculum(meta.get('curriculum_id'))
+        _attrs = [f'data-lesson-access="{_acc}"']
+        for _attr, _key in (('data-course-title', 'course_title'), ('data-course-lesson', 'course_lesson'),
+                            ('data-course-total', 'course_total'), ('data-course-landing', 'course_landing'),
+                            ('data-course-next', 'course_next'), ('data-course-prev', 'course_prev')):
+            _v = str(meta.get(_key, '') or '').strip()
+            if _v:
+                _attrs.append(f'{_attr}="{_v.replace(chr(34), "&quot;")}"')
+        page_html = page_html.replace('{{LESSON_ACCESS}}', ' ' + ' '.join(_attrs))
+    else:
+        page_html = page_html.replace('{{LESSON_ACCESS}}', '')
 
     # Certificate ribbon for EX posts only. Hub title is the page <h1>.
     if _is_ex:
@@ -2914,6 +3007,35 @@ def main():
             f.write(page_html)
         print(f"Built: {post_file}")
         built.append(post_file)
+
+    # --- Interactive lessons: _lessons/*.html -> root (flat URL) ---
+    # Same build_post path + flat output as posts, so hub_slug == stem == URL
+    # segment (grading reuse). Lessons are not in the sidebar/heal/feed loops.
+    lesson_files = []
+    if os.path.isdir(LESSONS_DIR):
+        lesson_files = sorted(f for f in os.listdir(LESSONS_DIR) if f.endswith('.html'))
+    for lf in lesson_files:
+        if only_target is not None and only_target != lf:
+            continue
+        lpath = os.path.join(LESSONS_DIR, lf)
+        opath = os.path.join(REPO_ROOT, lf)
+        needs = force_full or (only_target == lf)
+        if not needs:
+            om = _mtime_or_zero(opath)
+            if om == 0 or _mtime_or_zero(lpath) > om or global_deps_mtime > om:
+                needs = True
+        if not needs:
+            skipped += 1
+            continue
+        page_html = build_post(
+            template, lpath, sidebar_map, prev_next_map,
+            slug_to_subpath, subpath_to_slugs, post_titles, reading_time_cache,
+            asset_hrefs, sidebar_sections,
+        )
+        with open(opath, 'w', encoding='utf-8') as f:
+            f.write(page_html)
+        print(f"Built lesson: {lf}")
+        built.append(lf)
 
     # Sidebar additive refresh — runs only when sidebar.json got new entries
     # appended (no reorder/rename/removal). Cheaper than a full rebuild because
