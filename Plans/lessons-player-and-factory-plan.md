@@ -1,8 +1,8 @@
 # Interactive Lessons v2: Course Player + No-Blank-Slide Guarantee + Phase 2 Factory
 
-One master plan for three tied workstreams: (A) a course player (lesson rail + watchable pane + catalog), (B) a deterministic gate that guarantees no blank visualizable slide ever ships, (C) the Phase 2 factory that mass-produces lessons. They share one keystone: a single course data layer derived from the existing roadmap curriculum.
+One master plan for three tied workstreams: (A) a course player (lesson rail + watchable pane + catalog), (B) a layered gate (deterministic lexicon check + LLM judge + human review) that makes a blank visualizable slide effectively impossible to ship, (C) the Phase 2 factory that mass-produces lessons. They share one keystone: a single course data layer derived from the existing roadmap curriculum.
 
-Status: PLAN (not started). Companion docs: `Plans/interactive-lessons-plan.md` (Phase 1 record + original Phase 2 design), `_build/lesson-pedagogy.md` (quality rules), `_build/lesson-visual-catalog.md` (visual menu), `_build/lesson-contract.md` (DOM contract).
+Status: PLAN, hardened 2026-06-24 after a code-grounded review (findings folded in: `data-course-id` is not injected today, done-state needs a real mechanism, RM2 is client JS not machine-readable, the gate must be scoped to avoid blast radius, the "deterministic guarantee" was overstated, and the free/Pro conflict is resolved). Companion docs: `Plans/interactive-lessons-plan.md` (Phase 1 record + original Phase 2 design), `_build/lesson-pedagogy.md` (quality rules), `_build/lesson-visual-catalog.md` (visual menu), `_build/lesson-contract.md` (DOM contract).
 
 ---
 
@@ -32,15 +32,16 @@ Shape (per course):
   lessons: [ { slug, title, order, access, built } ] }
 ```
 
-- **Produced by** `Scripts/build_lessons_tracker.py` from the curriculum SSOT (below) + an `_lessons/*.html` scan (which lessons are actually built).
+- **Produced by** `Scripts/build_lessons_tracker.py` from the curriculum SSOT (below) + an `_lessons/*.html` scan (which lessons are actually built). NOTE: RM2 (`roadmap-curriculum.js`) is client-side JS (an IIFE), NOT machine-readable from Python; the tracker needs an RM2 -> JSON export step first (a Node one-liner that evaluates RM2 and dumps `www/roadmap-data.json`, run in the build). **Interim (so the player ships now): `courses.json` is hand-seeded with the RF course; the tracker generalizes it from RM2 in Workstream C.**
 - **Curriculum SSOT decision (critical):** do NOT create a parallel `Plans/lessons-curriculum.md`. The roadmap `RM2` (`roadmap-curriculum.js`) is already the live curriculum; a second list will drift from it. A "course" is a roadmap node flagged interactive; its lessons derive from that node. The factory reads RM2 (or a JSON derived from it), so roadmap, catalog, player, and factory share ONE source. `lessons-derive.md` holds the node -> {course_id, lesson slugs, access} rules.
-- **Completion is never baked** (it is per-user). The rail overlays done-state client-side from the grading backend (`/api/me/exercises`) for signed-in users, and from localStorage resume for logged-out users.
+- **Completion is never baked** (it is per-user) and needs a real mechanism, not a hand-wave. "Lesson done" = all its gated steps solved. The existing endpoint `/api/me/exercises?hub=<slug>` is PER-HUB and each lesson is its own hub, so there is no single all-hubs call; the rail uses: (a) a client `rsc-course-v1:<course_id>` completion set for instant state (covers logged-out), plus (b) for signed-in users, a per-lesson reconcile via the existing per-hub endpoint (small N = lessons in a course; the player already knows each lesson's gated-step ids). **No new backend for the rail.** A global all-hubs endpoint is deferred (only a cross-course dashboard would need it).
 
 ---
 
 ## Workstream A - Course Player (rail + pane + catalog)
 
-1. **Rail data:** `lesson-mode.js` fetches `courses.json` once, selects the slice for `ds.courseId` (new frontmatter `course_id` already exists), renders the rail. Fallback if the fetch fails: rail collapses to the existing next/prev (already in `dataset`), so no hard dependency.
+0. **Step 0 (required wiring):** `build.py` does NOT emit `data-course-id` today (only title/lesson/total/landing/next/prev, at build.py:1449). Add `('data-course-id', 'course_id')` to that injection loop so `ds.courseId` exists for the rail to key on.
+1. **Rail data:** `lesson-mode.js` fetches `courses.json` once, selects the slice for `ds.courseId`, renders the rail. Fallback if the fetch fails: rail collapses to the existing next/prev (already in `dataset`), so no hard dependency.
 2. **Two-pane shell:** `.lm-app` gains a left `.lm-rail` (lessons in order: current highlighted `aria-current`, done ticks, Pro lock badges, "2 / 3 done") + the existing `.lm-stage` on the right. Rail item click = real navigation to that lesson page (soft-nav later).
 3. **Fullscreen + reading width:** keep the overlay; add an explicit fullscreen toggle and a rail collapse control.
 4. **Resume (course level):** new `rsc-course-v1:<course_id>` records the last lesson; per-lesson step resume already exists. "Continue where you left off" entry from the landing + catalog.
@@ -50,14 +51,14 @@ Shape (per course):
 
 ## Workstream B - The no-blank-slide guarantee (the gate)
 
-The only thing that ensures it "for sure" is a deterministic blocking check, wired everywhere a lesson can change.
+Honest framing: a keyword lexicon cannot be a perfect guarantee on its own (it catches a blank step that mentions a trigger word, not a visualizable idea phrased without one). The real guarantee is layered: a deterministic lexicon net (blocking) + an LLM judge (catches what the lexicon misses, probabilistic) + human review. Wire the deterministic net everywhere a lesson can change; the judge runs in the factory and pre-merge.
 
 1. **`Scripts/lesson_quality_check.py` (deterministic):** cover has a visual (R1); **visual coverage (R6)** = for each `concept`/`widget` step, tokenize its prose; if it hits the visualizable lexicon (`_build/lesson-visual-catalog.md`) and has no `.lesson-widget` / `<img>` / inline `<svg>` AND no explicit `prose-only` marker, FAIL; >=1 try-it + >=1 quiz; 3-5 references that resolve; every `::widget` type exists in the bundle; every gated step has a valid, unique exercise id present in the manifest; `mathjax:true` when formulas are present; frontmatter complete; slug collision-free.
 2. **Escape hatch (prevents false failures):** a step may carry `::prose-only <reason>`; the check records it and skips that step. The reason is required, so "blank" is always a deliberate, logged choice (matches R6).
-3. **Hard wiring (3 gates):** `/publish-lesson` refuses to publish on fail; `batch_lessons.py` marks `quality_failed` and never commits it; CI (`build_with_pagefind.py` or a pre-merge check) re-runs it so even a hand-edited lesson cannot reach master with a blank visualizable step.
+3. **Wiring (scoped to avoid blast radius):** HARD at publish time, per lesson - `/publish-lesson` refuses to publish on fail and `batch_lessons.py` marks `quality_failed` and never commits it. ADVISORY in the site build (`build_with_pagefind.py`): it logs failures but does NOT fail the whole deploy - there is no PR/branch-protection here (pushes go straight to master), so one bad lesson must never block all 1,300 pages from deploying. Net: a lesson cannot be PUBLISHED with a blank lexicon-step, and the site build stays resilient.
 4. **Plan-time check:** the plan file must list a visual per teaching step; a planning assertion (in `/write-lesson` Pass 0/PLAN) rejects an unjustified blank before authoring.
 5. **Probabilistic layers on top (not blocking-by-themselves):** LLM-judge (visual fit, from-scratch, depth ladder, gap critique) + Playwright headless (every step advances, gates block until passed, every widget mounts and computes, no console errors, no-JS shows content, Pro gate behaves).
-6. **Honest boundary:** the deterministic gate guarantees a visual EXISTS on every visualizable step; whether it is the BEST visual is the judge + a human glance, not a hard gate.
+6. **Honest boundary:** the deterministic net guarantees a visual exists on every step whose prose matches the lexicon; a visualizable idea phrased without a trigger word is caught by the LLM judge (probabilistic), then human review. So this is near-airtight in practice, not a pure-deterministic absolute. Whether the visual is the BEST one is judge + human, never a hard gate.
 
 ## Workstream C - Phase 2 Factory (extends the original design)
 
@@ -80,18 +81,18 @@ The only thing that ensures it "for sure" is a deterministic blocking check, wir
 
 ## Effort (heavy reuse; rough)
 
-- Keystone data layer: ~1 day.
-- Workstream A (rail + catalog + mobile + a11y + resume): ~3-4 days.
-- Workstream B (quality check + 3-gate wiring): ~1-2 days.
-- Workstream C (factory: 2 skills + 2 scripts + derive spec): ~4-6 days.
-- Total ~2-3 weeks for the full master plan; player + gate alone ~1 to 1.5 weeks.
+- Keystone for RF (hand-seed `courses.json` + `data-course-id` injection): ~0.5 day. The RM2 -> JSON tracker that generalizes it: ~1-2 days (Workstream C).
+- Workstream A (rail + catalog + mobile + a11y + resume + done-state): ~4-5 days (done-state via per-hub calls + localStorage is more wiring than first scoped).
+- Workstream B (quality check + scoped wiring): ~1-2 days.
+- Workstream C (factory: 2 skills + 2 scripts + derive spec + RM2 -> JSON): ~5-7 days.
+- Total ~2.5-3.5 weeks for the full master plan; the RF course player + gate alone ~1.5 weeks.
 
 ---
 
 ## Issues, conflicts, gaps & edge cases (the review)
 
 **Conflicts (must reconcile or things silently disagree):**
-- **C1 - two free/Pro models.** Roadmap RM2 comment says "Steps 1-2 every section free; Steps 3-6 Section 1 free, rest Pro"; the lesson gate (`build.py lesson_access_from_curriculum`) says "free if level==1 OR section==1, else pro." These can disagree, so the catalog badge ("free") and the player paywall would contradict. ACTION: pick ONE canonical rule (recommend the lesson positional rule), make the roadmap renderer read it, document in `lessons-derive.md`.
+- **C1 - two free/Pro models (RESOLVED).** Confirmed real at roadmap-f2.js:36 (`allFree = key==='foundations' || key==='analyst'` makes the ENTIRE analyst track free) vs the lesson gate (`build.py lesson_access_from_curriculum`: free if level==1 OR section==1). They disagree about a whole track. Per the owner's stated intent (all sections of level 1 free + section 1 of every other level, rest Pro), the **lesson positional rule is canonical for interactive courses.** Resolution that does NOT touch existing post pricing: an interactive-course item gets its badge + route from `courses.json` (lesson rule), overriding the roadmap section flag for that item only; the roadmap's existing post free/Pro behavior is untouched. So a course's catalog badge always matches its in-player paywall.
 - **C2 - curriculum duplication.** A Phase-2 `lessons-curriculum.md` would parallel RM2 and drift. ACTION (decided): RM2 is the SSOT; the factory derives course/lesson slugs from RM2 via `lessons-derive.md`; no second curriculum doc.
 
 **Gaps (undefined; must specify before building):**
