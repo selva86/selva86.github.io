@@ -26,15 +26,15 @@ A concept step is "visualizable" if its prose contains any of: tree, split, node
 | Averaging many models cuts variance | boundary smooths as N rises | `forest-averaging` | interactive | built |
 | De-correlation / feature subsetting | first-split feature spread | `decorrelation` | interactive | built |
 | Tuning a U-shaped error curve | error vs knob, draggable | `oob-tuner` | interactive | built |
-| Impurity drop at a split | before / after class mix + Gini number | `gini-split` | static | NEEDS BUILD |
-| Sampling with replacement / OOB | row strip resampled, ~37% greyed | `bootstrap-sample` | static or interactive | NEEDS BUILD |
-| Ranking of feature importance | sorted horizontal bars | `importance-bars` | static | NEEDS BUILD |
-| An N-step process / pipeline | numbered flow diagram | `process-flow` | static | NEEDS BUILD |
+| Impurity drop at a split | before / after class mix + Gini number | `gini-split` | static | built |
+| Sampling with replacement / OOB | row strip resampled, ~37% greyed | `bootstrap-sample` | interactive | built |
+| Ranking of feature importance | sorted horizontal bars | `importance-bars` | static | built |
+| An N-step process / pipeline | numbered flow diagram | `process-flow` | static | built |
 | Spread of estimates averaging to a mean | dots collapsing to a line | `estimate-averaging` | interactive | NEEDS BUILD (optional) |
 
 ## Gaps surfaced by the RF audit (2026-06-24)
 
-Build these to make the RF proof course fully "show, don't tell", and to seed the library for the stats / ML lessons that reuse them:
+Built 2026-06-24 to make the RF proof course fully "show, don't tell" and to seed the library for the stats / ML lessons that reuse them:
 
 - `gini-split` - L1 "How it chooses": two-panel before / after of one split with the Gini number dropping. Reusable for any impurity / entropy lesson.
 - `bootstrap-sample` - L2 "Give each tree different data" and L3 "Out-of-bag error": a row strip resampled with replacement, duplicates highlighted, ~37% greyed as out-of-bag. One widget serves both steps.

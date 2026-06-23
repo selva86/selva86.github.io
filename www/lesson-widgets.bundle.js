@@ -36,6 +36,53 @@
 })();
 
 ;
+/* bootstrap-sample.js */
+/* bootstrap-sample.js - draw a bootstrap sample (rows picked with replacement)
+ * and see which rows are left out (out-of-bag). Counts are real: about 37% of
+ * rows land out-of-bag on average. Interactive (Draw again).
+ * cfg (optional): { n, seed, tail }  tail = the closing sentence of the note.
+ */
+(function () {
+  'use strict';
+  function mulberry32(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  var C_IN = '#1f7a55', C_DUP = '#2563a8', C_OOB = '#aeb6c2', INK = '#131720', MUT = '#677084';
+
+  function mount(el, cfg) {
+    cfg = cfg || {};
+    var n = cfg.n || 12, seed0 = cfg.seed || 7, draw = 0;
+    var tail = cfg.tail || 'Those rows trained no tree here, so they are a free test set.';
+    el.innerHTML =
+      '<div class="lw-diagram" style="text-align:center">' +
+      '<div class="lw-bs-strip" style="display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:2px 0 10px"></div>' +
+      '<div class="lw-bs-note" style="font:600 12px/1.5 \'IBM Plex Mono\',monospace;color:' + INK + ';min-height:3em"></div>' +
+      '<button type="button" class="lw-bs-draw" style="margin-top:8px;font:600 12px \'IBM Plex Mono\',monospace;color:#fff;background:' + C_IN + ';border:0;border-radius:7px;padding:8px 16px;cursor:pointer">Draw again</button>' +
+      '<div style="font:500 11px/1.5 \'IBM Plex Mono\',monospace;color:' + MUT + ';margin-top:8px">' +
+      '<span style="color:' + C_IN + '">&#9632;</span> in the sample &nbsp; <span style="color:' + C_DUP + '">&#9632;</span> picked more than once &nbsp; <span style="color:' + C_OOB + '">&#9632;</span> out-of-bag</div>' +
+      '</div>';
+    var strip = el.querySelector('.lw-bs-strip'), note = el.querySelector('.lw-bs-note'), btn = el.querySelector('.lw-bs-draw'), i;
+
+    function render() {
+      var rng = mulberry32(seed0 + draw * 977), counts = [];
+      for (i = 0; i < n; i++) counts[i] = 0;
+      for (var d = 0; d < n; d++) { counts[(rng() * n) | 0]++; }
+      var oob = 0, html = '';
+      for (i = 0; i < n; i++) {
+        var c = counts[i], bg = c === 0 ? C_OOB : (c > 1 ? C_DUP : C_IN);
+        if (c === 0) oob++;
+        var lbl = c === 0 ? 'OOB' : ('#' + (i + 1) + (c > 1 ? (' x' + c) : ''));
+        html += '<span style="display:inline-block;min-width:52px;padding:6px 8px;border-radius:6px;background:' + bg + ';color:#fff;font:600 11px \'IBM Plex Mono\',monospace">' + lbl + '</span>';
+      }
+      strip.innerHTML = html;
+      var pct = Math.round(oob / n * 100);
+      note.innerHTML = 'Out-of-bag this draw: <b>' + oob + ' of ' + n + '</b> rows (' + pct + '%). ' + tail;
+    }
+    btn.addEventListener('click', function () { draw++; render(); });
+    render();
+  }
+  if (window.LessonWidgets) window.LessonWidgets.register('bootstrap-sample', mount);
+})();
+
+;
 /* decision-region.js */
 /* decision-region.js - a real greedy CART decision tree, fit live in the
  * browser, that overfits as you raise its depth. Reference lesson widget.
@@ -334,6 +381,100 @@
 })();
 
 ;
+/* gini-split.js */
+/* gini-split.js - one decision-tree split shown as a purity (Gini) drop.
+ * A mixed parent node splits into two purer children; every Gini value is
+ * computed from the real counts, not hard-coded. Static by design.
+ * cfg (optional): { feature, parent:[stay,churn], left:[stay,churn],
+ *                   right:[stay,churn], labels:{stay,churn} }
+ */
+(function () {
+  'use strict';
+  var C_STAY = '#2563a8', C_CHURN = '#b5631a', INK = '#131720', MUT = '#677084', LINE = '#c5cdda';
+
+  function gini(a, b) { var n = a + b; if (!n) return 0; var p = a / n, q = b / n; return 1 - p * p - q * q; }
+  function f2(x) { return (Math.round(x * 100) / 100).toFixed(2); }
+
+  function dots(cx, cy, stay, churn) {
+    var n = stay + churn, per = 10, gap = 12, out = '', i;
+    var cols = Math.min(n, per), w = (cols - 1) * gap, x0 = cx - w / 2;
+    for (i = 0; i < n; i++) {
+      var col = i % per, row = (i / per) | 0, fill = i < stay ? C_STAY : C_CHURN;
+      out += '<circle cx="' + (x0 + col * gap) + '" cy="' + (cy + row * gap) + '" r="4.4" fill="' + fill + '"/>';
+    }
+    return out;
+  }
+  function nodeBox(cx, top, w, h) {
+    return '<rect x="' + (cx - w / 2) + '" y="' + top + '" width="' + w + '" height="' + h + '" rx="9" fill="#fff" stroke="' + LINE + '" stroke-width="1.5"/>';
+  }
+  function txt(x, y, s, col, fs, weight) {
+    return '<text x="' + x + '" y="' + y + '" text-anchor="middle" fill="' + (col || INK) +
+      '" font-family="IBM Plex Mono, monospace" font-size="' + (fs || 11) + '" font-weight="' + (weight || 600) + '">' + s + '</text>';
+  }
+
+  function mount(el, cfg) {
+    cfg = cfg || {};
+    var feature = cfg.feature || 'tenure under 8 mo?';
+    var P = cfg.parent || [10, 10], L = cfg.left || [2, 8], R = cfg.right || [8, 2];
+    var ln = cfg.labels || {}, sName = ln.stay || 'stays', cName = ln.churn || 'churns';
+    var gp = gini(P[0], P[1]), gl = gini(L[0], L[1]), gr = gini(R[0], R[1]);
+    var nL = L[0] + L[1], nR = R[0] + R[1], nT = nL + nR;
+    var gw = nT ? (nL / nT) * gl + (nR / nT) * gr : 0;
+
+    var svg =
+      '<svg viewBox="0 0 460 300" width="100%" style="max-width:480px;display:block;margin:0 auto" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="A split lowers Gini impurity from ' + f2(gp) + ' to ' + f2(gw) + '.">' +
+      nodeBox(230, 8, 220, 60) + dots(230, 28, P[0], P[1]) + txt(230, 60, 'parent: Gini = ' + f2(gp), MUT, 11) +
+      '<line x1="230" y1="68" x2="120" y2="150" stroke="' + LINE + '" stroke-width="2"/>' +
+      '<line x1="230" y1="68" x2="340" y2="150" stroke="' + LINE + '" stroke-width="2"/>' +
+      txt(230, 92, feature, INK, 11) + txt(158, 116, 'yes', MUT, 10) + txt(302, 116, 'no', MUT, 10) +
+      nodeBox(120, 150, 170, 58) + dots(120, 170, L[0], L[1]) + txt(120, 200, 'Gini = ' + f2(gl), MUT, 11) +
+      nodeBox(340, 150, 170, 58) + dots(340, 170, R[0], R[1]) + txt(340, 200, 'Gini = ' + f2(gr), MUT, 11) +
+      txt(230, 250, 'weighted Gini = ' + f2(gw), INK, 14, 700) +
+      txt(230, 272, 'down from ' + f2(gp) + ': a purer split', '#1f7a55', 11) +
+      '</svg>';
+    el.innerHTML = '<div class="lw-diagram">' +
+      '<div style="text-align:center;font:600 11px/1.4 \'IBM Plex Mono\',monospace;color:' + MUT + ';margin-bottom:2px">' +
+      '<span style="color:' + C_STAY + '">&#9679;</span> ' + sName + ' &nbsp; <span style="color:' + C_CHURN + '">&#9679;</span> ' + cName + '</div>' +
+      svg + '</div>';
+  }
+  if (window.LessonWidgets) window.LessonWidgets.register('gini-split', mount);
+})();
+
+;
+/* importance-bars.js */
+/* importance-bars.js - variable importance as sorted horizontal bars.
+ * An illustrative ranking for the lesson's churn example (consistent with the
+ * running narrative), not a measured benchmark. Static.
+ * cfg (optional): { items:[{label,value}] }
+ */
+(function () {
+  'use strict';
+  var INK = '#131720', MUT = '#677084', BAR = '#1f7a55', TOP = '#2563a8';
+
+  function mount(el, cfg) {
+    cfg = cfg || {};
+    var items = (cfg.items && cfg.items.length) ? cfg.items.slice() : [
+      { label: 'tenure', value: 100 }, { label: 'monthly spend', value: 71 },
+      { label: 'total spend', value: 58 }, { label: 'support calls', value: 34 },
+      { label: 'contract type', value: 22 }, { label: 'age', value: 12 }
+    ];
+    items.sort(function (a, b) { return b.value - a.value; });
+    var max = items[0].value || 1, n = items.length;
+    var rowH = 30, padT = 12, padB = 8, labW = 120, barX = labW + 8, barMax = 280;
+    var H = padT + n * rowH + padB, W = barX + barMax + 46, rows = '', i;
+    for (i = 0; i < n; i++) {
+      var y = padT + i * rowH, bw = Math.max(2, items[i].value / max * barMax), col = i === 0 ? TOP : BAR;
+      rows += '<text x="' + labW + '" y="' + (y + 18) + '" text-anchor="end" fill="' + INK + '" font-family="IBM Plex Mono, monospace" font-size="12" font-weight="600">' + items[i].label + '</text>' +
+        '<rect x="' + barX + '" y="' + (y + 5) + '" width="' + bw + '" height="18" rx="4" fill="' + col + '"/>' +
+        '<text x="' + (barX + bw + 6) + '" y="' + (y + 18) + '" fill="' + MUT + '" font-family="IBM Plex Mono, monospace" font-size="11">' + items[i].value + '</text>';
+    }
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block;margin:0 auto" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Variable importance ranking, ' + items[0].label + ' highest.">' + rows + '</svg>';
+    el.innerHTML = '<div class="lw-diagram">' + svg + '</div>';
+  }
+  if (window.LessonWidgets) window.LessonWidgets.register('importance-bars', mount);
+})();
+
+;
 /* oob-tuner.js */
 /* oob-tuner.js - tune num.trees and mtry on a live forest; watch the OOB error
  * curve fall and flatten, and the mtry sweet spot. Ported from
@@ -399,6 +540,42 @@
     sT.addEventListener('input', draw); sM.addEventListener('input', draw); draw();
   }
   if (window.LessonWidgets) window.LessonWidgets.register('oob-tuner', mount);
+})();
+
+;
+/* process-flow.js */
+/* process-flow.js - a numbered N-step pipeline as a vertical flow diagram.
+ * Static. Reads well on desktop and narrow screens (single column).
+ * cfg (optional): { steps:[{title, sub}] }
+ */
+(function () {
+  'use strict';
+  var INK = '#131720', MUT = '#677084', ACC = '#1f7a55', BG = '#f3f6f4', LINE = '#c5cdda';
+  var _uid = 0;
+
+  function mount(el, cfg) {
+    cfg = cfg || {};
+    var steps = (cfg.steps && cfg.steps.length) ? cfg.steps : [
+      { title: 'Bootstrap', sub: 'grow each tree on its own random resample of the rows' },
+      { title: 'Random features', sub: 'at each split, consider only a random subset (mtry)' },
+      { title: 'Average', sub: 'all trees vote; the majority or mean is the forest answer' }
+    ];
+    var n = steps.length, boxH = 62, gap = 24, padY = 6;
+    var H = padY * 2 + n * boxH + (n - 1) * gap, mid = 'pf-ar' + (++_uid), out = '', i;
+    for (i = 0; i < n; i++) {
+      var y = padY + i * (boxH + gap), cy = y + boxH / 2;
+      out += '<rect x="8" y="' + y + '" width="444" height="' + boxH + '" rx="11" fill="' + BG + '" stroke="' + LINE + '" stroke-width="1.5"/>' +
+        '<circle cx="40" cy="' + cy + '" r="16" fill="' + ACC + '"/>' +
+        '<text x="40" y="' + (cy + 5) + '" text-anchor="middle" fill="#fff" font-family="IBM Plex Mono, monospace" font-size="15" font-weight="700">' + (i + 1) + '</text>' +
+        '<text x="68" y="' + (y + 26) + '" fill="' + INK + '" font-family="IBM Plex Mono, monospace" font-size="14" font-weight="700">' + steps[i].title + '</text>' +
+        '<text x="68" y="' + (y + 46) + '" fill="' + MUT + '" font-family="IBM Plex Mono, monospace" font-size="11">' + steps[i].sub + '</text>';
+      if (i < n - 1) out += '<line x1="40" y1="' + (y + boxH + 2) + '" x2="40" y2="' + (y + boxH + gap - 4) + '" stroke="' + MUT + '" stroke-width="2" marker-end="url(#' + mid + ')"/>';
+    }
+    var svg = '<svg viewBox="0 0 460 ' + H + '" width="100%" style="max-width:460px;display:block;margin:0 auto" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="' + n + '-step process flow">' +
+      '<defs><marker id="' + mid + '" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0 0 L6 3 L0 6 z" fill="' + MUT + '"/></marker></defs>' + out + '</svg>';
+    el.innerHTML = '<div class="lw-diagram">' + svg + '</div>';
+  }
+  if (window.LessonWidgets) window.LessonWidgets.register('process-flow', mount);
 })();
 
 ;

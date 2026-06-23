@@ -41,6 +41,8 @@ Remember the ~37% of rows each tree never saw (its bootstrap left them out)? Her
 [KEY INSIGHT]
 OOB error is an honest, almost-free estimate of test performance, computed during training. On most problems it lands very close to a proper cross-validation, for a fraction of the work.
 
+::widget bootstrap-sample {"seed":23,"tail":"Those rows trained no tree here, so they are a free test set."}
+
 === step === concept
 ::eyebrow In R
 ## Train one in five lines
@@ -101,10 +103,12 @@ rf <- ranger(churned ~ ., data = train,
 ::eyebrow Reading the forest
 ## Which features mattered?
 
-Because every tree records how much each split improved purity, a forest can rank features for free. Sum those gains across all trees and you get variable importance, the first thing to look at after training. The tuning bench above shows it live: tenure dominates, then monthly and total spend.
+Because every tree records how much each split improved purity, a forest can rank features for free. Sum those gains across all trees and you get variable importance, the first thing to look at after training. The chart below shows a typical ranking for the churn model: tenure dominates, then monthly and total spend.
 
 [WARNING]
 Importance says a feature was useful for splitting, not that it causes the outcome, and impurity importance can inflate high-cardinality features. For decisions that matter, confirm with permutation importance or SHAP.
+
+::widget importance-bars {}
 
 === step === quiz
 ::eyebrow Check yourself

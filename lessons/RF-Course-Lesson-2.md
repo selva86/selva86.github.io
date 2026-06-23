@@ -72,6 +72,8 @@ On average each bootstrap leaves out about 37% of the rows. A tree never sees it
 
 Different data in means a different tree out. But there is a sneakier source of sameness left to kill.
 
+::widget bootstrap-sample {"seed":7,"tail":"Each tree gets its own draw, so no two trees see the same data."}
+
 === step === concept
 ::eyebrow Trick 2, the motivation
 ## Bootstrap is not enough
@@ -113,6 +115,8 @@ That is it. A random forest is just these three ideas stacked:
 
 [KEY INSIGHT]
 Each tree is a low-bias, high-variance learner. Bootstrap and random features make them diverse; averaging cancels the variance. You keep the low bias and throw away most of the variance, with almost no tuning.
+
+::widget process-flow {}
 
 === step === tryit
 ::eyebrow Your turn

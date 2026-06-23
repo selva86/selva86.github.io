@@ -55,6 +55,8 @@ A split is good when it lowers the weighted Gini of the children below the Gini 
 
 That greed is what makes trees fast to grow, and, as you will see in a moment, what makes a single tree dangerous.
 
+::widget gini-split {}
+
 === step === quiz
 ::eyebrow Check yourself
 ## Which split is better?
