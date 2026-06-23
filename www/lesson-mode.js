@@ -31,6 +31,10 @@
     var landing = ds.courseLanding || '/';
     var nextHref = ds.courseNext || '';
     var total = steps.length;
+    var courseId = ds.courseId || '';
+    var curSlug = location.pathname.replace(/^\//, '').replace(/index\.html?$/i, '').replace(/\.html?$/i, '').replace(/\/$/, '');
+    var COURSE_KEY = 'rsc-course-v1:' + courseId;
+    var railCourse = null;
 
     /* ---- resume state ---- */
     var state = { furthest: 0, passed: {} };
@@ -48,6 +52,8 @@
     app.className = 'lm-app';
     app.innerHTML =
       '<div class="lm-top">' +
+        '<button class="lm-rail-toggle" type="button" aria-label="Show lessons in this course">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg></button>' +
         '<a class="lm-exit" href="' + esc(landing) + '">' +
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>' +
           esc(courseTitle) + '</a>' +
@@ -56,15 +62,22 @@
         '</span>' +
         '<div class="lm-top-right">' +
           '<span class="lm-stepn">Step <b class="lm-cur">1</b> / ' + total + '</span>' +
+          '<button class="lm-fs" type="button" aria-label="Toggle fullscreen">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>' +
           '<a class="lm-cert" href="/pricing.html">Get certified</a>' +
         '</div>' +
       '</div>' +
-      '<div class="lm-segs">' + steps.map(function () { return '<i></i>'; }).join('') + '</div>' +
-      '<div class="lm-stage"></div>' +
-      '<div class="lm-stepper">' +
-        '<button class="lm-back" disabled>&larr; Back</button>' +
-        '<span class="lm-mid"></span>' +
-        '<button class="lm-cont">Continue &rarr;</button>' +
+      '<div class="lm-body">' +
+        '<nav class="lm-rail" aria-label="Lessons in this course"></nav>' +
+        '<div class="lm-main">' +
+          '<div class="lm-segs">' + steps.map(function () { return '<i></i>'; }).join('') + '</div>' +
+          '<div class="lm-stage"></div>' +
+          '<div class="lm-stepper">' +
+            '<button class="lm-back" disabled>&larr; Back</button>' +
+            '<span class="lm-mid"></span>' +
+            '<button class="lm-cont">Continue &rarr;</button>' +
+          '</div>' +
+        '</div>' +
       '</div>';
 
     var stage = app.querySelector('.lm-stage');
@@ -205,6 +218,7 @@
       contBtn.disabled = gated(i);
       if (i > state.furthest) { state.furthest = i; save(); }
       if (window.LessonWidgets) window.LessonWidgets.mountAll(steps[i]);
+      if (i === total - 1 && courseId) markCourseLessonDone(curSlug);   // reaching the last step = lesson done
       stage.scrollTop = 0;
     }
 
@@ -229,6 +243,62 @@
       if (e.key === 'ArrowRight' && !contBtn.disabled) go(1);
       else if (e.key === 'ArrowLeft' && !backBtn.disabled) go(-1);
     });
+
+    /* ---- course rail (left playlist) + fullscreen ----
+       The rail is built from /courses.json (fetched once). It lists the course's
+       lessons in order with done ticks (from a per-course localStorage set that
+       every lesson page shares) and Pro locks. If the fetch fails or there is no
+       matching course, the rail stays empty (CSS hides it) and the player works
+       exactly as before via the next/prev already in body.dataset. */
+    function courseState() { try { return JSON.parse(localStorage.getItem(COURSE_KEY)) || {}; } catch (e) { return {}; } }
+    function courseSave(s) { try { localStorage.setItem(COURSE_KEY, JSON.stringify(s)); } catch (e) {} }
+    function markCourseLessonDone(slug) {
+      if (!slug) return;
+      var s = courseState(); s.completed = s.completed || {};
+      if (!s.completed[slug]) { s.completed[slug] = true; s.last = slug; courseSave(s); renderRail(); }
+    }
+    function renderRail() {
+      var rail = app.querySelector('.lm-rail');
+      if (!rail || !railCourse || !railCourse.lessons) return;
+      app.classList.add('lm-has-rail');
+      var st = courseState(), done = st.completed || {}, pro = body.classList.contains('pro');
+      var dn = railCourse.lessons.filter(function (l) { return done[l.slug]; }).length;
+      var h = '<div class="lm-rail-head"><span class="lm-rail-title">' + esc(railCourse.title) + '</span>' +
+        '<span class="lm-rail-prog">' + dn + ' / ' + railCourse.lessons.length + ' done</span></div><ol class="lm-rail-list">';
+      railCourse.lessons.forEach(function (l) {
+        var cur = l.slug === curSlug, isDone = !!done[l.slug];
+        var locked = String(l.access || '').toLowerCase() === 'pro' && !pro;
+        var soon = l.built === false;
+        var cls = 'lm-rail-item' + (cur ? ' current' : '') + (isDone ? ' done' : '') + (locked ? ' locked' : '') + (soon ? ' soon' : '');
+        var mk = isDone ? '<span class="lm-rail-mk done">&#10003;</span>' : '<span class="lm-rail-mk">' + (l.order || '') + '</span>';
+        var badge = soon ? '<span class="lm-rail-badge">soon</span>' : (locked ? '<span class="lm-rail-badge">Pro</span>' : '');
+        var inner = mk + '<span class="lm-rail-tx">' + esc(l.title) + '</span>' + badge;
+        if (cur || soon) h += '<li><span class="' + cls + '"' + (cur ? ' aria-current="step"' : '') + '>' + inner + '</span></li>';
+        else h += '<li><a class="' + cls + '" href="/' + esc(l.slug) + '.html">' + inner + '</a></li>';
+      });
+      rail.innerHTML = h + '</ol>';
+    }
+    function buildRail() {
+      if (!courseId) return;
+      fetch('/courses.json', { cache: 'force-cache' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
+        if (!data || !data.courses) return;
+        for (var k = 0; k < data.courses.length; k++) { if (data.courses[k].course_id === courseId) { railCourse = data.courses[k]; break; } }
+        if (!railCourse) return;
+        var s = courseState(); s.last = curSlug; courseSave(s);
+        renderRail();
+      }).catch(function () {});
+    }
+    function toggleFs() {
+      try {
+        if (!document.fullscreenElement) { if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen(); }
+        else if (document.exitFullscreen) document.exitFullscreen();
+      } catch (e) {}
+    }
+    var railToggle = app.querySelector('.lm-rail-toggle');
+    if (railToggle) railToggle.addEventListener('click', function () { app.classList.toggle('rail-open'); });
+    var fsBtn = app.querySelector('.lm-fs');
+    if (fsBtn) fsBtn.addEventListener('click', toggleFs);
+    buildRail();
 
     // If resuming into a locked region, clamp to the preview.
     if (locked && i >= PREVIEW_STEPS) i = PREVIEW_STEPS - 1;
