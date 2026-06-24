@@ -283,7 +283,7 @@
     }
     function buildRail() {
       if (!courseId) return;
-      fetch('/courses.json', { cache: 'force-cache' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
+      fetch('/courses.json', { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
         if (!data || !data.courses) return;
         for (var k = 0; k < data.courses.length; k++) { if (data.courses[k].course_id === courseId) { railCourse = data.courses[k]; break; } }
         if (!railCourse) return;
