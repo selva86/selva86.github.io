@@ -47,7 +47,7 @@ def save_status(s):
 def resolve_targets(args):
     """Ordered list of lesson slugs to build."""
     if args.slug:
-        return [args.slug]
+        return args.slug
     if args.course:
         for c in load_json(COURSES, {}).get('courses', []):
             if c.get('course_id') == args.course:
@@ -75,7 +75,7 @@ def sync():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--slug')
+    ap.add_argument('--slug', action='append', help='lesson slug; repeatable to build several in ONE run (no chaining)')
     ap.add_argument('--course')
     ap.add_argument('--max', type=int, default=0)
     ap.add_argument('--dry-run', action='store_true')
@@ -99,8 +99,14 @@ def main():
         return 0
 
     if os.path.exists(LOCK):
-        print('Lock present (%s); another run may be active. Remove it to override.' % LOCK)
-        return 1
+        # A prior run killed by a timeout/SIGTERM cannot reach its finally clause,
+        # so it leaves a stale lock that would block the next run forever. Treat an
+        # existing lock as stale and clear it (this factory runs sequentially).
+        print('WARNING: clearing a stale lock (%s) left by a previous interrupted run.' % LOCK)
+        try:
+            os.remove(LOCK)
+        except OSError:
+            pass
     open(LOCK, 'w').close()
     st = load_json(STATUS, {})
     done = 0
