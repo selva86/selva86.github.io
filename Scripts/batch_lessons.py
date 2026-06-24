@@ -22,6 +22,9 @@ lessons-status.json is gitignored (resumable state) and blocked by the middlewar
 import os, sys, json, argparse, subprocess
 
 ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
+# The skills use "selva86.github.io/..." paths, so a spawned claude must run from
+# the PROJECT ROOT (one level above the repo), like the other batch drivers.
+PROJECT_ROOT = os.path.dirname(ROOT)
 STATUS = os.path.join(ROOT, 'lessons-status.json')
 LOCK = os.path.join(ROOT, 'Scripts', 'batch_lessons.lock')
 COURSES = os.path.join(ROOT, 'courses.json')
@@ -57,9 +60,9 @@ def resolve_targets(args):
 
 
 def run_claude(cli, prompt):
-    print('+ %s -p "%s"' % (cli, prompt), flush=True)
+    print('+ %s -p "%s"  (cwd=%s)' % (cli, prompt, PROJECT_ROOT), flush=True)
     try:
-        return subprocess.run([cli, '-p', prompt], cwd=ROOT).returncode
+        return subprocess.run([cli, '-p', prompt, '--dangerously-skip-permissions'], cwd=PROJECT_ROOT).returncode
     except FileNotFoundError:
         print('  ERROR: claude CLI not found (%s). Pass --claude <path>.' % cli)
         return 127

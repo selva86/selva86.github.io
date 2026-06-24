@@ -37,4 +37,4 @@ This is the single source of truth. It resolves conflict C1: the roadmap rendere
 
 ## Arc + focus
 
-The lesson arc (how many lessons; each lesson's one-line focus + signature widget) comes from the course's entry in the curriculum. Pass 0 reads it. If the course/lesson is NOT in the curriculum, it is a NEW course: STOP and report it (do not invent an arc silently). Keep arcs to 3-6 lessons; each lesson is one coherent slice taught from scratch.
+The lesson arc (how many lessons; each lesson's focus + signature widgets) comes from the course's entry in **`Plans/lessons-curriculum.md`** (the curriculum-arcs SSOT). Pass 0 reads that entry. If the course is NOT there, it is a NEW course: STOP and report it (do not invent an arc silently). Keep arcs to 3-6 lessons (or 1 for a standalone complex lesson); each lesson is one coherent slice taught from scratch.

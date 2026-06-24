@@ -10,7 +10,7 @@ The menu of visuals `/write-lesson` chooses from, and the inventory that makes "
 
 ## Visualizable lexicon (deterministic trigger)
 
-A concept step is "visualizable" if its prose contains any of: tree, split, node, leaf, branch, boundary, region, distribution, curve, histogram, sample / resample / bootstrap, correlation, matrix, network / graph, architecture / pipeline / flow / steps, importance / ranking, gradient / surface, vector / projection, cluster, path, timeline. A hit means a visual is expected on that step.
+A concept step is "visualizable" if its prose contains any of: tree, split, node, leaf, branch, boundary, region, distribution, curve, histogram, sample / resample / bootstrap, correlation, matrix, network / graph, architecture / pipeline / flow / steps, importance / ranking, gradient / surface, vector / projection, cluster, path, timeline, hypothesis, significance, agent, token. A hit means a visual is expected on that step.
 
 ## Static vs interactive (pick the cheaper one that teaches)
 
@@ -30,6 +30,8 @@ A concept step is "visualizable" if its prose contains any of: tree, split, node
 | Sampling with replacement / OOB | row strip resampled, ~37% greyed | `bootstrap-sample` | interactive | built |
 | Ranking of feature importance | sorted horizontal bars | `importance-bars` | static | built |
 | An N-step process / pipeline | numbered flow diagram | `process-flow` | static | built |
+| Hypothesis test: null dist + p-value tail | shaded tail under H0, draggable statistic | `null-distribution` | interactive | built |
+| Agent reasoning loop (ReAct) | Thought -> Action -> Observation cycle, stepped | `agent-loop` | interactive | built |
 | Spread of estimates averaging to a mean | dots collapsing to a line | `estimate-averaging` | interactive | NEEDS BUILD (optional) |
 
 ## Gaps surfaced by the RF audit (2026-06-24)

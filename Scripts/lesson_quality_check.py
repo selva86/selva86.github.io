@@ -35,7 +35,8 @@ REQUIRED_FM = ['title', 'description', 'post_type', 'curriculum_id', 'course_id'
 LEXICON = ['tree', 'split', 'node', 'leaf', 'branch', 'boundary', 'region', 'distribution',
            'curve', 'histogram', 'sample', 'resample', 'bootstrap', 'correlation', 'matrix',
            'network', 'graph', 'architecture', 'pipeline', 'importance', 'ranking', 'gradient',
-           'surface', 'projection', 'cluster', 'timeline', 'scatter', 'heatmap', 'flowchart']
+           'surface', 'projection', 'cluster', 'timeline', 'scatter', 'heatmap', 'flowchart',
+           'hypothesis', 'significance', 'agent', 'token']
 
 
 def strip_code(md):
@@ -158,6 +159,21 @@ def check_lesson(path):
             wt = m.group(1)
             if not os.path.exists(os.path.join(WIDGETS_DIR, wt + '.js')):
                 fail('step %d: ::widget "%s" has no www/lesson-widgets/%s.js' % (n, wt, wt))
+
+    # No hand-authored visuals: every visual must be a ::widget from the catalog
+    # (tested, interactive, consistent) or a real <img>. Inline <svg> in the source
+    # is bespoke widget-faking - the exact thing the library exists to prevent.
+    if re.search(r'<svg\b', strip_code(body), flags=re.I):
+        fail('hand-authored inline <svg> in source: every visual must be a ::widget from the catalog '
+             '(or a real <img>). If no widget fits, flag NEEDS-WIDGET - do not hand-draw an SVG '
+             '(it is untested, static, and inconsistent).')
+    # The widget library must actually be used: a real lesson teaches with interactive
+    # widgets, not prose + formulas alone (which slip past the bare-prose R6 check).
+    n_widgets = len(re.findall(r'^\s*::widget\b', body, flags=re.M))
+    n_teach = sum(1 for t, _ in steps if t in ('concept', 'widget'))
+    if n_widgets == 0 and n_teach >= 3:
+        fail('no ::widget used across %d teaching steps: select widgets from '
+             '_build/lesson-visual-catalog.md (show, do not just tell - R6).' % n_teach)
 
     # MathJax flag must be set when formulas are present.
     if ('\\(' in body or '\\[' in body) and str(fm.get('mathjax', '')).strip().lower() not in ('true', '1', 'yes'):
