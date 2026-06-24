@@ -91,4 +91,41 @@
   window.addEventListener('scroll',onScroll,{passive:true});onScroll();
   var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});},{threshold:.05,rootMargin:'0px 0px -6% 0px'});
   document.querySelectorAll('.reveal').forEach(function(el,i){el.style.transitionDelay=(Math.min(i,6)*35)+'ms';io.observe(el);});
+
+  // --- surface interactive step-player lessons on their roadmap sections ---
+  // Reads /courses.json (the generated catalog) and, for every course mapped to
+  // THIS track, injects its built lessons as launch links into the matching
+  // section's <details id="rm-s<n>">. So a reader can open the interactive player
+  // straight from the curriculum. Lights up automatically as lessons publish.
+  (function(){
+    var st=document.createElement('style');
+    st.textContent='.ilsns{margin:2px 8px 12px;padding:11px 13px;border:1px solid var(--line,#e6e3da);border-radius:12px;background:color-mix(in srgb,var(--c) 5%,#fff)}'
+      +'.ilsns-h{font:600 10px/1 "JetBrains Mono",monospace;letter-spacing:.1em;text-transform:uppercase;color:var(--c);margin-bottom:8px}'
+      +'.ilsn{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:9px;text-decoration:none;color:var(--ink,#1a1a1a);font-size:14px}'
+      +'.ilsn:hover{background:color-mix(in srgb,var(--c) 12%,#fff)}'
+      +'.ila{color:var(--c);font-size:10px;flex:none}.ilt{flex:1;min-width:0}'
+      +'.ilg{flex:none;font:600 9.5px/1 "JetBrains Mono",monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--c);border:1px solid var(--c);border-radius:5px;padding:3px 6px}';
+    document.head.appendChild(st);
+    fetch('/courses.json',{cache:'no-cache'}).then(function(r){return r.ok?r.json():null;}).then(function(cat){
+      if(!cat||!cat.courses)return;
+      var bySec={};
+      cat.courses.forEach(function(c){ if(!c.roadmap||c.roadmap.track!==role)return;
+        (bySec[c.roadmap.section]=bySec[c.roadmap.section]||[]).push(c); });
+      Object.keys(bySec).forEach(function(n){
+        var det=document.getElementById('rm-s'+n); if(!det)return;
+        var html='';
+        bySec[n].forEach(function(c){
+          (c.lessons||[]).slice().sort(function(a,b){return (a.order||0)-(b.order||0);}).forEach(function(l){
+            if(l.built===false)return;
+            html+='<a class="ilsn" href="/'+l.slug+'.html"><span class="ila">&#9654;</span><span class="ilt">'+esc(l.title)+'</span><span class="ilg">Interactive</span></a>';
+          });
+        });
+        if(!html)return;
+        var box=document.createElement('div'); box.className='ilsns';
+        box.innerHTML='<div class="ilsns-h">Interactive lessons</div>'+html;
+        var lsns=det.querySelector('.lsns');
+        if(lsns)lsns.insertBefore(box,lsns.firstChild); else det.appendChild(box);
+      });
+    }).catch(function(){});
+  })();
 })();
