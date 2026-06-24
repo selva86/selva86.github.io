@@ -178,7 +178,10 @@
     });
 
     /* ---- navigation ---- */
-    var i = Math.min(state.furthest || 0, total - 1);
+    // Resume: an in-progress lesson reopens where you left off; a COMPLETED lesson
+    // reopens at step 1 (review mode) so a finished lesson is never a dead-end.
+    var completedLesson = (state.furthest || 0) >= total - 1;
+    var i = completedLesson ? 0 : Math.min(state.furthest || 0, total - 1);
     var showingPaywall = false;
 
     function gated(idx) {
@@ -218,7 +221,7 @@
       contBtn.disabled = gated(i);
       if (i > state.furthest) { state.furthest = i; save(); }
       if (window.LessonWidgets) window.LessonWidgets.mountAll(steps[i]);
-      if (i === total - 1 && courseId) markCourseLessonDone(curSlug);   // reaching the last step = lesson done
+      if (last) { if (courseId) markCourseLessonDone(curSlug); showCompleteActions(); }   // last step = done + next-actions
       stage.scrollTop = 0;
     }
 
@@ -286,8 +289,62 @@
         if (!railCourse) return;
         var s = courseState(); s.last = curSlug; courseSave(s);
         renderRail();
+        renderCrumbs();
+        if (i === total - 1) showCompleteActions();   // refresh the card with progress if we're already on the end
       }).catch(function () {});
     }
+
+    /* ---- breadcrumb (Roadmap > Track > Section > Lesson) + exit target ----
+       From courses.json's roadmap field. Exit goes to /roadmap/#rm-<track> (the
+       roadmap scrolls to that track once anchors land; lands on /roadmap/ today).
+       Falls back to the course landing when there is no roadmap data. */
+    var BACK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>';
+    function exitTarget() {
+      return (railCourse && railCourse.roadmap && railCourse.roadmap.track) ? '/roadmap/#rm-' + railCourse.roadmap.track : landing;
+    }
+    function exitLabel() {
+      return (railCourse && railCourse.roadmap && railCourse.roadmap.sectionLabel) || (railCourse && railCourse.title) || 'lessons';
+    }
+    function renderCrumbs() {
+      var exitA = app.querySelector('.lm-exit');
+      if (exitA) { exitA.setAttribute('href', exitTarget()); exitA.setAttribute('aria-label', 'Back to ' + exitLabel()); exitA.innerHTML = BACK_SVG; }
+      var titleEl = app.querySelector('.lm-title');
+      if (titleEl && railCourse && railCourse.roadmap) {
+        var rm = railCourse.roadmap, th = '/roadmap/#rm-' + esc(rm.track), sep = ' <span class="lm-sep">&rsaquo;</span> ';
+        titleEl.classList.add('lm-crumbs');
+        titleEl.innerHTML = '<a href="/roadmap/">Roadmap</a>' + sep +
+          '<a href="' + th + '">' + esc(rm.trackLabel || rm.track) + '</a>' + sep +
+          '<a href="' + th + '">' + esc(rm.sectionLabel || '') + '</a>' + sep +
+          '<span class="lm-crumb-cur">' + esc(railCourse.title) + '</span>' +
+          (ds.courseLesson && ds.courseTotal ? ' <span class="lm-crumb-les">&middot; Lesson ' + esc(ds.courseLesson) + ' of ' + esc(ds.courseTotal) + '</span>' : '');
+      }
+    }
+
+    /* ---- completion-actions card (content-adjacent, not stranded at the bottom) ---- */
+    function showCompleteActions() {
+      var step = steps[total - 1];
+      if (!step || step.querySelector('.lm-complete-actions')) return;
+      var prog = '';
+      if (railCourse && railCourse.lessons) {
+        var st = courseState(), done = st.completed || {};
+        var dn = railCourse.lessons.filter(function (l) { return done[l.slug]; }).length;
+        prog = '<div class="lm-ca-prog">' +
+          (ds.courseLesson && ds.courseTotal ? 'Lesson ' + esc(ds.courseLesson) + ' of ' + esc(ds.courseTotal) + ' complete' : 'Lesson complete') +
+          ' &middot; ' + dn + ' / ' + railCourse.lessons.length + ' done</div>';
+      }
+      var primary = nextHref
+        ? '<a class="lm-ca-next" href="' + esc(nextHref) + '">Next lesson &rarr;</a>'
+        : '<a class="lm-ca-next" href="' + esc(exitTarget()) + '">Finish &check;</a>';
+      var card = document.createElement('div');
+      card.className = 'lm-complete-actions';
+      card.innerHTML = prog + '<div class="lm-ca-btns">' + primary +
+        '<button type="button" class="lm-ca-review">Review this lesson</button>' +
+        '<a class="lm-ca-back" href="' + esc(exitTarget()) + '">&larr; ' + esc(exitLabel()) + '</a></div>';
+      step.appendChild(card);
+      var rv = card.querySelector('.lm-ca-review');
+      if (rv) rv.addEventListener('click', function () { i = 0; render(); });
+    }
+
     function toggleFs() {
       try {
         if (!document.fullscreenElement) { if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen(); }

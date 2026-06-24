@@ -24,6 +24,19 @@ from md2html import parse_frontmatter
 LESSONS_DIR = os.path.join(ROOT, '_lessons')
 OUT = os.path.join(ROOT, 'courses.json')
 
+# Where each course sits in the roadmap (for the player breadcrumb + exit target).
+# track = RM2 key; the breadcrumb is Roadmap > trackLabel > sectionLabel > lesson,
+# and exit goes to /roadmap/#rm-<track>. Hand-maintained (small); courses absent
+# here simply get no breadcrumb (graceful).
+COURSE_ROADMAP = {
+    'random-forest': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 4,
+                      'sectionLabel': 'Tree-based models and gradient boosting'},
+    't-test': {'track': 'researcher', 'trackLabel': 'Researcher', 'section': 4,
+               'sectionLabel': 'Hypothesis testing and test selection'},
+    'llm-agents': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 16,
+                   'sectionLabel': 'The frontier (2026): LLMs and modern ML'},
+}
+
 
 def access_from_curriculum(cid):
     """Positional gate (the canonical rule): free if level==1 or section==1, else pro."""
@@ -84,6 +97,8 @@ def build():
         c = courses[cid]
         c['lessons'].sort(key=lambda l: l['order'])
         c['access_default'] = 'free' if all(l['access'] == 'free' for l in c['lessons']) else 'pro'
+        if cid in COURSE_ROADMAP:
+            c['roadmap'] = COURSE_ROADMAP[cid]
         out['courses'].append(c)
     return out
 
