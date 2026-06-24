@@ -1384,7 +1384,8 @@ def build_post(
                     end = bl_match.end()
                     content = content[:end] + '\n' + chips_html + content[end:]
     content_with_breadcrumb = breadcrumb_html + '\n' + content
-    content_with_breadcrumb = content_with_breadcrumb + '\n' + continue_reading_html
+    if meta.get('post_type', '').strip() != 'LESSON':   # lessons render in the full-screen player; the static Continue-Reading cross-link is dead weight under the overlay
+        content_with_breadcrumb = content_with_breadcrumb + '\n' + continue_reading_html
     if related_html:
         content_with_breadcrumb = content_with_breadcrumb + '\n' + related_html
     if prev_next_html:

@@ -84,6 +84,7 @@
     steps.forEach(function (s) { stage.appendChild(s); });   // move steps into the player
     body.appendChild(app);
     body.classList.add('lesson-js-ready');
+    document.documentElement.style.overflow = 'hidden';   // the page scroll lives on <html>; locking body alone leaves a stray scrollbar behind the overlay
 
     var segEls = Array.prototype.slice.call(app.querySelectorAll('.lm-segs i'));
     var curEl = app.querySelector('.lm-cur');
@@ -106,10 +107,11 @@
       var ex = step.querySelector('.exercise');
       return ex ? ex.getAttribute('data-exercise-id') : '';
     }
-    function markPassed(idx) {
+    function markPassed(idx, solved) {
       if (state.passed[idx]) return;
       state.passed[idx] = true;
       save();
+      if (solved === false) return;   // the gate opens on any answer, but a wrong answer earns no XP
       var id = exerciseId(steps[idx]);
       if (API && id) API.reportSolve(hub, id, 0);
     }
@@ -151,8 +153,8 @@
           if (!right) opts[correct - 1].classList.add('correct');
           var fb = quiz.querySelector('.lesson-qfb-' + (right ? 'ok' : 'no'));
           if (fb) fb.classList.add('show');
-          step.classList.add('passed');     // either answer reveals the lesson; gate opens
-          markPassed(idx);
+          step.classList.add('passed');     // either answer reveals the lesson; the gate opens
+          markPassed(idx, right);           // ...but only a correct answer reports a solve / earns XP
           render();
         });
       });
@@ -173,7 +175,7 @@
         var pass = re ? re.test(input.value) : true;
         if (ok) ok.classList.toggle('show', pass);
         if (no) no.classList.toggle('show', !pass);
-        if (pass) { step.classList.add('passed'); markPassed(idx); render(); }
+        if (pass) { step.classList.add('passed'); markPassed(idx, true); render(); }
       });
     });
 
