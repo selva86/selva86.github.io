@@ -1,6 +1,6 @@
 ---
 title: "The t-test from scratch: how hypothesis testing works"
-description: "Build the t-test from the ground up: why sample means wobble, the standard error, the t-statistic as signal over noise, p-values, effect size, and t.test() in R."
+description: "Learn the t-test through one real story: a dal-packing machine that may be underfilling. Sample means wobble, the standard error, the t-statistic as signal over noise, p-values, effect size, and t.test() in R."
 keywords: "t-test, t test in R, t.test, hypothesis testing, p-value, t-statistic, standard error, null hypothesis, effect size, statistical power, Welch t-test, paired t-test"
 mathjax: true
 webr: true
@@ -20,182 +20,224 @@ lesson_access: "free"
 
 <section class="lesson-step" data-step="1" data-step-type="cover">
 <div class="lesson-step-eyebrow">The t-test, from scratch</div>
-<h2>Is the difference real, or just chance?</h2>
+<h2>Is the machine really underfilling, or is it just chance?</h2>
 
-<p>You measured something and saw a difference: a sample average that misses its target, or two groups whose means do not match. The hard question is never "is there a difference" (there almost always is). It is whether that difference is <strong>big enough to be real</strong>, or small enough that plain sampling luck could have produced it.</p>
+<p>Meet Meena. She runs a small business that packs dal (lentils) into 1 kg packets, and her machine is set to drop <strong>1000 grams</strong> into each one. Lately a few customers have grumbled that the packets feel light. So Meena does the sensible thing: she pulls <strong>20 packets</strong> off the line and weighs them on a kitchen scale. Their average comes to <strong>978 grams</strong> - 22 grams short of the target.</p>
 
-<p>The t-test answers exactly that question, and a p-value is its verdict. By the end of this lesson you will be able to:</p>
+<p>Now here is her real problem. She did not weigh all ten thousand packets she makes in a week; she weighed only 20. So which is it?</p>
 
 <ul>
 
-<li>Say, in plain words, what question a t-test answers, and compute the t-statistic</li>
+<li>The machine is genuinely underfilling, and 978 g is the truth, <strong>or</strong></li>
+
+<li>The machine is fine at 1000 g on average, and Meena just happened to scoop up 20 slightly-light packets by luck.</li>
+
+</ul>
+
+<p>That single question - <em>is a difference big enough to be real, or small enough that plain sampling luck could have produced it?</em> - is what a <strong>t-test</strong> answers, and a <strong>p-value</strong> is its verdict. By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Say in plain words what question a t-test answers, and compute the t-statistic for Meena's packets</li>
 
 <li>Read a p-value correctly, and spot the misreading almost everyone makes</li>
 
 <li>Run a one-sample, two-sample and paired t-test in R and interpret every number</li>
 
-<li>Tell statistical significance apart from a real effect, and name the ways the test is misused</li>
+<li>Tell statistical significance apart from a real-world effect, and name the ways the test is misused</li>
 
 </ul>
 
-<p><strong>Prerequisites:</strong> you can run R and make a vector, and you know what a mean and a standard deviation are. Everything else is built here.</p>
-<div class="lesson-widget" data-widget-type="null-distribution" data-widget-config='{"tails":2,"max":4,"start":2.4,"label":"observed t"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p><strong>Prerequisites:</strong> you can run R and make a vector, and you know what a mean (the average) and a standard deviation (how spread out the numbers are) are. Everything else we build here, slowly.</p>
+<div class="lesson-widget" data-widget-type="null-distribution" data-widget-config='{"tails":2,"max":4,"start":3.3,"label":"how far off the packets landed"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="2" data-step-type="concept">
-<div class="lesson-step-eyebrow">Why a difference is not enough</div>
-<h2>Means wobble from sample to sample</h2>
+<div class="lesson-step-eyebrow">Why "22 grams short" is not yet proof</div>
+<h2>The average wobbles every time you weigh a new batch</h2>
 
-<p>Here is the catch that makes the whole problem interesting. Take a sample, compute its mean. Now take a <em>different</em> sample from the very same population and compute its mean again. You will get a slightly different number. And again. The sample mean is a moving target: it jitters around the true value every time you draw new data.</p>
+<p>Here is the catch that makes Meena's whole problem interesting. Suppose she puts those 20 packets back and grabs a <em>fresh</em> 20 from the same line. Will the new average be exactly 978 g again? Almost certainly not. Maybe 985 g this time. Grab another 20: maybe 974 g. The average of a handful of packets is a <strong>moving target</strong> - it jumps around a little every time, purely because a different handful of packets landed on the scale.</p>
 
-<p>So an observed gap is never proof on its own. Even if two groups were truly identical, two samples from them would still show <em>some</em> difference, just from the luck of who landed in each sample. We write the true population mean as \(\mu\) (a fixed number we never see) and the mean of one sample as \(\bar{x}\) (which wobbles). The whole game of the t-test is to measure that wobble, then ask whether your observed gap is large compared with it.</p>
-
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A difference you can see is not yet evidence. The question is always: is this gap large <em>relative to how much the mean wobbles by chance</em>? That ratio, not the gap itself, is what a t-test computes.</div></div>
-</section>
-
-<section class="lesson-step" data-step="3" data-step-type="concept">
-<div class="lesson-step-eyebrow">The ruler for noise</div>
-<h2>Standard error: how much the mean wobbles</h2>
-
-<p>To compare a gap against the noise, we need to put a number on the noise. That number is the <strong>standard error of the mean</strong>. It is the typical distance between a sample mean and the true mean, and it has a wonderfully simple formula:</p>
-
-<p>\[ SE = \frac{s}{\sqrt{n}} \]</p>
-
-<p>Here \(s\) is the sample standard deviation (how spread out the individual data points are) and \(n\) is the sample size (how many points you collected). Two things fall straight out of it:</p>
+<p>So a gap you can see (978 vs 1000) is never proof on its own. Even if the machine were <em>perfectly</em> set to 1000 g, any 20 packets would still come out a little above or below 1000, just from the luck of which packets you grabbed. We have two different things to keep straight:</p>
 
 <ul>
 
-<li>More spread in the data (larger \(s\)) means a noisier mean.</li>
+<li>the <strong>true average fill</strong> of the machine - a fixed number Meena can never see exactly without weighing every packet. Statisticians call it \(\mu\) (the Greek letter "mu").</li>
 
-<li>More data (larger \(n\)) means a tighter mean, but only through \(\sqrt{n}\): you fight noise with the <em>square root</em> of effort.</li>
+<li>the <strong>average of one batch she weighed</strong> - which wobbles from batch to batch. We write it \(\bar{x}\) ("x-bar"). For Meena's batch, \(\bar{x} = 978\).</li>
 
 </ul>
 
-<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The standard error is the unit we measure differences in. A gap of "2" means nothing until you know whether the SE is 0.1 (a huge gap, twenty standard errors out) or 10 (a rounding error, a fifth of one standard error).</div></div>
+<p>The whole game of the t-test is to measure <em>how much</em> \(\bar{x}\) wobbles by chance, and then ask: is Meena's 22-gram gap big compared with that wobble, or is it the kind of gap the wobble produces all the time?</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A difference you can see is not yet evidence. The real question is always: is this gap large <em>compared with how much the average jumps around by chance</em>? That ratio - the gap measured against the wobble - is what a t-test computes, not the gap by itself.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Putting a number on the wobble</div>
+<h2>Standard error: how much the batch average jumps around</h2>
+
+<p>To compare Meena's gap against the wobble, we first need to measure the wobble itself. That measurement has a name - the <strong>standard error of the mean</strong> - and a beautifully simple formula. The standard error is the typical distance between a single batch's average and the machine's true average:</p>
+
+<p>\[ SE = \frac{s}{\sqrt{n}} \]</p>
+
+<p>Two plain-English ingredients:</p>
+
+<ul>
+
+<li>\(s\) is the <strong>sample standard deviation</strong>: how much the individual packets differ from one another. If every packet is nearly identical, \(s\) is small; if some are 940 g and some are 1020 g, \(s\) is large. Say Meena's 20 packets have \(s = 30\) grams.</li>
+
+<li>\(n\) is the <strong>sample size</strong>: how many packets she weighed. Here \(n = 20\).</li>
+
+</ul>
+
+<p>So Meena's wobble is \(SE = 30 / \sqrt{20} \approx 6.7\) grams. In words: if the machine's true fill never changed, the average of 20 packets would still drift up and down by about 7 grams from one batch to the next, just by chance. Two things fall straight out of the formula:</p>
+
+<ul>
+
+<li>More spread between packets (bigger \(s\)) means a noisier, less trustworthy average.</li>
+
+<li>More packets weighed (bigger \(n\)) means a steadier average - but only through \(\sqrt{n}\). You fight the wobble with the <strong>square root</strong> of effort, not the effort itself.</li>
+
+</ul>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The standard error is the <em>ruler</em> we measure the gap in. A 22-gram gap means nothing until you know the wobble: if \(SE\) is 7 grams, 22 grams is a big gap (three rulers out); if \(SE\) were 50 grams, the same 22 would be well within the normal jiggle.</div></div>
 </section>
 
 <section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
 <div class="lesson-step-eyebrow">Check yourself</div>
-<h2>What happens to the standard error?</h2>
+<h2>What happens if Meena weighs more packets?</h2>
 
-<p>A study quadruples its sample size, from \(n = 25\) up to \(n = 100\), drawing from the same population. What happens to the standard error of the mean?</p>
+<p>Meena decides to weigh <strong>80</strong> packets next time instead of 20 - four times as many, from the same machine. What happens to the standard error (the wobble of her average)?</p>
 <section class="exercise" data-exercise-id="The-t-test-from-scratch-step4" data-grade-mode="self-check" data-difficulty="beginner">
 <div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It drops to one quarter of its old value</span></button>
 <button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It is cut in half</span></button>
 <button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It stays about the same</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Right. \(SE = s/\sqrt{n}\). Multiplying \(n\) by 4 multiplies \(\sqrt{n}\) by 2, so the standard error is halved. You quadruple the data to halve the noise.</div><div class="lesson-qfb lesson-qfb-no">Careful: the SE shrinks with \(\sqrt{n}\), not \(n\). Four times the data divides the SE by \(\sqrt{4} = 2\), not by 4.</div></div>
+<div class="lesson-qfb lesson-qfb-ok">Right. \(SE = s/\sqrt{n}\). Multiplying \(n\) by 4 multiplies \(\sqrt{n}\) by 2, so the wobble is halved. Meena weighs four times as many packets to make her average only twice as steady - that is the square-root law.</div><div class="lesson-qfb lesson-qfb-no">Careful: the wobble shrinks with \(\sqrt{n}\), not \(n\). Four times the packets divides the standard error by \(\sqrt{4} = 2\), not by 4.</div></div>
 </section>
 </section>
 
 <section class="lesson-step" data-step="5" data-step-type="concept">
-<div class="lesson-step-eyebrow">Signal over noise</div>
-<h2>The t-statistic</h2>
+<div class="lesson-step-eyebrow">Signal divided by noise</div>
+<h2>The t-statistic: the gap measured in wobbles</h2>
 
-<p>Now we can compare the signal to the noise in one number. For a single sample tested against a claimed value \(\mu_0\) (the value the <strong>null hypothesis</strong> says is true), the <strong>t-statistic</strong> is:</p>
+<p>Now we can put Meena's question into a single number. We compare the <strong>signal</strong> (her 22-gram gap) against the <strong>noise</strong> (her 7-gram wobble). For one batch tested against a claimed value \(\mu_0\) - the value we are checking, here the machine's setting \(\mu_0 = 1000\) - the <strong>t-statistic</strong> is:</p>
 
 <p>\[ t = \frac{\bar{x} - \mu_0}{s / \sqrt{n}} \]</p>
 
-<p>Read it piece by piece. The numerator \(\bar{x} - \mu_0\) is the <strong>signal</strong>: how far your sample mean \(\bar{x}\) sits from the value \(\mu_0\) you are testing against. The denominator \(s/\sqrt{n}\) is the <strong>noise</strong>: the standard error from the last step. Dividing one by the other answers a single question: <em>how many standard errors away from the null value did my sample mean land?</em></p>
+<p>Read it slowly, piece by piece:</p>
 
-<p>A \(t\) of 0 means the mean sat exactly on \(\mu_0\). A \(t\) of 0.1 is sitting right on top of the null, well inside the noise. A \(t\) of 3 means the mean landed three standard errors out, far enough to raise an eyebrow. As a concrete case, the average fuel economy in R's <code>mtcars</code> data is \(\bar{x} = 20.09\) mpg, with \(s = 6.03\) and \(n = 32\); tested against \(\mu_0 = 20\) that gives \(t = 0.085\), essentially no signal.</p>
+<ul>
+
+<li>The top, \(\bar{x} - \mu_0\), is the <strong>signal</strong>: how far the batch average sits from the value we are testing. For Meena: \(978 - 1000 = -22\) grams.</li>
+
+<li>The bottom, \(s/\sqrt{n}\), is the <strong>noise</strong>: the standard error from the last step, \(6.7\) grams.</li>
+
+</ul>
+
+<p>Divide one by the other and you get a single number that answers one question: <em>how many wobbles away from 1000 did Meena's average land?</em> For her packets, \(t = -22 / 6.7 \approx -3.3\). The minus sign just means she landed <em>below</em> 1000; the size, 3.3, is what matters - her average is about three-and-a-third standard errors below the target.</p>
+
+<p>Is 3.3 a lot? A \(t\) near 0 means the average sat right on the target, comfortably inside the normal wobble - nothing to see. A \(t\) of 3.3 means the average landed far out, in territory the wobble rarely reaches. That is starting to look like a real problem, not luck. The next steps make "rarely" exact.</p>
 </section>
 
 <section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
-<div class="lesson-step-eyebrow">In R</div>
-<h2>Compute a t by hand</h2>
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Compute Meena's t by hand</h2>
 
-<p>Test whether the average fuel economy in <code>mtcars</code> differs from 20 mpg. The sample gives \(\bar{x} = 20.09\), \(s = 6.03\), \(n = 32\). Fill in the denominator (the standard error) to finish the t-statistic.</p>
+<p>Meena's 20 packets average \(\bar{x} = 978\) g, with a standard deviation of \(s = 30\) g, tested against the target \(\mu_0 = 1000\) g. The signal (978 - 1000) is already filled in. Complete the <strong>noise</strong> - the standard error, \(s\) divided by the square root of \(n\) - to finish her t.</p>
 <section class="exercise" data-exercise-id="The-t-test-from-scratch-step6" data-grade-mode="self-check" data-difficulty="beginner">
-<div class="lesson-tryit" data-check-regex="sqrt\s*\(\s*n\s*\)"><textarea class="lesson-tryit-input" spellcheck="false">xbar &lt;- 20.09; mu0 &lt;- 20
-s &lt;- 6.03; n &lt;- 32
+<div class="lesson-tryit" data-check-regex="sqrt\s*\(\s*n\s*\)"><textarea class="lesson-tryit-input" spellcheck="false">xbar &lt;- 978; mu0 &lt;- 1000
+s &lt;- 30; n &lt;- 20
 t_stat &lt;- (xbar - mu0) / (s / ____)
-t_stat</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That returns t = 0.085. The mean sits less than a tenth of a standard error from 20: essentially no signal.</span><span class="lesson-tryit-fb lesson-tryit-no">The denominator is the standard error, s divided by sqrt(n). Fill in sqrt(n).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">xbar &lt;- 20.09; mu0 &lt;- 20
-s &lt;- 6.03; n &lt;- 32
+t_stat</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That gives t = -3.28. Meena's average landed about 3.3 standard errors below 1000 - a long way out.</span><span class="lesson-tryit-fb lesson-tryit-no">The noise is the standard error: s divided by the square root of n. Fill in sqrt(n).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">xbar &lt;- 978; mu0 &lt;- 1000
+s &lt;- 30; n &lt;- 20
 t_stat &lt;- (xbar - mu0) / (s / sqrt(n))
 t_stat
-#&gt; [1] 0.0851</code></pre></details></div>
+#&gt; [1] -3.28</code></pre></details></div>
 </section>
 </section>
 
 <section class="lesson-step" data-step="7" data-step-type="widget">
-<div class="lesson-step-eyebrow">What is "big enough"?</div>
-<h2>The null distribution</h2>
+<div class="lesson-step-eyebrow">What does "rarely" look like?</div>
+<h2>The null distribution: what chance alone produces</h2>
 
-<p>To judge a \(t\), you need to know what \(t\) values look like when nothing is going on. So imagine the null hypothesis is true: there is genuinely no difference, and \(\bar{x}\) misses \(\mu_0\) only because of sampling noise. Even then \(t\) will not be exactly 0 each time, it will scatter. Collect all those "no effect" \(t\) values and they trace out a known curve: <strong>Student's t-distribution</strong>, shown below. This is the yardstick your observed \(t\) is measured against.</p>
+<p>To decide whether \(t = -3.3\) is surprising, we need to know what \(t\) values look like <strong>when nothing is wrong</strong>. So let us pretend, just for a moment, that Meena is worried over nothing: the machine really does fill to 1000 g on average, and her 978 came purely from the luck of the draw. Statisticians call this pretend-everything-is-fine assumption the <strong>null hypothesis</strong>.</p>
 
-<p>It looks almost like the familiar normal bell, with one twist: its tails are slightly <strong>heavier</strong>. That is because we had to <em>estimate</em> the noise \(s\) from the same small sample, and that extra uncertainty makes large \(t\) values a touch more common. The shape is set by the <strong>degrees of freedom</strong>, \(df = n - 1\): the smaller the sample, the heavier the tails, and as \(n\) grows the t-distribution slides back into the normal.</p>
+<p>If the null hypothesis were true and Meena repeated her 20-packet weigh-in again and again, her \(t\) would not be 0 every time - it would scatter around 0. Collect all those "machine is fine" \(t\) values and they trace out a known, fixed curve: <strong>Student's t-distribution</strong>, drawn below. This curve is the yardstick we hold Meena's \(t\) against.</p>
 
-<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">The curve drawn here is the large-sample (normal) reference. A real small-sample t-distribution sits a hair lower in the middle with heavier tails, so an exact p-value is slightly larger, but the logic on the next step, tail area equals p-value, is identical.</div></div>
-<div class="lesson-widget" data-widget-type="null-distribution" data-widget-config='{"tails":2,"max":4,"start":0,"label":"t under H0"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>It looks almost like the familiar bell curve, with one twist: its tails are a little <strong>heavier</strong> (fatter at the edges). That is because Meena had to <em>estimate</em> the wobble \(s\) from the same 20 packets, and that extra uncertainty makes big \(t\) values slightly more common. The exact shape is set by the <strong>degrees of freedom</strong>, \(df = n - 1 = 19\) for Meena: the fewer packets, the heavier the tails; with lots of packets the curve settles into the ordinary bell.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">The curve drawn here is the large-sample (normal) version, which is easiest to read. A true 20-packet t-distribution sits a touch lower in the middle with slightly heavier tails, so the exact p-value is a hair larger - but the idea on the next step, that the tail area <em>is</em> the p-value, is exactly the same.</div></div>
+<div class="lesson-widget" data-widget-type="null-distribution" data-widget-config='{"tails":2,"max":4,"start":0,"label":"t when the machine is truly fine"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="8" data-step-type="widget">
 <div class="lesson-step-eyebrow">The verdict number</div>
-<h2>The p-value is a tail area</h2>
+<h2>The p-value is the area in the tails</h2>
 
-<p>Mark your observed \(t\) on the null distribution. The <strong>p-value</strong> is the probability, <em>if the null were true</em>, of getting a \(t\) at least as extreme as the one you saw. Geometrically it is simply the <strong>shaded area in the tails</strong> beyond \(+t\) and \(-t\) (both sides, because a difference in either direction would count). Drag the slider and watch the area, and the p-value, change.</p>
+<p>Now mark Meena's \(t\) on that "machine is fine" curve and ask: how often would pure luck push the average this far from 1000? That probability is the <strong>p-value</strong> - the chance, <em>if the machine were truly fine</em>, of getting a \(t\) at least as extreme as the one Meena saw. On the picture it is simply the <strong>shaded area out in the tails</strong>, beyond \(+t\) and \(-t\) (both sides, because a machine that <em>overfilled</em> by the same amount would be just as surprising). Drag the slider and watch the shaded area, and the p-value, change.</p>
 
-<p>A small shaded area means your \(t\) landed where the null curve rarely reaches: the data are surprising under "no effect," so you doubt the null. A large shaded area means your \(t\) is the kind of value the null produces all the time: nothing surprising, no case to answer.</p>
-<div class="lesson-widget" data-widget-type="null-distribution" data-widget-config='{"tails":2,"max":4,"start":2,"label":"observed t"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>Slide out to Meena's \(t \approx 3.3\) and the shaded area is tiny: a "fine" machine almost never produces a 20-packet average that far from 1000. So either something very unlucky happened, or the machine is not actually fine. A <em>small</em> tail area means the data are surprising under "machine is fine," and Meena starts to doubt it. A <em>large</em> tail area would mean her result is the kind of thing chance throws up all the time - no case to answer.</p>
+<div class="lesson-widget" data-widget-type="null-distribution" data-widget-config='{"tails":2,"max":4,"start":3.3,"label":"how far off the packets landed"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
 <div class="lesson-step-eyebrow">Check yourself</div>
 <h2>Read the p-value correctly</h2>
 
-<p>A two-sample t-test returns \(p = 0.03\). Which statement is the correct reading?</p>
+<p>Meena's test returns \(p = 0.004\). Which statement is the correct reading?</p>
 <section class="exercise" data-exercise-id="The-t-test-from-scratch-step9" data-grade-mode="self-check" data-difficulty="intermediate">
-<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">There is a 3% chance the null hypothesis is true</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">If there were truly no difference, a result at least this extreme would occur about 3% of the time</span></button>
-<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The result is 97% likely to replicate in a new study</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Exactly. The p-value is a tail probability computed assuming the null is true: a statement about the data given the hypothesis, never the hypothesis given the data.</div><div class="lesson-qfb lesson-qfb-no">That reverses the conditional. The p-value is the probability of data this extreme <em>given</em> H0, never the probability of H0 <em>given</em> the data. It says nothing about how probable the hypothesis itself is.</div></div>
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">There is a 0.4% chance the machine is actually fine</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">If the machine were truly fine, a 20-packet average this far off would happen only about 0.4% of the time</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The result is 99.6% likely to repeat if Meena weighs another batch</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The p-value is computed by <em>assuming</em> the machine is fine and asking how often chance alone would be this extreme. It is a statement about the data given the assumption, never about the assumption given the data.</div><div class="lesson-qfb lesson-qfb-no">That flips the logic around. The p-value is the chance of data this extreme <em>assuming</em> the machine is fine - never the chance that "the machine is fine" is true given the data. It does not tell you how likely the hypothesis itself is.</div></div>
 </section>
 </section>
 
 <section class="lesson-step" data-step="10" data-step-type="concept">
-<div class="lesson-step-eyebrow">Drawing a line</div>
-<h2>The decision rule</h2>
+<div class="lesson-step-eyebrow">Drawing the line</div>
+<h2>The decision rule, and the trap in it</h2>
 
-<p>You compare the p-value to a threshold \(\alpha\) you pick <em>in advance</em> (0.05 is the common, if arbitrary, convention):</p>
+<p>To turn the p-value into a yes/no, Meena compares it to a threshold called \(\alpha\) ("alpha"), chosen <em>before</em> she looks at the data (0.05 is the common, if arbitrary, convention):</p>
 
 <ul>
 
-<li>If \(p < \alpha\), you <strong>reject the null</strong> and call the result statistically significant.</li>
+<li>If \(p < \alpha\), she <strong>rejects the null</strong> ("machine is fine") and calls the result statistically significant. Meena's \(p = 0.004\) is well under 0.05, so she concludes the machine really is underfilling and gets it serviced.</li>
 
-<li>If \(p \ge \alpha\), you <strong>fail to reject</strong> the null. You do not "accept" or "prove" it.</li>
+<li>If \(p \ge \alpha\), she <strong>fails to reject</strong> the null. Notice the careful wording: she does <em>not</em> "accept" or "prove" the machine is fine.</li>
 
 </ul>
 
-<p>That last distinction is the one people drop. Failing to reject H0 means the data were not surprising enough to rule out "no effect," which is very different from showing there is no effect. Absence of evidence is not evidence of absence, often it just means your sample was too small to see the effect.</p>
+<p>That last distinction is the one almost everyone drops. Failing to reject only means the data were not surprising enough to rule out "machine is fine" - which is very different from showing the machine <em>is</em> fine. Maybe it is off by a tiny amount that 20 packets simply could not detect. Absence of evidence is not evidence of absence.</p>
 
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">The threshold \(\alpha\) is a decision rule, not a law of nature, and it must be chosen before you see the data. A result with \(p = 0.049\) is not meaningfully different from one with \(p = 0.051\); treating 0.05 as a magic cliff is how good questions turn into bad science.</div></div>
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">The threshold \(\alpha\) is a decision Meena makes, not a law of nature, and she must pick it <em>before</em> seeing the data. A result with \(p = 0.049\) is not meaningfully different from \(p = 0.051\); treating 0.05 as a magic cliff is how good questions turn into bad statistics.</div></div>
 </section>
 
 <section class="lesson-step" data-step="11" data-step-type="widget">
-<div class="lesson-step-eyebrow">One direction or two?</div>
+<div class="lesson-step-eyebrow">One direction, or both?</div>
 <h2>One-sided or two-sided?</h2>
 
-<p>Sometimes you only care about a difference in one direction (is the new drug <em>better</em>, not merely <em>different</em>). A <strong>one-sided</strong> test puts the whole rejection area in a single tail, as shown below, which makes a given \(t\) look more significant than the two-sided test does. That is legitimate only when you commit to the direction <em>before</em> collecting data.</p>
+<p>Meena only ever worried about <em>under</em>filling - light packets that upset customers. If she truly does not care about overfilling, she could run a <strong>one-sided</strong> test, which puts the whole rejection area in a single tail (shown below). That makes a given \(t\) look more significant, because all the "surprise" is concentrated on one side. But it is only honest if she commits to that single direction <em>before</em> she weighs anything.</p>
 
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Switching to a one-sided test after seeing which way the data went, just to slip under 0.05, is a classic form of p-hacking. Decide one-sided versus two-sided up front, and when in doubt use two-sided (the safe default).</div></div>
-<div class="lesson-widget" data-widget-type="null-distribution" data-widget-config='{"tails":1,"max":4,"start":2,"label":"observed t"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Switching to a one-sided test <em>after</em> seeing which way the data fell, just to slip under 0.05, is a classic form of p-hacking. Decide one-sided versus two-sided up front, and when in doubt use two-sided - the safe default, which is what R gives you unless you ask otherwise.</div></div>
+<div class="lesson-widget" data-widget-type="null-distribution" data-widget-config='{"tails":1,"max":4,"start":2,"label":"observed t (one-sided)"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="12" data-step-type="widget">
-<div class="lesson-step-eyebrow">The recipe</div>
-<h2>The whole test in four steps</h2>
+<div class="lesson-step-eyebrow">The whole test on one card</div>
+<h2>Every t-test is the same four moves</h2>
 
-<p>Strip away the story and every t-test is the same four moves. Whatever the variant, this is the loop you are running.</p>
+<p>Strip away Meena and the dal, and every t-test - one group, two groups, paired - runs the same four-step loop. Once you see it once, you see it everywhere.</p>
 
-<p>You computed the t-statistic by hand earlier; now let R run all four steps at once.</p>
-<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"State H0","sub":"assume no real effect: the true mean equals mu0"},{"title":"Signal over noise","sub":"compute t = (x-bar minus mu0) over the standard error"},{"title":"Tail area","sub":"the p-value: how often t this extreme arises under H0"},{"title":"Decide","sub":"p below alpha rejects H0, otherwise fail to reject"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+<p>You already did step 2 by hand for Meena. Now let R do all four at once.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Assume nothing is wrong","sub":"the null: the true mean really equals mu0 (the machine fills to 1000)"},{"title":"Signal over noise","sub":"compute t = (x-bar minus mu0) divided by the standard error"},{"title":"Find the tail area","sub":"the p-value: how often chance alone gives a t this extreme"},{"title":"Decide","sub":"p below alpha rejects the null; otherwise fail to reject"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
 </section>
 
 <section class="lesson-step" data-step="13" data-step-type="concept">
-<div class="lesson-step-eyebrow">Run it</div>
+<div class="lesson-step-eyebrow">Run it for real</div>
 <h2>The one-sample t-test in R</h2>
 
-<p>You never compute this by hand in practice. R's <code>t.test()</code> does every step at once: the t-statistic, the degrees of freedom, the p-value, and a confidence interval. Here is the <code>mtcars</code> mileage question, asked properly.</p>
+<p>In practice you never grind through this by hand - R's <code>t.test()</code> does every step in one line: the t-statistic, the degrees of freedom, the p-value, and a confidence interval. To run it on data you have right now, we will switch from Meena's dal to a dataset that ships inside R, <code>mtcars</code> - the specs of 32 classic car models. Its <code>mpg</code> column is each car's fuel economy. Let us ask the same <em>shape</em> of question Meena asked: is the average fuel economy different from 20 mpg?</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
@@ -221,50 +263,50 @@ t_stat
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Every number maps to something you now understand:</p>
+<p>Every number is something you now understand:</p>
 
 <ul>
 
-<li><code>t = 0.0851</code> is exactly the signal-over-noise ratio you computed by hand.</li>
+<li><code>t = 0.0851</code> is the signal-over-noise ratio - here the average (20.09) sits almost exactly on 20, so the signal is tiny.</li>
 
-<li><code>df = 31</code> is \(n - 1 = 32 - 1\), the shape of the null curve.</li>
+<li><code>df = 31</code> is \(n - 1 = 32 - 1\), the shape of the "nothing is wrong" curve.</li>
 
-<li><code>p-value = 0.9328</code> is the tail area: a \(t\) this small is utterly ordinary under the null, so there is no evidence the mean differs from 20.</li>
+<li><code>p-value = 0.9328</code> is the tail area: a \(t\) this small is utterly ordinary under the null, so there is <strong>no evidence</strong> the average differs from 20. (Contrast Meena, whose \(t = -3.3\) gave a tiny p - a real effect. This is the other verdict: fail to reject.)</li>
 
-<li>The <code>95 percent confidence interval</code> [17.92, 22.26] is the flip side of the test: every \(\mu_0\) inside it is a value we could not reject. It contains 20, which is exactly why we fail to reject 20.</li>
+<li>The <code>95 percent confidence interval</code> [17.92, 22.26] is the flip side of the test: every target value inside it is one we could not reject. It contains 20, which is exactly why we fail to reject 20.</li>
 
 </ul>
 </section>
 
 <section class="lesson-step" data-step="14" data-step-type="tryit" data-gate="1">
 <div class="lesson-step-eyebrow">Your turn</div>
-<h2>Run a one-sample test</h2>
+<h2>Run a one-sample test in R</h2>
 
-<p>Test whether the average <code>mpg</code> in <code>mtcars</code> differs from 20 by filling in the value to test against.</p>
+<p>Test whether the average <code>mpg</code> in <code>mtcars</code> differs from 20 by filling in the value to test against (the <code>mu</code> argument is the \(\mu_0\) from our formula).</p>
 <section class="exercise" data-exercise-id="The-t-test-from-scratch-step14" data-grade-mode="self-check" data-difficulty="beginner">
-<div class="lesson-tryit" data-check-regex="mu\s*=\s*20\b"><textarea class="lesson-tryit-input" spellcheck="false">t.test(mtcars$mpg, mu = ____)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">p = 0.93. With the sample mean at 20.09, there is no evidence the true mean differs from 20.</span><span class="lesson-tryit-fb lesson-tryit-no">Set mu to the value you are testing against here, that is mu = 20.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">t.test(mtcars$mpg, mu = 20)</code></pre></details></div>
+<div class="lesson-tryit" data-check-regex="mu\s*=\s*20\b"><textarea class="lesson-tryit-input" spellcheck="false">t.test(mtcars$mpg, mu = ____)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">p = 0.93. With the average at 20.09, there is no evidence the true mean differs from 20.</span><span class="lesson-tryit-fb lesson-tryit-no">Set mu to the value you are testing against - here, mu = 20.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">t.test(mtcars$mpg, mu = 20)</code></pre></details></div>
 </section>
 </section>
 
 <section class="lesson-step" data-step="15" data-step-type="concept">
-<div class="lesson-step-eyebrow">Two groups</div>
+<div class="lesson-step-eyebrow">Comparing two groups</div>
 <h2>The two-sample test, and why pairing matters</h2>
 
-<p>Far more often you compare <strong>two</strong> group means, not one mean against a fixed number. The logic does not change: it is still signal over noise. The signal is now the gap between the two sample means, and the noise is the standard error <em>of that gap</em>:</p>
+<p>Far more often you compare <strong>two</strong> group averages rather than one average against a fixed target - imagine Meena comparing her old machine against a new one she is thinking of buying. The logic does not change one bit: it is still signal over noise. The signal is now the gap between the two averages, and the noise is the standard error <em>of that gap</em>, which combines the wobble of both groups:</p>
 
 <p>\[ t = \frac{\bar{x}_1 - \bar{x}_2}{SE_{\text{diff}}}, \qquad SE_{\text{diff}} = \sqrt{\frac{s_1^2}{n_1} + \frac{s_2^2}{n_2}} \]</p>
 
-<p>Each group contributes its own wobble, so the noise of the difference combines both. In R you write <code>outcome ~ group</code>, and by default R runs the <strong>Welch</strong> version, which does not assume the two groups share the same variance: a safe, sensible default.</p>
+<p>To run it on real data, R ships with <code>sleep</code> - results from a genuine 1908 experiment where <strong>10 patients each tried two different sleep medicines</strong>, and someone recorded <code>extra</code>, the extra hours of sleep each patient got on each drug. In R you write <code>outcome ~ group</code>, and by default R runs the <strong>Welch</strong> version, which does not assume the two groups are equally spread - a safe, sensible default.</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
     <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
-    <div class="webr-editor" data-language="r"># the sleep data: extra hours of sleep on two drugs
+    <div class="webr-editor" data-language="r"># extra hours of sleep, drug 1 vs drug 2
 t.test(extra ~ group, data = sleep)
 #&gt;  Welch Two Sample t-test
 #&gt; t = -1.8608, df = 17.776, p-value = 0.07939
-#&gt; mean in group 1 mean in group 2
-#&gt;            0.75            2.33</div>
+#&gt; mean in group 1   mean in group 2
+#&gt;            0.75              2.33</div>
     <div class="webr-buttons">
       <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
       <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
@@ -274,7 +316,7 @@ t.test(extra ~ group, data = sleep)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Group 2 averaged 1.58 more hours, but with \(p = 0.08\) that gap is not quite distinguishable from noise. Here is the twist: these were the <strong>same 10 patients</strong> measured on both drugs, so the columns are not independent groups, they are paired. Telling R that lets each patient act as their own control, cancelling the large differences between people.</p>
+<p>Drug 2 gave 1.58 more hours of sleep on average, but with \(p = 0.08\) that gap is not quite distinguishable from noise. Now the twist: these were the <strong>same 10 patients</strong> measured on both drugs, so the two columns are not independent groups - they are <em>paired</em>, patient by patient. Telling R that lets each patient act as their own comparison, cancelling the big differences between people:</p>
 
 <div class="webr-container">
   <div class="webr-code-block">
@@ -291,31 +333,33 @@ t.test(extra ~ group, data = sleep)
   <div class="webr-plot-output"></div>
 </div>
 
-<p>Same data, same means, but \(p\) drops from 0.08 to 0.003. The effect was real all along; the unpaired test just could not see it through the between-patient noise. Choosing the right variant is not a formality, it changes the answer.</p>
+<p>Same data, same averages - but \(p\) drops from 0.08 to 0.003. The effect was real all along; the unpaired test just could not see it through the large differences between one patient and the next. Choosing the right variant is not a formality - it changed the answer.</p>
 </section>
 
 <section class="lesson-step" data-step="16" data-step-type="quiz" data-gate="1">
 <div class="lesson-step-eyebrow">Check yourself</div>
-<h2>Which test?</h2>
+<h2>Which test fits?</h2>
 
-<p>You measure the same 20 patients' blood pressure before a drug and after it, and want to know whether the average changed. Which test fits?</p>
+<p>You measure the same 20 patients' blood pressure <strong>before</strong> a new drug and <strong>after</strong> it, and you want to know whether the average changed. Which test fits?</p>
 <section class="exercise" data-exercise-id="The-t-test-from-scratch-step16" data-grade-mode="self-check" data-difficulty="intermediate">
 <div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">An independent two-sample t-test</span></button>
 <button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A paired t-test</span></button>
 <button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A one-sample t-test on all 40 readings at once</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Right. Each patient is their own control. The paired test works on the within-patient before-minus-after differences, removing the variation between people.</div><div class="lesson-qfb lesson-qfb-no">These are not independent groups: the same patient appears before and after. An independent test discards the pairing and the within-patient differences that make a real change easiest to see.</div></div>
+<div class="lesson-qfb lesson-qfb-ok">Right. Each patient is their own comparison. The paired test works on each patient's before-minus-after difference, removing the big variation between different people.</div><div class="lesson-qfb lesson-qfb-no">These are not independent groups: the same patient appears before and after. An independent test throws away the pairing - the within-patient before-minus-after change that makes a real shift easiest to see.</div></div>
 </section>
 </section>
 
 <section class="lesson-step" data-step="17" data-step-type="concept">
-<div class="lesson-step-eyebrow">Significant is not the same as big</div>
+<div class="lesson-step-eyebrow">"Significant" is not the same as "big"</div>
 <h2>Effect size and power</h2>
 
-<p>A p-value tells you whether an effect is <em>detectable</em>, never whether it is <em>large</em>. Those are different questions, and conflating them is the most consequential mistake in applied statistics. The size of an effect gets its own number, the standardized <strong>effect size</strong> (Cohen's d), the difference measured in standard deviations:</p>
+<p>Here is the mistake that does the most damage in real work: a p-value tells you whether an effect is <strong>detectable</strong>, never whether it is <strong>large</strong>. Those are completely different questions. Meena's machine being 22 g off a 1000 g target is a 2% error - whether that <em>matters</em> is a business judgement, not something the p-value answers.</p>
+
+<p>The <em>size</em> of an effect gets its own number: the <strong>effect size</strong>, often Cohen's \(d\), which measures the gap in standard-deviation units (so it does not depend on sample size):</p>
 
 <p>\[ d = \frac{\bar{x} - \mu_0}{s} \]</p>
 
-<p>Now watch what happens to a genuinely tiny effect, \(d = 0.2\), as the sample grows. Because \(t = d\sqrt{n}\), more data inflates the very same effect into a smaller and smaller p-value:</p>
+<p>Now watch what a big sample does to a genuinely tiny effect, \(d = 0.2\). Because \(t = d\sqrt{n}\), simply collecting more data shrinks the p-value of the very same small effect:</p>
 
 <table class="table table-striped">
 <thead>
@@ -344,41 +388,41 @@ t.test(extra ~ group, data = sleep)
 </tbody>
 </table>
 
-<p>The effect never changed. Only \(n\) grew. A big enough study makes a trivial difference "significant," and a small study can miss a real, important one (that second failure is low <strong>power</strong>: power is the probability a test detects an effect that is truly there, and it rises with sample size and effect size).</p>
+<p>The effect never changed - only \(n\) grew. A big enough study makes a trivial difference "significant," and a too-small study can miss a real, important one. That second failure is low <strong>power</strong>: power is the probability a test detects an effect that is genuinely there, and it rises with both sample size and effect size.</p>
 
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Always report the effect size and a confidence interval next to the p-value. "Significant" with a huge \(n\) can mean a difference too small to care about; "not significant" with a tiny \(n\) can hide a large effect you simply lacked the power to detect.</div></div>
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Always report the effect size and a confidence interval next to the p-value. "Significant" with a huge \(n\) can be a difference too small to care about; "not significant" with a tiny \(n\) can hide a real effect you simply lacked the power to see.</div></div>
 </section>
 
 <section class="lesson-step" data-step="18" data-step-type="quiz" data-gate="1">
 <div class="lesson-step-eyebrow">Check yourself</div>
 <h2>Does a tiny p mean a big effect?</h2>
 
-<p>A study with 50,000 people per group finds the two group means differ by 0.1 points, with \(p < 0.0001\). What can you conclude?</p>
+<p>A study with 50,000 people per group finds the two group averages differ by 0.1 points, with \(p < 0.0001\). What can you conclude?</p>
 <section class="exercise" data-exercise-id="The-t-test-from-scratch-step18" data-grade-mode="self-check" data-difficulty="intermediate">
 <div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The effect is large and important</span></button>
-<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The difference is very unlikely to be pure chance, but it may still be too small to matter</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The difference is very unlikely to be pure chance, but it may still be far too small to matter</span></button>
 <button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The result must be a mistake because the difference is so small</span></button>
-<div class="lesson-qfb lesson-qfb-ok">Right. A small p means the effect is detectable, not large. Significance and importance are separate questions, so always read the effect size beside the p-value.</div><div class="lesson-qfb lesson-qfb-no">Not from the p-value. With \(n = 50{,}000\) even a trivial 0.1-point gap clears every threshold. A small p means "distinguishable from zero," not "big." Read the effect size and the confidence interval before deciding it matters.</div></div>
+<div class="lesson-qfb lesson-qfb-ok">Right. A small p means the effect is detectable, not large. Significance and importance are separate questions, so always read the effect size beside the p-value.</div><div class="lesson-qfb lesson-qfb-no">Not from the p-value. With 50,000 per group, even a trivial 0.1-point gap clears every threshold. A small p means "distinguishable from zero," not "big." Read the effect size and the confidence interval before deciding it matters.</div></div>
 </section>
 </section>
 
 <section class="lesson-step" data-step="19" data-step-type="concept">
 <div class="lesson-step-eyebrow">Handle with care</div>
-<h2>How the t-test is misused</h2>
+<h2>How the t-test gets misused</h2>
 
-<p>The math is honest; the trouble is almost always in how the test is used. The three failures to guard against:</p>
+<p>The maths is honest; the trouble is almost always in how people <em>use</em> the test. Three failures to guard against:</p>
 
 <ul>
 
-<li><strong>p-hacking.</strong> Trying many analyses (one-sided vs two-sided, dropping outliers, slicing subgroups) and reporting only the one that crossed 0.05. Defense: decide the analysis before seeing the data, and report everything you tried.</li>
+<li><strong>p-hacking.</strong> Trying many analyses (one-sided vs two-sided, dropping a few "odd" packets, slicing into subgroups) and reporting only the one that crossed 0.05. Defence: decide the analysis before seeing the data, and report everything you tried.</li>
 
-<li><strong>Multiple comparisons.</strong> Run 20 independent tests at \(\alpha = 0.05\) and, even if nothing is real, about one will "turn up significant" by chance alone. Defense: correct for the number of tests (for example Bonferroni: divide \(\alpha\) by the number of comparisons).</li>
+<li><strong>Multiple comparisons.</strong> Run 20 separate tests at \(\alpha = 0.05\) and, even if nothing real is going on, about one will "turn up significant" by chance alone. Defence: correct for the number of tests (for example Bonferroni: divide \(\alpha\) by the number of comparisons).</li>
 
-<li><strong>Assuming normality.</strong> The t-test assumes the observations are independent and roughly normal (or that \(n\) is large enough that the mean is, by the Central Limit Theorem). For heavily skewed data with small \(n\), switch to a nonparametric test such as the Wilcoxon test rather than trusting the p-value.</li>
+<li><strong>Assuming a bell shape.</strong> The t-test assumes the measurements are independent and roughly bell-shaped (or that \(n\) is large enough that the <em>average</em> is, by the Central Limit Theorem). For heavily lopsided data with a small \(n\), switch to a nonparametric test such as the Wilcoxon test instead of trusting the p-value.</li>
 
 </ul>
 
-<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A p-value is only as trustworthy as the process that produced it. The same 0.04 means very different things from a single pre-registered test and from the best of fifty quietly-discarded ones.</div></div>
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A p-value is only as trustworthy as the process that produced it. The same 0.04 means very different things coming from a single pre-planned test versus the best of fifty quietly-discarded ones.</div></div>
 </section>
 
 <section class="lesson-step" data-step="20" data-step-type="concept">
@@ -389,11 +433,11 @@ t.test(extra ~ group, data = sleep)
 
 <ul>
 
-<li><a href="https://doi.org/10.2307/2331554">Student (1908), The Probable Error of a Mean, Biometrika</a> - the original paper that introduced the t-distribution, written using this very sleep data.</li>
+<li><a href="https://doi.org/10.2307/2331554">Student (1908), The Probable Error of a Mean, Biometrika</a> - the original paper that introduced the t-distribution, using the very <code>sleep</code> data you just saw.</li>
 
 <li><a href="https://www.openintro.org/book/os/">OpenIntro Statistics (free textbook)</a> - a clear, rigorous treatment of inference, the t-distribution and effect size.</li>
 
-<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html">R reference: t.test()</a> - the official documentation for every argument of the function you just used.</li>
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/t.test.html">R reference: t.test()</a> - the official documentation for every argument of the function you used.</li>
 
 <li><a href="https://seeing-theory.brown.edu/frequentist-inference/index.html">Seeing Theory: Frequentist Inference (Brown University)</a> - a beautiful interactive view of sampling, the null distribution and p-values.</li>
 
@@ -403,11 +447,11 @@ t.test(extra ~ group, data = sleep)
 </section>
 
 <section class="lesson-step" data-step="21" data-step-type="complete">
-<h2>You built the t-test</h2>
+<h2>You built the t-test, from Meena's packets up</h2>
 
-<p>You did not just learn to call a function, you built the idea from the ground up: a mean wobbles, the standard error measures that wobble, the t-statistic is signal over noise, the null distribution says what noise alone produces, and the p-value is the tail area that turns it all into a verdict. Then you ran the one-sample, two-sample and paired versions in R, read every line, and learned to keep significance and effect size apart.</p>
+<p>You did not just learn to call a function - you built the whole idea from one real question. A batch average wobbles from batch to batch; the standard error measures that wobble; the t-statistic is the gap measured in wobbles (signal over noise); the null distribution shows what chance alone produces; and the p-value is the tail area that turns it all into a verdict. Then you ran the one-sample, two-sample and paired versions in R, read every line, and learned to keep "significant" and "big" apart.</p>
 
-<p>From here the same logic generalizes. Comparing three or more group means at once leads to <strong>ANOVA</strong>; when the normality assumption breaks for good, the <strong>nonparametric</strong> tests (Wilcoxon, Kruskal-Wallis) carry the same signal-over-noise spirit without the normal curve. You now have the foundation every one of them is built on.</p>
+<p>From here the same logic generalizes. Comparing three or more group averages at once leads to <strong>ANOVA</strong>; when the bell-shape assumption breaks for good, the <strong>nonparametric</strong> tests (Wilcoxon, Kruskal-Wallis) carry the same signal-over-noise spirit without the bell curve. Every one of them is built on what you just learned.</p>
 </section>
 
 {% endraw %}

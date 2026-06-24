@@ -160,6 +160,13 @@ def check_lesson(path):
             if not os.path.exists(os.path.join(WIDGETS_DIR, wt + '.js')):
                 fail('step %d: ::widget "%s" has no www/lesson-widgets/%s.js' % (n, wt, wt))
 
+    # ::widget config lives in a single-quoted HTML attribute, so an apostrophe /
+    # single quote breaks it (md2lesson rejects it at publish). Catch it earlier here.
+    for m in re.finditer(r'^\s*::widget\b.*$', body, flags=re.M):
+        if "'" in m.group(0):
+            fail("a ::widget config contains a single quote (apostrophe): %r - reword it "
+                 "(the config sits in a single-quoted HTML attribute)." % m.group(0).strip()[:70])
+
     # No hand-authored visuals: every visual must be a ::widget from the catalog
     # (tested, interactive, consistent) or a real <img>. Inline <svg> in the source
     # is bespoke widget-faking - the exact thing the library exists to prevent.
