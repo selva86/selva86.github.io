@@ -35,6 +35,12 @@
     var curSlug = location.pathname.replace(/^\//, '').replace(/index\.html?$/i, '').replace(/\.html?$/i, '').replace(/\/$/, '');
     var COURSE_KEY = 'rsc-course-v1:' + courseId;
     var railCourse = null;
+    var allCourses = [];          // every course in courses.json (for the drill-up rail)
+    var trackIndex = null;        // {track, trackLabel, sections:{n:{n,label,courses[]}}} for the current track
+    var railLevel = 'lessons';    // in-player drill-up: 'lessons' | 'section' | 'track'
+    var curSection = null;        // the current lesson's section number
+    var viewSection = null;       // section shown at the 'section' level (defaults to curSection)
+    var railWired = false;        // the delegated rail click handler is attached once
 
     /* ---- resume state ---- */
     var state = { furthest: 0, passed: {} };
@@ -262,34 +268,121 @@
       var s = courseState(); s.completed = s.completed || {};
       if (!s.completed[slug]) { s.completed[slug] = true; s.last = slug; courseSave(s); renderRail(); }
     }
+    /* ---- the drill-up rail: lessons -> section -> track, all from courses.json ----
+       Default view is this course's lessons. The up-button climbs to the section
+       (sibling interactive courses) then the track (its sections), and from there
+       out to the roadmap. Built only when the course has roadmap data; without it
+       the rail is the simple single-course list, exactly as before. */
+    function curRoadmap() { return (railCourse && railCourse.roadmap) || null; }
+    function buildTrackIndex() {
+      var rm = curRoadmap(); if (!rm || !rm.track) return null;
+      var idx = { track: rm.track, trackLabel: rm.trackLabel || rm.track, sections: {} };
+      allCourses.forEach(function (c) {
+        if (!c.roadmap || c.roadmap.track !== rm.track) return;
+        var n = c.roadmap.section;
+        var sec = idx.sections[n] || (idx.sections[n] = { n: n, label: c.roadmap.sectionLabel || ('Section ' + n), courses: [] });
+        sec.courses.push(c);
+      });
+      return idx;
+    }
+    function sectionNums() { return Object.keys(trackIndex.sections).map(Number).sort(function (a, b) { return a - b; }); }
+    function railLessonRows(course, done, pro) {
+      var h = '';
+      (course.lessons || []).forEach(function (l) {
+        var cur = l.slug === curSlug, isDone = !!done[l.slug];
+        var lk = String(l.access || '').toLowerCase() === 'pro' && !pro;
+        var soon = l.built === false;
+        var cls = 'lm-rail-item' + (cur ? ' current' : '') + (isDone ? ' done' : '') + (lk ? ' locked' : '') + (soon ? ' soon' : '');
+        var mk = isDone ? '<span class="lm-rail-mk done">&#10003;</span>' : '<span class="lm-rail-mk">' + (l.order || '') + '</span>';
+        var badge = soon ? '<span class="lm-rail-badge">soon</span>' : (lk ? '<span class="lm-rail-badge">Pro</span>' : '');
+        var inner = mk + '<span class="lm-rail-tx">' + esc(l.title) + '</span>' + badge;
+        if (cur || soon) h += '<li><span class="' + cls + '"' + (cur ? ' aria-current="step"' : '') + '>' + inner + '</span></li>';
+        else h += '<li><a class="' + cls + '" href="/' + esc(l.slug) + '.html">' + inner + '</a></li>';
+      });
+      return h;
+    }
+    function railUp(label) {
+      return '<button type="button" class="lm-rail-up" data-rail-up>' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>' +
+        '<span>' + esc(label) + '</span></button>';
+    }
+    function renderLessonsLevel(done, pro, hasUp) {
+      var dn = railCourse.lessons.filter(function (l) { return done[l.slug]; }).length;
+      var rm = curRoadmap();
+      var up = (hasUp && rm) ? railUp(rm.sectionLabel || 'This section') : '';
+      return '<div class="lm-rail-head">' + up +
+        '<span class="lm-rail-title">' + esc(railCourse.title) + '</span>' +
+        '<span class="lm-rail-prog">' + dn + ' / ' + railCourse.lessons.length + ' done</span></div>' +
+        '<ol class="lm-rail-list">' + railLessonRows(railCourse, done, pro) + '</ol>';
+    }
+    function renderSectionLevel(done, pro) {
+      var sec = trackIndex.sections[viewSection];
+      if (!sec) return renderLessonsLevel(done, pro, true);
+      var h = '<div class="lm-rail-head">' + railUp(trackIndex.trackLabel) +
+        '<span class="lm-rail-eyebrow">Section ' + esc(sec.n) + '</span>' +
+        '<span class="lm-rail-title">' + esc(sec.label) + '</span></div>';
+      sec.courses.forEach(function (c) {
+        var isCur = c.course_id === courseId;
+        var cdn = (c.lessons || []).filter(function (l) { return done[l.slug]; }).length;
+        h += '<div class="lm-rail-course' + (isCur ? ' current' : '') + '">' +
+          '<div class="lm-rail-csub">' + esc(c.title) + '<span>' + cdn + ' / ' + (c.lessons || []).length + '</span></div>' +
+          '<ol class="lm-rail-list">' + railLessonRows(c, done, pro) + '</ol></div>';
+      });
+      return h;
+    }
+    function renderTrackLevel(done, pro) {
+      var h = '<div class="lm-rail-head">' + railUp('The roadmap') +
+        '<span class="lm-rail-eyebrow">Track</span>' +
+        '<span class="lm-rail-title">' + esc(trackIndex.trackLabel) + '</span></div><ol class="lm-rail-list">';
+      sectionNums().forEach(function (n) {
+        var sec = trackIndex.sections[n], isCur = n === curSection;
+        var nLes = sec.courses.reduce(function (a, c) { return a + (c.lessons || []).length; }, 0);
+        h += '<li><button type="button" class="lm-rail-item lm-rail-secrow' + (isCur ? ' current' : '') + '" data-rail-section="' + esc(n) + '">' +
+          '<span class="lm-rail-mk">' + esc(n) + '</span>' +
+          '<span class="lm-rail-tx">' + esc(sec.label) + '<span class="lm-rail-sub">' + nLes + ' lesson' + (nLes === 1 ? '' : 's') + '</span></span>' +
+          '<svg class="lm-rail-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 6 15 12 9 18"/></svg></button></li>';
+      });
+      return h + '</ol><a class="lm-rail-foot" href="' + roadmapTrackUrl(curRoadmap()) + '">Full ' + esc(trackIndex.trackLabel) + ' roadmap &rarr;</a>';
+    }
     function renderRail() {
       var rail = app.querySelector('.lm-rail');
       if (!rail || !railCourse || !railCourse.lessons) return;
       app.classList.add('lm-has-rail');
       var st = courseState(), done = st.completed || {}, pro = body.classList.contains('pro');
-      var dn = railCourse.lessons.filter(function (l) { return done[l.slug]; }).length;
-      var h = '<div class="lm-rail-head"><span class="lm-rail-title">' + esc(railCourse.title) + '</span>' +
-        '<span class="lm-rail-prog">' + dn + ' / ' + railCourse.lessons.length + ' done</span></div><ol class="lm-rail-list">';
-      railCourse.lessons.forEach(function (l) {
-        var cur = l.slug === curSlug, isDone = !!done[l.slug];
-        var locked = String(l.access || '').toLowerCase() === 'pro' && !pro;
-        var soon = l.built === false;
-        var cls = 'lm-rail-item' + (cur ? ' current' : '') + (isDone ? ' done' : '') + (locked ? ' locked' : '') + (soon ? ' soon' : '');
-        var mk = isDone ? '<span class="lm-rail-mk done">&#10003;</span>' : '<span class="lm-rail-mk">' + (l.order || '') + '</span>';
-        var badge = soon ? '<span class="lm-rail-badge">soon</span>' : (locked ? '<span class="lm-rail-badge">Pro</span>' : '');
-        var inner = mk + '<span class="lm-rail-tx">' + esc(l.title) + '</span>' + badge;
-        if (cur || soon) h += '<li><span class="' + cls + '"' + (cur ? ' aria-current="step"' : '') + '>' + inner + '</span></li>';
-        else h += '<li><a class="' + cls + '" href="/' + esc(l.slug) + '.html">' + inner + '</a></li>';
+      if (!curRoadmap() || !trackIndex) { rail.innerHTML = renderLessonsLevel(done, pro, false); return; }
+      if (railLevel === 'track') rail.innerHTML = renderTrackLevel(done, pro);
+      else if (railLevel === 'section') rail.innerHTML = renderSectionLevel(done, pro);
+      else rail.innerHTML = renderLessonsLevel(done, pro, true);
+    }
+    function wireRail() {
+      if (railWired) return;
+      var rail = app.querySelector('.lm-rail'); if (!rail) return;
+      railWired = true;
+      rail.addEventListener('click', function (e) {
+        if (e.target.closest('.lm-rail-up')) {
+          e.preventDefault();
+          if (railLevel === 'lessons') { viewSection = curSection; railLevel = 'section'; }
+          else if (railLevel === 'section') { railLevel = 'track'; }
+          else { location.href = roadmapTrackUrl(curRoadmap()); return; }
+          renderRail();
+          return;
+        }
+        var sb = e.target.closest('[data-rail-section]');
+        if (sb) { e.preventDefault(); viewSection = parseInt(sb.getAttribute('data-rail-section'), 10); railLevel = 'section'; renderRail(); }
       });
-      rail.innerHTML = h + '</ol>';
     }
     function buildRail() {
       if (!courseId) return;
       fetch('/courses.json', { cache: 'no-cache' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (data) {
         if (!data || !data.courses) return;
-        for (var k = 0; k < data.courses.length; k++) { if (data.courses[k].course_id === courseId) { railCourse = data.courses[k]; break; } }
+        allCourses = data.courses;
+        for (var k = 0; k < allCourses.length; k++) { if (allCourses[k].course_id === courseId) { railCourse = allCourses[k]; break; } }
         if (!railCourse) return;
+        trackIndex = buildTrackIndex();
+        curSection = (railCourse.roadmap && railCourse.roadmap.section) || null;
+        viewSection = curSection;
         var s = courseState(); s.last = curSlug; courseSave(s);
+        wireRail();
         renderRail();
         renderCrumbs();
         if (i === total - 1) showCompleteActions();   // refresh the card with progress if we're already on the end
