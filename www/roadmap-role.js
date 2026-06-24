@@ -45,12 +45,26 @@
     return '<a class="lsn pro" href="/pricing.html"><span class="lt">'+esc(t)+'</span><span class="go">Pro</span></a>';
   }
   function secDetails(s,free,open){
-    return '<details class="sec"'+(open?' open':'')+'><summary><span class="car"></span><span class="sn">'+(s.n<10?'0'+s.n:s.n)+'</span>'+
+    return '<details id="rm-s'+s.n+'" class="sec"'+(open?' open':'')+'><summary><span class="car"></span><span class="sn">'+(s.n<10?'0'+s.n:s.n)+'</span>'+
       '<span class="st">'+esc(s.title)+'<span class="so">'+esc(s.outcome)+'</span></span>'+
       '<span class="tag '+(free?'free':'pro')+'">'+(free?'Free':'Pro')+'</span><span class="cnt">'+s.items.length+'</span></summary>'+
       '<div class="lsns">'+s.items.map(function(t){return lessonRow(t,free);}).join('')+'</div></details>';
   }
   document.getElementById('curric').innerHTML=secs.map(function(s,i){return secDetails(s,isFree(s),i===0);}).join('');
+
+  // deep-link from a lesson player: /roadmap/<role>.html#rm-s<n>. #curric is built
+  // here in JS, so the browser's native hash scroll already fired against nothing.
+  // Open the targeted section, scroll to it, and flash it in the track accent.
+  (function(){
+    var m=(location.hash||'').match(/^#rm-s(\d+)$/); if(!m) return;
+    var el=document.getElementById('rm-s'+m[1]); if(!el) return;
+    el.setAttribute('open','');
+    setTimeout(function(){
+      el.scrollIntoView({behavior:'smooth',block:'center'});
+      el.style.transition='box-shadow .35s'; el.style.boxShadow='0 0 0 3px var(--c,#1f7a55)';
+      setTimeout(function(){el.style.boxShadow='none';},1700);
+    },80);
+  })();
 
   // projects: F2 editorial index, filtered to this role's domain(s)
   var DOM={foundations:['Data Analyst'],analyst:['Data Analyst'],ds:['Data Scientist'],ts:['Forecaster'],researcher:['Researcher','Statistician'],developer:['R Developer']};

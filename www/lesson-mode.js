@@ -297,12 +297,16 @@
     }
 
     /* ---- breadcrumb (Roadmap > Track > Section > Lesson) + exit target ----
-       From courses.json's roadmap field. Exit goes to /roadmap/#rm-<track> (the
-       roadmap scrolls to that track once anchors land; lands on /roadmap/ today).
+       From courses.json's roadmap field. The Track + Section crumbs and the exit
+       button deep-link into the per-track roadmap page at the exact section
+       (/roadmap/<page>.html#rm-s<n>); roadmap-role.js opens + scrolls to it.
        Falls back to the course landing when there is no roadmap data. */
     var BACK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>';
+    var ROADMAP_PAGES = { foundations: 'new-to-r', analyst: 'data-analyst', ds: 'data-scientist', ts: 'forecaster', researcher: 'researcher', developer: 'r-developer' };
+    function roadmapTrackUrl(rm) { var p = rm && ROADMAP_PAGES[rm.track]; return p ? '/roadmap/' + p + '.html' : '/roadmap/'; }
+    function roadmapSectionUrl(rm) { var b = roadmapTrackUrl(rm); return (rm && rm.section && b !== '/roadmap/') ? b + '#rm-s' + rm.section : b; }
     function exitTarget() {
-      return (railCourse && railCourse.roadmap && railCourse.roadmap.track) ? '/roadmap/#rm-' + railCourse.roadmap.track : landing;
+      return (railCourse && railCourse.roadmap && railCourse.roadmap.track) ? roadmapSectionUrl(railCourse.roadmap) : landing;
     }
     function exitLabel() {
       return (railCourse && railCourse.roadmap && railCourse.roadmap.sectionLabel) || (railCourse && railCourse.title) || 'lessons';
@@ -312,11 +316,11 @@
       if (exitA) { exitA.setAttribute('href', exitTarget()); exitA.setAttribute('aria-label', 'Back to ' + exitLabel()); exitA.innerHTML = BACK_SVG; }
       var titleEl = app.querySelector('.lm-title');
       if (titleEl && railCourse && railCourse.roadmap) {
-        var rm = railCourse.roadmap, th = '/roadmap/#rm-' + esc(rm.track), sep = ' <span class="lm-sep">&rsaquo;</span> ';
+        var rm = railCourse.roadmap, tUrl = roadmapTrackUrl(rm), sUrl = roadmapSectionUrl(rm), sep = ' <span class="lm-sep">&rsaquo;</span> ';
         titleEl.classList.add('lm-crumbs');
         titleEl.innerHTML = '<a href="/roadmap/">Roadmap</a>' + sep +
-          '<a href="' + th + '">' + esc(rm.trackLabel || rm.track) + '</a>' + sep +
-          '<a href="' + th + '">' + esc(rm.sectionLabel || '') + '</a>' + sep +
+          '<a href="' + tUrl + '">' + esc(rm.trackLabel || rm.track) + '</a>' + sep +
+          '<a href="' + sUrl + '">' + esc(rm.sectionLabel || '') + '</a>' + sep +
           '<span class="lm-crumb-cur">' + esc(railCourse.title) + '</span>' +
           (ds.courseLesson && ds.courseTotal ? ' <span class="lm-crumb-les">&middot; Lesson ' + esc(ds.courseLesson) + ' of ' + esc(ds.courseTotal) + '</span>' : '');
       }
