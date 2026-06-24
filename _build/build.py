@@ -968,9 +968,17 @@ def make_exercise_hub_body_block(asset_hrefs):
 
 def make_lesson_head_block(asset_hrefs):
     css = asset_hrefs.get('lesson-mode.css', 'www/lesson-mode.css')
-    # Render-blocking on purpose: body.lesson-mode must hide the masthead +
-    # sidebar at first paint, before lesson-mode.js injects the player chrome.
-    return f'    <link rel="stylesheet" href="{css}">'
+    # Render-blocking on purpose: the stylesheet must be parsed before the boot
+    # guard below adds .lm-boot, which hides the raw document (showing the player
+    # bg) until lesson-mode.js builds the overlay - so navigating between lessons
+    # never flashes the underlying page. lesson-mode.js removes .lm-boot after the
+    # first render; the 4s timeout is a safety net, and no-JS never runs the
+    # script so the steps stay visible + crawlable.
+    return (
+        f'    <link rel="stylesheet" href="{css}">\n'
+        f'    <script>(function(d){{d.documentElement.className+=" lm-boot";'
+        f'setTimeout(function(){{d.documentElement.classList.remove("lm-boot");}},4000);}})(document);</script>'
+    )
 
 
 def make_lesson_body_block(asset_hrefs):

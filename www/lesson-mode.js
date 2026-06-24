@@ -459,6 +459,7 @@
     // If resuming into a locked region, clamp to the preview.
     if (locked && i >= PREVIEW_STEPS) i = PREVIEW_STEPS - 1;
     render();
+    document.documentElement.classList.remove('lm-boot');   // overlay built + first step shown: reveal without flashing the raw document
     if (API && API.token && API.token()) hydrateSolved();
   });
 
