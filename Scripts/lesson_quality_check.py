@@ -111,6 +111,12 @@ def check_lesson(path):
         return issues, slug
     types = [t for t, _ in steps]
 
+    # R13 one-sitting length: target 7-12 steps, soft ceiling ~15. Advisory only -
+    # a long single arc may be legitimate, but it almost always wants splitting.
+    if len(steps) > 15:
+        warn('%d steps: long for one sitting (target 7-12). Consider splitting at a natural '
+             'seam into a multi-lesson course (R13).' % len(steps))
+
     # R1 - cover carries a real visual.
     cov_type, cov_md = steps[0]
     if cov_type != 'cover':
