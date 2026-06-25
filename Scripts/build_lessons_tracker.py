@@ -35,6 +35,16 @@ COURSE_ROADMAP = {
                'sectionLabel': 'Hypothesis testing and test selection'},
     'llm-agents': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 16,
                    'sectionLabel': 'The frontier (2026): LLMs and modern ML'},
+    # Data Analyst track (level 2, all free) - one course per roadmap section.
+    'da-dplyr': {'track': 'analyst', 'trackLabel': 'Data Analyst', 'section': 1, 'sectionLabel': 'Wrangle and tidy with dplyr'},
+    'da-joins': {'track': 'analyst', 'trackLabel': 'Data Analyst', 'section': 2, 'sectionLabel': 'Join and reshape any dataset'},
+    'da-eda': {'track': 'analyst', 'trackLabel': 'Data Analyst', 'section': 3, 'sectionLabel': 'Exploratory data analysis'},
+    'da-ggplot': {'track': 'analyst', 'trackLabel': 'Data Analyst', 'section': 4, 'sectionLabel': 'Visualization with ggplot2'},
+    'da-ggplot2-adv': {'track': 'analyst', 'trackLabel': 'Data Analyst', 'section': 5, 'sectionLabel': 'Advanced ggplot2 and composition'},
+    'da-datatable': {'track': 'analyst', 'trackLabel': 'Data Analyst', 'section': 6, 'sectionLabel': 'data.table and bigger-than-memory'},
+    'da-tables': {'track': 'analyst', 'trackLabel': 'Data Analyst', 'section': 7, 'sectionLabel': 'Report-ready tables'},
+    'da-dashboards': {'track': 'analyst', 'trackLabel': 'Data Analyst', 'section': 8, 'sectionLabel': 'Interactive output and dashboards'},
+    'da-communicate': {'track': 'analyst', 'trackLabel': 'Data Analyst', 'section': 9, 'sectionLabel': 'Communicate, automate and AI-assist (2026)'},
 }
 
 
