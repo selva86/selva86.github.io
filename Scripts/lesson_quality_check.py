@@ -36,7 +36,10 @@ LEXICON = ['tree', 'split', 'node', 'leaf', 'branch', 'boundary', 'region', 'dis
            'curve', 'histogram', 'sample', 'resample', 'bootstrap', 'correlation', 'matrix',
            'network', 'graph', 'architecture', 'pipeline', 'importance', 'ranking', 'gradient',
            'surface', 'projection', 'cluster', 'timeline', 'scatter', 'heatmap', 'flowchart',
-           'hypothesis', 'significance', 'agent', 'token']
+           'hypothesis', 'significance', 'agent', 'token',
+           # data-analyst track (wrangling + viz): strongly-visual terms only
+           'table', 'join', 'pivot', 'reshape', 'tidy', 'chart', 'plot', 'ggplot',
+           'facet', 'boxplot', 'dashboard']
 
 
 def strip_code(md):

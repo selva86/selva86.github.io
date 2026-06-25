@@ -10,7 +10,7 @@ The menu of visuals `/write-lesson` chooses from, and the inventory that makes "
 
 ## Visualizable lexicon (deterministic trigger)
 
-A concept step is "visualizable" if its prose contains any of: tree, split, node, leaf, branch, boundary, region, distribution, curve, histogram, sample / resample / bootstrap, correlation, matrix, network / graph, architecture / pipeline / flow / steps, importance / ranking, gradient / surface, vector / projection, cluster, path, timeline, hypothesis, significance, agent, token. A hit means a visual is expected on that step.
+A concept step is "visualizable" if its prose contains any of: tree, split, node, leaf, branch, boundary, region, distribution, curve, histogram, sample / resample / bootstrap, correlation, matrix, network / graph, architecture / pipeline / flow / steps, importance / ranking, gradient / surface, vector / projection, cluster, path, timeline, hypothesis, significance, agent, token, **table / column / row, join / merge, pivot / reshape / tidy, chart / plot / scatter / bar / line, facet, theme / palette, dashboard, report, document**. A hit means a visual is expected on that step.
 
 ## Static vs interactive (pick the cheaper one that teaches)
 
@@ -32,6 +32,16 @@ A concept step is "visualizable" if its prose contains any of: tree, split, node
 | An N-step process / pipeline | numbered flow diagram | `process-flow` | static | built |
 | Hypothesis test: null dist + p-value tail | shaded tail under H0, draggable statistic | `null-distribution` | interactive | built |
 | Agent reasoning loop (ReAct) | Thought -> Action -> Observation cycle, stepped | `agent-loop` | interactive | built |
+| A table changing under a dplyr/data.table verb | before -> after table diff + the code | `table-transform` | interactive | built |
+| Joining two keyed tables | two tables + switchable join type + live result | `join-diagram` | interactive | built |
+| Reshaping wide <-> long (pivot) | table morphs, id vs names/values tinted | `reshape-grid` | interactive | built |
+| Raw data vs a report-ready table | raw -> formatted (gt / flextable) toggle | `styled-table` | interactive | built |
+| Chart type / grammar of graphics | geom switch + live ggplot2 code (+ Pearson r) | `chart-plotter` | interactive | built |
+| A correlation matrix | diverging color grid of r (computed) | `correlation-heatmap` | static | built |
+| Facets / small multiples | one chart vs facet_wrap small multiples | `facet-grid` | interactive | built |
+| Theme / palette / accessibility | restyle a chart live + scale/theme code | `theme-styler` | interactive | built |
+| Dashboard layout / reactivity | one filter input -> value boxes + chart tiles update | `dashboard-layout` | interactive | built |
+| R Markdown / Quarto doc anatomy | source (.qmd) <-> rendered toggle | `doc-structure` | interactive | built |
 | Spread of estimates averaging to a mean | dots collapsing to a line | `estimate-averaging` | interactive | NEEDS BUILD (optional) |
 
 ## Gaps surfaced by the RF audit (2026-06-24)
@@ -44,6 +54,25 @@ Built 2026-06-24 to make the RF proof course fully "show, don't tell" and to see
 - `process-flow` - L2 "The whole forest in three rules": a numbered 3-step flow. Generic, reusable everywhere.
 
 Softer (formula already carries the idea, a viz would reinforce): L2 "wisdom of crowds" and "bootstrap is not enough" (correlation floor).
+
+## Data Analyst widget family (2026-06-24)
+
+Built to make the Data Analyst track (level 2 / track `analyst`) "show, don't tell" - the library was stats/ML-only before this. All share a helper layer in `index.js` (`LessonWidgets.u`: palette, `tbl`, `seg`/`wireSeg`, `code`, `plot` - a compact multi-geom SVG engine). Every widget has meaningful DEFAULTS (renders from `{}`) and accepts `cfg` to carry the lesson's own data. Config must not contain single quotes or raw `<` / `>`.
+
+| Widget | cfg (all optional; defaults shown render standalone) | Serves sections |
+|---|---|---|
+| `table-transform` | `{code, caption, before:{cols,rows}, after:{cols,rows}}` - diffs before/after, new cols green, removed rows struck | S1 (filter/select/mutate/arrange/distinct/summarise/recode/missing), S2 (separate/unite), S6 (data.table verbs) |
+| `join-diagram` | `{left:{cols,rows}, right:{cols,rows}, key, op}` - switch inner/left/right/full/semi/anti | S2 |
+| `reshape-grid` | `{wide:{cols,rows}, idCols:[], namesTo, valuesTo}` - derives + toggles long form | S1 (tidy data), S2 (pivot) |
+| `styled-table` | `{cols, rows, formats:{col:"dollar|pct|comma|1dp"}, title, note}` - raw vs report table | S7 |
+| `chart-plotter` | `{data:[{x,y,fill}], geoms:[], x, y, code:{}}` - geom switch + ggplot code + r | S3 (univariate/bivariate), S4 (all chart types + grammar) |
+| `correlation-heatmap` | `{vars:[], data:{var:[]}}` or `{vars, matrix:[[]]}` - computes Pearson r | S3 |
+| `facet-grid` | `{data:[{x,y,facet}], geom, x, y, facetVar}` - one chart vs small multiples | S5 |
+| `theme-styler` | `{data:[{x,y}], x, y}` - palette (incl. colorblind) + theme switch | S5 |
+| `dashboard-layout` | `{filterLabel, views:{name:{boxes:[[label,value]], line:[{x,y}], bar:[{x,y}]}}}` - reactive filter | S8 |
+| `doc-structure` | `{blocks:[{type:"yaml|prose|code", text, chart}]}` - source vs rendered | S9 |
+
+Reuse for `analyst`: `process-flow` (S1 import flow, S3 EDA framework, S6 data.table anatomy, S8 reactivity, S9 parameterized reports), `agent-loop` (S9 LLM/ellmer), `chart-plotter` bar geom (S6 speed benchmark). `u.plot` geoms: point (with `corr`), line, bar/col, histogram, boxplot - all compute real scales/quartiles/r, no faked numbers.
 
 ## Adding a widget
 

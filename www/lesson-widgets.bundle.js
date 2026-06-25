@@ -33,6 +33,91 @@
       for (var i = 0; i < els.length; i++) this.mount(els[i]);
     }
   };
+
+  /* Shared helpers for the data-analyst widget family (tables, controls, charts).
+     Self-contained, deterministic, no deps. New widgets use these; the older
+     stats/ML widgets predate them and are untouched. */
+  var P = {
+    ink: '#131720', body: '#434b59', mut: '#677084', faint: '#97a0b2',
+    line: '#d8dee9', line2: '#eef1f6', bg: '#f3f6f4', acc: '#1f7a55',
+    c0: '#2563a8', c1: '#b5631a', bad: '#c2410c', add: '#e7f3ec', del: '#fbeae5',
+    codeBg: '#0d1117', codeFg: '#e6edf3'
+  };
+  function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]; }); }
+  function num(v) { if (v == null || v === '' || isNaN(v)) return v; var n = +v; return (Math.round(n * 100) / 100).toString(); }
+
+  var u = {
+    P: P, esc: esc, num: num,
+    code: function (t) { return '<code style="display:block;font-family:IBM Plex Mono,monospace;font-size:13px;background:' + P.codeBg + ';color:' + P.codeFg + ';padding:9px 12px;border-radius:8px;overflow-x:auto;white-space:pre">' + esc(t) + '</code>'; },
+    btn: function (label, kind) { var pri = kind === 'primary'; return '<button type="button" style="font:inherit;font-size:13px;font-weight:600;border-radius:8px;padding:9px 16px;cursor:pointer;' + (pri ? 'color:#fff;background:' + P.acc + ';border:0' : 'color:' + P.mut + ';background:none;border:1px solid ' + P.line) + '">' + esc(label) + '</button>'; },
+    // data table; opts: addCols{}, dropCols{}, delRows{}, hi{"r,c":color}, headBg
+    tbl: function (cols, rows, opts) {
+      opts = opts || {}; var addC = opts.addCols || {}, dropC = opts.dropCols || {}, delR = opts.delRows || {}, hi = opts.hi || {}, head = opts.headBg || P.bg;
+      var h = '<table style="border-collapse:collapse;font-family:IBM Plex Mono,monospace;font-size:12.5px;width:100%">';
+      h += '<thead><tr>';
+      cols.forEach(function (c) { var bg = addC[c] ? P.add : (dropC[c] ? P.del : head); h += '<th style="text-align:left;padding:6px 9px;border:1px solid ' + P.line + ';background:' + bg + ';color:' + P.ink + ';font-weight:700;white-space:nowrap">' + esc(c) + '</th>'; });
+      h += '</tr></thead><tbody>';
+      rows.forEach(function (r, ri) { var del = delR[ri]; h += '<tr style="' + (del ? 'opacity:.4;text-decoration:line-through;' : '') + '">';
+        cols.forEach(function (c, ci) { var k = ri + ',' + ci, bg = hi[k] || (addC[c] ? P.add : (dropC[c] ? P.del : '#fff')), v = r[ci];
+          h += '<td style="padding:6px 9px;border:1px solid ' + P.line + ';background:' + bg + ';color:' + P.ink + ';white-space:nowrap">' + (v == null ? '<span style="color:' + P.bad + '">NA</span>' : esc(v)) + '</td>'; });
+        h += '</tr>'; });
+      return h + '</tbody></table>';
+    },
+    // segmented control; items: [{v,label}] or [v]; returns HTML. Wire with wireSeg.
+    seg: function (items, cur) {
+      var h = '<div class="lwseg" style="display:inline-flex;flex-wrap:wrap;gap:4px;border:1px solid ' + P.line + ';border-radius:9px;padding:3px;background:#fff">';
+      items.forEach(function (it) { var v = (it && it.v != null) ? it.v : it, lab = (it && it.label != null) ? it.label : v, on = (String(v) === String(cur));
+        h += '<button type="button" data-val="' + esc(v) + '" style="font:inherit;font-size:12.5px;font-weight:600;border:0;border-radius:6px;padding:6px 11px;cursor:pointer;background:' + (on ? P.acc : 'transparent') + ';color:' + (on ? '#fff' : P.mut) + '">' + esc(lab) + '</button>'; });
+      return h + '</div>';
+    },
+    wireSeg: function (root, onPick) {
+      root.addEventListener('click', function (e) { var b = e.target.closest('[data-val]'); if (!b || !root.contains(b)) return;
+        var seg = b.parentNode; Array.prototype.forEach.call(seg.children, function (c) { var on = c === b; c.style.background = on ? P.acc : 'transparent'; c.style.color = on ? '#fff' : P.mut; });
+        onPick(b.getAttribute('data-val'), b); });
+    },
+    // compact multi-geom SVG chart. spec: {geom:point|line|bar|col|histogram|boxplot, x, y, w, h, palette, corr, bins}
+    plot: function (data, spec) {
+      spec = spec || {}; var W = spec.w || 460, H = spec.h || 268, m = { t: 16, r: 16, b: 38, l: 46 }, iw = W - m.l - m.r, ih = H - m.t - m.b;
+      var geom = spec.geom || 'point', pal = spec.palette || [P.acc, P.c0, P.c1, '#7c3aed', '#0891b2', '#be185d'];
+      function lin(d0, d1, r0, r1) { if (d0 === d1) d1 = d0 + 1; return function (v) { return r0 + (v - d0) / (d1 - d0) * (r1 - r0); }; }
+      function ext(a) { return [Math.min.apply(null, a), Math.max.apply(null, a)]; }
+      function frame() { return '<line x1="' + m.l + '" y1="' + (m.t + ih) + '" x2="' + (m.l + iw) + '" y2="' + (m.t + ih) + '" stroke="' + P.line + '" stroke-width="1.5"/><line x1="' + m.l + '" y1="' + m.t + '" x2="' + m.l + '" y2="' + (m.t + ih) + '" stroke="' + P.line + '" stroke-width="1.5"/>'; }
+      function yax(sy, ticks) { var a = ''; ticks.forEach(function (t) { var y = sy(t); a += '<line x1="' + m.l + '" y1="' + y.toFixed(1) + '" x2="' + (m.l + iw) + '" y2="' + y.toFixed(1) + '" stroke="' + P.line2 + '"/><text x="' + (m.l - 7) + '" y="' + (y + 3).toFixed(1) + '" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="9" fill="' + P.mut + '">' + num(t) + '</text>'; }); return a; }
+      function xlab(x, txt) { return '<text x="' + x + '" y="' + (m.t + ih + 16) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.body + '">' + esc(txt) + '</text>'; }
+      function axtitle() { return '<text x="' + (m.l + iw / 2) + '" y="' + (H - 4) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="11" fill="' + P.mut + '">' + esc(spec.x || '') + '</text><text transform="translate(12,' + (m.t + ih / 2) + ') rotate(-90)" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="11" fill="' + P.mut + '">' + esc(spec.y || '') + '</text>'; }
+      var body = '', extra = '';
+      if (geom === 'point') {
+        var xs = data.map(function (d) { return +d.x; }), ys = data.map(function (d) { return +d.y; }), xe = ext(xs), ye = ext(ys);
+        var px = (xe[1] - xe[0]) * 0.08 || 1, py = (ye[1] - ye[0]) * 0.08 || 1, sx = lin(xe[0] - px, xe[1] + px, m.l, m.l + iw), sy = lin(ye[0] - py, ye[1] + py, m.t + ih, m.t);
+        var gmap = {}, gi = 0; data.forEach(function (d) { var g = d.fill == null ? '_' : d.fill; if (!(g in gmap)) gmap[g] = gi++; });
+        body += yax(sy, [ye[0], (ye[0] + ye[1]) / 2, ye[1]]);
+        data.forEach(function (d) { body += '<circle cx="' + sx(+d.x).toFixed(1) + '" cy="' + sy(+d.y).toFixed(1) + '" r="5" fill="' + pal[gmap[d.fill == null ? '_' : d.fill] % pal.length] + '" fill-opacity="0.78"/>'; });
+        if (spec.corr) { var n = xs.length, mx = xs.reduce(function (a, b) { return a + b; }, 0) / n, my = ys.reduce(function (a, b) { return a + b; }, 0) / n, sxy = 0, sxx = 0, syy = 0, i; for (i = 0; i < n; i++) { sxy += (xs[i] - mx) * (ys[i] - my); sxx += (xs[i] - mx) * (xs[i] - mx); syy += (ys[i] - my) * (ys[i] - my); } extra = '<text x="' + (m.l + iw - 4) + '" y="' + (m.t + 13) + '" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="12" fill="' + P.ink + '">r = ' + num(sxy / Math.sqrt(sxx * syy)) + '</text>'; }
+      } else if (geom === 'line') {
+        var lx = data.map(function (d) { return +d.x; }), ly = data.map(function (d) { return +d.y; }), lxe = ext(lx), lye = ext(ly), sxl = lin(lxe[0], lxe[1], m.l, m.l + iw), syl = lin(Math.min(0, lye[0]), lye[1], m.t + ih, m.t);
+        body += yax(syl, [Math.min(0, lye[0]), lye[1]]) + '<polyline points="' + data.map(function (d) { return sxl(+d.x).toFixed(1) + ',' + syl(+d.y).toFixed(1); }).join(' ') + '" fill="none" stroke="' + pal[0] + '" stroke-width="2.5"/>';
+        data.forEach(function (d) { body += '<circle cx="' + sxl(+d.x).toFixed(1) + '" cy="' + syl(+d.y).toFixed(1) + '" r="3.5" fill="' + pal[0] + '"/>'; });
+      } else if (geom === 'bar' || geom === 'col') {
+        var bv = data.map(function (d) { return +d.y; }), ymax = (Math.max.apply(null, bv) || 1) * 1.12, syb = lin(0, ymax, m.t + ih, m.t), gap = iw / data.length, bw = gap * 0.62;
+        body += yax(syb, [0, ymax / 2, ymax]);
+        data.forEach(function (d, i) { var x = m.l + gap * i + (gap - bw) / 2, y = syb(+d.y); body += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + bw.toFixed(1) + '" height="' + (m.t + ih - y).toFixed(1) + '" rx="3" fill="' + pal[i % pal.length] + '"/>' + xlab(x + bw / 2, d.x); });
+      } else if (geom === 'histogram') {
+        var hv = data.map(function (d) { return +(d.x != null ? d.x : d.y); }), he = ext(hv), bins = spec.bins || 8, bw2 = (he[1] - he[0]) / bins || 1, cts = [], b;
+        for (b = 0; b < bins; b++) cts.push(0); hv.forEach(function (v) { cts[Math.min(bins - 1, Math.floor((v - he[0]) / bw2))]++; });
+        var cmax = (Math.max.apply(null, cts) || 1) * 1.12, syh = lin(0, cmax, m.t + ih, m.t), sxh = lin(he[0], he[1], m.l, m.l + iw);
+        body += yax(syh, [0, cmax / 2, cmax]); cts.forEach(function (c, i) { var x0 = sxh(he[0] + i * bw2), x1 = sxh(he[0] + (i + 1) * bw2), y = syh(c); body += '<rect x="' + x0.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + Math.max(1, x1 - x0 - 1).toFixed(1) + '" height="' + (m.t + ih - y).toFixed(1) + '" fill="' + pal[0] + '" fill-opacity="0.85"/>'; });
+      } else if (geom === 'boxplot') {
+        var grp = {}; data.forEach(function (d) { var g = d.fill == null ? (d.x == null ? 'all' : d.x) : d.fill; (grp[g] = grp[g] || []).push(+d.y); });
+        var keys = Object.keys(grp), all = data.map(function (d) { return +d.y; }), ye4 = ext(all), sy4 = lin(ye4[0], ye4[1], m.t + ih, m.t), gw = iw / keys.length;
+        body += yax(sy4, [ye4[0], (ye4[0] + ye4[1]) / 2, ye4[1]]);
+        keys.forEach(function (k, i) { var vv = grp[k].slice().sort(function (a, b) { return a - b; }), q = function (p) { var idx = (vv.length - 1) * p, lo = Math.floor(idx); return vv[lo] + (vv[Math.ceil(idx)] - vv[lo]) * (idx - lo); };
+          var cx = m.l + gw * i + gw / 2, bw3 = gw * 0.4, q1 = sy4(q(0.25)), q2 = sy4(q(0.5)), q3 = sy4(q(0.75)), lo = sy4(vv[0]), hi = sy4(vv[vv.length - 1]);
+          body += '<line x1="' + cx + '" y1="' + hi + '" x2="' + cx + '" y2="' + lo + '" stroke="' + P.mut + '"/><rect x="' + (cx - bw3 / 2) + '" y="' + q3 + '" width="' + bw3 + '" height="' + (q1 - q3) + '" fill="' + pal[i % pal.length] + '" fill-opacity="0.5" stroke="' + pal[i % pal.length] + '"/><line x1="' + (cx - bw3 / 2) + '" y1="' + q2 + '" x2="' + (cx + bw3 / 2) + '" y2="' + q2 + '" stroke="' + P.ink + '" stroke-width="2"/>' + xlab(cx, k); });
+      }
+      return '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="' + esc(geom) + ' chart">' + frame() + body + axtitle() + extra + '</svg>';
+    }
+  };
+  window.LessonWidgets.u = u;
 })();
 
 ;
@@ -147,6 +232,126 @@
     render();
   }
   if (window.LessonWidgets) window.LessonWidgets.register('bootstrap-sample', mount);
+})();
+
+;
+/* chart-plotter.js */
+/* chart-plotter.js - the grammar-of-graphics / chart-type chooser.
+ * Same data, switchable geom (point/line/bar/histogram/boxplot); renders the chart
+ * AND the ggplot2 code that makes it, so the mapping (data -> aes -> geom) is visible.
+ * On a scatter it prints Pearson r. cfg:
+ *   { data:[{x,y,fill}], geoms:["point","line","bar"], x:"month", y:"sales",
+ *     code:{point:"...", line:"..."} }
+ * Default = a monthly sales series (point/line/bar).
+ */
+(function () {
+  'use strict';
+  var GEOML = { point: 'geom_point()', line: 'geom_line()', bar: 'geom_col()', col: 'geom_col()', histogram: 'geom_histogram()', boxplot: 'geom_boxplot()' };
+  function mount(el, cfg) {
+    var u = window.LessonWidgets.u; if (!u) return;
+    cfg = cfg || {};
+    var data = cfg.data || [{ x: 1, y: 12 }, { x: 2, y: 19 }, { x: 3, y: 15 }, { x: 4, y: 25 }, { x: 5, y: 22 }, { x: 6, y: 30 }];
+    var geoms = cfg.geoms || ['point', 'line', 'bar'];
+    var xlab = cfg.x || 'month', ylab = cfg.y || 'sales', codeMap = cfg.code || {};
+    var cur = geoms[0];
+
+    function codeFor(g) {
+      if (codeMap[g]) return codeMap[g];
+      var aesX = (g === 'bar' || g === 'col') ? 'factor(' + xlab + ')' : ((g === 'histogram') ? xlab : xlab);
+      if (g === 'histogram') return 'ggplot(df, aes(' + xlab + ')) +\n  ' + GEOML[g];
+      if (g === 'boxplot') return 'ggplot(df, aes(' + xlab + ', ' + ylab + ')) +\n  ' + GEOML[g];
+      return 'ggplot(df, aes(' + aesX + ', ' + ylab + ')) +\n  ' + (GEOML[g] || 'geom_point()');
+    }
+    var wrap = document.createElement('div'); wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
+    wrap.innerHTML =
+      '<div style="margin-bottom:11px"><span class="cp-seg"></span></div>' +
+      '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">' +
+        '<div class="cp-plot" style="flex:1;min-width:280px"></div>' +
+        '<div class="cp-code" style="flex:1;min-width:220px"></div>' +
+      '</div>';
+    var segHost = wrap.querySelector('.cp-seg'); segHost.innerHTML = u.seg(geoms.map(function (g) { return { v: g, label: g }; }), cur);
+    var plotEl = wrap.querySelector('.cp-plot'), codeEl = wrap.querySelector('.cp-code');
+    function render(g) { plotEl.innerHTML = u.plot(data, { geom: g, x: xlab, y: ylab, corr: g === 'point' }); codeEl.innerHTML = u.code(codeFor(g)); }
+    u.wireSeg(segHost, function (v) { cur = v; render(v); });
+    render(cur);
+    el.innerHTML = ''; el.appendChild(wrap);
+  }
+  if (window.LessonWidgets) window.LessonWidgets.register('chart-plotter', mount);
+})();
+
+;
+/* correlation-heatmap.js */
+/* correlation-heatmap.js - a correlation matrix as a diverging color grid.
+ * cfg: either { vars:[...], data:{var:[...]} }  (computes Pearson r), or a
+ * precomputed { vars:[...], matrix:[[...]] }. Negative = blue, positive = green,
+ * |r| sets the intensity; each cell shows the value. Default = mpg/wt/hp/disp.
+ */
+(function () {
+  'use strict';
+  function pearson(a, b) { var n = a.length, ma = 0, mb = 0, i; for (i = 0; i < n; i++) { ma += a[i]; mb += b[i]; } ma /= n; mb /= n; var sab = 0, saa = 0, sbb = 0; for (i = 0; i < n; i++) { sab += (a[i] - ma) * (b[i] - mb); saa += (a[i] - ma) * (a[i] - ma); sbb += (b[i] - mb) * (b[i] - mb); } return sab / Math.sqrt(saa * sbb); }
+  function mount(el, cfg) {
+    var u = window.LessonWidgets.u; if (!u) return;
+    cfg = cfg || {};
+    var vars = cfg.vars || ['mpg', 'wt', 'hp', 'disp'];
+    var data = cfg.data || { mpg: [21, 21, 22.8, 21.4, 18.7, 18.1, 24.4, 30.4], wt: [2.6, 2.9, 2.3, 3.2, 3.4, 3.5, 3.2, 1.6], hp: [110, 110, 93, 110, 175, 105, 62, 66], disp: [160, 160, 108, 258, 360, 225, 147, 76] };
+    var M = cfg.matrix;
+    if (!M) { M = vars.map(function (a) { return vars.map(function (b) { return a === b ? 1 : pearson(data[a], data[b]); }); }); }
+
+    var P = u.P, cell = 46;
+    function color(r) { if (r >= 0) return 'rgba(31,122,85,' + (0.12 + 0.78 * r).toFixed(2) + ')'; return 'rgba(37,99,168,' + (0.12 + 0.78 * (-r)).toFixed(2) + ')'; }
+    var h = '<div style="overflow-x:auto"><table style="border-collapse:separate;border-spacing:3px;font-family:IBM Plex Mono,monospace;font-size:11.5px"><thead><tr><th></th>';
+    vars.forEach(function (v) { h += '<th style="padding:4px 6px;color:' + P.mut + ';font-weight:600">' + u.esc(v) + '</th>'; });
+    h += '</tr></thead><tbody>';
+    M.forEach(function (row, i) {
+      h += '<tr><th style="text-align:right;padding:4px 8px;color:' + P.mut + ';font-weight:600">' + u.esc(vars[i]) + '</th>';
+      row.forEach(function (r) { var dark = Math.abs(r) > 0.55; h += '<td style="width:' + cell + 'px;height:' + cell + 'px;text-align:center;border-radius:7px;background:' + color(r) + ';color:' + (dark ? '#fff' : P.ink) + ';font-weight:600">' + (Math.round(r * 100) / 100) + '</td>'; });
+      h += '</tr>';
+    });
+    h += '</tbody></table></div>' +
+      '<div style="margin-top:10px;display:flex;align-items:center;gap:8px;font-size:11px;color:' + P.mut + '">' +
+        '<span>&minus;1</span><span style="flex:0 0 120px;height:10px;border-radius:5px;background:linear-gradient(90deg,rgba(37,99,168,.9),#fff,rgba(31,122,85,.9))"></span><span>+1</span>' +
+        '<span style="margin-left:6px">blue = negative, green = positive, intensity = strength</span></div>';
+    el.innerHTML = '<div style="font-family:IBM Plex Sans,system-ui,sans-serif">' + h + '</div>';
+  }
+  if (window.LessonWidgets) window.LessonWidgets.register('correlation-heatmap', mount);
+})();
+
+;
+/* dashboard-layout.js */
+/* dashboard-layout.js - a mini dashboard: a filter input drives value boxes + chart
+ * tiles, to show the reactive layout of a Quarto dashboard / Shiny app (one input ->
+ * many outputs update). cfg: { filterLabel, views:{ name:{ boxes:[[label,value]],
+ * line:[{x,y}], bar:[{x,y}] } } }. Default = sales by region.
+ */
+(function () {
+  'use strict';
+  function mount(el, cfg) {
+    var u = window.LessonWidgets.u; if (!u) return;
+    cfg = cfg || {};
+    var views = cfg.views || {
+      All: { boxes: [['Revenue', '$1.20M'], ['Orders', '8,432'], ['Avg order', '$142']], line: [{ x: 1, y: 88 }, { x: 2, y: 102 }, { x: 3, y: 96 }, { x: 4, y: 120 }, { x: 5, y: 130 }, { x: 6, y: 142 }], bar: [{ x: 'Web', y: 62 }, { x: 'Retail', y: 40 }, { x: 'B2B', y: 38 }] },
+      North: { boxes: [['Revenue', '$520K'], ['Orders', '3,610'], ['Avg order', '$144']], line: [{ x: 1, y: 40 }, { x: 2, y: 44 }, { x: 3, y: 41 }, { x: 4, y: 52 }, { x: 5, y: 58 }, { x: 6, y: 63 }], bar: [{ x: 'Web', y: 30 }, { x: 'Retail', y: 14 }, { x: 'B2B', y: 18 }] },
+      South: { boxes: [['Revenue', '$680K'], ['Orders', '4,822'], ['Avg order', '$141']], line: [{ x: 1, y: 48 }, { x: 2, y: 58 }, { x: 3, y: 55 }, { x: 4, y: 68 }, { x: 5, y: 72 }, { x: 6, y: 79 }], bar: [{ x: 'Web', y: 32 }, { x: 'Retail', y: 26 }, { x: 'B2B', y: 20 }] }
+    };
+    var names = Object.keys(views), cur = names[0], P = u.P;
+    var wrap = document.createElement('div'); wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
+    wrap.innerHTML =
+      '<div style="display:flex;align-items:center;gap:9px;margin-bottom:12px;flex-wrap:wrap"><span style="font-size:12.5px;font-weight:600;color:' + P.mut + '">' + u.esc(cfg.filterLabel || 'Region') + ':</span><span class="db-seg"></span><span style="margin-left:auto;font:600 9.5px/1 IBM Plex Mono,monospace;letter-spacing:.08em;text-transform:uppercase;color:' + P.faint + '">reactive</span></div>' +
+      '<div class="db-boxes" style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:11px"></div>' +
+      '<div class="db-tiles" style="display:flex;gap:10px;flex-wrap:wrap"></div>';
+    var segHost = wrap.querySelector('.db-seg'); segHost.innerHTML = u.seg(names, cur);
+    var boxesEl = wrap.querySelector('.db-boxes'), tilesEl = wrap.querySelector('.db-tiles');
+    function tile(title, inner) { return '<div style="flex:1;min-width:240px;border:1px solid ' + P.line + ';border-radius:12px;padding:11px 13px;background:#fff"><div style="font:600 12px/1 IBM Plex Sans,sans-serif;color:' + P.ink + ';margin-bottom:7px">' + u.esc(title) + '</div>' + inner + '</div>'; }
+    function render(v) {
+      var view = views[v];
+      boxesEl.innerHTML = view.boxes.map(function (b) { return '<div style="flex:1;min-width:120px;border:1px solid ' + P.line + ';border-radius:12px;padding:13px 15px;background:#fff"><div style="font:600 10px/1 IBM Plex Mono,monospace;letter-spacing:.06em;text-transform:uppercase;color:' + P.faint + ';margin-bottom:6px">' + u.esc(b[0]) + '</div><div style="font-family:IBM Plex Serif,Georgia,serif;font-weight:600;font-size:22px;color:' + P.ink + '">' + u.esc(b[1]) + '</div></div>'; }).join('');
+      tilesEl.innerHTML = tile('Revenue trend', u.plot(view.line, { geom: 'line', x: 'month', y: 'k$', w: 320, h: 180 })) + tile('By channel', u.plot(view.bar, { geom: 'bar', x: '', y: 'k$', w: 320, h: 180 }));
+    }
+    u.wireSeg(segHost, function (v) { render(v); });
+    render(cur);
+    el.innerHTML = ''; el.appendChild(wrap);
+  }
+  if (window.LessonWidgets) window.LessonWidgets.register('dashboard-layout', mount);
 })();
 
 ;
@@ -364,6 +569,97 @@
 })();
 
 ;
+/* doc-structure.js */
+/* doc-structure.js - the anatomy of an R Markdown / Quarto doc: YAML + prose +
+ * code chunks, and what it knits to. Toggle source <-> rendered. cfg:
+ *   { blocks:[{type:"yaml|prose|code", text}], title }  (an output chart is shown
+ *   in rendered mode for any code block flagged {chart:[{x,y}]}).
+ * Default = a short sales report.
+ */
+(function () {
+  'use strict';
+  function mount(el, cfg) {
+    var u = window.LessonWidgets.u; if (!u) return;
+    cfg = cfg || {};
+    var blocks = cfg.blocks || [
+      { type: 'yaml', text: 'title: "Q4 Sales report"\nauthor: "Analytics"\nformat: html' },
+      { type: 'prose', text: '## Summary\n\nRevenue grew **18%** in Q4, led by the Web channel.' },
+      { type: 'code', text: 'ggplot(sales, aes(channel, rev)) +\n  geom_col()', chart: [{ x: 'Web', y: 62 }, { x: 'Retail', y: 40 }, { x: 'B2B', y: 38 }] }
+    ];
+    var P = u.P;
+    function mdInline(t) { return u.esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>'); }
+
+    function source() {
+      var h = '';
+      blocks.forEach(function (b) {
+        if (b.type === 'yaml') h += '<div style="border-left:3px solid ' + P.c1 + ';background:' + P.bg + ';padding:8px 12px;margin-bottom:8px;font-family:IBM Plex Mono,monospace;font-size:12px;color:' + P.ink + ';white-space:pre">---\n' + u.esc(b.text) + '\n---</div>';
+        else if (b.type === 'code') h += '<div style="margin-bottom:8px"><div style="font:600 10px/1 IBM Plex Mono,monospace;color:' + P.acc + ';margin-bottom:3px">```{r}</div>' + u.code(b.text) + '<div style="font:600 10px/1 IBM Plex Mono,monospace;color:' + P.acc + ';margin-top:3px">```</div></div>';
+        else h += '<div style="padding:6px 2px;margin-bottom:8px;font-family:IBM Plex Mono,monospace;font-size:12.5px;color:' + P.body + ';white-space:pre-wrap">' + u.esc(b.text) + '</div>';
+      });
+      return '<div style="border:1px solid ' + P.line + ';border-radius:10px;padding:13px">' + h + '</div>';
+    }
+    function rendered() {
+      var h = '<div style="border:1px solid ' + P.line + ';border-radius:10px;padding:18px 20px;background:#fff;max-width:460px">';
+      blocks.forEach(function (b) {
+        if (b.type === 'yaml') { var m = /title:\s*"?([^"\n]+)"?/.exec(b.text); h += '<div style="font-family:IBM Plex Serif,Georgia,serif;font-weight:600;font-size:21px;color:' + P.ink + ';border-bottom:1px solid ' + P.line + ';padding-bottom:9px;margin-bottom:11px">' + u.esc(m ? m[1] : 'Document') + '</div>'; }
+        else if (b.type === 'prose') { b.text.split(/\n\n+/).forEach(function (para) { var hm = /^##\s+(.+)/.exec(para); if (hm) h += '<div style="font-family:IBM Plex Sans,sans-serif;font-weight:700;font-size:15px;color:' + P.ink + ';margin:6px 0">' + mdInline(hm[1]) + '</div>'; else h += '<p style="font-family:IBM Plex Sans,sans-serif;font-size:14px;line-height:1.6;color:' + P.body + ';margin:0 0 9px">' + mdInline(para) + '</p>'; }); }
+        else if (b.type === 'code' && b.chart) { h += u.plot(b.chart, { geom: 'bar', x: '', y: '', w: 400, h: 180 }); }
+      });
+      return h + '</div>';
+    }
+    var wrap = document.createElement('div'); wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
+    wrap.innerHTML = '<div style="margin-bottom:11px"><span class="ds-seg"></span></div><div class="ds-stage"></div>';
+    var segHost = wrap.querySelector('.ds-seg'); segHost.innerHTML = u.seg([{ v: 'src', label: 'Source (.qmd)' }, { v: 'out', label: 'Rendered' }], 'src');
+    var stage = wrap.querySelector('.ds-stage');
+    function render(v) { stage.innerHTML = v === 'out' ? rendered() : source(); }
+    u.wireSeg(segHost, function (v) { render(v); });
+    render('src');
+    el.innerHTML = ''; el.appendChild(wrap);
+  }
+  if (window.LessonWidgets) window.LessonWidgets.register('doc-structure', mount);
+})();
+
+;
+/* facet-grid.js */
+/* facet-grid.js - one combined chart vs small multiples (facet_wrap).
+ * cfg: { data:[{x,y,facet}], geom:"point", x, y, facetVar:"species" }
+ * Toggle between a single chart (colored by facet) and one mini-chart per facet,
+ * to show what facet_wrap(~var) does. Default = iris-like petal scatter by species.
+ */
+(function () {
+  'use strict';
+  function mount(el, cfg) {
+    var u = window.LessonWidgets.u; if (!u) return;
+    cfg = cfg || {};
+    var data = cfg.data || [
+      { x: 1.4, y: 0.2, facet: 'setosa' }, { x: 1.3, y: 0.2, facet: 'setosa' }, { x: 1.5, y: 0.1, facet: 'setosa' }, { x: 1.4, y: 0.3, facet: 'setosa' },
+      { x: 4.7, y: 1.4, facet: 'versicolor' }, { x: 4.5, y: 1.5, facet: 'versicolor' }, { x: 4.9, y: 1.5, facet: 'versicolor' }, { x: 4.0, y: 1.3, facet: 'versicolor' },
+      { x: 6.0, y: 2.5, facet: 'virginica' }, { x: 5.9, y: 2.1, facet: 'virginica' }, { x: 6.1, y: 2.3, facet: 'virginica' }, { x: 5.6, y: 1.8, facet: 'virginica' }
+    ];
+    var geom = cfg.geom || 'point', xlab = cfg.x || 'petal length', ylab = cfg.y || 'petal width', fvar = cfg.facetVar || 'species';
+    var facets = []; data.forEach(function (d) { if (facets.indexOf(d.facet) < 0) facets.push(d.facet); });
+
+    var wrap = document.createElement('div'); wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
+    wrap.innerHTML = '<div style="display:flex;gap:8px;align-items:center;margin-bottom:11px;flex-wrap:wrap"><span class="fg-seg"></span><code style="font-family:IBM Plex Mono,monospace;font-size:12px;color:' + u.P.mut + '" class="fg-code"></code></div><div class="fg-stage" style="overflow-x:auto"></div>';
+    var segHost = wrap.querySelector('.fg-seg'); segHost.innerHTML = u.seg([{ v: 'one', label: 'One chart' }, { v: 'facet', label: 'facet_wrap(~' + fvar + ')' }], 'one');
+    var stage = wrap.querySelector('.fg-stage'), codeEl = wrap.querySelector('.fg-code');
+    function render(mode) {
+      if (mode === 'one') { stage.innerHTML = u.plot(data, { geom: geom, x: xlab, y: ylab, w: 440, h: 260 }); codeEl.textContent = 'aes(color = ' + fvar + ')'; }
+      else {
+        var h = '<div style="display:flex;gap:10px;flex-wrap:wrap">';
+        facets.forEach(function (f) { var sub = data.filter(function (d) { return d.facet === f; });
+          h += '<div style="flex:1;min-width:150px"><div style="font:600 12px/1 IBM Plex Sans,sans-serif;color:' + u.P.ink + ';text-align:center;margin-bottom:2px">' + u.esc(f) + '</div>' + u.plot(sub, { geom: geom, x: xlab, y: ylab, w: 220, h: 170 }) + '</div>'; });
+        stage.innerHTML = h + '</div>'; codeEl.textContent = '+ facet_wrap(~ ' + fvar + ')';
+      }
+    }
+    u.wireSeg(segHost, function (v) { render(v); });
+    render('one');
+    el.innerHTML = ''; el.appendChild(wrap);
+  }
+  if (window.LessonWidgets) window.LessonWidgets.register('facet-grid', mount);
+})();
+
+;
 /* forest-averaging.js */
 /* forest-averaging.js - add trees, watch the jagged single-tree boundary
  * smooth out and test accuracy climb. Ported from _mocks/rf-course-lesson2.
@@ -542,6 +838,74 @@
 })();
 
 ;
+/* join-diagram.js */
+/* join-diagram.js - two keyed tables + a join-type switch + the live result.
+ * cfg: { left:{cols,rows}, right:{cols,rows}, key:"dept", op:"inner" }
+ * Switch inner/left/right/full/semi/anti; the result recomputes and matched keys
+ * are tinted. Default = employees x departments with one unmatched key on each side.
+ */
+(function () {
+  'use strict';
+  var OPS = [{ v: 'inner', label: 'inner' }, { v: 'left', label: 'left' }, { v: 'right', label: 'right' }, { v: 'full', label: 'full' }, { v: 'semi', label: 'semi' }, { v: 'anti', label: 'anti' }];
+  var WHY = {
+    inner: 'inner_join keeps only rows whose key is in BOTH tables.',
+    left: 'left_join keeps every LEFT row; unmatched right columns become NA.',
+    right: 'right_join keeps every RIGHT row; unmatched left columns become NA.',
+    full: 'full_join keeps every row from BOTH; gaps become NA.',
+    semi: 'semi_join keeps LEFT rows that HAVE a match (left columns only).',
+    anti: 'anti_join keeps LEFT rows with NO match (left columns only).'
+  };
+  function mount(el, cfg) {
+    var u = window.LessonWidgets.u; if (!u) return;
+    cfg = cfg || {};
+    var L = cfg.left || { cols: ['id', 'name', 'dept'], rows: [[1, 'Aarti', 'S'], [2, 'Biju', 'S'], [3, 'Chen', 'E'], [4, 'Devi', 'X']] };
+    var R = cfg.right || { cols: ['dept', 'dept_name'], rows: [['S', 'Sales'], ['E', 'Eng'], ['M', 'Marketing']] };
+    var key = cfg.key || 'dept', op = cfg.op || 'inner';
+    var li = L.cols.indexOf(key), ri = R.cols.indexOf(key);
+    var rMap = {}; R.rows.forEach(function (r) { rMap[r[ri]] = r; });
+    var lKeys = {}; L.rows.forEach(function (r) { lKeys[r[li]] = 1; });
+    var rExtra = R.cols.filter(function (c) { return c !== key; });
+
+    function compute(o) {
+      var cols, rows = [];
+      if (o === 'semi' || o === 'anti') {
+        cols = L.cols.slice();
+        L.rows.forEach(function (r) { var has = rMap[r[li]] != null; if ((o === 'semi') === has) rows.push(r.slice()); });
+        return { cols: cols, rows: rows };
+      }
+      cols = L.cols.concat(rExtra);
+      function joinRow(lr, rr) { var row = lr ? lr.slice() : L.cols.map(function (c) { return c === key ? (rr ? rr[ri] : null) : null; }); rExtra.forEach(function (c) { row.push(rr ? rr[R.cols.indexOf(c)] : null); }); return row; }
+      if (o === 'inner') L.rows.forEach(function (lr) { if (rMap[lr[li]]) rows.push(joinRow(lr, rMap[lr[li]])); });
+      else if (o === 'left') L.rows.forEach(function (lr) { rows.push(joinRow(lr, rMap[lr[li]] || null)); });
+      else if (o === 'right') R.rows.forEach(function (rr) { var lr = L.rows.find(function (x) { return x[li] === rr[ri]; }); rows.push(joinRow(lr || null, rr)); });
+      else if (o === 'full') { L.rows.forEach(function (lr) { rows.push(joinRow(lr, rMap[lr[li]] || null)); }); R.rows.forEach(function (rr) { if (!lKeys[rr[ri]]) rows.push(joinRow(null, rr)); }); }
+      return { cols: cols, rows: rows };
+    }
+
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
+    var matchTintL = {}, matchTintR = {};
+    L.rows.forEach(function (r, i) { if (rMap[r[li]]) matchTintL[i + ',' + li] = u.P.add; });
+    R.rows.forEach(function (r, i) { if (lKeys[r[ri]]) matchTintR[i + ',' + ri] = u.P.add; });
+    wrap.innerHTML =
+      '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px">' +
+        '<div style="flex:1;min-width:150px"><div style="font:600 11px/1 IBM Plex Mono,monospace;color:' + u.P.mut + ';margin-bottom:5px">LEFT (x)</div>' + u.tbl(L.cols, L.rows, { hi: matchTintL }) + '</div>' +
+        '<div style="flex:1;min-width:150px"><div style="font:600 11px/1 IBM Plex Mono,monospace;color:' + u.P.mut + ';margin-bottom:5px">RIGHT (y)</div>' + u.tbl(R.cols, R.rows, { hi: matchTintR }) + '</div>' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px"><span style="font-size:12.5px;color:' + u.P.mut + '">join by <code style="font-family:IBM Plex Mono,monospace;color:' + u.P.ink + '">' + u.esc(key) + '</code>:</span><span class="jd-seg"></span></div>' +
+      '<div class="jd-res" style="overflow-x:auto"></div>' +
+      '<div class="jd-cap" style="margin-top:9px;font-size:12.5px;color:' + u.P.mut + '"></div>';
+    var segHost = wrap.querySelector('.jd-seg'); segHost.innerHTML = u.seg(OPS, op);
+    var res = wrap.querySelector('.jd-res'), cap = wrap.querySelector('.jd-cap');
+    function render(o) { var r = compute(o); res.innerHTML = u.tbl(r.cols, r.rows); cap.innerHTML = WHY[o] + ' <span style="color:' + u.P.acc + ';font-weight:600">' + r.rows.length + ' row' + (r.rows.length === 1 ? '' : 's') + '</span>.'; }
+    u.wireSeg(segHost, function (v) { render(v); });
+    render(op);
+    el.innerHTML = ''; el.appendChild(wrap);
+  }
+  if (window.LessonWidgets) window.LessonWidgets.register('join-diagram', mount);
+})();
+
+;
 /* null-distribution.js */
 /* null-distribution.js - the sampling distribution under H0 with the observed
  * statistic marked and its p-value tail(s) shaded. The p-value is computed from
@@ -711,6 +1075,227 @@
     el.innerHTML = '<div class="lw-diagram">' + svg + '</div>';
   }
   if (window.LessonWidgets) window.LessonWidgets.register('process-flow', mount);
+})();
+
+;
+/* reshape-grid.js */
+/* reshape-grid.js - pivot_longer <-> pivot_wider on a small table.
+ * cfg: { wide:{cols,rows}, idCols:["country"], namesTo:"year", valuesTo:"cases" }
+ * Toggle pivots the table between wide and long, tinting the id columns vs the
+ * names/values columns so the mapping is visible. The long form is derived from
+ * the wide form. Default = a country x year cases table.
+ */
+(function () {
+  'use strict';
+  function mount(el, cfg) {
+    var u = window.LessonWidgets.u; if (!u) return;
+    cfg = cfg || {};
+    var wide = cfg.wide || { cols: ['country', '2020', '2021', '2022'], rows: [['India', 10, 12, 15], ['Kenya', 7, 8, 9]] };
+    var idCols = cfg.idCols || ['country'];
+    var namesTo = cfg.namesTo || 'year', valuesTo = cfg.valuesTo || 'cases';
+    var valCols = wide.cols.filter(function (c) { return idCols.indexOf(c) < 0; });
+
+    // derive long
+    var longCols = idCols.concat([namesTo, valuesTo]), longRows = [];
+    wide.rows.forEach(function (r) { var ids = idCols.map(function (c) { return r[wide.cols.indexOf(c)]; }); valCols.forEach(function (vc) { longRows.push(ids.concat([vc, r[wide.cols.indexOf(vc)]])); }); });
+
+    function wideHi() { var hi = {}; wide.rows.forEach(function (r, ri) { wide.cols.forEach(function (c, ci) { if (valCols.indexOf(c) >= 0) hi[ri + ',' + ci] = u.P.line2; }); }); return hi; }
+    function longHi() { var hi = {}; longRows.forEach(function (r, ri) { hi[ri + ',' + (longCols.length - 2)] = u.P.line2; hi[ri + ',' + (longCols.length - 1)] = u.P.line2; }); return hi; }
+
+    var wrap = document.createElement('div'); wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
+    wrap.innerHTML =
+      '<div style="display:flex;gap:8px;align-items:center;margin-bottom:11px;flex-wrap:wrap"><span class="rs-seg"></span>' +
+        '<code style="flex:1;min-width:160px;font-family:IBM Plex Mono,monospace;font-size:12.5px;color:' + u.P.mut + '" class="rs-code"></code></div>' +
+      '<div class="rs-stage" style="overflow-x:auto"></div>' +
+      '<div class="rs-cap" style="margin-top:9px;font-size:12.5px;color:' + u.P.mut + '"></div>';
+    var segHost = wrap.querySelector('.rs-seg'); segHost.innerHTML = u.seg([{ v: 'wide', label: 'Wide' }, { v: 'long', label: 'Long (tidy)' }], 'wide');
+    var stage = wrap.querySelector('.rs-stage'), cap = wrap.querySelector('.rs-cap'), codeEl = wrap.querySelector('.rs-code');
+    function render(form) {
+      if (form === 'wide') {
+        stage.innerHTML = u.tbl(wide.cols, wide.rows, { hi: wideHi() });
+        codeEl.textContent = 'pivot_wider(names_from = ' + namesTo + ', values_from = ' + valuesTo + ')';
+        cap.innerHTML = 'Wide: one row per ' + idCols.join(', ') + ', one column per ' + namesTo + '. Easy to read, harder to plot. ' + wide.rows.length + ' rows.';
+      } else {
+        stage.innerHTML = u.tbl(longCols, longRows, { hi: longHi() });
+        codeEl.textContent = 'pivot_longer(cols = -' + idCols.join(', -') + ', names_to = "' + namesTo + '", values_to = "' + valuesTo + '")';
+        cap.innerHTML = 'Long (tidy): one row per observation, with <b>' + namesTo + '</b> and <b>' + valuesTo + '</b> columns. This is what ggplot and most models want. ' + longRows.length + ' rows.';
+      }
+    }
+    u.wireSeg(segHost, function (v) { render(v); });
+    render('wide');
+    el.innerHTML = ''; el.appendChild(wrap);
+  }
+  if (window.LessonWidgets) window.LessonWidgets.register('reshape-grid', mount);
+})();
+
+;
+/* styled-table.js */
+/* styled-table.js - a raw data frame vs a report-ready table (gt / flextable style).
+ * cfg: { cols, rows, formats:{col:"dollar|pct|comma|1dp"}, title, note, align:{col:"right"} }
+ * Toggle between the raw print and the formatted table: number formatting, title,
+ * footnote, bold header, zebra striping, right-aligned numbers. Default = a revenue table.
+ */
+(function () {
+  'use strict';
+  function comma(n) { return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+  function fmt(v, f) {
+    if (v == null || isNaN(v)) return v;
+    var n = +v;
+    if (f === 'dollar') return '$' + comma(Math.round(n));
+    if (f === 'pct') return (Math.round(n * 1000) / 10) + '%';
+    if (f === 'comma') return comma(Math.round(n));
+    if (f === '1dp') return n.toFixed(1);
+    return v;
+  }
+  function mount(el, cfg) {
+    var u = window.LessonWidgets.u; if (!u) return;
+    cfg = cfg || {};
+    var cols = cfg.cols || ['region', 'revenue', 'share'];
+    var rows = cfg.rows || [['North', 1234567, 0.42], ['South', 876543, 0.30], ['West', 812000, 0.28]];
+    var formats = cfg.formats || { revenue: 'dollar', share: 'pct' };
+    var title = cfg.title || 'Q4 revenue by region', note = cfg.note || 'Source: internal finance, 2026.';
+    var P = u.P;
+
+    function raw() {
+      var h = '<table style="border-collapse:collapse;font-family:IBM Plex Mono,monospace;font-size:12.5px"><thead><tr>';
+      cols.forEach(function (c) { h += '<th style="text-align:left;padding:5px 10px;border:1px solid ' + P.line + ';color:' + P.mut + '">' + u.esc(c) + '</th>'; });
+      h += '</tr></thead><tbody>';
+      rows.forEach(function (r) { h += '<tr>'; r.forEach(function (v) { h += '<td style="padding:5px 10px;border:1px solid ' + P.line + ';color:' + P.ink + '">' + u.esc(v) + '</td>'; }); h += '</tr>'; });
+      return h + '</tbody></table>';
+    }
+    function styled() {
+      var h = '<div style="border:1px solid ' + P.line + ';border-radius:12px;overflow:hidden;max-width:440px;box-shadow:0 1px 2px rgba(19,23,32,.05)">';
+      h += '<div style="padding:13px 16px 11px;border-bottom:2px solid ' + P.ink + '"><div style="font-family:IBM Plex Serif,Georgia,serif;font-weight:600;font-size:15px;color:' + P.ink + '">' + u.esc(title) + '</div></div>';
+      h += '<table style="border-collapse:collapse;width:100%;font-family:IBM Plex Sans,system-ui,sans-serif;font-size:13px"><thead><tr>';
+      cols.forEach(function (c) { var rt = formats[c]; h += '<th style="text-align:' + (rt ? 'right' : 'left') + ';padding:8px 16px;color:' + P.mut + ';font-weight:600;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;border-bottom:1px solid ' + P.line + '">' + u.esc(c) + '</th>'; });
+      h += '</tr></thead><tbody>';
+      rows.forEach(function (r, ri) { h += '<tr style="background:' + (ri % 2 ? P.bg : '#fff') + '">'; r.forEach(function (v, ci) { var c = cols[ci], rt = formats[c]; h += '<td style="text-align:' + (rt ? 'right' : 'left') + ';padding:8px 16px;color:' + P.ink + ';font-variant-numeric:tabular-nums;' + (rt ? 'font-family:IBM Plex Mono,monospace' : '') + '">' + u.esc(fmt(v, rt)) + '</td>'; }); h += '</tr>'; });
+      h += '</tbody></table>';
+      h += '<div style="padding:9px 16px;color:' + P.faint + ';font-size:11px;border-top:1px solid ' + P.line + '">' + u.esc(note) + '</div></div>';
+      return h;
+    }
+    var wrap = document.createElement('div'); wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
+    wrap.innerHTML = '<div style="margin-bottom:11px"><span class="st-seg"></span></div><div class="st-stage" style="overflow-x:auto"></div>';
+    var segHost = wrap.querySelector('.st-seg'); segHost.innerHTML = u.seg([{ v: 'raw', label: 'Raw print' }, { v: 'gt', label: 'Report table' }], 'raw');
+    var stage = wrap.querySelector('.st-stage');
+    function render(v) { stage.innerHTML = v === 'gt' ? styled() : raw(); }
+    u.wireSeg(segHost, function (v) { render(v); });
+    render('raw');
+    el.innerHTML = ''; el.appendChild(wrap);
+  }
+  if (window.LessonWidgets) window.LessonWidgets.register('styled-table', mount);
+})();
+
+;
+/* table-transform.js */
+/* table-transform.js - a dplyr/data.table verb shown as a before -> after table diff.
+ * The workhorse for the wrangling track: filter, select, mutate, arrange, distinct,
+ * summarise, separate/unite, recode, missing-value treatment are all before->after
+ * table transforms. cfg:
+ *   { code:"df %>% filter(...)", caption:"...",
+ *     before:{cols:[], rows:[[]]}, after:{cols:[], rows:[[]]} }
+ * Renders the before table + the code; "Run" reveals the result, with NEW columns in
+ * green and removed rows struck through, plus a delta line. Default = a filter() example.
+ */
+(function () {
+  'use strict';
+  function mount(el, cfg) {
+    var u = window.LessonWidgets.u; if (!u) return;
+    cfg = cfg || {};
+    var before = cfg.before || { cols: ['name', 'dept', 'salary'], rows: [['Aarti', 'Sales', 48], ['Biju', 'Sales', 61], ['Chen', 'Eng', 77], ['Devi', 'Eng', 52]] };
+    var after = cfg.after || { cols: ['name', 'dept', 'salary'], rows: [['Biju', 'Sales', 61], ['Chen', 'Eng', 77], ['Devi', 'Eng', 52]] };
+    var code = cfg.code || 'df %>% filter(salary > 50)';
+    var caption = cfg.caption || 'filter() keeps only the rows where the condition is TRUE.';
+
+    var addCols = {}, dropCols = {};
+    after.cols.forEach(function (c) { if (before.cols.indexOf(c) < 0) addCols[c] = 1; });
+    before.cols.forEach(function (c) { if (after.cols.indexOf(c) < 0) dropCols[c] = 1; });
+    var afterKeys = {}; after.rows.forEach(function (r) { afterKeys[JSON.stringify(r)] = 1; });
+    var delRows = {}; before.rows.forEach(function (r, i) { if (!afterKeys[JSON.stringify(r)]) delRows[i] = 1; });
+    var nDel = Object.keys(delRows).length, nAddCol = Object.keys(addCols).length, nDropCol = Object.keys(dropCols).length, nAddRow = Math.max(0, after.rows.length - (before.rows.length - nDel));
+
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
+    wrap.innerHTML =
+      '<div style="display:flex;gap:9px;align-items:center;margin-bottom:11px;flex-wrap:wrap">' +
+        '<div style="flex:1;min-width:200px">' + u.code(code) + '</div>' +
+        '<button class="tt-run" style="flex:none;font:inherit;font-size:13px;font-weight:600;color:#fff;background:' + u.P.acc + ';border:0;border-radius:8px;padding:9px 16px;cursor:pointer">Run &#9654;</button>' +
+        '<button class="tt-reset" style="flex:none;font:inherit;font-size:13px;font-weight:600;color:' + u.P.mut + ';background:none;border:1px solid ' + u.P.line + ';border-radius:8px;padding:9px 14px;cursor:pointer;display:none">Reset</button>' +
+      '</div><div class="tt-stage" style="overflow-x:auto"></div>' +
+      '<div class="tt-cap" style="margin-top:10px;font-size:12.5px;color:' + u.P.mut + '"></div>';
+    var stage = wrap.querySelector('.tt-stage'), cap = wrap.querySelector('.tt-cap'),
+        runB = wrap.querySelector('.tt-run'), resetB = wrap.querySelector('.tt-reset');
+
+    function showBefore() { stage.innerHTML = u.tbl(before.cols, before.rows); cap.innerHTML = '<b>Before.</b> ' + before.rows.length + ' rows &times; ' + before.cols.length + ' columns. Press Run.'; }
+    function showAfter() {
+      // diff view first: original columns (plus any new), removed rows struck, new cols green
+      var cols = before.cols.concat(after.cols.filter(function (c) { return before.cols.indexOf(c) < 0; }));
+      var rows = before.rows.map(function (r, i) { var row = before.cols.map(function (c, ci) { return r[ci]; }); after.cols.forEach(function (c) { if (before.cols.indexOf(c) < 0) { var ai = after.cols.indexOf(c); var match = after.rows.find(function (ar) { return before.cols.every(function (bc, bi) { return ar[after.cols.indexOf(bc)] === r[bi]; }); }); row.push(match ? match[ai] : null); } }); return row; });
+      stage.innerHTML = u.tbl(cols, rows, { addCols: addCols, dropCols: dropCols, delRows: delRows });
+      var d = [];
+      if (nDel) d.push('&minus;' + nDel + ' row' + (nDel > 1 ? 's' : ''));
+      if (nAddRow) d.push('+' + nAddRow + ' row' + (nAddRow > 1 ? 's' : ''));
+      if (nAddCol) d.push('+' + nAddCol + ' column' + (nAddCol > 1 ? 's' : ''));
+      if (nDropCol) d.push('&minus;' + nDropCol + ' column' + (nDropCol > 1 ? 's' : ''));
+      cap.innerHTML = '<b>After.</b> ' + caption + (d.length ? ' <span style="color:' + u.P.acc + ';font-weight:600">' + d.join(', ') + '</span>' : '');
+    }
+    showBefore();
+    runB.addEventListener('click', function () { showAfter(); runB.style.display = 'none'; resetB.style.display = ''; });
+    resetB.addEventListener('click', function () { showBefore(); resetB.style.display = 'none'; runB.style.display = ''; });
+    el.innerHTML = ''; el.appendChild(wrap);
+  }
+  if (window.LessonWidgets) window.LessonWidgets.register('table-transform', mount);
+})();
+
+;
+/* theme-styler.js */
+/* theme-styler.js - the same chart, restyled: palette + theme, without touching data.
+ * cfg: { data:[{x,y}], x, y }. Switch palette (default / colorblind-safe Okabe-Ito /
+ * grayscale) and theme (minimal / gray / dark); the bars recolor and the panel
+ * restyles, and the scale/theme code updates. Default = a 5-category bar chart.
+ */
+(function () {
+  'use strict';
+  var PALS = {
+    default: { label: 'default', colors: ['#1f7a55', '#2563a8', '#b5631a', '#7c3aed', '#0891b2'], code: 'scale_fill_brewer()' },
+    cb: { label: 'colorblind-safe', colors: ['#E69F00', '#56B4E9', '#009E73', '#0072B2', '#D55E00'], code: 'scale_fill_manual(values = okabe_ito)  # colorblind-safe' },
+    gray: { label: 'grayscale', colors: ['#222', '#555', '#777', '#999', '#bbb'], code: 'scale_fill_grey()' }
+  };
+  var THEMES = {
+    minimal: { label: 'theme_minimal', panel: '#ffffff', ink: '#131720' },
+    gray: { label: 'theme_gray', panel: '#ebedf0', ink: '#131720' },
+    dark: { label: 'theme_dark', panel: '#1f2430', ink: '#e6edf3' }
+  };
+  function mount(el, cfg) {
+    var u = window.LessonWidgets.u; if (!u) return;
+    cfg = cfg || {};
+    var data = cfg.data || [{ x: 'A', y: 38 }, { x: 'B', y: 52 }, { x: 'C', y: 27 }, { x: 'D', y: 45 }, { x: 'E', y: 33 }];
+    var xlab = cfg.x || 'group', ylab = cfg.y || 'value';
+    var pal = 'default', theme = 'minimal';
+
+    var wrap = document.createElement('div'); wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
+    wrap.innerHTML =
+      '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:12px">' +
+        '<div><div style="font:600 10px/1 IBM Plex Mono,monospace;letter-spacing:.06em;text-transform:uppercase;color:' + u.P.faint + ';margin-bottom:5px">Palette</div><span class="ts-pal"></span></div>' +
+        '<div><div style="font:600 10px/1 IBM Plex Mono,monospace;letter-spacing:.06em;text-transform:uppercase;color:' + u.P.faint + ';margin-bottom:5px">Theme</div><span class="ts-theme"></span></div>' +
+      '</div>' +
+      '<div class="ts-plot" style="border-radius:12px;padding:8px"></div>' +
+      '<div class="ts-code" style="margin-top:11px"></div>';
+    var palHost = wrap.querySelector('.ts-pal'); palHost.innerHTML = u.seg(Object.keys(PALS).map(function (k) { return { v: k, label: PALS[k].label }; }), pal);
+    var thHost = wrap.querySelector('.ts-theme'); thHost.innerHTML = u.seg(Object.keys(THEMES).map(function (k) { return { v: k, label: THEMES[k].label }; }), theme);
+    var plotEl = wrap.querySelector('.ts-plot'), codeEl = wrap.querySelector('.ts-code');
+    function render() {
+      var t = THEMES[theme], p = PALS[pal];
+      plotEl.style.background = t.panel;
+      plotEl.innerHTML = u.plot(data, { geom: 'bar', x: xlab, y: ylab, palette: p.colors });
+      codeEl.innerHTML = u.code('ggplot(df, aes(' + xlab + ', ' + ylab + ', fill = ' + xlab + ')) +\n  geom_col() +\n  ' + p.code + ' +\n  ' + t.label + '()');
+    }
+    u.wireSeg(palHost, function (v) { pal = v; render(); });
+    u.wireSeg(thHost, function (v) { theme = v; render(); });
+    render();
+    el.innerHTML = ''; el.appendChild(wrap);
+  }
+  if (window.LessonWidgets) window.LessonWidgets.register('theme-styler', mount);
 })();
 
 ;
