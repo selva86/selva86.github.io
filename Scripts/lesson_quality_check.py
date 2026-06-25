@@ -195,6 +195,33 @@ def check_lesson(path):
     if ('\\(' in body or '\\[' in body) and str(fm.get('mathjax', '')).strip().lower() not in ('true', '1', 'yes'):
         fail('body has MathJax (\\( or \\[) but frontmatter mathjax is not true')
 
+    # Runnable code: each lesson runs in its OWN WebR session, so every code block
+    # must be self-contained. Catch the two ways that breaks (the 'train not found'
+    # class): (a) a model/transform uses data never created in THIS lesson; (b) a
+    # read of an external file that does not exist in WebR's virtual filesystem.
+    rcode = '\n'.join(re.findall(r'```r\b(.*?)```', body, flags=re.S))
+    if rcode.strip():
+        assigned = set(re.findall(r'(?m)^\s*([A-Za-z.][\w.]+)\s*(?:<-|=)(?![=])', rcode))
+        BUILTIN = {'mtcars', 'iris', 'airquality', 'sleep', 'ToothGrowth', 'mpg', 'diamonds',
+                   'economics', 'PlantGrowth', 'ChickWeight', 'USArrests', 'faithful', 'quakes',
+                   'trees', 'women', 'cars', 'pressure', 'InsectSprays', 'warpbreaks', 'CO2',
+                   'Orange', 'npk', 'esoph', 'infert', 'swiss', 'attitude', 'rivers',
+                   'AirPassengers', 'co2', 'Nile', 'volcano'}
+        uses = re.findall(r'\bdata\s*=\s*([A-Za-z.][\w.]+)', rcode)              # model/transform data arg
+        uses += re.findall(r'(?m)(?:^|[\s(])([A-Za-z.][\w.]+)\s*(?:%>%|\|>)', rcode)  # a bare data frame piped
+        for nm in uses:
+            if nm not in assigned and nm not in BUILTIN:
+                fail("runnable code: uses data object `%s` which is never created in this lesson "
+                     "(each lesson runs in its own WebR session - build all data inline)." % nm)
+                break
+        written = set(re.findall(r'(?:writeLines|write_csv|write\.csv|cat|saveRDS)\s*\([^;\n]*?["\']([\w./-]+\.\w+)["\']', rcode))
+        for m in re.finditer(r'(?:read_csv|read\.csv|read_tsv|read_delim|read_table|fread|read_excel|readRDS|readLines|load)\s*\(\s*["\']([\w./-]+)["\']', rcode):
+            path = m.group(1)
+            if path not in written:
+                fail("runnable code: reads external file '%s' not written earlier in this lesson "
+                     "(WebR has no real filesystem - write the example file in-session first, or build data inline)." % path)
+                break
+
     return issues, slug
 
 

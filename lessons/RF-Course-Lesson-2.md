@@ -124,6 +124,26 @@ Each tree is a low-bias, high-variance learner. Bootstrap and random features ma
 ::eyebrow Your turn
 ## Grow the forest in R
 
+First, the churn data to grow the forest on. Each lesson runs in a fresh R session, so we build it right here (run this once):
+
+```r
+set.seed(42)
+n <- 800
+train <- data.frame(
+  tenure        = round(runif(n, 0, 60)),
+  monthly       = round(runif(n, 20, 120), 1),
+  total_spend   = round(runif(n, 50, 6000)),
+  support_calls = rpois(n, 1.5),
+  contract      = sample(c("monthly", "annual"), n, TRUE),
+  has_addons    = rbinom(n, 1, 0.4),
+  paperless     = rbinom(n, 1, 0.6),
+  senior        = rbinom(n, 1, 0.16)
+)
+risk <- plogis(-1.2 + 1.6 * (train$tenure < 8) + 1.1 * (train$monthly > 85) +
+               0.35 * train$support_calls - 0.03 * train$tenure)
+train$churned <- factor(ifelse(runif(n) < risk, "yes", "no"))
+```
+
 You have the recipe. In R, `ranger` does all three steps in one call. Fill in the number of trees so the forest averages 200 of them.
 
 ```r

@@ -72,11 +72,32 @@ A node has 8 customers: 4 who churn and 4 who stay (Gini 0.5). Split A makes chi
 ::eyebrow In R
 ## Grow one in two lines
 
+First, a small self-contained churn dataset to grow the tree on. Each lesson runs in a fresh R session, so we build the data right here (run this once):
+
+```r
+set.seed(42)
+n <- 800
+train <- data.frame(
+  tenure        = round(runif(n, 0, 60)),       # months as a customer
+  monthly       = round(runif(n, 20, 120), 1),  # monthly charge
+  total_spend   = round(runif(n, 50, 6000)),
+  support_calls = rpois(n, 1.5),
+  contract      = sample(c("monthly", "annual"), n, TRUE),
+  has_addons    = rbinom(n, 1, 0.4),
+  paperless     = rbinom(n, 1, 0.6),
+  senior        = rbinom(n, 1, 0.16)
+)
+risk <- plogis(-1.2 + 1.6 * (train$tenure < 8) + 1.1 * (train$monthly > 85) +
+               0.35 * train$support_calls - 0.03 * train$tenure)
+train$churned <- factor(ifelse(runif(n) < risk, "yes", "no"))
+table(train$churned)
+```
+
 In R, the `rpart` package fits a tree for you. Setting `cp = 0` removes the complexity penalty, so the tree grows as deep as the data allows, exactly the overfitting case we want to study next. Fill in the blank.
 
 ```r
 library(rpart)
-deep <- rpart(churn ~ ., data = train,
+deep <- rpart(churned ~ ., data = train,
               control = rpart.control(____))
 deep
 ```
@@ -84,7 +105,7 @@ deep
 ::solution
 ```r
 library(rpart)
-deep <- rpart(churn ~ ., data = train,
+deep <- rpart(churned ~ ., data = train,
               control = rpart.control(cp = 0))
 ```
 
