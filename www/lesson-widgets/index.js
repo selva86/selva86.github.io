@@ -77,7 +77,7 @@
     // compact multi-geom SVG chart. spec: {geom:point|line|bar|col|histogram|boxplot, x, y, w, h, palette, corr, bins}
     plot: function (data, spec) {
       spec = spec || {}; var W = spec.w || 460, H = spec.h || 268, m = { t: 16, r: 16, b: 38, l: 46 }, iw = W - m.l - m.r, ih = H - m.t - m.b;
-      var geom = spec.geom || 'point', pal = spec.palette || [P.acc, P.c0, P.c1, '#7c3aed', '#0891b2', '#be185d'];
+      var geom = spec.geom || 'point', pal = spec.palette || [P.acc, P.c0, P.c1, '#7a5ea3', '#2f8f86', '#b04a52'];
       function lin(d0, d1, r0, r1) { if (d0 === d1) d1 = d0 + 1; return function (v) { return r0 + (v - d0) / (d1 - d0) * (r1 - r0); }; }
       function ext(a) { return [Math.min.apply(null, a), Math.max.apply(null, a)]; }
       function frame() { return '<line x1="' + m.l + '" y1="' + (m.t + ih) + '" x2="' + (m.l + iw) + '" y2="' + (m.t + ih) + '" stroke="' + P.line + '" stroke-width="1.5"/><line x1="' + m.l + '" y1="' + m.t + '" x2="' + m.l + '" y2="' + (m.t + ih) + '" stroke="' + P.line + '" stroke-width="1.5"/>'; }

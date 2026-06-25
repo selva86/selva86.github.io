@@ -6,7 +6,7 @@
 (function () {
   'use strict';
   var PALS = {
-    default: { label: 'default', colors: ['#1f7a55', '#2563a8', '#b5631a', '#7c3aed', '#0891b2'], code: 'scale_fill_brewer()' },
+    default: { label: 'default', colors: ['#1f7a55', '#2563a8', '#b5631a', '#7a5ea3', '#2f8f86'], code: 'scale_fill_brewer()' },
     cb: { label: 'colorblind-safe', colors: ['#E69F00', '#56B4E9', '#009E73', '#0072B2', '#D55E00'], code: 'scale_fill_manual(values = okabe_ito)  # colorblind-safe' },
     gray: { label: 'grayscale', colors: ['#222', '#555', '#777', '#999', '#bbb'], code: 'scale_fill_grey()' }
   };
@@ -18,8 +18,8 @@
   function mount(el, cfg) {
     var u = window.LessonWidgets.u; if (!u) return;
     cfg = cfg || {};
-    var data = cfg.data || [{ x: 'A', y: 38 }, { x: 'B', y: 52 }, { x: 'C', y: 27 }, { x: 'D', y: 45 }, { x: 'E', y: 33 }];
-    var xlab = cfg.x || 'group', ylab = cfg.y || 'value';
+    var data = cfg.data || [{ x: 'North', y: 38 }, { x: 'South', y: 52 }, { x: 'East', y: 27 }, { x: 'West', y: 45 }, { x: 'Central', y: 33 }];
+    var xlab = cfg.x || 'region', ylab = cfg.y || 'sales';
     var pal = 'default', theme = 'minimal';
 
     var wrap = document.createElement('div'); wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';

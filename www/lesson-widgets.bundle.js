@@ -78,7 +78,7 @@
     // compact multi-geom SVG chart. spec: {geom:point|line|bar|col|histogram|boxplot, x, y, w, h, palette, corr, bins}
     plot: function (data, spec) {
       spec = spec || {}; var W = spec.w || 460, H = spec.h || 268, m = { t: 16, r: 16, b: 38, l: 46 }, iw = W - m.l - m.r, ih = H - m.t - m.b;
-      var geom = spec.geom || 'point', pal = spec.palette || [P.acc, P.c0, P.c1, '#7c3aed', '#0891b2', '#be185d'];
+      var geom = spec.geom || 'point', pal = spec.palette || [P.acc, P.c0, P.c1, '#7a5ea3', '#2f8f86', '#b04a52'];
       function lin(d0, d1, r0, r1) { if (d0 === d1) d1 = d0 + 1; return function (v) { return r0 + (v - d0) / (d1 - d0) * (r1 - r0); }; }
       function ext(a) { return [Math.min.apply(null, a), Math.max.apply(null, a)]; }
       function frame() { return '<line x1="' + m.l + '" y1="' + (m.t + ih) + '" x2="' + (m.l + iw) + '" y2="' + (m.t + ih) + '" stroke="' + P.line + '" stroke-width="1.5"/><line x1="' + m.l + '" y1="' + m.t + '" x2="' + m.l + '" y2="' + (m.t + ih) + '" stroke="' + P.line + '" stroke-width="1.5"/>'; }
@@ -1257,7 +1257,7 @@
 (function () {
   'use strict';
   var PALS = {
-    default: { label: 'default', colors: ['#1f7a55', '#2563a8', '#b5631a', '#7c3aed', '#0891b2'], code: 'scale_fill_brewer()' },
+    default: { label: 'default', colors: ['#1f7a55', '#2563a8', '#b5631a', '#7a5ea3', '#2f8f86'], code: 'scale_fill_brewer()' },
     cb: { label: 'colorblind-safe', colors: ['#E69F00', '#56B4E9', '#009E73', '#0072B2', '#D55E00'], code: 'scale_fill_manual(values = okabe_ito)  # colorblind-safe' },
     gray: { label: 'grayscale', colors: ['#222', '#555', '#777', '#999', '#bbb'], code: 'scale_fill_grey()' }
   };
@@ -1269,8 +1269,8 @@
   function mount(el, cfg) {
     var u = window.LessonWidgets.u; if (!u) return;
     cfg = cfg || {};
-    var data = cfg.data || [{ x: 'A', y: 38 }, { x: 'B', y: 52 }, { x: 'C', y: 27 }, { x: 'D', y: 45 }, { x: 'E', y: 33 }];
-    var xlab = cfg.x || 'group', ylab = cfg.y || 'value';
+    var data = cfg.data || [{ x: 'North', y: 38 }, { x: 'South', y: 52 }, { x: 'East', y: 27 }, { x: 'West', y: 45 }, { x: 'Central', y: 33 }];
+    var xlab = cfg.x || 'region', ylab = cfg.y || 'sales';
     var pal = 'default', theme = 'minimal';
 
     var wrap = document.createElement('div'); wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
