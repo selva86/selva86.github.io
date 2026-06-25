@@ -57,7 +57,7 @@ train <- data.frame(
   monthly       = round(runif(n, 20, 120), 1),
   total_spend   = round(runif(n, 50, 6000)),
   support_calls = rpois(n, 1.5),
-  contract      = sample(c("monthly", "annual"), n, TRUE),
+  contract      = factor(sample(c("monthly", "annual"), n, TRUE)),
   has_addons    = rbinom(n, 1, 0.4),
   paperless     = rbinom(n, 1, 0.6),
   senior        = rbinom(n, 1, 0.16)
@@ -67,22 +67,22 @@ risk <- plogis(-1.2 + 1.6 * (train$tenure < 8) + 1.1 * (train$monthly > 85) +
 train$churned <- factor(ifelse(runif(n) < risk, "yes", "no"))
 ```
 
-The **ranger** package then fits a fast forest and reports out-of-bag error directly:
+The **randomForest** package then fits a forest and reports its out-of-bag (OOB) error directly:
 
 ```r
-library(ranger)
+library(randomForest)
 set.seed(42)
-rf <- ranger(
-  churned ~ .,            # predict churn from all columns
-  data        = train,
-  num.trees   = 500,      # more is safer, never overfits
-  mtry        = 3,        # features tried per split (about sqrt of p)
-  importance  = "impurity"
+rf <- randomForest(
+  churned ~ .,           # predict churn from all columns
+  data       = train,
+  ntree      = 500,      # more is safer, never overfits
+  mtry       = 3,        # features tried per split (about sqrt of p)
+  importance = TRUE
 )
-rf$prediction.error       # the out-of-bag error
+rf                       # prints the out-of-bag (OOB) error estimate
 ```
 
-Two numbers in that call decide everything: `num.trees` and `mtry`. Let us feel what they do.
+Two numbers in that call decide everything: `ntree` and `mtry`. Let us feel what they do.
 
 === step === widget
 ::eyebrow The tuning bench
@@ -96,9 +96,9 @@ This is a live forest on the churn data. Drag trees to move along the OOB curve;
 ::eyebrow What you just felt
 ## The only knobs worth turning
 
-1. **num.trees: more is safe.** Error falls then flattens. Use as many as you can afford (300 to 1000). Extra trees never overfit, they just cost time.
+1. **ntree: more is safe.** Error falls then flattens. Use as many as you can afford (300 to 1000). Extra trees never overfit, they just cost time.
 2. **mtry: the one real dial.** Too low starves each tree; too high re-correlates them. Start near \(\sqrt{p}\) for classification (\(p/3\) for regression) and search a small range around it.
-3. **min.node.size: light touch.** Larger values grow shallower trees. The default is usually fine; nudge it only if a forest overfits a small, noisy dataset.
+3. **nodesize: light touch.** Larger values grow shallower trees. The default is usually fine; nudge it only if a forest overfits a small, noisy dataset.
 
 === step === tryit
 ::eyebrow Your turn
@@ -107,16 +107,16 @@ This is a live forest on the churn data. Drag trees to move along the OOB curve;
 You have 8 predictors and a classification problem. Fill in `mtry` with the \(\sqrt{p}\) starting value (round to a whole number), then check it.
 
 ```r
-rf <- ranger(churned ~ ., data = train,
-             num.trees = 500,
-             mtry = ____)
+rf <- randomForest(churned ~ ., data = train,
+                   ntree = 500,
+                   mtry = ____)
 ```
 ::check {"regex":"mtry\\s*=\\s*3","gate":true,"difficulty":"beginner","ok":"That is it: round(sqrt(8)) = 3.","no":"sqrt(8) is about 2.83, which rounds to 3. Set mtry = 3."}
 ::solution
 ```r
-rf <- ranger(churned ~ ., data = train,
-             num.trees = 500,
-             mtry = 3)   # round(sqrt(8)) = 3
+rf <- randomForest(churned ~ ., data = train,
+                   ntree = 500,
+                   mtry = 3)   # round(sqrt(8)) = 3
 ```
 
 === step === concept
@@ -166,8 +166,8 @@ A random forest is the strongest model you can train with almost no tuning. But 
 ## References
 
 - [Breiman (2001), Random Forests, Machine Learning 45(1)](https://doi.org/10.1023/A:1010933404324) - the original method: OOB error and variable importance.
-- [Wright & Ziegler (2017), ranger: A Fast Implementation of Random Forests, JSS](https://doi.org/10.18637/jss.v077.i01) - the package this lesson uses.
-- [ranger documentation](https://imbs-hl.github.io/ranger/) - arguments, OOB error, and importance modes.
+- [randomForest (Liaw & Wiener, 2002)](https://cran.r-project.org/package=randomForest) - the classic implementation used in this lesson; OOB error and importance.
+- [Wright & Ziegler (2017), ranger: A Fast Implementation of Random Forests, JSS](https://doi.org/10.18637/jss.v077.i01) - a faster drop-in once your data grows large.
 - [tidymodels: rand_forest()](https://parsnip.tidymodels.org/reference/rand_forest.html) - the same model inside a tidymodels workflow.
 
 === step === complete

@@ -134,7 +134,7 @@ train <- data.frame(
   monthly       = round(runif(n, 20, 120), 1),
   total_spend   = round(runif(n, 50, 6000)),
   support_calls = rpois(n, 1.5),
-  contract      = sample(c("monthly", "annual"), n, TRUE),
+  contract      = factor(sample(c("monthly", "annual"), n, TRUE)),
   has_addons    = rbinom(n, 1, 0.4),
   paperless     = rbinom(n, 1, 0.6),
   senior        = rbinom(n, 1, 0.16)
@@ -144,19 +144,19 @@ risk <- plogis(-1.2 + 1.6 * (train$tenure < 8) + 1.1 * (train$monthly > 85) +
 train$churned <- factor(ifelse(runif(n) < risk, "yes", "no"))
 ```
 
-You have the recipe. In R, `ranger` does all three steps in one call. Fill in the number of trees so the forest averages 200 of them.
+You have the recipe. In R, `randomForest` does all three steps in one call. Fill in the number of trees so the forest averages 200 of them.
 
 ```r
-library(ranger)
-rf <- ranger(churned ~ ., data = train,
-             num.trees = ____,   # how many trees to average
-             mtry = 3)           # random features per split
+library(randomForest)
+rf <- randomForest(churned ~ ., data = train,
+                   ntree = ____,   # how many trees to average
+                   mtry = 3)       # random features per split
 ```
-::check {"regex":"num\\.trees\\s*=\\s*200","gate":true,"difficulty":"beginner","ok":"That averages 200 decorrelated trees: bootstrap, random features and voting, all in one call.","no":"Set num.trees = 200 to average 200 trees."}
+::check {"regex":"ntree\\s*=\\s*200","gate":true,"difficulty":"beginner","ok":"That averages 200 decorrelated trees: bootstrap, random features and voting, all in one call.","no":"Set ntree = 200 to average 200 trees."}
 ::solution
 ```r
-rf <- ranger(churned ~ ., data = train,
-             num.trees = 200, mtry = 3)
+rf <- randomForest(churned ~ ., data = train,
+                   ntree = 200, mtry = 3)
 ```
 
 === step === concept

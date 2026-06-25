@@ -82,7 +82,7 @@ train <- data.frame(
   monthly       = round(runif(n, 20, 120), 1),  # monthly charge
   total_spend   = round(runif(n, 50, 6000)),
   support_calls = rpois(n, 1.5),
-  contract      = sample(c("monthly", "annual"), n, TRUE),
+  contract      = factor(sample(c("monthly", "annual"), n, TRUE)),
   has_addons    = rbinom(n, 1, 0.4),
   paperless     = rbinom(n, 1, 0.6),
   senior        = rbinom(n, 1, 0.16)
