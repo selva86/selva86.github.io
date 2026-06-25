@@ -199,7 +199,7 @@ def check_lesson(path):
     # must be self-contained. Catch the two ways that breaks (the 'train not found'
     # class): (a) a model/transform uses data never created in THIS lesson; (b) a
     # read of an external file that does not exist in WebR's virtual filesystem.
-    rcode = '\n'.join(re.findall(r'```r\b(.*?)```', body, flags=re.S))
+    rcode = '\n'.join(re.findall(r'```r(?!-static)\b(.*?)```', body, flags=re.S))  # runnable only; r-static is illustrative
     if rcode.strip():
         assigned = set(re.findall(r'(?m)^\s*([A-Za-z.][\w.]+)\s*(?:<-|=)(?![=])', rcode))
         BUILTIN = {'mtcars', 'iris', 'airquality', 'sleep', 'ToothGrowth', 'mpg', 'diamonds',
@@ -221,6 +221,29 @@ def check_lesson(path):
                 fail("runnable code: reads external file '%s' not written earlier in this lesson "
                      "(WebR has no real filesystem - write the example file in-session first, or build data inline)." % path)
                 break
+        # Package compatibility is EVIDENCE-BASED, read from Scripts/webr-package-compat.json
+        # whose every entry came from actually running the package in WebR - never a guess
+        # (data.table runs single-threaded, duckdb runs, plotly builds, only ranger errors).
+        # This is the fast pre-filter; verify_lesson_webr.mjs runs the real code as ground truth.
+        import json as _json
+        compat = {}
+        try:
+            with open(os.path.join(ROOT, 'Scripts', 'webr-package-compat.json'), encoding='utf-8') as _f:
+                compat = _json.load(_f).get('packages', {})
+        except Exception:
+            pass
+        for m in re.finditer(r'(?:library|require)\s*\(\s*["\']?([A-Za-z0-9.]+)', rcode):
+            ent = compat.get(m.group(1)) or {}
+            ev = (ent.get('evidence') or '')[:90]
+            if ent.get('status') == 'incompatible':
+                fail("runnable code: library(%s) ERRORS in WebR (%s). Switch package or use a "
+                     "```r-static illustrative block." % (m.group(1), ev)); break
+            if ent.get('status') == 'illustrative':
+                fail("runnable code: library(%s) cannot run its core use in WebR (%s). Use a "
+                     "```r-static illustrative block." % (m.group(1), ev)); break
+            if ent.get('status') == 'runnable_no_visual':
+                warn("library(%s) runs but its rich output does not render in WebR (%s) - show the "
+                     "text form, or pair a static image." % (m.group(1), ev))
 
     return issues, slug
 
