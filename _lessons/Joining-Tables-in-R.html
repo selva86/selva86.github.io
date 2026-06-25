@@ -1,0 +1,355 @@
+---
+title: "Joining Data Lesson 1: Combine two tables in R"
+description: "Combine two keyed tables in R with dplyr joins: the mutating inner, left, right and full joins, the filtering semi and anti joins, and non-equi join_by."
+keywords: "dplyr joins, inner_join, left_join, right_join, full_join, semi_join, anti_join, join_by, non-equi join, joining tables in R"
+webr: true
+curriculum_id: "2.2.1"
+post_type: "LESSON"
+course_id: "da-joins"
+course_title: "Joining and Reshaping Data in R"
+course_lesson: "1"
+course_total: "3"
+course_landing: "Join-Reshape-Course.html"
+course_next: "Pivoting-Long-and-Wide-in-R.html"
+course_prev: ""
+lesson_access: "free"
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 1 of 3</div>
+<h2>One question, two tables</h2>
+
+<p>You can already wrangle a single table: filter it, add columns, summarise it. But real data almost never arrives in one table. Maya's bakery keeps the week's <strong>sales</strong> in one place (what rang up at the till) and a <strong>product catalogue</strong> in another (each item's price and shelf). To answer something as simple as "how much revenue came from pastries?", she first has to stitch the two together.</p>
+
+<p>That stitching is a <strong>join</strong>, and it is the whole of this lesson. Below are Maya's two tables. The key that links them is <code>item</code>, the column they share. Click through the join types and watch which rows survive.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Combine two tables with the mutating joins (<code>inner</code>, <code>left</code>, <code>right</code>, <code>full</code>) and predict what happens to unmatched rows</li>
+
+<li>Keep or drop rows by whether a match exists, with the filtering joins (<code>semi</code>, <code>anti</code>)</li>
+
+<li>Match on a range instead of an exact key with a non-equi join (<code>join_by()</code>)</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R, and you know the dplyr verbs and the pipe from <a href="The-dplyr-Verbs.html">The dplyr Verbs</a>. A <a href="Importing-and-Tidy-Data-in-R.html">tibble</a> and <code>NA</code> (a missing value) are all you need besides.</p>
+<div class="lesson-widget" data-widget-type="join-diagram" data-widget-config='{"left":{"cols":["item","units"],"rows":[["Sourdough",20],["Bagel",38],["Croissant",15],["Pretzel",12]]},"right":{"cols":["item","price"],"rows":[["Sourdough",4.5],["Bagel",1.5],["Croissant",4],["Muffin",3]]},"key":"item","op":"inner"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The key, and the first join</div>
+<h2>inner_join keeps only the matches</h2>
+
+<p>Every join needs a <strong>key</strong>: a column whose values identify the same thing in both tables. Here the key is <code>item</code>. Wherever the same item appears in both tables, a join can line the two rows up side by side.</p>
+
+<p>Let us build Maya's two tables. Each lesson runs in a fresh R session, so we make the data right here, then never touch the disk again:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)    # the join verbs and the pipe
+library(tibble)   # tibble()
+
+# What Maya's till rang up this week, one row per sale:
+sales &lt;- tibble(
+  item  = c(&quot;Sourdough&quot;, &quot;Bagel&quot;, &quot;Croissant&quot;, &quot;Pretzel&quot;),
+  units = c(20, 38, 15, 12)
+)
+
+# Maya's standing catalogue: a price and a shelf for each item:
+products &lt;- tibble(
+  item     = c(&quot;Sourdough&quot;, &quot;Bagel&quot;, &quot;Croissant&quot;, &quot;Muffin&quot;),
+  price    = c(4.5, 1.5, 4.0, 3.0),
+  category = c(&quot;Bread&quot;, &quot;Bread&quot;, &quot;Pastry&quot;, &quot;Pastry&quot;)
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Look closely and you will spot two odd ones out. <strong>Pretzel</strong> was a one-off special Maya tried, so it sold but is not in the catalogue. <strong>Muffin</strong> is in the catalogue but did not sell this week. Three items, Sourdough, Bagel and Croissant, appear in both. Those three are the <strong>matches</strong>.</p>
+
+<p>The simplest join, <code>inner_join()</code>, keeps only the matches. It walks the left table (<code>sales</code>), and for every row whose key is also in the right table (<code>products</code>), it glues the two rows together; rows with no match on the other side are dropped.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">inner_join(sales, products, by = &quot;item&quot;)
+#&gt; # A tibble: 3 x 4
+#&gt;   item      units price category
+#&gt;   &lt;chr&gt;     &lt;dbl&gt; &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 Sourdough    20   4.5 Bread
+#&gt; 2 Bagel        38   1.5 Bread
+#&gt; 3 Croissant    15   4   Pastry</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three rows, four columns: the two from <code>sales</code> plus the two new ones from <code>products</code>. Pretzel and Muffin both vanished, because neither had a partner on the other side. The <code>by = &quot;item&quot;</code> argument names the key; leave it out and dplyr guesses it from the column names the two tables share (and tells you which it picked).</p>
+<div class="lesson-widget" data-widget-type="join-diagram" data-widget-config='{"left":{"cols":["item","units"],"rows":[["Sourdough",20],["Bagel",38],["Croissant",15],["Pretzel",12]]},"right":{"cols":["item","price"],"rows":[["Sourdough",4.5],["Bagel",1.5],["Croissant",4],["Muffin",3]]},"key":"item","op":"inner"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Keep everything on one side</div>
+<h2>left_join keeps every left row</h2>
+
+<p><code>inner_join</code> silently dropped a real sale. That is usually not what you want: if you are building Maya's receipt report, losing the Pretzel sale would hide revenue. The fix is <code>left_join()</code>.</p>
+
+<p>A <code>left_join()</code> keeps <strong>every row of the left table</strong>, matched or not. Where a left row finds a partner on the right, its new columns are filled in; where it finds none, those columns are filled with <code>NA</code>, R's marker for a missing value.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">left_join(sales, products, by = &quot;item&quot;)
+#&gt; # A tibble: 4 x 4
+#&gt;   item      units price category
+#&gt;   &lt;chr&gt;     &lt;dbl&gt; &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 Sourdough    20   4.5 Bread
+#&gt; 2 Bagel        38   1.5 Bread
+#&gt; 3 Croissant    15   4   Pastry
+#&gt; 4 Pretzel      12  NA   NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now all four sales are present. Pretzel kept its <code>units</code> but has <code>NA</code> for <code>price</code> and <code>category</code>, because the catalogue had nothing to offer it. This is the everyday workhorse: "take my table, and look up some extra columns for it, keeping all my rows no matter what."</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A <code>left_join</code> never loses a left row and never adds one (as long as each key matches at most one right row). It only ever widens the table with looked-up columns, leaving <code>NA</code> where the lookup came up empty.</div></div>
+<div class="lesson-widget" data-widget-type="join-diagram" data-widget-config='{"left":{"cols":["item","units"],"rows":[["Sourdough",20],["Bagel",38],["Croissant",15],["Pretzel",12]]},"right":{"cols":["item","price"],"rows":[["Sourdough",4.5],["Bagel",1.5],["Croissant",4],["Muffin",3]]},"key":"item","op":"left"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which join keeps the special?</h2>
+
+<p>Maya's weekly receipt report must list <strong>every sale</strong>, including the Pretzel special that is not in her catalogue, with price and category filled in wherever she has them. Which call does that?</p>
+<section class="exercise" data-exercise-id="Joining-Tables-in-R-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx"><code>left_join(sales, products, by = &quot;item&quot;)</code></span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx"><code>inner_join(sales, products, by = &quot;item&quot;)</code></span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx"><code>right_join(sales, products, by = &quot;item&quot;)</code></span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. <code>left_join</code> keeps every LEFT row, all four sales including Pretzel, and fills <code>price</code> and <code>category</code> with <code>NA</code> where there is no catalogue match.</div><div class="lesson-qfb lesson-qfb-no"><code>right_join</code> keeps every CATALOGUE row, so it would ADD the unsold Muffin and still drop the Pretzel sale, wrong on both counts.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The other two directions</div>
+<h2>right_join, full_join, and how to choose</h2>
+
+<p><code>left_join</code> keeps all of the left table. Its mirror image, <code>right_join()</code>, keeps all of the <strong>right</strong> table instead, dropping unmatched left rows. And <code>full_join()</code> keeps <strong>everything from both</strong> sides, padding with <code>NA</code> wherever a row had no partner.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">right_join(sales, products, by = &quot;item&quot;)   # every CATALOGUE row; Muffin never sold
+#&gt; # A tibble: 4 x 4
+#&gt;   item      units price category
+#&gt; 1 Sourdough    20   4.5 Bread
+#&gt; 2 Bagel        38   1.5 Bread
+#&gt; 3 Croissant    15   4   Pastry
+#&gt; 4 Muffin       NA   3   Pastry
+
+full_join(sales, products, by = &quot;item&quot;)    # everything from BOTH sides
+#&gt; # A tibble: 5 x 4
+#&gt;   item      units price category
+#&gt; 1 Sourdough    20   4.5 Bread
+#&gt; 2 Bagel        38   1.5 Bread
+#&gt; 3 Croissant    15   4   Pastry
+#&gt; 4 Pretzel      12  NA   NA
+#&gt; 5 Muffin       NA   3   Pastry</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>These four, <code>inner</code>, <code>left</code>, <code>right</code> and <code>full</code>, are the <strong>mutating joins</strong>: they all combine columns from both tables, differing only in which unmatched rows they keep. Switch between them in the widget and watch the row count move: 3 (inner), 4 (left), 4 (right), 5 (full).</p>
+
+<p>A simple way to choose:</p>
+
+<ul>
+
+<li>Only rows present in <strong>both</strong> tables? <code>inner_join</code>.</li>
+
+<li>Keep every row of <strong>your</strong> table, fill gaps with <code>NA</code>? <code>left_join</code>, the default reach.</li>
+
+<li>Keep every row of the <strong>lookup</strong> table? <code>right_join</code>, or just swap the arguments and use <code>left_join</code>.</li>
+
+<li>Keep <strong>everything</strong> from both? <code>full_join</code>.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Joins multiply rows when a key is not unique. If the right table had two rows for <code>Bagel</code>, every <code>Bagel</code> sale would match both and the result would gain a row. Before a join, check your key is unique on at least one side, for example with <code>count(products, item)</code> and looking for any count above 1.</div></div>
+<div class="lesson-widget" data-widget-type="join-diagram" data-widget-config='{"left":{"cols":["item","units"],"rows":[["Sourdough",20],["Bagel",38],["Croissant",15],["Pretzel",12]]},"right":{"cols":["item","price"],"rows":[["Sourdough",4.5],["Bagel",1.5],["Croissant",4],["Muffin",3]]},"key":"item","op":"full"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Attach the catalogue to every sale</h2>
+
+<p>Maya wants <code>price</code> and <code>category</code> next to <strong>every</strong> sale, Pretzel included, with <code>NA</code> where the catalogue has no entry. Fill in the join verb that keeps all the left (sales) rows, then check it.</p>
+<section class="exercise" data-exercise-id="Joining-Tables-in-R-step6" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="left_join"><textarea class="lesson-tryit-input" spellcheck="false">sales %&gt;%
+  ____(products, by = &quot;item&quot;)
+#&gt; all 4 sales, Pretzel with NA price and category</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Exactly: left_join keeps all four sales and looks up price and category, leaving NA for the uncatalogued Pretzel.</span><span class="lesson-tryit-fb lesson-tryit-no">You want every sale kept, so use the left table in full: left_join(products, by = "item").</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">sales %&gt;%
+  left_join(products, by = &quot;item&quot;)</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Filter, do not widen</div>
+<h2>semi_join and anti_join keep rows, add no columns</h2>
+
+<p>The four mutating joins all add columns. Sometimes you do not want extra columns at all, you only want to <strong>filter</strong> one table by whether a match exists in another. That is what the two <strong>filtering joins</strong> do, and they return the left table's columns unchanged.</p>
+
+<ul>
+
+<li><code>semi_join(x, y)</code> keeps the rows of <code>x</code> that <strong>have</strong> a match in <code>y</code>.</li>
+
+<li><code>anti_join(x, y)</code> keeps the rows of <code>x</code> that have <strong>no</strong> match in <code>y</code>.</li>
+
+</ul>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># which sales are items we actually stock? (left columns only, no price added)
+semi_join(sales, products, by = &quot;item&quot;)
+#&gt; # A tibble: 3 x 2
+#&gt;   item      units
+#&gt; 1 Sourdough    20
+#&gt; 2 Bagel        38
+#&gt; 3 Croissant    15
+
+# which sales are NOT in the catalogue? the odd ones out
+anti_join(sales, products, by = &quot;item&quot;)
+#&gt; # A tibble: 1 x 2
+#&gt;   item    units
+#&gt; 1 Pretzel    12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>semi_join</code> gave the three stocked sales; <code>anti_join</code> gave the single Pretzel. Notice neither added <code>price</code> or <code>category</code>: a filtering join answers "which rows?", never "with what extra data?". <code>anti_join</code> is the fastest way to find the mismatches in a dataset, the keys on one side that the other side has never heard of.</p>
+<div class="lesson-widget" data-widget-type="join-diagram" data-widget-config='{"left":{"cols":["item","units"],"rows":[["Sourdough",20],["Bagel",38],["Croissant",15],["Pretzel",12]]},"right":{"cols":["item","price"],"rows":[["Sourdough",4.5],["Bagel",1.5],["Croissant",4],["Muffin",3]]},"key":"item","op":"semi"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Find the unsold items</h2>
+
+<p>Maya wants the <strong>catalogue items that did NOT sell at all</strong> this week, so she can plan a promotion. Which one call returns exactly those?</p>
+<section class="exercise" data-exercise-id="Joining-Tables-in-R-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx"><code>anti_join(products, sales, by = &quot;item&quot;)</code></span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx"><code>anti_join(sales, products, by = &quot;item&quot;)</code></span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx"><code>semi_join(products, sales, by = &quot;item&quot;)</code></span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. <code>anti_join</code> keeps LEFT rows with no match. With <code>products</code> on the left, that is the catalogue items no sale touched, the unsold Muffin.</div><div class="lesson-qfb lesson-qfb-no"><code>semi_join</code> keeps the matches, so this gives the catalogue items that DID sell, not the unsold ones.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">When the key is a range</div>
+<h2>Non-equi joins with join_by()</h2>
+
+<p>Every join so far matched a key to an <strong>equal</strong> key: <code>item == item</code>. But sometimes the thing that links two tables is not equality. Maya gives a volume discount by band: 1 to 9 loaves is "single", 10 to 23 is "dozen", 24 and up is "bulk". The band a sale falls into depends on whether its <code>units</code> lands <strong>between</strong> a band's low and high bounds, not on any equal key.</p>
+
+<p>For that you reach for <code>join_by()</code>, which lets a join condition be an inequality. Match each sale to the one band whose <code>lo..hi</code> range contains its <code>units</code>:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># a discount band keyed by a RANGE of units, not a single value:
+tiers &lt;- tibble(
+  tier = c(&quot;single&quot;, &quot;dozen&quot;, &quot;bulk&quot;),
+  lo   = c(1, 10, 24),
+  hi   = c(9, 23, 999)
+)
+
+# keep each sale; attach the band whose lo &lt;= units &lt;= hi:
+left_join(sales, tiers, join_by(units &gt;= lo, units &lt;= hi))
+#&gt; # A tibble: 4 x 5
+#&gt;   item      units tier     lo    hi
+#&gt; 1 Sourdough    20 dozen    10    23
+#&gt; 2 Bagel        38 bulk     24   999
+#&gt; 3 Croissant    15 dozen    10    23
+#&gt; 4 Pretzel      12 dozen    10    23</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each sale picked up exactly the band it belongs to. The two conditions inside <code>join_by()</code> are read together with AND: a row matches a band only when <code>units &gt;= lo</code> and <code>units &lt;= hi</code> are both true. (The shorthand <code>join_by(between(units, lo, hi))</code> says the same thing.) The same idea powers a <strong>rolling</strong> join, matching to the nearest earlier value, which <code>join_by()</code> writes with <code>closest()</code>, handy for "the price in effect on the day of each sale".</p>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"code":"left_join(sales, tiers, join_by(between(units, lo, hi)))","caption":"A non-equi join: each sale matched to the discount band whose lo..hi range contains its units. The new tier column is filled by a range test, not an equal key.","before":{"cols":["item","units"],"rows":[["Sourdough",20],["Bagel",38],["Croissant",15],["Pretzel",12]]},"after":{"cols":["item","units","tier"],"rows":[["Sourdough",20,"dozen"],["Bagel",38,"bulk"],["Croissant",15,"dozen"],["Pretzel",12,"dozen"]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Finish the range match</h2>
+
+<p>Put each sale in its discount band. The first condition, <code>units &gt;= lo</code>, is written for you; add the second so a sale matches a band only when its <code>units</code> is also at or below the band's <code>hi</code>. Fill in the blank, then check it.</p>
+<section class="exercise" data-exercise-id="Joining-Tables-in-R-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="units\s*&lt;=\s*hi"><textarea class="lesson-tryit-input" spellcheck="false">sales %&gt;%
+  left_join(tiers, join_by(units &gt;= lo, ____))
+#&gt; each sale gains its tier: dozen, bulk, dozen, dozen</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the upper bound: units <= hi. With both conditions ANDed, each sale lands in the one band whose range contains it.</span><span class="lesson-tryit-fb lesson-tryit-no">You need the high end of the band too: units <= hi (a sale matches only when units is at or below the band's hi).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">sales %&gt;%
+  left_join(tiers, join_by(units &gt;= lo, units &lt;= hi))</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://r4ds.hadley.nz/joins">R for Data Science (2e), Joins</a> - the canonical, free chapter on keys, mutating joins and filtering joins.</li>
+
+<li><a href="https://dplyr.tidyverse.org/reference/mutate-joins.html">dplyr: mutating joins (inner, left, right, full)</a> - every argument, with the <code>NA</code> and duplicate-key behaviour spelled out.</li>
+
+<li><a href="https://dplyr.tidyverse.org/reference/filter-joins.html">dplyr: filtering joins (semi and anti)</a> - the keep-or-drop joins that add no columns.</li>
+
+<li><a href="https://dplyr.tidyverse.org/reference/join_by.html">dplyr: join_by()</a> - specifying keys, including non-equi and rolling (<code>closest</code>) matches.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 1 complete</h2>
+
+<p>You can now combine two tables in R. You learned the <strong>key</strong> that links them, the four <strong>mutating joins</strong> (<code>inner</code> keeps only matches, <code>left</code> and <code>right</code> keep one whole side with <code>NA</code> for the gaps, <code>full</code> keeps both), the two <strong>filtering joins</strong> (<code>semi</code> keeps matched rows, <code>anti</code> keeps unmatched ones, neither adding columns), and the <strong>non-equi join</strong> with <code>join_by()</code> for matching on a range. The guiding question is always the same: which rows do I want to keep, and do I need extra columns or just a filter?</p>
+
+<p>Next, Lesson 2: Pivoting long and wide. A single table can still be the wrong <strong>shape</strong>, with a variable smeared across many columns or many rows. You will reshape it with <code>pivot_longer()</code> and <code>pivot_wider()</code>, the move that makes data ready for every dplyr verb, ggplot and model.</p>
+</section>
+
+{% endraw %}
