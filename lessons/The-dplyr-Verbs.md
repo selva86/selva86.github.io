@@ -29,7 +29,7 @@ By the end of this lesson you will be able to:
 
 **Prerequisites:** Lesson 1, so your data is imported and [tidy](Importing-and-Tidy-Data-in-R.html). No dplyr experience needed; we define every verb as it appears.
 
-::widget table-transform {"code":"sales %>% filter(units > 20)","caption":"filter() keeps only the rows where the condition is TRUE; the rest fall away.","before":{"cols":["date","item","units","revenue"],"rows":[["2024-03-01","Sourdough",18,81],["2024-03-01","Bagel",40,60],["2024-03-02","Sourdough",22,99],["2024-03-02","Croissant",15,60],["2024-03-03","Sourdough",20,90],["2024-03-03","Bagel",38,57]]},"after":{"cols":["date","item","units","revenue"],"rows":[["2024-03-01","Bagel",40,60],["2024-03-02","Sourdough",22,99],["2024-03-03","Bagel",38,57]]}}
+::widget table-transform {"code":"filter(sales, units > 20)","caption":"filter() keeps only the rows where the condition is TRUE; the rest fall away.","before":{"cols":["date","item","units","revenue"],"rows":[["2024-03-01","Sourdough",18,81],["2024-03-01","Bagel",40,60],["2024-03-02","Sourdough",22,99],["2024-03-02","Croissant",15,60],["2024-03-03","Sourdough",20,90],["2024-03-03","Bagel",38,57]]},"after":{"cols":["date","item","units","revenue"],"rows":[["2024-03-01","Bagel",40,60],["2024-03-02","Sourdough",22,99],["2024-03-03","Bagel",38,57]]}}
 
 === step === concept
 ::eyebrow Keep rows
@@ -38,7 +38,18 @@ By the end of this lesson you will be able to:
 Here is Maya's tidy sales table from Lesson 1, six sales over three days. We will use this one table for the whole lesson.
 
 ```r
-library(tidyverse)   # loads dplyr (the verbs) and the pipe
+library(dplyr)   # the dplyr verbs and the pipe
+library(tibble)  # tibble()
+
+# Maya's tidy sales from Lesson 1, rebuilt here (each lesson is a fresh session)
+sales <- tibble(
+  date    = as.Date(c("2024-03-01", "2024-03-01", "2024-03-02",
+                      "2024-03-02", "2024-03-03", "2024-03-03")),
+  item    = c("Sourdough", "Bagel", "Sourdough",
+              "Croissant", "Sourdough", "Bagel"),
+  units   = c(18, 40, 22, 15, 20, 38),
+  revenue = c(81, 60, 99, 60, 90, 57)
+)
 sales
 #> # A tibble: 6 x 4
 #>   date       item      units revenue
@@ -66,7 +77,7 @@ A verb never changes its input. `filter(sales, ...)` returns a new table and lea
 
 Drag your eye down the widget: the three rows that fail `units > 20` are struck out, the three that pass remain.
 
-::widget table-transform {"code":"sales %>% filter(item == \"Sourdough\")","caption":"Keep only the Sourdough sales. The == test is TRUE on three rows; the other three drop away.","before":{"cols":["date","item","units","revenue"],"rows":[["2024-03-01","Sourdough",18,81],["2024-03-01","Bagel",40,60],["2024-03-02","Sourdough",22,99],["2024-03-02","Croissant",15,60],["2024-03-03","Sourdough",20,90],["2024-03-03","Bagel",38,57]]},"after":{"cols":["date","item","units","revenue"],"rows":[["2024-03-01","Sourdough",18,81],["2024-03-02","Sourdough",22,99],["2024-03-03","Sourdough",20,90]]}}
+::widget table-transform {"code":"filter(sales, item == \"Sourdough\")","caption":"Keep only the Sourdough sales. The == test is TRUE on three rows; the other three drop away.","before":{"cols":["date","item","units","revenue"],"rows":[["2024-03-01","Sourdough",18,81],["2024-03-01","Bagel",40,60],["2024-03-02","Sourdough",22,99],["2024-03-02","Croissant",15,60],["2024-03-03","Sourdough",20,90],["2024-03-03","Bagel",38,57]]},"after":{"cols":["date","item","units","revenue"],"rows":[["2024-03-01","Sourdough",18,81],["2024-03-02","Sourdough",22,99],["2024-03-03","Sourdough",20,90]]}}
 
 === step === concept
 ::eyebrow Keep columns
@@ -88,7 +99,7 @@ A few everyday moves:
 
 In the widget below, `date` and `units` are tinted to show they are being dropped; `item` and `revenue` are what `select(item, revenue)` returns. Notice all six rows survive: choosing columns says nothing about which rows you keep.
 
-::widget table-transform {"code":"sales %>% select(item, revenue)","caption":"select() keeps only the named columns. date and units are dropped; every row stays.","before":{"cols":["date","item","units","revenue"],"rows":[["2024-03-01","Sourdough",18,81],["2024-03-01","Bagel",40,60],["2024-03-02","Sourdough",22,99],["2024-03-02","Croissant",15,60],["2024-03-03","Sourdough",20,90],["2024-03-03","Bagel",38,57]]},"after":{"cols":["item","revenue"],"rows":[["2024-03-01","Sourdough",18,81],["2024-03-01","Bagel",40,60],["2024-03-02","Sourdough",22,99],["2024-03-02","Croissant",15,60],["2024-03-03","Sourdough",20,90],["2024-03-03","Bagel",38,57]]}}
+::widget table-transform {"code":"select(sales, item, revenue)","caption":"select() keeps only the named columns. date and units are dropped; every row stays.","before":{"cols":["date","item","units","revenue"],"rows":[["2024-03-01","Sourdough",18,81],["2024-03-01","Bagel",40,60],["2024-03-02","Sourdough",22,99],["2024-03-02","Croissant",15,60],["2024-03-03","Sourdough",20,90],["2024-03-03","Bagel",38,57]]},"after":{"cols":["item","revenue"],"rows":[["2024-03-01","Sourdough",18,81],["2024-03-01","Bagel",40,60],["2024-03-02","Sourdough",22,99],["2024-03-02","Croissant",15,60],["2024-03-03","Sourdough",20,90],["2024-03-03","Bagel",38,57]]}}
 
 === step === quiz
 ::eyebrow Check yourself
@@ -134,24 +145,28 @@ A sibling verb, `transmute()`, does the same arithmetic but keeps ONLY the colum
 Maya's ingredients cost about **1 per loaf**, so the cost of a sale is `units` and her margin is revenue minus that cost. Add a `margin` column. Fill in the blank with the expression, then check it.
 
 ```r
-sales %>%
-  mutate(margin = ____)
+mutate(sales, margin = ____)
 #> # ... a new <dbl> column: 63, 20, 77, 45, 70, 19
 ```
 ::check {"regex":"revenue\\s*-\\s*(1\\s*\\*\\s*)?units","gate":true,"difficulty":"beginner","ok":"Exactly: margin = revenue - units runs once per row, giving Maya the profit on every sale as a new column.","no":"Cost is 1 per loaf, so the cost of a sale is units; subtract it from revenue: margin = revenue - units."}
 ::solution
 ```r
-sales %>%
-  mutate(margin = revenue - units)
+mutate(sales, margin = revenue - units)
 ```
 
 === step === concept
 ::eyebrow Chain them
 ## The pipe reads like a sentence
 
-You just saw `mutate(sales, ...)` written two ways: with `sales` inside the parentheses, and with `sales %>%` in front. That arrow, `%>%`, is **the pipe**, and it is the idea that makes dplyr a joy to read.
+Every verb so far has had the same shape: `verb(sales, ...)`, with the table named inside the parentheses. There is a second way to write that exact call which, the moment you have more than one verb, reads far more clearly. That arrow, `%>%`, is **the pipe**, and it is the idea that makes dplyr a joy to read.
 
-The pipe takes the table on its left and feeds it in as the first argument of the verb on its right. So `sales %>% filter(units > 20)` means exactly `filter(sales, units > 20)`. The payoff comes when you stack verbs: each line takes the table from the line above, does one thing, and hands it on.
+The pipe takes the table on its left and feeds it in as the first argument of the verb on its right. So `sales %>% filter(units > 20)` means exactly `filter(sales, units > 20)`:
+
+```r
+sales %>% filter(units > 20)   # identical to filter(sales, units > 20)
+```
+
+The payoff comes when you stack verbs: each line takes the table from the line above, does one thing, and hands it on.
 
 ```r
 sales %>%
