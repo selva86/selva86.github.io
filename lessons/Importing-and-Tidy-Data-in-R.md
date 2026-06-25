@@ -37,21 +37,27 @@ By the end you will be able to:
 ::eyebrow The idea
 ## A CSV is just text, read_csv brings it in
 
-Maya exports her sales as `sales.csv`. Open it in any text editor and it is plain text: the first line names the columns, every line after is one sale, with commas between the values.
+Maya exports her sales as `sales.csv`. Open it in any text editor and it is plain text: the first line names the columns, every line after is one sale, with commas between the values. Your R session starts empty, so we write Maya's exact export to a file here, then read it back the way you would read one of your own:
 
 ```r
-# sales.csv looks like this:
-# date,item,units,revenue
-# 2024-03-01,Sourdough,18,81.0
-# 2024-03-01,Bagel,40,60.0
-# 2024-03-02,Sourdough,22,99.0
-# 2024-03-02,Croissant,n/a,57.0
+library(readr)                 # read_csv()
+library(dplyr)                 # tibble(), the pipe, group_by(), summarise()
+library(tidyr)                 # pivot_longer()
+
+# the raw lines Maya's till produced, one sale per line:
+csv_text <- c(
+  "date,item,units,revenue",
+  "2024-03-01,Sourdough,18,81.0",
+  "2024-03-01,Bagel,40,60.0",
+  "2024-03-02,Sourdough,22,99.0",
+  "2024-03-02,Croissant,n/a,57.0"
+)
+writeLines(csv_text, "sales.csv")   # save it as a real file to read back
 ```
 
-The `read_csv()` function from the **readr** package turns that text into a **tibble**: a tidy table of data, the modern data frame. Each named column becomes a column, each line becomes a row.
+The `read_csv()` function from the **readr** package turns that file into a **tibble**: a tidy table of data, the modern data frame. Each named column becomes a column, each line becomes a row.
 
 ```r
-library(tidyverse)             # loads readr (read_csv) and friends
 sales <- read_csv("sales.csv")
 sales
 #> # A tibble: 4 x 4
@@ -69,18 +75,19 @@ Look under each column name: `<date>`, `<chr>`, `<dbl>`. Those are the column **
 ::eyebrow How it works
 ## readr guesses each column's type
 
-`read_csv()` reads a sample of values from each column and guesses a type for the whole column: `<dbl>` for numbers (a "double", any number with or without decimals), `<chr>` for text ("character"), `<date>` for ISO dates like `2024-03-01`. It even prints a short report of its guesses:
+`read_csv()` reads a sample of values from each column and guesses one type for the whole column: `<dbl>` for numbers (a "double", any number with or without decimals), `<chr>` for text ("character"), `<date>` for ISO dates like `2024-03-01`. You can ask it exactly what it decided with `spec()`:
 
 ```r
-#> Rows: 4 Columns: 4
-#> -- Column specification ----------------------
-#> Delimiter: ","
-#> chr  (2): item, units
-#> dbl  (1): revenue
-#> date (1): date
+spec(sales)            # the column types read_csv inferred
+#> cols(
+#>   date = col_date(format = ""),
+#>   item = col_character(),
+#>   units = col_character(),
+#>   revenue = col_double()
+#> )
 ```
 
-See the problem? `units` is a count of loaves, it should be a number (`<dbl>`), but readr filed it under `chr`, text. The culprit is row 4: Maya typed `n/a` the day she forgot to count the croissants. Because `n/a` is not a number, readr decided the safest type for the whole column was text.
+See the problem? `units` is a count of loaves, it should be a number (`<dbl>`), but readr filed it under `col_character()`, text. The culprit is row 4: Maya typed `n/a` the day she forgot to count the croissants. Because `n/a` is not a number, readr decided the safest type for the whole column was text.
 
 [KEY INSIGHT]
 A column's type is inferred from its values, and it is all-or-nothing: a single non-numeric token like `n/a` drops the entire column to text. You cannot do arithmetic on text, so `sum(units)` would fail until you fix this.
@@ -129,6 +136,24 @@ Maya keeps a second little sheet: loaves sold per item, per week. She built it t
 | Bagel | 40 | 38 | 44 |
 | Croissant | 15 | 19 | 12 |
 
+In R that sheet is just a tibble we can build directly:
+
+```r
+weekly <- tibble(
+  item  = c("Sourdough", "Bagel", "Croissant"),
+  week1 = c(18, 40, 15),
+  week2 = c(22, 38, 19),
+  week3 = c(25, 44, 12)
+)
+weekly
+#> # A tibble: 3 x 4
+#>   item      week1 week2 week3
+#>   <chr>     <dbl> <dbl> <dbl>
+#> 1 Sourdough    18    22    25
+#> 2 Bagel        40    38    44
+#> 3 Croissant    15    19    12
+```
+
 Easy to read, but awkward for analysis: the variable *week* is hidden in the column **headers**, and the variable *units sold* is smeared across three columns. To plot units over time, or average them, you would be wrestling the table first.
 
 In 2014 Hadley Wickham named the shape that avoids this. A table is **tidy** when it follows three rules:
@@ -162,17 +187,24 @@ Maya's weekly sheet has `item`, `week1`, `week2`, `week3`. The reshaped version 
 
 === step === concept
 ::eyebrow Why bother
-## Tidy shape unlocks everything downstream
+## Tidy shape makes everything downstream easy
 
-Tidiness is not tidiness for its own sake. The whole tidyverse, every dplyr verb, every ggplot, most models, is built to expect one-variable-per-column, one-observation-per-row. Hand it tidy data and the work becomes one readable line:
+Tidiness is not tidiness for its own sake. The whole tidyverse, every dplyr verb, every ggplot, most models, is built to expect one-variable-per-column, one-observation-per-row. Once Maya's sheet is tidy (you reshape it on the very next screen), the analysis becomes one readable line each. (The `%>%` below is the **pipe**; read it as "and then": it hands the table on its left to the next function. Lesson 2 covers it properly.)
 
-```r
+```r-static
 # average loaves per item: trivial when week and units are columns
 tidy_weekly %>%
   group_by(item) %>%
   summarise(avg_units = mean(units))
+#> # A tibble: 3 x 2
+#>   item      avg_units
+#>   <chr>         <dbl>
+#> 1 Bagel          40.7
+#> 2 Croissant      15.3
+#> 3 Sourdough      21.7
 
-# units over time, one line, because week and units are columns:
+# units over time, one line per item, because week is now a column:
+library(ggplot2)
 ggplot(tidy_weekly, aes(week, units, colour = item)) +
   geom_line()
 ```
