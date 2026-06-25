@@ -125,6 +125,14 @@ def main():
                 print('  write failed: %s (see %s)' % (slug, os.path.relpath(FAILLOG, ROOT)))
                 continue
 
+            st[slug]['status'] = 'reviewing'
+            save_status(st)
+            if run_claude(args.claude, '/check-lesson ' + slug) != 0:
+                st[slug]['status'] = 'manual_review'
+                save_status(st)
+                print('  review flagged manual_review: %s (see Scripts/lesson-review.log)' % slug)
+                continue
+
             st[slug]['status'] = 'publishing'
             save_status(st)
             if run_claude(args.claude, '/publish-lesson %s --skip-sync' % slug) != 0:
