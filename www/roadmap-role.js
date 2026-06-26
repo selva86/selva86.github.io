@@ -38,7 +38,7 @@
   // hero signature visual (per-track) - keeps the page's own copy, adds the
   // animated right-hand panel. One honest visual per track; --c is the accent.
   var reduceMo=window.matchMedia&&matchMedia('(prefers-reduced-motion:reduce)').matches;
-  function vizShell(el,label,svg){el.innerHTML='<div class="hviz-h"><span class="hviz-t">'+label+'</span><span class="hviz-live"><i></i> live</span></div>'+svg;}
+  function vizShell(el,label,svg){el.innerHTML=svg;}
   function vizResearcher(el){
     var Z=205,rows=[{y:66,a:98,b:178,d:138,s:1},{y:100,a:150,b:250,d:200,s:0},{y:134,a:120,b:192,d:156,s:1},{y:168,a:182,b:262,d:222,s:0},{y:202,a:216,b:288,d:252,s:1}];
     var s='<line x1="'+Z+'" y1="42" x2="'+Z+'" y2="216" style="stroke:var(--faint)" stroke-width="1" stroke-dasharray="3 4" opacity=".7"/><text x="'+Z+'" y="34" text-anchor="middle" font-family="JetBrains Mono" font-size="10" style="fill:var(--faint)">no effect</text>';
@@ -66,7 +66,7 @@
     if(reduceMo)fr(3600);else requestAnimationFrame(fr);
   }
   function vizAnalyst(el){
-    var t='<rect x="30" y="74" width="118" height="112" rx="9" fill="#fff" style="stroke:var(--line)"/><rect x="30" y="74" width="118" height="22" rx="9" style="fill:var(--c)" opacity="0.14"/><rect x="30" y="90" width="118" height="6" style="fill:var(--c)" opacity="0.14"/>';
+    var t='<rect x="30" y="74" width="118" height="112" rx="9" fill="#f1f1ee" style="stroke:var(--line)"/><rect x="30" y="74" width="118" height="22" rx="9" style="fill:var(--c)" opacity="0.14"/><rect x="30" y="90" width="118" height="6" style="fill:var(--c)" opacity="0.14"/>';
     [118,140,162].forEach(function(y){t+='<line x1="30" y1="'+y+'" x2="148" y2="'+y+'" style="stroke:var(--line2)"/>';});[70,109].forEach(function(x){t+='<line x1="'+x+'" y1="74" x2="'+x+'" y2="186" style="stroke:var(--line2)"/>';});
     var k='';[107,129,151,173].forEach(function(y){[49,89,128].forEach(function(x){k+='<rect x="'+(x-9)+'" y="'+(y-2)+'" width="15" height="3" rx="1.5" style="fill:var(--faint)" opacity=".5"/>';});});
     var ar='<path d="M166 130 L188 130 M181 124 L188 130 L181 136" fill="none" style="stroke:var(--faint)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
@@ -79,16 +79,16 @@
   function vizFoundations(el){
     var C0=72,R0=62,CW=68,RH=27,cols=4,rows=4,g='',c,r;
     for(c=0;c<cols;c++)g+='<rect x="'+(C0+c*CW)+'" y="'+R0+'" width="58" height="19" rx="5" style="fill:var(--c);opacity:.18"/>';
-    for(c=0;c<cols;c++)for(r=0;r<rows;r++)g+='<rect class="hv-in" x="'+(C0+c*CW)+'" y="'+(R0+RH+r*RH)+'" width="58" height="19" rx="5" fill="#fff" style="animation-delay:'+((c*rows+r)*60)+'ms;stroke:var(--line)" stroke-width="1"/>';
+    for(c=0;c<cols;c++)for(r=0;r<rows;r++)g+='<rect class="hv-in" x="'+(C0+c*CW)+'" y="'+(R0+RH+r*RH)+'" width="58" height="19" rx="5" fill="#f1f1ee" style="animation-delay:'+((c*rows+r)*60)+'ms;stroke:var(--line)" stroke-width="1"/>';
     vizShell(el,'a data frame taking shape','<svg viewBox="0 0 410 230">'+g+'</svg>');
   }
   function vizDeveloper(el){
-    var code='<rect x="34" y="60" width="152" height="134" rx="10" fill="#fff" style="stroke:var(--line)"/>';
+    var code='<rect x="34" y="60" width="152" height="134" rx="10" fill="#f1f1ee" style="stroke:var(--line)"/>';
     var L=[[48,74,92],[60,90,116],[60,106,94],[48,122,72],[60,138,112],[48,154,64]];
     L.forEach(function(l,i){code+='<rect x="'+l[0]+'" y="'+l[1]+'" width="'+l[2]+'" height="6" rx="3" style="fill:'+(i===0?'var(--c)':'var(--faint)')+';opacity:'+(i===0?.85:.45)+'"/>';});
     var TX=212,TY=72,TH=30,tr='',i;
     for(i=0;i<4;i++){var y=TY+i*TH;
-      tr+='<circle cx="'+(TX+9)+'" cy="'+(y+9)+'" r="9" fill="#fff" style="stroke:var(--line)" stroke-width="1.5"/>'
+      tr+='<circle cx="'+(TX+9)+'" cy="'+(y+9)+'" r="9" fill="#f1f1ee" style="stroke:var(--line)" stroke-width="1.5"/>'
         +'<path id="hvck'+i+'" d="M'+(TX+4.5)+' '+(y+9)+' l3 3.2 l6.2 -7.4" fill="none" style="stroke:var(--c)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0"/>'
         +'<rect id="hvnm'+i+'" x="'+(TX+26)+'" y="'+(y+5)+'" width="'+(118-i*12)+'" height="7" rx="3.5" style="fill:var(--faint);opacity:.4"/>';}
     vizShell(el,'a function, proven by tests','<svg viewBox="0 0 410 230">'+code+tr+'</svg>');
