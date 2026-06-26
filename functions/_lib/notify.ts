@@ -75,13 +75,36 @@ export async function notifyNewSignup(
       contentHtml,
     });
 
-    await sendMail(env, {
+    const res = await sendMail(env, {
       to: { email: ADMIN_EMAIL, name: "Selva" },
       subject: `New r-statistics.co signup: ${user.email}`,
       htmlBody,
       textBody,
       replyTo: { email: user.email },
     });
+
+    // Durable outcome record. console.warn is ephemeral (needs a live `tail`);
+    // audit_log is queryable via D1, so a silent ZeptoMail failure becomes
+    // visible after the fact (status + error captured in meta_json).
+    await env.DB.prepare(
+      "INSERT INTO audit_log (user_id, actor, action, ref, meta_json, at) VALUES (?, 'system', ?, ?, ?, ?)",
+    )
+      .bind(
+        user.id,
+        res.ok ? "signup.email.sent" : "signup.email.failed",
+        user.email,
+        JSON.stringify({ status: res.status, error: res.error ?? null }),
+        Math.floor(Date.now() / 1000),
+      )
+      .run()
+      .catch(() => {});
+
+    // Release the dedup guard on failure so the next trigger (another confirm
+    // webhook, or the /api/me lazy-create path) retries the send. A transient
+    // ZeptoMail outage must not permanently suppress this user's notification.
+    if (!res.ok) {
+      await env.KV.delete(`signup-notified:${user.id}`).catch(() => {});
+    }
   } catch (e) {
     console.warn(`[notify.signup] failed for ${user.id}: ${(e as Error).message}`);
   }
