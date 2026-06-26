@@ -1,0 +1,376 @@
+---
+title: "Advanced ggplot2 Lesson 3: Annotate and Compose Plots"
+description: "Make a ggplot explain itself: reference lines and annotate() callouts, non-overlapping labels with ggrepel, and stitching several plots into one figure with patchwork."
+keywords: "ggplot2 annotate, geom_hline, reference line, ggrepel, geom_text_repel, patchwork, compose plots, annotate plot in R, ggplot2 tutorial"
+mathjax: false
+webr: true
+curriculum_id: "2.5.3"
+post_type: "LESSON"
+course_id: "da-ggplot2-adv"
+course_title: "Advanced ggplot2"
+course_lesson: "3"
+course_total: "3"
+course_landing: "Advanced-ggplot2-Course.html"
+course_next: ""
+course_prev: "Themes-Color-and-Accessibility.html"
+lesson_access: "free"
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 3 of 3</div>
+<h2>Make the chart explain itself</h2>
+
+<p>In Lessons 1 and 2, Maya the baker took her three branches, <strong>Downtown</strong>, <strong>Riverside</strong> and the big <strong>Airport</strong> shop, split the crowded chart into small multiples, and restyled it with a clean theme and colourblind-safe colours. The chart is readable and on-brand. Now she has to <em>present</em> it: on Friday she pitches two investors, and a chart that needs her standing beside it to explain it is a chart that fails the moment she sits down.</p>
+
+<p>This lesson is about making a plot speak for itself, then stitching several plots into one figure. Three moves: <strong>mark</strong> the values that matter with reference lines and notes, <strong>label</strong> the points so each one is named, and <strong>compose</strong> several charts into a single slide. The scatter below is Maya's raw canvas, foot traffic against revenue for all three branches. By the end you will turn it, and its siblings, into a briefing.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Add reference lines and free-floating notes with <code>geom_hline()</code> and <code>annotate()</code></li>
+
+<li>Label crowded points without them overlapping, using <code>ggrepel</code></li>
+
+<li>Stitch several plots into one captioned figure with <code>patchwork</code></li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can build a basic ggplot and map a column inside <code>aes()</code>, <code>ggplot(data, aes(...)) + geom_*()</code> (from <a href="ggplot2-Course.html">Data Visualization with ggplot2</a>, and Lessons 1 and 2 of this course, <a href="Facets-and-Scales-in-ggplot2.html">Facets and Scales</a> and <a href="Themes-Color-and-Accessibility.html">Themes, Colour and Accessibility</a>). Every new function is defined as it appears.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":150,"y":300,"fill":"Downtown"},{"x":165,"y":330,"fill":"Downtown"},{"x":180,"y":360,"fill":"Downtown"},{"x":205,"y":430,"fill":"Downtown"},{"x":240,"y":520,"fill":"Downtown"},{"x":300,"y":690,"fill":"Downtown"},{"x":260,"y":600,"fill":"Downtown"},{"x":95,"y":190,"fill":"Riverside"},{"x":110,"y":210,"fill":"Riverside"},{"x":120,"y":240,"fill":"Riverside"},{"x":140,"y":280,"fill":"Riverside"},{"x":175,"y":360,"fill":"Riverside"},{"x":220,"y":470,"fill":"Riverside"},{"x":190,"y":410,"fill":"Riverside"},{"x":520,"y":2100,"fill":"Airport"},{"x":560,"y":2300,"fill":"Airport"},{"x":610,"y":2520,"fill":"Airport"},{"x":680,"y":2900,"fill":"Airport"},{"x":760,"y":3300,"fill":"Airport"},{"x":980,"y":4200,"fill":"Airport"},{"x":880,"y":3700,"fill":"Airport"}],"geoms":["point"],"x":"foot_traffic","y":"revenue","code":{"point":"ggplot(sales, aes(foot_traffic, revenue, colour = branch)) +\n  geom_point()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The idea</div>
+<h2>Two kinds of layer: encode, and explain</h2>
+
+<p>Every ggplot you have built so far is made of <strong>geoms</strong>, layers that turn rows of data into ink: <code>geom_point()</code> puts a dot at each row, <code>geom_line()</code> connects them. An <strong>annotation</strong> is a different kind of layer. It does not read your data row by row; it draws a fixed mark at a position <em>you</em> name: a horizontal target line, a note, a circle around one point. Geoms answer "what does the data say"; annotations answer "what should the reader notice".</p>
+
+<p>Each lesson starts in a fresh R session, so let us put Maya's week back on the page. Run this block once and the rest of the lesson builds on it:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+days &lt;- c(&quot;Mon&quot;, &quot;Tue&quot;, &quot;Wed&quot;, &quot;Thu&quot;, &quot;Fri&quot;, &quot;Sat&quot;, &quot;Sun&quot;)
+# One row per branch per day: 3 branches x 7 days = 21 rows.
+sales &lt;- data.frame(
+  branch       = rep(c(&quot;Downtown&quot;, &quot;Riverside&quot;, &quot;Airport&quot;), each = 7),
+  day          = factor(rep(days, times = 3), levels = days),
+  foot_traffic = c(150, 165, 180, 205, 240, 300, 260,    # Downtown
+                   95, 110, 120, 140, 175, 220, 190,     # Riverside
+                   520, 560, 610, 680, 760, 980, 880),   # Airport
+  revenue      = c(300, 330, 360, 430, 520, 690, 600,    # Downtown
+                   190, 210, 240, 280, 360, 470, 410,    # Riverside
+                   2100, 2300, 2520, 2900, 3300, 4200, 3700)  # Airport
+)
+
+# Pull out one branch's week and draw it plainly, no explanation yet.
+downtown &lt;- subset(sales, branch == &quot;Downtown&quot;)
+# group = 1 tells geom_line to join all 7 days into one line; without it,
+# a categorical x-axis (the day names) leaves the points unconnected.
+ggplot(downtown, aes(day, revenue, group = 1)) +
+  geom_line(colour = &quot;#1f7a55&quot;, linewidth = 1) +
+  geom_point(size = 2)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is Downtown's daily revenue, a clean line. But it says nothing about what <em>matters</em>: what counts as a good day, where the break-even line sits, which day was best. Those are exactly the things an annotation layer adds.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Move 1: mark</div>
+<h2>Reference lines: draw a line where it matters</h2>
+
+<p>The simplest annotation is a straight line at a value you care about. Say Maya needs each branch to clear <strong>$400 of revenue a day</strong> just to cover rent and staff: that is her break-even. A reference line drawn straight across at 400 lets a reader see, instantly, which days cleared the bar.</p>
+
+<p>ggplot gives you three reference-line layers:</p>
+
+<ul>
+
+<li><code>geom_hline(yintercept = v)</code> draws a <strong>h</strong>orizontal line at height <code>v</code></li>
+
+<li><code>geom_vline(xintercept = v)</code> draws a <strong>v</strong>ertical line at position <code>v</code></li>
+
+<li><code>geom_abline(slope = m, intercept = b)</code> draws a sloped line, for a trend or a y = x reference</li>
+
+</ul>
+
+<p>Notice the argument is a single number, not a column: <code>yintercept = 400</code>, not <code>aes(yintercept = something)</code>. That is the tell of an annotation, you hand it the literal position. Add the break-even line to Downtown's week:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(downtown, aes(day, revenue, group = 1)) +
+  geom_line(colour = &quot;#1f7a55&quot;, linewidth = 1) +
+  geom_point(size = 2) +
+  geom_hline(yintercept = 400, linetype = &quot;dashed&quot;, colour = &quot;red&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the chart has a meaning it did not before: every point above the dashed red line is a day that paid for itself. Downtown crosses it on Thursday and stays above through the weekend.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A reference line is an annotation: you pass it a literal position (<code>yintercept = 400</code>), not a data column. It draws the same line no matter how many rows your data has, and it never appears in the legend.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Draw the break-even line</h2>
+
+<p>Here is Downtown's week again, without the target line. Add the layer that draws a horizontal reference line at Maya's break-even of <strong>400</strong>.</p>
+<section class="exercise" data-exercise-id="Annotate-and-Compose-Plots-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="geom_hline\s*[(][^)]*400"><textarea class="lesson-tryit-input" spellcheck="false">ggplot(downtown, aes(day, revenue, group = 1)) +
+  geom_line(colour = &quot;#1f7a55&quot;, linewidth = 1) +
+  geom_point(size = 2) +
+  ____</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it: geom_hline(yintercept = 400) draws one horizontal line at 400, a fixed-position annotation, not a data mapping.</span><span class="lesson-tryit-fb lesson-tryit-no">Add a horizontal reference line: geom_hline(yintercept = 400). The argument is a literal number, not an aes() mapping.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">ggplot(downtown, aes(day, revenue, group = 1)) +
+  geom_line(colour = &quot;#1f7a55&quot;, linewidth = 1) +
+  geom_point(size = 2) +
+  geom_hline(yintercept = 400, linetype = &quot;dashed&quot;, colour = &quot;red&quot;)</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">Move 1 continued</div>
+<h2>annotate(): a note exactly where you want it</h2>
+
+<p>A line marks a value; sometimes you want <strong>words</strong>. <code>annotate()</code> drops text, a point, a segment or a box at coordinates you specify. Its first argument is the kind of mark, then the position, then the content:</p>
+
+<ul>
+
+<li><code>annotate(&quot;text&quot;, x = , y = , label = )</code> writes text at the point <code>(x, y)</code></li>
+
+<li><code>annotate(&quot;point&quot;, x = , y = )</code> adds a single marker</li>
+
+<li><code>annotate(&quot;rect&quot;, xmin = , xmax = , ymin = , ymax = )</code> shades a region</li>
+
+</ul>
+
+<p>Because the x-axis here is the day (a category), its positions are numbered left to right: Mon is 1, Tue is 2, on up to Sun at 7. So <code>x = 6</code> lands on Saturday. Let us label the break-even line and circle the best day:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(downtown, aes(day, revenue, group = 1)) +
+  geom_line(colour = &quot;#1f7a55&quot;, linewidth = 1) +
+  geom_point(size = 2) +
+  geom_hline(yintercept = 400, linetype = &quot;dashed&quot;, colour = &quot;red&quot;) +
+  annotate(&quot;text&quot;, x = 2, y = 430, label = &quot;Break-even target&quot;,
+           colour = &quot;red&quot;, hjust = 0, size = 3.5) +
+  annotate(&quot;point&quot;, x = 6, y = 690, shape = 21, size = 6,
+           colour = &quot;black&quot;, fill = NA) +
+  annotate(&quot;text&quot;, x = 6, y = 690, label = &quot;Best day&quot;,
+           fontface = &quot;bold&quot;, vjust = -1.4)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The crucial thing: none of those marks came from a row of <code>sales</code>. You typed the positions yourself. That is what separates an annotation from a geom, and it has consequences.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">An annotation is drawn once, at literal coordinates, so it does <strong>not</strong> get a legend entry, and it repeats identically on every panel if you facet. A geom mapped through <code>aes()</code> draws one mark per row and earns a legend. Use <code>annotate()</code> for "say this, here"; use a geom for "show every row".</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>One line, two ways</h2>
+
+<p>Maya wants a single horizontal target line at $400 on her chart. A colleague suggests: "add a new column to <code>sales</code> that is 400 in every row, then map it with <code>aes(yintercept = target)</code>." What is the better approach, and why?</p>
+<section class="exercise" data-exercise-id="Annotate-and-Compose-Plots-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The colleague is right: every line must be mapped through aes() from a column</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Use <code>geom_hline(yintercept = 400)</code>: the target is one fixed value you are asserting, so it belongs in an annotation, not in the data or an aes() mapping</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Neither: you cannot draw a horizontal line in ggplot without first adding it to the data</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. A break-even of 400 is a constant you chose, not a measurement in your rows. geom_hline takes the literal number, draws one line, and stays out of the legend.</div><div class="lesson-qfb lesson-qfb-no">You can, and should. <code>geom_hline(yintercept = 400)</code> needs nothing added to the data; that is the whole point of an annotation layer.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Move 2: label</div>
+<h2>ggrepel: labels that do not pile up</h2>
+
+<p>Maya now wants to label points directly, so a reader does not have to trace each dot back to the legend. The obvious tool is <code>geom_text(aes(label = day))</code>, which writes each point's label right at the point. It works beautifully when points are spread out, and falls apart when they are not. Map the day onto all 21 points and the busy lower-left corner, where Downtown and Riverside crowd together, turns into an unreadable pile:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggrepel)
+
+# Plain text labels: fine where points are sparse, a mess where they crowd.
+ggplot(sales, aes(foot_traffic, revenue, colour = branch, label = day)) +
+  geom_point(size = 2) +
+  geom_text(size = 3)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>ggrepel</code> package fixes exactly this. Swap <code>geom_text()</code> for <code>geom_text_repel()</code> (or <code>geom_label_repel()</code> for boxed labels) and it nudges every label away from its neighbours, drawing a thin connector segment back to the point it belongs to:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(sales, aes(foot_traffic, revenue, colour = branch, label = day)) +
+  geom_point(size = 2) +
+  geom_text_repel(size = 3, seed = 1) +
+  theme(legend.position = &quot;bottom&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Every label is now legible and still tied to its point. The <code>seed = 1</code> argument fixes the random nudging so the layout comes out the same every time you run it.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><code>ggrepel</code> places labels with a small random search, so without <code>seed = </code> the positions shift a little on every redraw. Set a seed for a reproducible figure. And repel has limits: a few dozen labels are fine, but try to label hundreds of dense points and even repel runs out of room. Then, label only the few points that matter.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Un-pile the labels</h2>
+
+<p>Here is the crowded scatter with plain <code>geom_text()</code>, where the labels collide. Replace the missing layer with the <code>ggrepel</code> version that spreads them out with connector lines.</p>
+<section class="exercise" data-exercise-id="Annotate-and-Compose-Plots-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="geom_(?:text|label)_repel\s*[(]"><textarea class="lesson-tryit-input" spellcheck="false">ggplot(sales, aes(foot_traffic, revenue, colour = branch, label = day)) +
+  geom_point(size = 2) +
+  ____</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it: geom_text_repel() nudges the labels apart and draws connectors, so the crowded corner becomes readable.</span><span class="lesson-tryit-fb lesson-tryit-no">Use the ggrepel layer: geom_text_repel(...) (or geom_label_repel(...)). It repels overlapping labels and links each back to its point.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">ggplot(sales, aes(foot_traffic, revenue, colour = branch, label = day)) +
+  geom_point(size = 2) +
+  geom_text_repel(size = 3, seed = 1)</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Move 3: compose</div>
+<h2>patchwork: many plots, one figure</h2>
+
+<p>Maya's slide needs two charts together: revenue by day, and foot traffic by day, side by side, so the investors can see that more visitors track with more money. Saving two images and pasting them into the slide by hand is fiddly and breaks the moment the data changes. The <code>patchwork</code> package lets you combine ggplots with simple arithmetic, as if the plots were numbers.</p>
+
+<p>First build the two plots and store each in a variable:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(patchwork)
+
+p_rev &lt;- ggplot(sales, aes(day, revenue, colour = branch, group = branch)) +
+  geom_line(linewidth = 1) +
+  labs(title = &quot;Revenue by day&quot;, x = NULL, y = &quot;Revenue ($)&quot;)
+
+p_traffic &lt;- ggplot(sales, aes(day, foot_traffic, colour = branch, group = branch)) +
+  geom_line(linewidth = 1) +
+  labs(title = &quot;Foot traffic by day&quot;, x = NULL, y = &quot;People&quot;)
+
+p_rev + p_traffic     # the + operator lays them side by side</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three operators do the layout, and the flow on the right summarises them:</p>
+
+<ul>
+
+<li><code>p1 + p2</code> (or <code>p1 | p2</code>) places plots <strong>beside</strong> each other in a row</li>
+
+<li><code>p1 / p2</code> <strong>stacks</strong> one above the other</li>
+
+<li>wrap a group in <code>()</code> to nest, for example <code>(p1 + p2) / p3</code></li>
+
+</ul>
+
+<p>Then two finishing functions polish the whole figure at once. <code>plot_layout(guides = &quot;collect&quot;)</code> gathers the repeated legends into a single shared legend, and <code>plot_annotation()</code> adds an overall title and automatic panel tags (A, B, C):</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">(p_rev / p_traffic) +
+  plot_layout(guides = &quot;collect&quot;) +
+  plot_annotation(
+    title = &quot;Maya's week, three branches&quot;,
+    tag_levels = &quot;A&quot;
+  )</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That single object is now one captioned figure: two stacked panels, one shared legend, an overall title, and an A and a B tag on the panels, ready to drop straight onto a slide.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Beside: p1 + p2","sub":"place plots in a row, left to right"},{"title":"Stack: p1 / p2","sub":"put one plot above another"},{"title":"Finish: plot_annotation()","sub":"one shared title plus auto A, B tags"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Stack them, do not line them up</h2>
+
+<p>For her slide, Maya wants the revenue chart <strong>directly above</strong> the foot-traffic chart, one on top of the other, so the days line up vertically. She has <code>p_rev</code> and <code>p_traffic</code>. Which patchwork expression does that?</p>
+<section class="exercise" data-exercise-id="Annotate-and-Compose-Plots-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx"><code>p_rev + p_traffic</code></span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx"><code>p_rev | p_traffic</code></span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx"><code>p_rev / p_traffic</code></span></button>
+<button type="button" class="lesson-opt" data-i="4"><span class="lesson-opt-mk">D</span><span class="lesson-opt-tx"><code>p_rev * p_traffic</code></span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The <code>/</code> operator stacks plots vertically, <code>p_rev</code> on top and <code>p_traffic</code> below, so the day axes line up underneath each other.</div><div class="lesson-qfb lesson-qfb-no">There is no <code>*</code> compose operator. To stack, use <code>/</code>; to go side by side, use <code>+</code> or <code>|</code>.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://patchwork.data-imaginist.com/">patchwork: the official site</a> - every way to assemble, nest and annotate a multi-plot figure, by the package author.</li>
+
+<li><a href="https://ggrepel.slowkow.com/">ggrepel documentation and examples</a> - the full gallery of repelled-label options, including the seed and label-box controls.</li>
+
+<li><a href="https://ggplot2.tidyverse.org/reference/annotate.html">ggplot2 reference: annotate()</a> - the exact arguments for text, point, segment and rect annotations.</li>
+
+<li><a href="https://ggplot2.tidyverse.org/reference/geom_abline.html">ggplot2 reference: geom_abline, geom_hline and geom_vline</a> - the three reference-line layers in one place.</li>
+
+<li><a href="https://r-graphics.org/chapter-annotate">R Graphics Cookbook: Annotations chapter (free online)</a> - a recipe-style tour of annotating ggplots, with worked examples.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 3 complete, and the course</h2>
+
+<p>You took a plain chart and made it brief its reader, four moves and no new data: <code>geom_hline()</code> to mark a threshold, <code>annotate()</code> to drop a note or marker at coordinates you choose, <code>ggrepel</code> to label crowded points without the pile-up, and <code>patchwork</code> to compose several plots into one captioned figure with a shared legend.</p>
+
+<p>That closes <strong>Advanced ggplot2</strong>. Across the three lessons you learned to break a crowded chart into small multiples and control its scales (Lesson 1), restyle it with deliberate, accessible colour and reusable themes (Lesson 2), and now make it explain itself and stand on a slide. Those are the moves that turn a correct chart into a convincing one. Take them back to your own data, and revisit the <a href="Advanced-ggplot2-Course.html">course landing</a> any time for a refresher.</p>
+</section>
+
+{% endraw %}
