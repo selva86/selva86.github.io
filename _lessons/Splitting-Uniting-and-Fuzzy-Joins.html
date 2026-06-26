@@ -1,0 +1,452 @@
+---
+title: "Joining Data Lesson 3: Split, unite and fuzzy joins in R"
+description: "Clean messy data in R: split a crammed column with separate(), build a key with unite(), and match names that nearly agree using string-distance fuzzy joins."
+keywords: "separate, unite, tidyr, separate columns in R, fuzzy join, fuzzyjoin, stringdist, string distance, edit distance, adist, data cleaning in R, join keys, stringr"
+mathjax: true
+webr: true
+curriculum_id: "2.2.3"
+post_type: "LESSON"
+course_id: "da-joins"
+course_title: "Joining and Reshaping Data in R"
+course_lesson: "3"
+course_total: "3"
+course_landing: "Join-Reshape-Course.html"
+course_next: ""
+course_prev: "Pivoting-Long-and-Wide-in-R.html"
+lesson_access: "free"
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 3 of 3</div>
+<h2>When the columns and keys are messy</h2>
+
+<p>In Lesson 2 you changed a table's <strong>shape</strong>. But real data arrives dirty in a different way: a single column crams two facts together, or two tables that should line up have keys that only <em>nearly</em> agree.</p>
+
+<p>Maya, who runs a small bakery, now pulls sales from an online-orders export and prices from a supplier sheet someone typed by hand. Below are her items on the left and the supplier's price sheet on the right. To you they read as the same four products. Click <strong>inner</strong>: an exact join finds only <strong>two</strong> matches. The other two are spelled just differently enough to be invisible to the join.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Split one crammed column into several with <code>separate()</code> (set <code>into</code> and <code>sep</code>)</li>
+
+<li>Combine several columns into one with <code>unite()</code>, the exact inverse of <code>separate()</code></li>
+
+<li>Spot keys that only nearly match, surface them with <code>anti_join()</code>, and repair them by cleaning and by <strong>string distance</strong> (a fuzzy join)</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R, you know a <a href="Importing-and-Tidy-Data-in-R.html">tibble</a> and the <a href="The-dplyr-Verbs.html">dplyr verbs</a>, and you met the <code>inner</code>, <code>left</code> and <code>anti</code> <a href="Joining-Tables-in-R.html">joins and the join key</a> in Lesson 1.</p>
+<div class="lesson-widget" data-widget-type="join-diagram" data-widget-config='{"left":{"cols":["item","units"],"rows":[["Sourdough",20],["Bagel",38],["Croissant",15],["Pretzel",12]]},"right":{"cols":["item","price"],"rows":[["sourdough",4.5],["Bagel",1.5],["Croisant",4],["Pretzel",2]]},"key":"item","op":"inner"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">One column, two facts</div>
+<h2>separate() splits a crammed column</h2>
+
+<p>Maya's online store exports one row per order, but it crams the product <strong>name</strong> and its <strong>size</strong> into a single <code>product</code> field, like <code>&quot;Sourdough/Large&quot;</code>. That breaks a rule of tidy data: one variable per column. To analyse sales by item, and separately by size, those two facts need their own columns.</p>
+
+<p>Each lesson runs in a fresh R session, so we build her export right here as a tibble, then never touch the disk again:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)    # the verbs and the pipe
+library(tidyr)    # separate(), unite()
+library(tibble)   # tribble()
+library(stringr)  # str_to_lower(), str_squish()
+
+orders &lt;- tribble(
+  ~order, ~product,           ~ordered_on,
+  &quot;A1&quot;,   &quot;Sourdough/Large&quot;,  &quot;2024-03-01&quot;,
+  &quot;A2&quot;,   &quot;Bagel/Small&quot;,      &quot;2024-03-02&quot;,
+  &quot;A3&quot;,   &quot;Croissant/Large&quot;,  &quot;2024-03-02&quot;
+)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>tribble()</code> from <strong>tibble</strong> just lets us type a small table by hand: the <code>~order</code>, <code>~product</code>, <code>~ordered_on</code> entries are the column names, and the values follow row by row underneath.</p>
+
+<p><code>separate()</code>, from <strong>tidyr</strong>, takes one column and cuts each value into pieces at a separator. You tell it three things: which column to cut (<code>product</code>), what to name the pieces (<code>into</code>), and the character to cut on (<code>sep</code>):</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">orders %&gt;%
+  separate(product, into = c(&quot;item&quot;, &quot;size&quot;), sep = &quot;/&quot;)
+#&gt; # A tibble: 3 x 4
+#&gt;   order item      size  ordered_on
+#&gt;   &lt;chr&gt; &lt;chr&gt;     &lt;chr&gt; &lt;chr&gt;
+#&gt; 1 A1    Sourdough Large 2024-03-01
+#&gt; 2 A2    Bagel     Small 2024-03-02
+#&gt; 3 A3    Croissant Large 2024-03-02</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The one <code>product</code> column became two, <code>item</code> and <code>size</code>, split at the <code>/</code>. Read it as a picture: the crammed column on the left opens out into the two clean columns on the right.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>order</th>
+<th>product</th>
+<th>ordered_on</th>
+<th></th>
+<th>order</th>
+<th>item</th>
+<th>size</th>
+<th>ordered_on</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A1</td>
+<td>Sourdough<strong>/</strong>Large</td>
+<td>2024-03-01</td>
+<td><strong>-></strong></td>
+<td>A1</td>
+<td>Sourdough</td>
+<td>Large</td>
+<td>2024-03-01</td>
+</tr>
+<tr>
+<td>A2</td>
+<td>Bagel<strong>/</strong>Small</td>
+<td>2024-03-02</td>
+<td><strong>-></strong></td>
+<td>A2</td>
+<td>Bagel</td>
+<td>Small</td>
+<td>2024-03-02</td>
+</tr>
+<tr>
+<td>A3</td>
+<td>Croissant<strong>/</strong>Large</td>
+<td>2024-03-02</td>
+<td><strong>-></strong></td>
+<td>A3</td>
+<td>Croissant</td>
+<td>Large</td>
+<td>2024-03-02</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><code>separate()</code> still works, but recent <strong>tidyr</strong> marks it superseded in favour of the clearer <code>separate_wider_delim(product, delim = &quot;/&quot;, names = c(&quot;item&quot;, &quot;size&quot;))</code>. Same idea, newer name. We use <code>separate()</code> here because it is the verb you will see most often in the wild.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Naming the pieces</h2>
+
+<p>Maya's <code>product</code> values are <code>&quot;Sourdough/Large&quot;</code>, <code>&quot;Bagel/Small&quot;</code>, <code>&quot;Croissant/Large&quot;</code>. She runs <code>separate(product, into = c(&quot;item&quot;, &quot;size&quot;), sep = &quot;/&quot;)</code>. What decides that the split lands correctly?</p>
+<section class="exercise" data-exercise-id="Splitting-Uniting-and-Fuzzy-Joins-step3" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx"><code>sep</code> is ignored; <code>separate()</code> always splits on a space</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx"><code>into</code> must list one name per piece the split produces, and <code>sep</code> must match the real delimiter</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx"><code>into</code> can name any number of columns; extra names are filled with the value repeated</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Each value cuts into two pieces at the <code>/</code>, so <code>into</code> needs two names (<code>item</code>, <code>size</code>) and <code>sep = &quot;/&quot;</code> names the cut. Get either wrong and the pieces land in the wrong columns or trigger a warning.</div><div class="lesson-qfb lesson-qfb-no">The number of names in <code>into</code> must match the number of pieces. Too few or too many names drops data or warns about missing pieces; it never repeats a value to fill the gap.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The inverse move</div>
+<h2>unite() glues columns back into one</h2>
+
+<p><code>separate()</code> has a mirror image. <code>unite()</code> takes several columns and pastes them into a single one, joined by a separator you choose. It is to <code>separate()</code> what <code>pivot_wider()</code> was to <code>pivot_longer()</code> in Lesson 2: do one, then the other, and you are back where you started.</p>
+
+<p>First we keep the split result so later steps can reuse it, then glue <code>item</code> and <code>size</code> straight back together:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tidy_orders &lt;- orders %&gt;%
+  separate(product, into = c(&quot;item&quot;, &quot;size&quot;), sep = &quot;/&quot;)
+
+tidy_orders %&gt;%
+  unite(&quot;product&quot;, item, size, sep = &quot;/&quot;)
+#&gt; # A tibble: 3 x 3
+#&gt;   order product         ordered_on
+#&gt;   &lt;chr&gt; &lt;chr&gt;           &lt;chr&gt;
+#&gt; 1 A1    Sourdough/Large 2024-03-01
+#&gt; 2 A2    Bagel/Small     2024-03-02
+#&gt; 3 A3    Croissant/Large 2024-03-02</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Exactly Maya's original <code>product</code> column, reconstructed. The first argument names the new column; the bare column names after it are the ones to glue, in order; <code>sep</code> is the glue. Picture it as the reverse of the last step: two columns folding back into one.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>order</th>
+<th>item</th>
+<th>size</th>
+<th>ordered_on</th>
+<th></th>
+<th>order</th>
+<th>product</th>
+<th>ordered_on</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A1</td>
+<td>Sourdough</td>
+<td>Large</td>
+<td>2024-03-01</td>
+<td><strong>-></strong></td>
+<td>A1</td>
+<td>Sourdough<strong>/</strong>Large</td>
+<td>2024-03-01</td>
+</tr>
+<tr>
+<td>A2</td>
+<td>Bagel</td>
+<td>Small</td>
+<td>2024-03-02</td>
+<td><strong>-></strong></td>
+<td>A2</td>
+<td>Bagel<strong>/</strong>Small</td>
+<td>2024-03-02</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><code>separate()</code> and <code>unite()</code> are inverses: one cuts a column into pieces, the other pastes pieces into a column. You rarely just round-trip them, though. The real use of <code>unite()</code> is to <strong>build a key</strong> in the exact shape another table expects, which is precisely the job in the next step.</div></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Build a join key</h2>
+
+<p>Maya needs a single product code, a <code>sku</code>, that pastes the item and size with a dash, like <code>&quot;Sourdough-Large&quot;</code>. You already have <code>tidy_orders</code> with its <code>item</code> and <code>size</code> columns. Fill in the verb that glues columns into one, then check it.</p>
+<section class="exercise" data-exercise-id="Splitting-Uniting-and-Fuzzy-Joins-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="unite"><textarea class="lesson-tryit-input" spellcheck="false">tidy_orders %&gt;%
+  ____(&quot;sku&quot;, item, size, sep = &quot;-&quot;)
+#&gt; a new sku column: Sourdough-Large, Bagel-Small, Croissant-Large</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Exactly: unite() pastes item and size into one sku column with the dash you chose. That is how you forge a key in whatever shape the other table uses.</span><span class="lesson-tryit-fb lesson-tryit-no">You want to GLUE several columns into one, which is unite: unite("sku", item, size, sep = "-").</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">tidy_orders %&gt;%
+  unite(&quot;sku&quot;, item, size, sep = &quot;-&quot;)</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The join that silently fails</div>
+<h2>Near-miss keys vanish from an exact join</h2>
+
+<p>Now the real task. Maya wants the supplier's <code>price</code> next to each of her items, a plain <code>left</code>/<code>inner</code> join on the item name. But the supplier sheet was typed by hand, so the names only <em>nearly</em> agree: <code>sourdough</code> is lower-case, and <code>Croissant</code> was mistyped as <code>Croisant</code>. An exact join matches strings character for character, so those two simply do not line up.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales &lt;- tibble(
+  item  = c(&quot;Sourdough&quot;, &quot;Bagel&quot;, &quot;Croissant&quot;, &quot;Pretzel&quot;),
+  units = c(20, 38, 15, 12)
+)
+prices &lt;- tibble(
+  item  = c(&quot;sourdough&quot;, &quot;Bagel&quot;, &quot;Croisant&quot;, &quot;Pretzel&quot;),  # typed by hand
+  price = c(4.5, 1.5, 4.0, 2.0)
+)
+
+inner_join(sales, prices, by = &quot;item&quot;)
+#&gt; # A tibble: 2 x 3
+#&gt;   item    units price
+#&gt;   &lt;chr&gt;   &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Bagel      38   1.5
+#&gt; 2 Pretzel    12   2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Only <strong>Bagel</strong> and <strong>Pretzel</strong> survived, the two spelled identically on both sides. Sourdough and Croissant were dropped without a word, which is the dangerous part: a silent join looks like it worked. The way to catch this is <code>anti_join()</code>, which you met in Lesson 1: it keeps exactly the left rows with <strong>no</strong> match, the keys you need to fix.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">anti_join(sales, prices, by = &quot;item&quot;)
+#&gt; # A tibble: 2 x 2
+#&gt;   item      units
+#&gt;   &lt;chr&gt;     &lt;dbl&gt;
+#&gt; 1 Sourdough    20
+#&gt; 2 Croissant    15</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There is the cleanup list. The widget makes the filter concrete: the two matched rows fade out, and the two unmatched keys, your real problem, stay behind.</p>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"code":"anti_join(sales, prices, by = \"item\")","caption":"anti_join keeps only the LEFT rows with no exact match. Bagel and Pretzel matched and drop away; Sourdough and Croissant survive as the cleanup list, the keys the join could not line up.","before":{"cols":["item","units"],"rows":[["Sourdough",20],["Bagel",38],["Croissant",15],["Pretzel",12]]},"after":{"cols":["item","units"],"rows":[["Sourdough",20],["Croissant",15]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The cheap fix first</div>
+<h2>Normalise the keys before anything clever</h2>
+
+<p>Before reaching for anything fancy, fix the boring differences. A great share of near-misses are nothing but <strong>case</strong> and <strong>whitespace</strong>: <code>Sourdough</code> versus <code>sourdough</code>, or a stray trailing space. Lower-case both sides and squeeze the spaces, then join on the cleaned key.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales_clean &lt;- sales %&gt;%
+  mutate(key = str_squish(str_to_lower(item)))
+prices_clean &lt;- prices %&gt;%
+  mutate(key = str_squish(str_to_lower(item)))
+
+inner_join(sales_clean, prices_clean, by = &quot;key&quot;)
+#&gt; # A tibble: 3 x 5
+#&gt;   item.x    units key       item.y    price
+#&gt;   &lt;chr&gt;     &lt;dbl&gt; &lt;chr&gt;     &lt;chr&gt;     &lt;dbl&gt;
+#&gt; 1 Sourdough    20 sourdough sourdough   4.5
+#&gt; 2 Bagel        38 bagel     Bagel       1.5
+#&gt; 3 Pretzel      12 pretzel   Pretzel     2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Cleaning recovered <strong>Sourdough</strong>: once both sides are lower-case, <code>sourdough</code> matches <code>sourdough</code>. We are up to three matches from two. But <code>Croissant</code> is still missing, because its problem was never case, it was a real typo: the supplier dropped an <code>s</code>. Toggle the widget to <strong>inner</strong> and watch three keys light up green while <code>croissant</code> and <code>croisant</code> stay stubbornly apart.</p>
+
+<p><code>str_to_lower()</code> and <code>str_squish()</code> come from <strong>stringr</strong>: the first lower-cases, the second trims the ends and collapses runs of spaces to one. Reach for them on every key before you join.</p>
+<div class="lesson-widget" data-widget-type="join-diagram" data-widget-config='{"left":{"cols":["key","units"],"rows":[["sourdough",20],["bagel",38],["croissant",15],["pretzel",12]]},"right":{"cols":["key","price"],"rows":[["sourdough",4.5],["bagel",1.5],["croisant",4],["pretzel",2]]},"key":"key","op":"inner"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Measuring how close two words are</div>
+<h2>Edit distance: a number for "nearly the same"</h2>
+
+<p><code>Croissant</code> and <code>Croisant</code> are not equal, but they are <em>close</em>: one is the other with a single letter dropped. To match them on purpose we need to make "close" a number, and the standard one is <strong>edit distance</strong>.</p>
+
+<p>The <strong>edit distance</strong> (or Levenshtein distance) between two strings \(a\) and \(b\), written \(d(a,b)\), is the smallest number of single-character edits, an insertion, a deletion, or a substitution, needed to turn \(a\) into \(b\). Identical strings have \(d = 0\); the further apart two spellings drift, the larger \(d\) grows. Turning <code>Croissant</code> into <code>Croisant</code> needs exactly one deletion, drop one <code>s</code>, so \(d(\text{Croissant}, \text{Croisant}) = 1\).</p>
+
+<p>Base R computes it for you with <code>adist()</code>, no package needed:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">adist(&quot;Croissant&quot;, &quot;Croisant&quot;)
+#&gt;      [,1]
+#&gt; [1,]    1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One edit, just as we counted. Now point it at the whole supplier list and ask which spelling is closest to Maya's leftover <code>croissant</code>:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">d &lt;- adist(&quot;croissant&quot;, prices_clean$key)  # distance to every supplier key
+prices_clean$key[which.min(d)]             # the nearest spelling
+#&gt; [1] &quot;croisant&quot;
+min(d)                                     # ... and how far off it is
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The nearest supplier key is <code>croisant</code>, just <strong>one</strong> edit away, while every other name is many edits off. That single number is the whole idea behind a fuzzy join: match a key to its nearest neighbour, as long as the neighbour is close enough.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which fix, and how far to reach</h2>
+
+<p>After cleaning, <code>Sourdough</code> matched but <code>Croissant</code> (vs the supplier's <code>Croisant</code>) still did not. Maya thinks: "I will set the fuzzy threshold to <code>max_dist = 4</code> so nothing ever slips through again." What is the right read?</p>
+<section class="exercise" data-exercise-id="Splitting-Uniting-and-Fuzzy-Joins-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Lower-casing the keys would have fixed <code>Croissant</code> too, if she had also trimmed the spaces</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A larger <code>max_dist</code> is always safer because it can only find more correct matches</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx"><code>Croissant</code> needs distance-based matching (it is 1 edit away), but <code>max_dist = 4</code> is too loose and risks merging genuinely different products</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Distance 1 catches the real typo; a threshold of 4 would also pull in unrelated names that happen to be a few edits apart, silently fusing distinct items. Keep the threshold as tight as the data allows.</div><div class="lesson-qfb lesson-qfb-no">It also finds more WRONG ones. A loose threshold is the main hazard of fuzzy joining, not a free safety net.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Doing it for real, and where it bites</div>
+<h2>The fuzzy join, and its sharp edge</h2>
+
+<p>In practice you do not hand-roll <code>adist()</code> for every key. The <strong>fuzzyjoin</strong> package adds string-distance versions of the dplyr joins: <code>stringdist_inner_join()</code>, <code>stringdist_left_join()</code> and friends, each with a <code>max_dist</code> threshold. This one needs installing and runs on your own machine rather than here, so treat it as a recipe to copy:</p>
+
+<pre><code class="language-r"># install once with install.packages(&quot;fuzzyjoin&quot;)
+library(fuzzyjoin)
+
+# match keys that are within ONE edit of each other:
+stringdist_inner_join(sales_clean, prices_clean,
+                      by = &quot;key&quot;, max_dist = 1)
+#&gt; all four items now match, including croissant &lt;-&gt; croisant</code></pre>
+
+<p>With <code>max_dist = 1</code>, <code>croissant</code> finally meets <code>croisant</code> and Maya has her complete price list. But that threshold is a loaded setting.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Fuzzy matching trades silent <strong>misses</strong> for silent <strong>false matches</strong>. Raise <code>max_dist</code> and you will eventually fuse genuinely different things: <code>Bagel</code> and <code>Beigel</code> are one edit apart but may be two products; <code>bun</code> and <code>ban</code> differ by one letter and mean nothing alike. Guard yourself: keep <code>max_dist</code> as small as the data allows (often 1), eyeball every fuzzy match before you trust it, and for anything ambiguous keep a hand-built lookup table (a crosswalk) instead of guessing. A fuzzy join is a strong first pass, never the final word.</div></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://r4ds.hadley.nz/strings">R for Data Science (2e), Strings</a> - the free, canonical chapter on cleaning and reshaping text, the raw material of every messy key.</li>
+
+<li><a href="https://tidyr.tidyverse.org/reference/separate_wider_delim.html">tidyr: separate_wider_delim()</a> - the current splitting verbs (the modern successors to <code>separate()</code>), with every argument explained.</li>
+
+<li><a href="https://tidyr.tidyverse.org/reference/unite.html">tidyr: unite()</a> - gluing columns into one, the inverse move, including how it handles <code>NA</code>.</li>
+
+<li><a href="https://journal.r-project.org/archive/2014-1/loo.pdf">van der Loo (2014), The stringdist package for approximate string matching, R Journal 6(1)</a> - the paper behind the distance metrics fuzzy joins use, edit distance included.</li>
+
+<li><a href="https://github.com/dgrtwo/fuzzyjoin">fuzzyjoin package documentation</a> - string-distance and other inexact joins as drop-in dplyr verbs, with <code>max_dist</code> worked examples.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 3 complete, and the course with it</h2>
+
+<p>You can now clean the two messes that block a join. You <strong>split</strong> a crammed column into tidy pieces with <code>separate()</code>, <strong>glued</strong> columns into the key you need with <code>unite()</code> (its exact inverse), and learned that an exact join drops near-miss keys silently, so you <strong>surface</strong> them with <code>anti_join()</code>, <strong>normalise</strong> away case and whitespace first, and only then reach for a <strong>string-distance fuzzy join</strong>, with the threshold kept tight to avoid false matches.</p>
+
+<p>That closes <strong>Joining and Reshaping Data in R</strong>. Across three lessons you learned to combine two tables with the mutating and filtering joins, reshape one table between long and wide with <code>pivot_longer()</code> and <code>pivot_wider()</code>, and clean the columns and keys that real data throws at you. You now have the full toolkit for getting scattered, messy data into one analysis-ready table, the step every project depends on before a single chart or model. Next, point that clean data at exploratory analysis and visualisation.</p>
+</section>
+
+{% endraw %}

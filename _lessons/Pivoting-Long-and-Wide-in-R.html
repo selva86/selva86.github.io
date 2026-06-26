@@ -1,0 +1,491 @@
+---
+title: "Joining Data Lesson 2: Pivot data long and wide in R"
+description: "Reshape data in R with tidyr: pivot_longer takes wide data to long (tidy), pivot_wider takes long back to wide for reports, and nest and unnest handle nested data."
+keywords: "pivot_longer, pivot_wider, tidyr, reshape data in R, wide to long, long to wide, nest, unnest, tidy data, list columns"
+webr: true
+curriculum_id: "2.2.2"
+post_type: "LESSON"
+course_id: "da-joins"
+course_title: "Joining and Reshaping Data in R"
+course_lesson: "2"
+course_total: "3"
+course_landing: "Join-Reshape-Course.html"
+course_next: "Splitting-Uniting-and-Fuzzy-Joins.html"
+course_prev: "Joining-Tables-in-R.html"
+lesson_access: "free"
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 2 of 3</div>
+<h2>One table, the wrong shape</h2>
+
+<p>In Lesson 1 you stitched two tables together with joins. But even a single, complete table can be in the wrong <strong>shape</strong> for the job in front of you.</p>
+
+<p>Maya, who runs a small bakery, keeps her week of loaf sales on a whiteboard the way any of us would: one row per item, one column per day.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>item</th>
+<th>Mon</th>
+<th>Tue</th>
+<th>Wed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sourdough</td>
+<td>18</td>
+<td>22</td>
+<td>25</td>
+</tr>
+<tr>
+<td>Bagel</td>
+<td>40</td>
+<td>38</td>
+<td>44</td>
+</tr>
+<tr>
+<td>Croissant</td>
+<td>15</td>
+<td>19</td>
+<td>12</td>
+</tr>
+</tbody>
+</table>
+
+<p>Lovely to read. But the moment she wants to plot sales over the week, or average them, this shape fights her: the variable <em>day</em> is hidden in the column <strong>headers</strong>, not in a column she can point at. Reshaping fixes that, and reshaping is this whole lesson.</p>
+
+<p>By the end you will be able to:</p>
+
+<ul>
+
+<li>Tell <strong>wide</strong> shape from <strong>long</strong> (tidy) shape, and say which one a tool wants</li>
+
+<li>Reshape wide to long with <code>pivot_longer()</code>, and long back to wide with <code>pivot_wider()</code></li>
+
+<li>Bundle a group's rows into one cell with <code>nest()</code>, and unpack them again with <code>unnest()</code></li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R, and you know a <a href="Importing-and-Tidy-Data-in-R.html">tibble</a>, the pipe <code>%&gt;%</code> and the dplyr verbs from <a href="The-dplyr-Verbs.html">The dplyr Verbs</a>. Drag the toggle below to see where we are heading.</p>
+<div class="lesson-widget" data-widget-type="reshape-grid" data-widget-config='{"wide":{"cols":["item","Mon","Tue","Wed"],"rows":[["Sourdough",18,22,25],["Bagel",40,38,44],["Croissant",15,19,12]]},"idCols":["item"],"namesTo":"day","valuesTo":"units"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The idea</div>
+<h2>The same numbers, two shapes</h2>
+
+<p>Maya's whiteboard holds exactly nine numbers (three items across three days). There are two natural ways to lay them out, and they hold the identical information.</p>
+
+<p><strong>Wide</strong> is her whiteboard: one row per item, and one column for each day. The day lives in the header.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>item</th>
+<th>Mon</th>
+<th>Tue</th>
+<th>Wed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sourdough</td>
+<td>18</td>
+<td>22</td>
+<td>25</td>
+</tr>
+<tr>
+<td>Bagel</td>
+<td>40</td>
+<td>38</td>
+<td>44</td>
+</tr>
+<tr>
+<td>Croissant</td>
+<td>15</td>
+<td>19</td>
+<td>12</td>
+</tr>
+</tbody>
+</table>
+
+<p><strong>Long</strong> (the tidy shape) gives every one of those nine numbers its own row, and names the two things that describe it, the <code>day</code> and the <code>units</code>, as proper columns:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>item</th>
+<th>day</th>
+<th>units</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sourdough</td>
+<td>Mon</td>
+<td>18</td>
+</tr>
+<tr>
+<td>Sourdough</td>
+<td>Tue</td>
+<td>22</td>
+</tr>
+<tr>
+<td>Sourdough</td>
+<td>Wed</td>
+<td>25</td>
+</tr>
+<tr>
+<td>Bagel</td>
+<td>Mon</td>
+<td>40</td>
+</tr>
+<tr>
+<td>Bagel</td>
+<td>Tue</td>
+<td>38</td>
+</tr>
+<tr>
+<td>Bagel</td>
+<td>Wed</td>
+<td>44</td>
+</tr>
+<tr>
+<td>Croissant</td>
+<td>Mon</td>
+<td>15</td>
+</tr>
+<tr>
+<td>Croissant</td>
+<td>Tue</td>
+<td>19</td>
+</tr>
+<tr>
+<td>Croissant</td>
+<td>Wed</td>
+<td>12</td>
+</tr>
+</tbody>
+</table>
+
+<p>Same nine sales, retold. The long table is taller and looks more repetitive, but notice what it gained: <code>day</code> is now a real column, and so is <code>units</code>. That is the difference that matters, and the next move is how you get from the first shape to the second.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Wide to long</div>
+<h2>pivot_longer() folds columns into rows</h2>
+
+<p>The move from wide to long is <code>pivot_longer()</code>, from the <strong>tidyr</strong> package. It takes a set of columns and folds them down into two new columns: one holding the old <strong>names</strong>, one holding the old <strong>values</strong>.</p>
+
+<p>Each lesson runs in a fresh R session, so we build Maya's whiteboard right here as a tibble, then reshape it:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidyr)    # pivot_longer(), pivot_wider(), nest(), unnest()
+library(dplyr)    # the pipe and the verbs
+library(tibble)   # tribble()
+
+# Maya's whiteboard: one row per item, one column per weekday
+wk &lt;- tribble(
+  ~item,        ~Mon, ~Tue, ~Wed,
+  &quot;Sourdough&quot;,   18,   22,   25,
+  &quot;Bagel&quot;,       40,   38,   44,
+  &quot;Croissant&quot;,   15,   19,   12
+)
+
+sales_long &lt;- wk %&gt;%
+  pivot_longer(cols      = Mon:Wed,    # the columns to fold
+               names_to  = &quot;day&quot;,      # old headers land here
+               values_to = &quot;units&quot;)    # cell values land here
+sales_long
+#&gt; # A tibble: 9 x 3
+#&gt;   item      day   units
+#&gt;   &lt;chr&gt;     &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 Sourdough Mon      18
+#&gt; 2 Sourdough Tue      22
+#&gt; 3 Sourdough Wed      25
+#&gt; 4 Bagel     Mon      40
+#&gt; 5 Bagel     Tue      38
+#&gt; 6 Bagel     Wed      44
+#&gt; 7 Croissant Mon      15
+#&gt; 8 Croissant Tue      19
+#&gt; 9 Croissant Wed      12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the three arguments as a sentence: fold the columns <code>Mon</code> through <code>Wed</code>; put their <strong>names</strong> into a new column called <code>day</code>; put their <strong>values</strong> into a new column called <code>units</code>. The <code>item</code> column was not named in <code>cols</code>, so it is left alone and simply repeats down each item's three rows.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><code>pivot_longer()</code> always makes the table <strong>taller and narrower</strong>: the folded columns disappear, replaced by one <code>names_to</code> column and one <code>values_to</code> column. Three day-columns became one <code>day</code> column plus one <code>units</code> column, and three rows became nine.</div></div>
+
+<p>Toggle the widget between Wide and Long to watch those three day columns collapse into the tidy pair. The tinted cells show exactly where each number lands.</p>
+<div class="lesson-widget" data-widget-type="reshape-grid" data-widget-config='{"wide":{"cols":["item","Mon","Tue","Wed"],"rows":[["Sourdough",18,22,25],["Bagel",40,38,44],["Croissant",15,19,12]]},"idCols":["item"],"namesTo":"day","valuesTo":"units"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which table is tidy, and what did the pivot do?</h2>
+
+<p>Maya's whiteboard has <code>item</code>, <code>Mon</code>, <code>Tue</code>, <code>Wed</code>. After <code>pivot_longer()</code> she has <code>item</code>, <code>day</code>, <code>units</code>. Which statement is correct?</p>
+<section class="exercise" data-exercise-id="Pivoting-Long-and-Wide-in-R-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The wide whiteboard is tidy, because it is compact and one row per item</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The long table is tidy: <code>day</code> and <code>units</code> are now real columns, one sale per row</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">pivot_longer added new information that was not on the whiteboard</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. <code>pivot_longer()</code> turned the hidden header variable into a <code>day</code> column and the values into a <code>units</code> column, giving one observation (an item on a day) per row, the tidy shape.</div><div class="lesson-qfb lesson-qfb-no">It only re-laid-out the same nine numbers. No data was created or lost; the long table holds exactly what the wide one did.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">Why bother (1)</div>
+<h2>Tidy long data answers questions in one verb</h2>
+
+<p>Why prefer the taller, repetitive shape? Because once every sale is its own row, the dplyr verbs you already know work directly on it. Want only Maya's busiest line? With <code>units</code> as a real column and one sale per row, that is a single <code>filter()</code>:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales_long %&gt;% filter(item == &quot;Bagel&quot;)
+#&gt; # A tibble: 3 x 3
+#&gt;   item  day   units
+#&gt;   &lt;chr&gt; &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 Bagel Mon      40
+#&gt; 2 Bagel Tue      38
+#&gt; 3 Bagel Wed      44</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Press Run on the widget to see that filter pick out the rows it keeps and strike through the rest. Every dplyr verb (<code>filter</code>, <code>mutate</code>, <code>group_by</code> plus <code>summarise</code>) is built to act on one-observation-per-row data, so tidy long shape is the shape that keeps your analysis to one readable line each.</p>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"code":"sales_long %>% filter(item == \"Bagel\")","caption":"filter() keeps only the rows that match. Because the long table has one sale per row, picking Bagels is a single verb.","before":{"cols":["item","day","units"],"rows":[["Sourdough","Mon",18],["Sourdough","Tue",22],["Sourdough","Wed",25],["Bagel","Mon",40],["Bagel","Tue",38],["Bagel","Wed",44],["Croissant","Mon",15],["Croissant","Tue",19],["Croissant","Wed",12]]},"after":{"cols":["item","day","units"],"rows":[["Bagel","Mon",40],["Bagel","Tue",38],["Bagel","Wed",44]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Why bother (2)</div>
+<h2>ggplot maps columns to the page</h2>
+
+<p>The same shape requirement shows up the instant Maya wants a chart. <strong>ggplot2</strong> draws by <em>mapping a column to a position on the page</em>: a column to the x-axis, a column to the y-axis, a column to colour. To put the day on the x-axis, there has to be a <code>day</code> column, which is exactly what the wide whiteboard lacked and the long table now has.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+ggplot(sales_long, aes(x = day, y = units, fill = item)) +
+  geom_col(position = &quot;dodge&quot;) +
+  labs(title = &quot;Loaves sold by day&quot;, x = &quot;Day&quot;, y = &quot;Units&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That chart is impossible from the wide sheet: there is no single <code>day</code> column to hand to <code>x</code>, and no single <code>units</code> column for <code>y</code>. You would have to pivot to long first anyway.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">The rule of thumb: <strong>store and analyse in long (tidy) shape, reshape to wide only at the very end for a human to read.</strong> Most R models (and almost every tidyverse function) expect tidy long data going in.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Long to wide</div>
+<h2>pivot_wider() spreads rows back into columns</h2>
+
+<p>Sometimes wide is genuinely what you want: a compact grid to pin on the wall, or a table for a report. The move from long back to wide is <code>pivot_wider()</code>, the exact inverse of <code>pivot_longer()</code>. You tell it which column's values should become the new headers (<code>names_from</code>) and which column fills the cells (<code>values_from</code>):</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales_wide &lt;- sales_long %&gt;%
+  pivot_wider(names_from  = day,      # these values become column names
+              values_from = units)    # these values fill the grid
+sales_wide
+#&gt; # A tibble: 3 x 4
+#&gt;   item        Mon   Tue   Wed
+#&gt;   &lt;chr&gt;     &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Sourdough    18    22    25
+#&gt; 2 Bagel        40    38    44
+#&gt; 3 Croissant    15    19    12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>We are back to Maya's original whiteboard, exactly. Toggle the widget to <strong>Wide</strong> and it shows you the matching <code>pivot_wider()</code> call.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><code>pivot_longer()</code> and <code>pivot_wider()</code> are <strong>inverses</strong>: longer folds columns into rows, wider spreads rows back into columns. Pivot a table one way and then the other and you are home where you started.</div></div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><code>pivot_wider()</code> assumes each cell of the new grid has exactly <strong>one</strong> value. If a key combination appears twice (say two tills both logged Bagel on Monday) it cannot pick one, so you must say how to combine them with <code>values_fn</code>:</div></div>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dupes &lt;- tribble(
+  ~item,   ~day,  ~units,
+  &quot;Bagel&quot;, &quot;Mon&quot;, 40,
+  &quot;Bagel&quot;, &quot;Mon&quot;, 12
+)
+dupes %&gt;% pivot_wider(names_from  = day,
+                      values_from = units,
+                      values_fn   = sum)   # add the two Monday tills
+#&gt; # A tibble: 1 x 2
+#&gt;   item    Mon
+#&gt;   &lt;chr&gt; &lt;dbl&gt;
+#&gt; 1 Bagel    52</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<div class="lesson-widget" data-widget-type="reshape-grid" data-widget-config='{"wide":{"cols":["item","Mon","Tue","Wed"],"rows":[["Sourdough",18,22,25],["Bagel",40,38,44],["Croissant",15,19,12]]},"idCols":["item"],"namesTo":"day","valuesTo":"units"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Spread a different variable into columns</h2>
+
+<p>You choose which variable becomes the columns. This time, make a grid with one row per <strong>day</strong> and one column per <strong>item</strong> (Sourdough, Bagel, Croissant), the transpose of Maya's whiteboard. The cells still come from <code>units</code>; fill in which column should supply the new headers.</p>
+<section class="exercise" data-exercise-id="Pivoting-Long-and-Wide-in-R-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="names_from\s*=\s*\S*\bitem"><textarea class="lesson-tryit-input" spellcheck="false">sales_long %&gt;%
+  pivot_wider(names_from = ____, values_from = units)
+#&gt; # A tibble: 3 x 4   (day, Sourdough, Bagel, Croissant)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it: names_from = item makes each item a column, and the leftover column (day) becomes the one row per day. You decide which variable spreads into headers.</span><span class="lesson-tryit-fb lesson-tryit-no">You want each ITEM to become a column, so the new headers come from item: names_from = item.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">sales_long %&gt;%
+  pivot_wider(names_from = item, values_from = units)</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Nesting</div>
+<h2>nest() tucks a whole table into one cell</h2>
+
+<p>There is one more reshape worth knowing, and it bends the rules in a surprising way: a single cell can hold an <strong>entire table</strong>. <code>nest()</code> takes the rows belonging to each group and folds them into one cell, a so-called <strong>list-column</strong>.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">by_item &lt;- sales_long %&gt;%
+  nest(.by = item)   # keep one row per item, bundle the rest into `data`
+by_item
+#&gt; # A tibble: 3 x 2
+#&gt;   item      data
+#&gt;   &lt;chr&gt;     &lt;list&gt;
+#&gt; 1 Sourdough &lt;tibble [3 x 2]&gt;
+#&gt; 2 Bagel     &lt;tibble [3 x 2]&gt;
+#&gt; 3 Croissant &lt;tibble [3 x 2]&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now there is one row per item, and the <code>data</code> column is not a number or a word: each cell holds a small <code>day</code>/<code>units</code> tibble of that item's three sales. Picture it like this:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>item</th>
+<th>data</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sourdough</td>
+<td>a 3 x 2 tibble: Mon/18, Tue/22, Wed/25</td>
+</tr>
+<tr>
+<td>Bagel</td>
+<td>a 3 x 2 tibble: Mon/40, Tue/38, Wed/44</td>
+</tr>
+<tr>
+<td>Croissant</td>
+<td>a 3 x 2 tibble: Mon/15, Tue/19, Wed/12</td>
+</tr>
+</tbody>
+</table>
+
+<p>This is how you keep each group's data bundled together so you can do one thing per group (fit a model per item, write one file per item) without breaking the rows apart. And <code>unnest()</code> is the exact undo, flattening the list-column straight back to the tidy long table:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">by_item %&gt;% unnest(data)
+#&gt; # A tibble: 9 x 3   (item, day, units, just like sales_long)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><code>nest()</code> does not summarise or throw anything away. It only re-files the same rows inside cells; <code>unnest()</code> recovers every one of them, so the round trip is lossless, just like longer and wider.</div></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What is inside the data column?</h2>
+
+<p>After <code>sales_long %&gt;% nest(.by = item)</code>, what does the <code>data</code> cell hold for the <strong>Bagel</strong> row?</p>
+<section class="exercise" data-exercise-id="Pivoting-Long-and-Wide-in-R-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The single number 122, Bagel's total units for the week</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A small tibble of Bagel's day and units rows, a 3 x 2 table tucked inside one cell</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The text "Mon, Tue, Wed" pasted into one cell</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A list-column cell holds a whole tibble, here Bagel's three day/units rows. <code>unnest(data)</code> would spill them back out as ordinary rows.</div><div class="lesson-qfb lesson-qfb-no">It is a real nested tibble, a live data frame you can pull back out with <code>unnest()</code>, not a string of pasted-together text.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://r4ds.hadley.nz/data-tidy">R for Data Science (2e), Data tidying and pivoting</a> - the canonical, free chapter on tidy data with worked <code>pivot_longer()</code> and <code>pivot_wider()</code> examples.</li>
+
+<li><a href="https://tidyr.tidyverse.org/reference/pivot_longer.html">tidyr: pivot_longer()</a> - every argument of the wide-to-long move, including <code>names_pattern</code> for tricky headers.</li>
+
+<li><a href="https://tidyr.tidyverse.org/reference/pivot_wider.html">tidyr: pivot_wider()</a> - long-to-wide, with <code>values_fn</code> and <code>values_fill</code> for duplicate or missing keys.</li>
+
+<li><a href="https://tidyr.tidyverse.org/reference/nest.html">tidyr: nest()</a> - list-columns, nesting and rectangling nested data.</li>
+
+<li><a href="https://doi.org/10.18637/jss.v059.i10">Wickham (2014), Tidy Data, Journal of Statistical Software 59(10)</a> - the original paper on why long/tidy is the shape every tool expects.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 2 complete</h2>
+
+<p>You can now change a table's <strong>shape</strong> at will. You went wide to long with <code>pivot_longer()</code> (folding columns into a tidy <code>names</code>/<code>values</code> pair), saw why long shape is what dplyr verbs, ggplot and models all expect, went long back to wide with <code>pivot_wider()</code> (its inverse, with <code>values_fn</code> for duplicate keys), and tucked each group's rows into a list-column with <code>nest()</code>, recovering them with <code>unnest()</code>. The question is always the same: what shape does my next step want?</p>
+
+<p>Next, Lesson 3: Splitting, uniting and fuzzy joins. A column can hold two things at once (<code>&quot;2024-03-01&quot;</code> is really a year, a month and a day), and join keys do not always match exactly. You will split and unite columns with <code>separate()</code> and <code>unite()</code>, and join tables whose keys only <em>nearly</em> agree.</p>
+</section>
+
+{% endraw %}

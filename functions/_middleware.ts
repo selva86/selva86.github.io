@@ -58,12 +58,14 @@ export const onRequest: PagesFunction<Env, string, RequestData> = async (context
   // _redirects cannot 404 files that exist as static assets. Middleware runs
   // ahead of the asset server, so a 404 here is the reliable block.
   // CAREFUL: /posts/ is the user-facing Compendium, so only *.md under it is
-  // blocked here, never the directory or its generated HTML.
+  // blocked here, never the directory or its generated HTML. Same treatment for
+  // /lessons/ (interactive lesson markdown source) and the _lessons/ fragment
+  // dir: source must 404 while the built /<slug>.html lesson pages serve 200.
   const path = new URL(context.request.url).pathname;
-  const BLOCK_DIRS = /^\/(?:_posts|_build|Scripts|Plan|Plans|_archive|_mocks|post_plans)(?:\/|$)/i;
-  const BLOCK_FILES = /^\/(?:wrangler\.toml|schema\.sql|package\.json|package-lock\.json|tsconfig\.json|BUILD-PHASE-0\.md|post_queue\.json|curriculum-status\.json|pseo-status\.json|\.dev\.vars(?:\.example)?|\.gitignore|\.claudecodeignore|CNAME)$/i;
-  const BLOCK_POSTS_MD = /^\/posts\/.+\.md$/i;
-  if (BLOCK_DIRS.test(path) || BLOCK_FILES.test(path) || BLOCK_POSTS_MD.test(path)) {
+  const BLOCK_DIRS = /^\/(?:_posts|_lessons|_build|Scripts|Plan|Plans|_archive|_mocks|post_plans)(?:\/|$)/i;
+  const BLOCK_FILES = /^\/(?:wrangler\.toml|schema\.sql|package\.json|package-lock\.json|tsconfig\.json|BUILD-PHASE-0\.md|post_queue\.json|curriculum-status\.json|pseo-status\.json|lessons-status\.json|\.dev\.vars(?:\.example)?|\.gitignore|\.claudecodeignore|CNAME)$/i;
+  const BLOCK_SOURCE_MD = /^\/(?:posts|lessons)\/.+\.md$/i;
+  if (BLOCK_DIRS.test(path) || BLOCK_FILES.test(path) || BLOCK_SOURCE_MD.test(path)) {
     return new Response("Not Found", { status: 404 });
   }
 

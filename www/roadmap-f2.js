@@ -11,6 +11,8 @@
   document.getElementById('stats').innerHTML='<div><b>6</b><span>roles</span></div><div><b>'+lessons+'</b><span>lessons</span></div><div><b>'+RM2.projectList.length+'</b><span>projects</span></div><div><b>6</b><span>certificates</span></div>';
   var RDESC={foundations:'Start here',analyst:'Wrangle & visualize',ds:'Predict & model',ts:'Forecast ahead',researcher:'Infer & explain',developer:'Engineer & ship'};
   var RARR='<span class="arr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>';
+  var UNLOCK='<a class="tag pro" href="/pricing.html" title="Unlock with Pro" onclick="event.stopPropagation()">Pro</a>';
+  var ROWLOCK='<svg class="lk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg>';
   var SLUG={foundations:'new-to-r',analyst:'data-analyst',ds:'data-scientist',ts:'forecaster',researcher:'researcher',developer:'r-developer'};
   function roleHref(k){return '/roadmap/'+(SLUG[k]||k)+'.html';}
   function rtile(k){return '<a class="rtile" href="'+roleHref(k)+'" style="--c:var('+CV[k]+')"><i></i><span class="rn"><b>'+esc(ROLE[k])+'</b><span>'+esc(RDESC[k])+'</span></span>'+RARR+'</a>';}
@@ -29,7 +31,7 @@
   }
   function secDetails(s,isFree,open){
     return '<details class="sec"'+(open?' open':'')+'><summary><span class="car"></span><span class="sn">'+(s.n<10?'0'+s.n:s.n)+'</span><span class="st">'+esc(s.title)+'</span>'+
-      '<span class="tag '+(isFree?'free':'pro')+'">'+(isFree?'Free':'Pro')+'</span><span class="cnt">'+s.items.length+'</span></summary>'+
+      (isFree?'<span class="tag free">Free</span>':UNLOCK)+'<span class="cnt">'+s.items.length+'</span></summary>'+
       '<div class="lsns">'+s.items.map(function(t){return lessonRow(t,isFree);}).join('')+'</div></details>';
   }
   function milestone(key,opts){
@@ -44,7 +46,7 @@
       '<div class="role">'+esc(ROLE[key])+'</div><h3>'+esc(L.head.replace(/<\/?em>/g,''))+'</h3>'+
       '<p class="become">'+esc(L.become)+'</p><div class="meta">'+meta+'</div>'+body+acts+'</div></div>';
   }
-  document.getElementById('core').innerHTML=milestone('foundations',{step:'1'})+milestone('analyst',{step:'2'});
+  document.getElementById('core').innerHTML=milestone('foundations',{step:'1'})+milestone('analyst',{step:'2',role:true});
   document.getElementById('tracks').innerHTML=TRACKS.map(function(k){return milestone(k,{role:true});}).join('');
 
   // projects: editorial index (E1 format, F theme)
@@ -68,4 +70,26 @@
   window.addEventListener('scroll',onScroll,{passive:true});onScroll();
   var io=new IntersectionObserver(function(es){es.forEach(function(en){if(en.isIntersecting){en.target.classList.add('in');io.unobserve(en.target);}});},{threshold:.06,rootMargin:'0px 0px -8% 0px'});
   document.querySelectorAll('.reveal').forEach(function(el,i){el.style.transitionDelay=(Math.min(i,6)*35)+'ms';io.observe(el);});
+
+  // hero waitlist inline capture -> /api/waitlist (same contract as pricing)
+  (function(){
+    var form=document.getElementById('hero-wl'); if(!form) return;
+    var msg=document.getElementById('hero-wl-msg'),btn=document.getElementById('hero-wl-btn'),em=document.getElementById('hero-wl-email'),orig=btn.innerHTML;
+    form.addEventListener('submit',function(ev){ev.preventDefault();
+      var v=(em.value||'').trim();
+      if(!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(v)){msg.style.color='#b42318';msg.textContent='Please enter a valid email.';return;}
+      btn.disabled=true;btn.textContent='Joining...';
+      fetch('/api/waitlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:v,plan:'allaccess',source:'roadmap-hero'})})
+        .then(function(r){return r.json().catch(function(){return null;}).then(function(d){return {ok:r.ok,d:d};});})
+        .then(function(res){
+          if(res.ok&&res.d&&res.d.ok){form.style.display='none';msg.style.color='#15803d';msg.textContent=res.d.already?"You're already on the list - we'll email you the day Pro opens.":"You're on the list. Check your inbox to confirm.";}
+          else{btn.disabled=false;btn.innerHTML=orig;msg.style.color='#b42318';msg.textContent=(res.d&&res.d.message)||'Something went wrong. Please try again.';}
+        })
+        .catch(function(){btn.disabled=false;btn.innerHTML=orig;msg.style.color='#b42318';msg.textContent='Network error. Please try again.';});
+    });
+  })();
+
+  // option 3: "Unlock with Pro" pill lives inside <summary>; navigate without toggling the accordion
+  document.addEventListener('click',function(e){var u=e.target.closest&&e.target.closest('.unlock');if(u){e.preventDefault();e.stopPropagation();window.location.href=u.getAttribute('href')||'/pricing.html';}},true);
+
 })();

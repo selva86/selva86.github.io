@@ -326,18 +326,26 @@ def build_exercises():
     css, sprite, body = load_fragment('exercises')
     manifest = json.load(open(os.path.join(REPO_ROOT, 'functions', '_data', 'exercise-manifest.json'), encoding='utf-8'))
     hubs = manifest['hubs']
+    lessons_dir = os.path.join(REPO_ROOT, '_lessons')
 
-    # classify every hub into exactly one topic (first-match-wins, fail loudly)
+    # classify every hub into exactly one topic (first-match-wins, fail loudly).
+    # Interactive-lesson hubs share the exercise grading manifest (their gated
+    # steps award XP through the same backend) but are NOT exercise hubs - they
+    # belong to the lesson player, not the Exercises landing - so skip them.
     counts = {key: 0 for key, _ in _EX_TOPIC_RULES}
+    skipped = 0
     for slug in hubs:
+        if os.path.exists(os.path.join(lessons_dir, slug + '.html')):
+            skipped += 1
+            continue
         for key, subs in _EX_TOPIC_RULES:
             if any(s in slug for s in subs):
                 counts[key] += 1
                 break
         else:
             raise RuntimeError(f'exercises: hub not classified into any topic: {slug}')
-    if sum(counts.values()) != len(hubs):
-        raise RuntimeError(f'exercises: topic counts {sum(counts.values())} != hub total {len(hubs)}')
+    if sum(counts.values()) != len(hubs) - skipped:
+        raise RuntimeError(f'exercises: topic counts {sum(counts.values())} != hub total {len(hubs) - skipped}')
 
     quizzes = len(glob.glob(os.path.join(REPO_ROOT, '*-quiz.html')))
 
