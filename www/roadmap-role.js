@@ -157,10 +157,10 @@
   var projs=(RM2.projectList||[]).filter(function(p){return doms.indexOf(p.domain)>=0;});
   if(projs.length){
     var meter=function(t){var n=TIER[t]||1,x='';for(var i=0;i<4;i++)x+='<i class="'+(i<n?'on':'')+'"></i>';return '<span class="meter">'+x+'<span class="ml">'+esc(t)+'</span></span>';};
-    document.getElementById('pgrid').innerHTML=projs.map(function(p){var href=p.free?'/tutorials/':'/pricing.html',cv=DCV[p.domain]||'--ds';
-      return '<a class="prow" href="'+href+'" style="--c:var('+cv+')"><span class="pn">'+(p.n<10?'0'+p.n:p.n)+'</span>'+
+    document.getElementById('pgrid').innerHTML=projs.map(function(p){var cv=DCV[p.domain]||'--ds';
+      return '<span class="prow soon" style="--c:var('+cv+')"><span class="pn">'+(p.n<10?'0'+p.n:p.n)+'</span>'+
         '<span class="pmid"><b>'+esc(p.name)+'</b><span class="pd"><span class="dom">'+esc(p.domain)+'.</span> '+esc(p.blurb)+'</span></span>'+
-        meter(p.tier)+'<span class="ptag '+(p.free?'free':'pro')+'">'+(p.free?'Free':'Pro')+'</span></a>';}).join('');
+        meter(p.tier)+'<span class="ptag soon">Soon</span></span>';}).join('');
   } else {
     document.getElementById('projects-sec').style.display='none';
   }

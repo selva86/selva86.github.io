@@ -52,11 +52,11 @@
   // projects: editorial index (E1 format, F theme)
   var pctl=document.getElementById('pctl'), pgrid=document.getElementById('pgrid');
   function meter(tier){var n=TIER[tier]||1,s='';for(var i=0;i<4;i++)s+='<i class="'+(i<n?'on':'')+'"></i>';return '<span class="meter">'+s+'<span class="ml">'+esc(tier)+'</span></span>';}
-  function prow(p){var href=p.free?'/tutorials/':'/pricing.html',cv=DCV[p.domain]||'--ds';
-    return '<a class="prow" href="'+href+'" data-tier="'+p.tier+'" data-free="'+(p.free?1:0)+'" style="--c:var('+cv+')">'+
+  function prow(p){var cv=DCV[p.domain]||'--ds';
+    return '<span class="prow soon" data-tier="'+p.tier+'" data-free="'+(p.free?1:0)+'" style="--c:var('+cv+')">'+
       '<span class="pn">'+(p.n<10?'0'+p.n:p.n)+'</span>'+
       '<span class="pmid"><b>'+esc(p.name)+'</b><span class="pd"><span class="dom">'+esc(p.domain)+'.</span> '+esc(p.blurb)+'</span></span>'+
-      meter(p.tier)+'<span class="ptag '+(p.free?'free':'pro')+'">'+(p.free?'Free':'Pro')+'</span></a>';}
+      meter(p.tier)+'<span class="ptag soon">Soon</span></span>';}
   pgrid.innerHTML=RM2.projectList.map(prow).join('');
   var fc=RM2.projectList.filter(function(p){return p.free;}).length;
   var F=[['All',RM2.projectList.length],['Free',fc],['Starter',0],['Core',0],['Advanced',0],['Capstone',0]];
