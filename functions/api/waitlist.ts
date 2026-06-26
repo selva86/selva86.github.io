@@ -159,7 +159,7 @@ async function recordSend(
         userId,
         res.ok ? `waitlist.${kind}.sent` : `waitlist.${kind}.failed`,
         ref,
-        JSON.stringify({ status: res.status, error: res.error ?? null }),
+        JSON.stringify({ status: res.status, error: res.error ?? null, body: res.body ?? null }).slice(0, 900),
         Math.floor(Date.now() / 1000),
       )
       .run();
