@@ -51,7 +51,8 @@ const ROADMAP_MAIN=`<main class="wrap">
     <h1 class="disp">Learn R, <u>role by role</u>.</h1>
     <p class="lede">A complete path from your first line of R to real, shippable work, taught in the order a practitioner would teach it. Free to read, certified when you are ready.</p>
     <div class="go"><a class="primary" href="/roadmap/new-to-r.html">Start Learning <span class="a">&rarr;</span></a><a class="ghost" href="#path">Browse the curriculum</a></div>
-    <form class="rmcapture" id="rm-waitlist" novalidate><input type="email" id="rm-wl-email" required autocomplete="email" placeholder="you@email.com" aria-label="Your email"><button type="submit" id="rm-wl-btn">Get launch access <span class="a">&rarr;</span></button></form>
+    <form class="capture" id="hero-wl" onsubmit="return false"><input type="email" id="hero-wl-email" required autocomplete="email" placeholder="you@email.com" aria-label="Email for launch access"><button type="submit" id="hero-wl-btn">Get launch access <span class="a">&rarr;</span></button></form>
+    <p class="capture-fine" id="hero-wl-msg">No card. One email when Pro opens &middot; founding rate locked for the first 200.</p>
     <p class="rmcap-fine" id="rm-wl-msg">No card. One email when Pro opens &middot; founding rate locked for the first 200.</p>
     <div class="stats" id="stats"></div>
     <div class="rolerail" id="rolerail"></div>

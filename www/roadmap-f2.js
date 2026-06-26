@@ -11,7 +11,7 @@
   document.getElementById('stats').innerHTML='<div><b>6</b><span>roles</span></div><div><b>'+lessons+'</b><span>lessons</span></div><div><b>'+RM2.projectList.length+'</b><span>projects</span></div><div><b>6</b><span>certificates</span></div>';
   var RDESC={foundations:'Start here',analyst:'Wrangle & visualize',ds:'Predict & model',ts:'Forecast ahead',researcher:'Infer & explain',developer:'Engineer & ship'};
   var RARR='<span class="arr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span>';
-  var UNLOCK='<a class="unlock" href="/pricing.html"><svg class="ul-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg>Unlock with Pro<svg class="ul-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>';
+  var UNLOCK='<a class="tag pro" href="/pricing.html" title="Unlock with Pro" onclick="event.stopPropagation()">Pro</a>';
   var ROWLOCK='<svg class="lk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg>';
   var SLUG={foundations:'new-to-r',analyst:'data-analyst',ds:'data-scientist',ts:'forecaster',researcher:'researcher',developer:'r-developer'};
   function roleHref(k){return '/roadmap/'+(SLUG[k]||k)+'.html';}
@@ -27,7 +27,7 @@
       if(h) return '<a class="lsn free" href="'+h+'"><span class="lt">'+esc(t)+'</span><span class="arr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span></a>';
       return '<span class="lsn soon"><span class="lt">'+esc(t)+'</span><span class="go">Soon</span></span>';
     }
-    return '<a class="lsn pro" href="/pricing.html">'+ROWLOCK+'<span class="lt">'+esc(t)+'</span></a>';
+    return '<a class="lsn pro" href="/pricing.html"><span class="lt">'+esc(t)+'</span><span class="go">Pro</span></a>';
   }
   function secDetails(s,isFree,open){
     return '<details class="sec"'+(open?' open':'')+'><summary><span class="car"></span><span class="sn">'+(s.n<10?'0'+s.n:s.n)+'</span><span class="st">'+esc(s.title)+'</span>'+
@@ -71,25 +71,25 @@
   var io=new IntersectionObserver(function(es){es.forEach(function(en){if(en.isIntersecting){en.target.classList.add('in');io.unobserve(en.target);}});},{threshold:.06,rootMargin:'0px 0px -8% 0px'});
   document.querySelectorAll('.reveal').forEach(function(el,i){el.style.transitionDelay=(Math.min(i,6)*35)+'ms';io.observe(el);});
 
+  // hero waitlist inline capture -> /api/waitlist (same contract as pricing)
+  (function(){
+    var form=document.getElementById('hero-wl'); if(!form) return;
+    var msg=document.getElementById('hero-wl-msg'),btn=document.getElementById('hero-wl-btn'),em=document.getElementById('hero-wl-email'),orig=btn.innerHTML;
+    form.addEventListener('submit',function(ev){ev.preventDefault();
+      var v=(em.value||'').trim();
+      if(!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(v)){msg.style.color='#b42318';msg.textContent='Please enter a valid email.';return;}
+      btn.disabled=true;btn.textContent='Joining...';
+      fetch('/api/waitlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:v,plan:'allaccess',source:'roadmap-hero'})})
+        .then(function(r){return r.json().catch(function(){return null;}).then(function(d){return {ok:r.ok,d:d};});})
+        .then(function(res){
+          if(res.ok&&res.d&&res.d.ok){form.style.display='none';msg.style.color='#15803d';msg.textContent=res.d.already?"You're already on the list - we'll email you the day Pro opens.":"You're on the list. Check your inbox to confirm.";}
+          else{btn.disabled=false;btn.innerHTML=orig;msg.style.color='#b42318';msg.textContent=(res.d&&res.d.message)||'Something went wrong. Please try again.';}
+        })
+        .catch(function(){btn.disabled=false;btn.innerHTML=orig;msg.style.color='#b42318';msg.textContent='Network error. Please try again.';});
+    });
+  })();
+
   // option 3: "Unlock with Pro" pill lives inside <summary>; navigate without toggling the accordion
   document.addEventListener('click',function(e){var u=e.target.closest&&e.target.closest('.unlock');if(u){e.preventDefault();e.stopPropagation();window.location.href=u.getAttribute('href')||'/pricing.html';}},true);
 
-  // option 2: inline waitlist capture in the hero (same /api/waitlist as the pricing page)
-  (function(){
-    var f=document.getElementById('rm-waitlist'); if(!f) return;
-    var inp=document.getElementById('rm-wl-email'), msg=document.getElementById('rm-wl-msg'), btn=document.getElementById('rm-wl-btn');
-    f.addEventListener('submit',function(ev){
-      ev.preventDefault();
-      var email=(inp.value||'').trim();
-      if(!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(email)){ msg.style.color='#b42318'; msg.textContent='Please enter a valid email.'; return; }
-      var bt=btn.innerHTML; btn.disabled=true; btn.textContent='Joining...';
-      fetch('/api/waitlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:email,plan:'',source:'roadmap'})})
-        .then(function(r){return r.json().catch(function(){return null;}).then(function(d){return {ok:r.ok,d:d};});})
-        .then(function(res){
-          if(res.ok&&res.d&&res.d.ok){ f.style.display='none'; msg.style.color='#15803d'; msg.textContent=res.d.already?"You are already on the list - we will email you the day Pro opens.":"You are on the list. Check your inbox to confirm."; }
-          else { btn.disabled=false; btn.innerHTML=bt; msg.style.color='#b42318'; msg.textContent=(res.d&&res.d.message)||'Something went wrong. Please try again.'; }
-        })
-        .catch(function(){ btn.disabled=false; btn.innerHTML=bt; msg.style.color='#b42318'; msg.textContent='Network error. Please try again.'; });
-    });
-  })();
 })();
