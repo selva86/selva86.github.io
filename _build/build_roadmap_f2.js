@@ -50,7 +50,7 @@ const ROADMAP_MAIN=`<main class="wrap">
   <header class="hero reveal">
     <h1 class="disp">Learn R, <u>role by role</u>.</h1>
     <p class="lede">A complete path from your first line of R to real, shippable work, taught in the order a practitioner would teach it. Free to read, certified when you are ready.</p>
-    <div class="go"><a class="primary" href="/pricing.html">Get certified <span class="a">&rarr;</span></a><a class="ghost" href="#path">Browse the curriculum</a></div>
+    <div class="go"><a class="primary" href="/roadmap/new-to-r.html">Start Learning <span class="a">&rarr;</span></a><a class="ghost" href="#path">Browse the curriculum</a></div>
     <div class="stats" id="stats"></div>
     <div class="rolerail" id="rolerail"></div>
   </header>

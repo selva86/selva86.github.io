@@ -44,7 +44,7 @@
       '<div class="role">'+esc(ROLE[key])+'</div><h3>'+esc(L.head.replace(/<\/?em>/g,''))+'</h3>'+
       '<p class="become">'+esc(L.become)+'</p><div class="meta">'+meta+'</div>'+body+acts+'</div></div>';
   }
-  document.getElementById('core').innerHTML=milestone('foundations',{step:'1'})+milestone('analyst',{step:'2'});
+  document.getElementById('core').innerHTML=milestone('foundations',{step:'1'})+milestone('analyst',{step:'2',role:true});
   document.getElementById('tracks').innerHTML=TRACKS.map(function(k){return milestone(k,{role:true});}).join('');
 
   // projects: editorial index (E1 format, F theme)
