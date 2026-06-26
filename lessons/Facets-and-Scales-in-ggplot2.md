@@ -111,7 +111,7 @@ Maya already tried colouring the three branches on one panel and it came out as 
 
 `facet_wrap` splits by one variable. Sometimes you want to split by **two** at once, laid out as a true matrix: one variable down the rows, another across the columns. That is `facet_grid(rows ~ cols)`, with the row variable on the left of the `~` and the column variable on the right.
 
-Suppose Maya wants to compare weekdays against weekends for each branch. First derive a `part` column on the same `sales` data, then facet branch (rows) by part (columns):
+Suppose Maya wants to compare weekdays against weekends for each branch. First derive a `part` column that tags each day as either `"weekend"` or `"weekday"` (`%in%` tests whether the day is Sat or Sun, and `ifelse` picks the label), then facet branch (rows) by part (columns):
 
 ```r
 sales$part <- ifelse(sales$day %in% c("Sat", "Sun"), "weekend", "weekday")

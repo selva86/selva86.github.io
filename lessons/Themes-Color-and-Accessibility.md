@@ -32,7 +32,7 @@ By the end of this lesson you will be able to:
 
 **Prerequisites:** you can build a basic ggplot and map a column to colour, `ggplot(data, aes(...)) + geom_*()` (from [Data Visualization with ggplot2](ggplot2-Course.html) and Lesson 1 of this course, [Facets and Scales](Facets-and-Scales-in-ggplot2.html)). Every new function is defined as it appears.
 
-::widget theme-styler {}
+::widget theme-styler {"data":[{"x":"Downtown","y":3230},{"x":"Riverside","y":2160},{"x":"Airport","y":21020}],"x":"branch","y":"revenue"}
 
 === step === concept
 ::eyebrow First lever
@@ -86,7 +86,7 @@ base + theme_minimal()  # same bars, cleaner furniture
 
 The bars are identical; the background, gridlines and spacing are what moved. The widget below makes that tangible across all three branches: switch the **Theme** control and watch the panel restyle while the bars hold steady. (Ignore the Palette control for one more step.)
 
-::widget theme-styler {"data":[{"x":"Downtown","y":3230},{"x":"Riverside","y":2160},{"x":"Airport","y":17320}],"x":"branch","y":"revenue"}
+::widget theme-styler {"data":[{"x":"Downtown","y":3230},{"x":"Riverside","y":2160},{"x":"Airport","y":21020}],"x":"branch","y":"revenue"}
 
 [KEY INSIGHT]
 A `theme_*()` layer restyles the non-data parts of a plot in one move. It changes how the chart *looks*, never what it *says*: the same data drawn under `theme_void()` and `theme_bw()` reports identical numbers.
@@ -104,11 +104,12 @@ First, a vocabulary point. In ggplot2, `colour` controls the outline of points a
 
 Maya's `branch` is categorical, so a discrete scale is right. The widget below shows the bar chart and, beside it, the exact ggplot code, so you can see the mapping from data to `aes` to geom. Picture a `scale_fill_*` line added to that code as you read on:
 
-::widget chart-plotter {"data":[{"x":"Downtown","y":3230,"fill":"Downtown"},{"x":"Riverside","y":2160,"fill":"Riverside"},{"x":"Airport","y":17320,"fill":"Airport"}],"geoms":["bar"],"x":"branch","y":"revenue"}
+::widget chart-plotter {"data":[{"x":"Downtown","y":3230,"fill":"Downtown"},{"x":"Riverside","y":2160,"fill":"Riverside"},{"x":"Airport","y":21020,"fill":"Airport"}],"geoms":["bar"],"x":"branch","y":"revenue"}
 
 Here are two good discrete choices on Maya's branches, run them and compare:
 
 ```r
+# Add up the week's revenue within each branch: one row per branch.
 totals <- aggregate(revenue ~ branch, data = sales, FUN = sum)
 
 ggplot(totals, aes(branch, revenue, fill = branch)) +
@@ -176,7 +177,7 @@ The fix has two halves, and good design uses both:
 
 The widget below is the same chart under three palettes. Switch the **Palette** control to **colorblind-safe** to see the Okabe-Ito set, eight colours chosen by Masataka Okabe and Kei Ito specifically to stay distinguishable for colour vision deficiency:
 
-::widget theme-styler {"data":[{"x":"Downtown","y":3230},{"x":"Riverside","y":2160},{"x":"Airport","y":17320}],"x":"branch","y":"revenue"}
+::widget theme-styler {"data":[{"x":"Downtown","y":3230},{"x":"Riverside","y":2160},{"x":"Airport","y":21020}],"x":"branch","y":"revenue"}
 
 [WARNING]
 Colour is not just decoration, it carries meaning, so it has to reach every reader. A chart whose groups are told apart by hue alone can be unreadable to a colourblind viewer. Reach for a colourblind-safe palette by default, and back colour up with a second channel.
