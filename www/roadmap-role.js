@@ -5,6 +5,8 @@
   var ROLE={foundations:'New to R',analyst:'Data Analyst',ds:'Data Scientist',ts:'Forecaster',researcher:'Researcher',developer:'R Developer'};
   var CHIP={foundations:'Foundations',analyst:'Data Analyst track',ds:'Data Scientist track',ts:'Forecaster track',researcher:'Researcher track',developer:'R Developer track'};
   var ALLOWED=['foundations','analyst','ds','ts','researcher','developer'];
+  var UNLOCK='<a class="unlock" href="/pricing.html"><svg class="ul-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg>Unlock with Pro<svg class="ul-i" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></a>';
+  var ROWLOCK='<svg class="lk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg>';
 
   var role=(document.body.getAttribute('data-role'))||(location.search.match(/[?&]role=([a-z]+)/)||[])[1]||'ds';
   if(ALLOWED.indexOf(role)<0)role='ds';
@@ -123,12 +125,12 @@
       if(h) return '<a class="lsn free" href="'+h+'"><span class="lt">'+esc(t)+'</span><span class="arr"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></span></a>';
       return '<span class="lsn soon"><span class="lt">'+esc(t)+'</span><span class="go">Soon</span></span>';
     }
-    return '<a class="lsn pro" href="/pricing.html"><span class="lt">'+esc(t)+'</span><span class="go">Pro</span></a>';
+    return '<a class="lsn pro" href="/pricing.html">'+ROWLOCK+'<span class="lt">'+esc(t)+'</span></a>';
   }
   function secDetails(s,free,open){
     return '<details id="rm-s'+s.n+'" class="sec"'+(open?' open':'')+'><summary><span class="car"></span><span class="sn">'+(s.n<10?'0'+s.n:s.n)+'</span>'+
       '<span class="st">'+esc(s.title)+'<span class="so">'+esc(s.outcome)+'</span></span>'+
-      '<span class="tag '+(free?'free':'pro')+'">'+(free?'Free':'Pro')+'</span><span class="cnt">'+s.items.length+'</span></summary>'+
+      (free?'<span class="tag free">Free</span>':UNLOCK)+'<span class="cnt">'+s.items.length+'</span></summary>'+
       '<div class="lsns">'+s.items.map(function(t){return lessonRow(t,free);}).join('')+'</div></details>';
   }
   document.getElementById('curric').innerHTML=secs.map(function(s,i){return secDetails(s,isFree(s),i===0);}).join('');
@@ -172,6 +174,9 @@
   window.addEventListener('scroll',onScroll,{passive:true});onScroll();
   var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}});},{threshold:.05,rootMargin:'0px 0px -6% 0px'});
   document.querySelectorAll('.reveal').forEach(function(el,i){el.style.transitionDelay=(Math.min(i,6)*35)+'ms';io.observe(el);});
+
+  // option 3: "Unlock with Pro" pill lives inside <summary>; navigate without toggling the accordion
+  document.addEventListener('click',function(e){var u=e.target.closest&&e.target.closest('.unlock');if(u){e.preventDefault();e.stopPropagation();window.location.href=u.getAttribute('href')||'/pricing.html';}},true);
 
   // --- surface interactive step-player lessons on their roadmap sections ---
   // Reads /courses.json (the generated catalog) and, for every course mapped to
