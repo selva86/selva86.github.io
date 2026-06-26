@@ -11,7 +11,7 @@
 
 import type { Env, RequestData } from "../_middleware";
 import { json, jsonError } from "../_lib/errors";
-import { sendMail, emailShell } from "../_lib/email";
+import { sendMail, emailShell, type SendMailResult } from "../_lib/email";
 
 const ADMIN_EMAIL = "selva86@gmail.com";
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/;
@@ -80,18 +80,24 @@ export const onRequestPost: PagesFunction<Env, string, RequestData> = async (con
     return jsonError(500, "db_error", "Could not save your spot. Please try again.");
   }
 
-  // Best-effort emails — never block or fail the response.
+  // Best-effort emails - never block or fail the response.
+  // The confirmation is sent on EVERY submit, including re-submits: a returning
+  // subscriber who never got the first email (e.g. during an email outage) can
+  // re-trigger it. The per-IP rate limit above caps abuse. Each send records its
+  // outcome to audit_log so a silent delivery failure stays queryable in D1
+  // (mirrors the signup-notification path) instead of vanishing into logs.
+  context.waitUntil(sendConfirmation(env, email, userId).catch((e) =>
+    console.warn(`[waitlist] confirmation email failed: ${e}`)));
+  // Admin is alerted for genuinely-new signups only (a re-submit is not news).
   if (!already) {
-    context.waitUntil(sendConfirmation(env, email).catch((e) =>
-      console.warn(`[waitlist] confirmation email failed: ${e}`)));
-    context.waitUntil(notifyAdmin(env, { email, plan, source, country }).catch((e) =>
+    context.waitUntil(notifyAdmin(env, { email, plan, source, country }, userId).catch((e) =>
       console.warn(`[waitlist] admin email failed: ${e}`)));
   }
 
   return json({ ok: true, already });
 };
 
-async function sendConfirmation(env: Env, email: string): Promise<void> {
+async function sendConfirmation(env: Env, email: string, userId: string | null): Promise<void> {
   const html = emailShell({
     preheader: "You're on the r-statistics.co Pro founding-member waitlist.",
     contentHtml:
@@ -105,7 +111,7 @@ async function sendConfirmation(env: Env, email: string): Promise<void> {
     ctaUrl: "https://r-statistics.co/roadmap/",
     ctaLabel: "Explore the roadmap while you wait",
   });
-  await sendMail(env, {
+  const res = await sendMail(env, {
     to: { email },
     subject: "You're on the r-statistics.co Pro waitlist",
     htmlBody: html,
@@ -113,10 +119,12 @@ async function sendConfirmation(env: Env, email: string): Promise<void> {
       "Your founding price is locked in and we'll email you once, the moment Pro opens, with your checkout link. " +
       "Your access begins when the paid features go live, not today. Until then everything stays free.",
   });
+  await recordSend(env, userId, "confirm", email, res);
 }
 
 async function notifyAdmin(
   env: Env, info: { email: string; plan: string | null; source: string; country: string | null },
+  userId: string | null,
 ): Promise<void> {
   if ((await env.KV.get("flag:waitlist-admin-email")) === "off") return;   // default on
   const html = emailShell({
@@ -128,10 +136,32 @@ async function notifyAdmin(
       `<p style="margin:0 0 6px">Source: ${esc(info.source)}</p>` +
       `<p style="margin:0">Country: ${esc(info.country || "?")}</p>`,
   });
-  await sendMail(env, {
+  const res = await sendMail(env, {
     to: { email: ADMIN_EMAIL, name: "Selva" },
     subject: `New Pro waitlist signup: ${info.email}`,
     htmlBody: html,
     textBody: `New Pro waitlist signup: ${info.email} · plan: ${info.plan || "(none)"} · source: ${info.source} · country: ${info.country || "?"}`,
   });
+  await recordSend(env, userId, "admin", info.email, res);
+}
+
+// Durable record of each email outcome (sent/failed + ZeptoMail HTTP status) so
+// a silent delivery failure is queryable in D1 rather than lost to ephemeral
+// logs. Mirrors the signup-notification path. Never throws.
+async function recordSend(
+  env: Env, userId: string | null, kind: "confirm" | "admin", ref: string, res: SendMailResult,
+): Promise<void> {
+  try {
+    await env.DB.prepare(
+      "INSERT INTO audit_log (user_id, actor, action, ref, meta_json, at) VALUES (?, 'system', ?, ?, ?, ?)",
+    )
+      .bind(
+        userId,
+        res.ok ? `waitlist.${kind}.sent` : `waitlist.${kind}.failed`,
+        ref,
+        JSON.stringify({ status: res.status, error: res.error ?? null }),
+        Math.floor(Date.now() / 1000),
+      )
+      .run();
+  } catch { /* observability is non-fatal */ }
 }
