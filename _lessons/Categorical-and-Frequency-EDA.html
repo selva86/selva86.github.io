@@ -1,0 +1,440 @@
+---
+title: "Exploratory Data Analysis Lesson 5: Categorical and frequency EDA"
+description: "Explore categorical data in R: build frequency and proportion tables, cross-tabulate two variables, read row versus column proportions, and fix rare, missing and mislabeled levels."
+keywords: "categorical EDA, frequency table in R, proportion table, table function, prop.table, two-way cross tab, contingency table, bar chart, factor levels, dplyr count, exploratory data analysis"
+mathjax: true
+webr: true
+curriculum_id: "2.3.5"
+post_type: "LESSON"
+course_id: "da-eda"
+course_title: "Exploratory Data Analysis in R"
+course_lesson: "5"
+course_total: "8"
+course_landing: "EDA-Course.html"
+course_next: "Distribution-Shape-and-Transformations.html"
+course_prev: "Detecting-Outliers-in-R.html"
+lesson_access: "free"
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 5 of 8</div>
+<h2>Categories, not just numbers</h2>
+
+<p>In Lesson 4 you hunted outliers in Maya's <strong>numbers</strong>: her daily revenue and customer counts. But numbers are only half of most datasets. The other half is <strong>categories</strong>, the labels that say <em>which</em> item sold, <em>which</em> way the order came in, <em>which</em> kind of weather it was. A category has no mean and no boxplot, so it needs its own toolkit, and that toolkit is what this lesson hands you.</p>
+
+<p>Maya has started logging every individual <strong>order</strong> at her bakery, not just the daily totals. Each of her 48 March orders carries two category columns: the <code>item</code> sold (croissant, sourdough, muffin, and so on) and the <code>channel</code> it came through (walk-in, online or phone). The chart below is the very first question you ask of a category: how often does each value occur?</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Build a <strong>frequency table</strong> and a <strong>proportion table</strong> for a category in R (<code>table</code>, <code>prop.table</code>, <code>count</code>)</li>
+
+<li>Read a category's distribution from an <strong>ordered bar chart</strong></li>
+
+<li><strong>Cross-tabulate</strong> two categories and read it by <strong>row versus column proportions</strong> to answer the right question</li>
+
+<li>Spot and fix the three category defects, <strong>rare</strong>, <strong>missing</strong> and <strong>mislabeled</strong> levels, before they break an analysis</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and load a package with <code>library()</code>, and you have met one-variable EDA on numeric columns, the histogram, mean versus median, the IQR and the boxplot, in <a href="An-EDA-Framework-and-One-Variable.html">Lesson 1</a> through <a href="Detecting-Outliers-in-R.html">Lesson 4</a>. Every new categorical term is defined as it appears.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"croissant","y":16},{"x":"sourdough","y":12},{"x":"muffin","y":8},{"x":"baguette","y":6},{"x":"cookie","y":4},{"x":"scone","y":2}],"geoms":["bar"],"x":"item","y":"orders","code":{"bar":"ggplot(orders, aes(item)) +\n  geom_bar()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The first move</div>
+<h2>Counting categories: the frequency table</h2>
+
+<p>A <strong>categorical variable</strong> is one whose values are labels from a fixed set, not measured numbers. Maya's <code>item</code> is <strong>nominal</strong>: its values (croissant, muffin, scone) have no natural order. Some categories are <strong>ordinal</strong>, ordered but not numeric, like a <code>size</code> of small, medium, large. Each distinct value a category can take is called a <strong>level</strong>. Maya's <code>item</code> has six levels.</p>
+
+<p>You cannot average a label, so the first thing you do with a category is <strong>count it</strong>: how many orders fall into each level? That count, level by level, is a <strong>frequency table</strong>, the categorical cousin of the histogram.</p>
+
+<p>Each lesson runs in a fresh R session, so let us build Maya's order log here (run this once). It is deterministic, so every count below is exact:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+# 48 March orders: the item sold and the channel it came through
+item &lt;- c(
+  rep(&quot;croissant&quot;, 16), rep(&quot;sourdough&quot;, 12), rep(&quot;muffin&quot;, 8),
+  rep(&quot;baguette&quot;, 6),   rep(&quot;cookie&quot;, 4),     rep(&quot;scone&quot;, 2)
+)
+channel &lt;- c(
+  rep(&quot;walk-in&quot;, 10), rep(&quot;online&quot;, 4), rep(&quot;phone&quot;, 2),   # croissant
+  rep(&quot;walk-in&quot;, 4),  rep(&quot;online&quot;, 6), rep(&quot;phone&quot;, 2),   # sourdough
+  rep(&quot;walk-in&quot;, 5),  rep(&quot;online&quot;, 2), rep(&quot;phone&quot;, 1),   # muffin
+  rep(&quot;walk-in&quot;, 4),  rep(&quot;online&quot;, 1), rep(&quot;phone&quot;, 1),   # baguette
+  rep(&quot;walk-in&quot;, 3),  rep(&quot;online&quot;, 1),                    # cookie
+  rep(&quot;walk-in&quot;, 2)                                         # scone
+)
+orders &lt;- data.frame(item, channel, stringsAsFactors = FALSE)
+nrow(orders)
+#&gt; [1] 48</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Base R's <code>table()</code> counts the levels for you, in alphabetical order:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">table(orders$item)               # how many orders of each item
+#&gt;
+#&gt;  baguette    cookie croissant    muffin     scone sourdough
+#&gt;         6         4        16         8         2        12</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The tidyverse equivalent, <code>dplyr::count()</code>, returns a tidy data frame and can sort it so the most popular level comes first, which is usually how you want to read it:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">count(orders, item, sort = TRUE)  # same counts, most popular first
+#&gt; # A tibble: 6 x 2
+#&gt;   item          n
+#&gt;   &lt;chr&gt;     &lt;int&gt;
+#&gt; 1 croissant    16
+#&gt; 2 sourdough    12
+#&gt; 3 muffin        8
+#&gt; 4 baguette      6
+#&gt; 5 cookie        4
+#&gt; 6 scone         2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same six numbers, two ways. Croissants are the runaway favourite at 16 orders; scones limp in at 2. That single table is the categorical first look.</p>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"code":"orders %>%\n  count(item, sort = TRUE)","caption":"Forty-eight individual order rows collapse to one count per item: the frequency table.","before":{"cols":["order","item","channel"],"rows":[["1","croissant","walk-in"],["2","croissant","online"],["3","sourdough","online"],["4","muffin","walk-in"],["...","...","..."]]},"after":{"cols":["item","n"],"rows":[["croissant",16],["sourdough",12],["muffin",8],["baguette",6],["cookie",4],["scone",2]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Counts into shares</div>
+<h2>Proportions: each level as a share of the whole</h2>
+
+<p>A raw count answers "how many?" but not "how big a slice?" Sixteen croissants sounds impressive until you ask: out of how many orders? To compare levels fairly, and to compare across datasets of different sizes, you convert counts into <strong>proportions</strong>.</p>
+
+<p>Write \(n_i\) for the count of orders of item \(i\) (its frequency) and \(N\) for the total number of orders. The proportion of item \(i\) is</p>
+
+<p>\[ \hat p_i = \frac{n_i}{N} \]</p>
+
+<p>read "p-hat sub i", the share of all orders that are that item. For croissants, \(\hat p = 16/48 = 0.333\): exactly a third. Because every order belongs to exactly one item, the six proportions add up to 1, or 100%.</p>
+
+<p>In R, <code>prop.table()</code> divides a frequency table by its total:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(prop.table(table(orders$item)), 3)   # each count divided by 48
+#&gt;
+#&gt;  baguette    cookie croissant    muffin     scone sourdough
+#&gt;     0.125     0.083     0.333     0.167     0.042     0.250</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Croissants are 33.3% of orders, sourdough a quarter, and scones a mere 4.2%. A clean version of that same table, percentages and all, reads much better in a report:</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Counts and proportions answer different questions, so keep both. A <strong>proportion</strong> tells you how a level compares (croissants are a third of orders); the <strong>count</strong> behind it tells you how much to trust that share. A level can be 4% of your data and still be only 2 observations, far too few to model or to act on.</div></div>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["item","orders","share"],"rows":[["croissant",16,0.333],["sourdough",12,0.25],["muffin",8,0.167],["baguette",6,0.125],["cookie",4,0.083],["scone",2,0.042]],"formats":{"share":"pct"},"title":"Items by frequency, March order log","note":"share = each item count divided by the 48 total orders; the six shares sum to 1."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What a proportion hides</h2>
+
+<p><code>prop.table()</code> says scones are 4.2% of orders and croissants 33%. A colleague glances at it and says, "scones are negligible, only 4%, drop them." Reading the <strong>proportion alone</strong>, what crucial fact has been hidden?</p>
+<section class="exercise" data-exercise-id="Categorical-and-Frequency-EDA-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The raw count behind the 4.2%: it is just 2 actual scone orders out of 48, and a proportion on its own never tells you how many observations sit beneath it</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Nothing: a proportion already contains everything the raw count does</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">That the proportions do not add up to 100%, so they cannot be compared</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. A proportion is a ratio that throws away its denominator. 4.2% could be 2 orders out of 48 or 2,000 out of 48,000, and they read identically. Always check the count behind a small share before acting on it.</div><div class="lesson-qfb lesson-qfb-no">They do sum to 1 across the six items (0.125 + 0.083 + 0.333 + 0.167 + 0.042 + 0.250 = 1). The hidden fact is the raw count, not a broken total.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">Show it</div>
+<h2>The bar chart: a frequency table you can see</h2>
+
+<p>A frequency table is exact, but the eye reads a picture faster. The right picture for a category is a <strong>bar chart</strong>: one bar per level, its height the count (or proportion). Unlike a histogram, the bars sit apart, because the categories are separate buckets, not a continuous range.</p>
+
+<p>One habit makes a bar chart far more readable: <strong>order the bars by frequency</strong>, tallest first, instead of leaving them in alphabetical order. The shape of the distribution, who dominates, who is rare, jumps straight out.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+ggplot(orders, aes(item)) +
+  geom_bar()                     # one bar per item, height = count</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><code>geom_bar()</code> counts the rows for you, so you hand it the raw <code>orders</code>, not a pre-made table. By default the bars come in alphabetical order; to sort them tallest-first, reorder the item levels by their frequency (the tidyverse helper <code>forcats::fct_infreq()</code> does exactly this: <code>aes(fct_infreq(item))</code>).</div></div>
+
+<p>The widget below is that same bar chart, already ordered by frequency. Croissant towers over scone, the same story the table told, now at a glance:</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"croissant","y":16},{"x":"sourdough","y":12},{"x":"muffin","y":8},{"x":"baguette","y":6},{"x":"cookie","y":4},{"x":"scone","y":2}],"geoms":["bar"],"x":"item","y":"orders","code":{"bar":"ggplot(orders, aes(fct_infreq(item))) +\n  geom_bar()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Turn counts into a proportion table</h2>
+
+<p>You have the item counts. Now express each item as a <strong>share</strong> of all 48 orders. Fill in the function that converts a frequency table into proportions.</p>
+<section class="exercise" data-exercise-id="Categorical-and-Frequency-EDA-step6" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="prop\.table\s*\("><textarea class="lesson-tryit-input" spellcheck="false"># each item as a share of all 48 orders
+round(____(table(orders$item)), 3)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That divides each count by 48, so the six shares sum to 1: croissant is a third of all orders (0.333), scone just 4% (0.042).</span><span class="lesson-tryit-fb lesson-tryit-no">Wrap the counts in prop.table(): round(prop.table(table(orders$item)), 3).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">round(prop.table(table(orders$item)), 3)
+#&gt;
+#&gt;  baguette    cookie croissant    muffin     scone sourdough
+#&gt;     0.125     0.083     0.333     0.167     0.042     0.250</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Two categories at once</div>
+<h2>The two-way cross-tab</h2>
+
+<p>One category tells you what sells. Two categories together tell you a <em>story</em>: does <strong>how</strong> an order arrives depend on <strong>what</strong> is ordered? To answer that you count every combination of <code>item</code> and <code>channel</code> at once, a <strong>two-way cross-tabulation</strong> (also called a contingency table). Hand <code>table()</code> two columns and it builds the grid: items down the rows, channels across the columns, each cell the joint count.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">tab &lt;- table(orders$item, orders$channel)   # rows = item, columns = channel
+addmargins(tab)                              # add the row and column totals
+#&gt;
+#&gt;             online phone walk-in Sum
+#&gt;   baguette       1     1       4   6
+#&gt;   cookie         1     0       3   4
+#&gt;   croissant      4     2      10  16
+#&gt;   muffin         2     1       5   8
+#&gt;   scone          0     0       2   2
+#&gt;   sourdough      6     2       4  12
+#&gt;   Sum           14     6      28  48</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>Sum</code> row and column are the <strong>margins</strong>: the channel totals (28 walk-in, 14 online, 6 phone) and the item totals you already knew. Walk-in dominates overall. But the cell counts hide a twist, and to see it you need proportions again, this time <em>within</em> a row or a column.</p>
+
+<p>Reading proportions across one <strong>row</strong> conditions on the item. Write \(n_{ij}\) for the count in row item \(i\), column channel \(j\), and \(n_{i\cdot} = \sum_j n_{ij}\) for that item's row total. The <strong>row (conditional) proportion</strong> is</p>
+
+<p>\[ \hat p_{j \mid i} = \frac{n_{ij}}{n_{i\cdot}} \]</p>
+
+<p>the share of item \(i\)'s orders that arrived through channel \(j\). In R, <code>prop.table(tab, margin = 1)</code> divides each cell by its row total:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(prop.table(tab, margin = 1)[&quot;sourdough&quot;, ], 2)   # how each SOURDOUGH order arrived
+#&gt;  online   phone walk-in
+#&gt;    0.50    0.17    0.33</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Half of all sourdough orders are placed <strong>online</strong>, far more than the 29% online share overall. Sourdough is a pre-order loaf. Now swap the denominator: divide each cell by its <strong>column</strong> total instead (<code>margin = 2</code>) and you answer the opposite question, who placed the online orders?</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(prop.table(tab, margin = 2)[, &quot;online&quot;], 2)      # of all ONLINE orders, which item?
+#&gt; baguette    cookie croissant    muffin     scone sourdough
+#&gt;     0.07      0.07      0.29      0.14      0.00      0.43</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Sourdough is 43% of online orders, the biggest slice but not a majority. The 100%-stacked bar below is the picture of those <strong>row</strong> proportions: each item's bar is split into its channel mix, sourdough's online block reaching up to the halfway line:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ggplot(orders, aes(item, fill = channel)) +
+  geom_bar(position = &quot;fill&quot;) +              # each bar normalised to 1: the channel mix
+  labs(y = &quot;share of orders&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Row proportions and column proportions answer <strong>different</strong> questions from the <strong>same</strong> cells. "Half of sourdough is online" (a row, denominator = sourdough orders) is not "half of online is sourdough" (a column, denominator = online orders). Before you compute a conditional proportion, decide which total belongs in the denominator: the one that matches your question.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Row or column?</h2>
+
+<p>From the cross-tab, <strong>6 of sourdough's 12 orders</strong> were online, and those same 6 are <strong>6 of the 14 online orders</strong>. Which statement does the <strong>row-proportion</strong> table (each item's row summing to 1) support?</p>
+<section class="exercise" data-exercise-id="Categorical-and-Frequency-EDA-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Half of sourdough orders were placed online (6 of 12, so 0.50)</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Half of online orders were sourdough</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Sourdough and online are the same-sized category, since the cell is 6 either way</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A row proportion conditions on the item: inside sourdough's 12 orders, half went online. You read across one item's row, whose total is the denominator.</div><div class="lesson-qfb lesson-qfb-no">The 6 is the overlap, read two ways. The categories have different totals (12 sourdough orders versus 14 online), which is exactly why 6 out of 12 and 6 out of 14 give different proportions.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Before you trust a category</div>
+<h2>Rare, missing and mislabeled levels</h2>
+
+<p>Real category columns arrive messy, and the mess will quietly wreck an analysis if you skip this step. Three defects show up again and again, and a single frequency table catches all three. Here is Maya's <code>channel</code> column as three different staff members <strong>actually typed it</strong>, before anyone cleaned it:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># the channel column as it was really logged across the 48 orders
+channel_raw &lt;- c(
+  rep(&quot;online&quot;, 9),   rep(&quot;Online&quot;, 5),
+  rep(&quot;walk-in&quot;, 22), rep(&quot;Walk-in&quot;, 3), rep(&quot;walk-in &quot;, 2),
+  rep(&quot;phone&quot;, 5),    &quot;wholesale&quot;, NA
+)
+length(channel_raw)               # still 48 orders
+#&gt; [1] 48
+length(unique(channel_raw))       # but how many DISTINCT labels?
+#&gt; [1] 8
+sum(is.na(channel_raw))           # orders with no channel recorded
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Forty-eight orders, but <strong>eight</strong> distinct labels where there should be three. Tabulate it and the defects name themselves:</p>
+
+<ul>
+
+<li><strong>Mislabeled levels.</strong> <code>online</code> and <code>Online</code> are the same channel typed two ways; <code>walk-in</code>, <code>Walk-in</code> and <code>walk-in </code> (with a trailing space) are <em>three</em> spellings of one. R treats every spelling as a separate level, so your counts are silently split.</li>
+
+<li><strong>A rare level.</strong> <code>wholesale</code> appears exactly once. A level with one or two observations is too thin to model and is often a typo or a genuine one-off that needs a decision.</li>
+
+<li><strong>A missing level.</strong> One order has <code>NA</code>, no channel recorded at all. Ignore it and counts and proportions drift.</li>
+
+</ul>
+
+<p>The cure is three small, deliberate fixes: standardise the spelling, collapse the rare level, and give the missing value its own honest label.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">clean &lt;- tolower(trimws(channel_raw))    # mislabels: lowercase, then strip stray spaces
+counts &lt;- table(clean)                   # what survives the spelling fix?
+rare   &lt;- names(counts)[counts &lt; 2]      # any level with fewer than 2 orders
+clean[clean %in% rare] &lt;- &quot;other&quot;        # collapse the rare one-off into &quot;other&quot;
+clean[is.na(clean)]    &lt;- &quot;unknown&quot;      # make the missing value its own level
+table(clean)
+#&gt; clean
+#&gt;  online   other   phone unknown walk-in
+#&gt;      14       1       5       1      27</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Eight messy labels become five honest ones: the three real channels (<code>online</code> 14, <code>walk-in</code> 27, <code>phone</code> 5), the rare order folded into <code>other</code>, and the blank made an explicit <code>unknown</code> instead of a silent gap.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Never fix a rare or missing level by silently deleting the rows. Collapsing into <code>other</code> and labelling <code>NA</code> as <code>unknown</code> keeps every order in the count, and keeps your proportions honest. The tidyverse tool for the rare-level step is <code>forcats::fct_lump_min()</code>, which lumps any level below a count threshold into <code>other</code> in one call.</div></div>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"code":"channel_raw |>\n  tolower() |>\n  trimws()  # then collapse rare, label NA","caption":"Eight raw labels collapse to five clean levels: three real channels, one other, one unknown. No order is dropped.","before":{"cols":["raw label","n"],"rows":[["walk-in",22],["online",9],["Online",5],["phone",5],["Walk-in",3],["walk-in (+ space)",2],["wholesale",1],["NA",1]]},"after":{"cols":["clean level","n"],"rows":[["walk-in",27],["online",14],["phone",5],["other",1],["unknown",1]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Standardise the spelling</h2>
+
+<p>The single most common category defect is one value typed many ways. Fix it: lowercase every label so <code>Online</code> and <code>online</code> merge, after stripping stray spaces. Fill in the function that converts text to lowercase.</p>
+<section class="exercise" data-exercise-id="Categorical-and-Frequency-EDA-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="tolower\s*\("><textarea class="lesson-tryit-input" spellcheck="false"># standardise case (after trimming spaces), then count the distinct labels
+clean &lt;- ____(trimws(channel_raw))
+length(unique(clean))   # how many distinct labels now? (NA counts as one)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. tolower() merges Online into online and trimws() drops the trailing space on walk-in , so eight raw labels collapse to five: online, walk-in, phone, wholesale, and the missing NA.</span><span class="lesson-tryit-fb lesson-tryit-no">Lowercase the text with tolower(): clean <- tolower(trimws(channel_raw)).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">clean &lt;- tolower(trimws(channel_raw))
+length(unique(clean))
+#&gt; [1] 5</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take categorical EDA further:</p>
+
+<ul>
+
+<li><a href="https://r4ds.hadley.nz/eda">R for Data Science (2e), Exploratory Data Analysis</a> - the "Categorical variation" and "covariation" sections cover bar charts and reading two categories together, exactly this lesson in a tidyverse workflow.</li>
+
+<li><a href="https://r4ds.hadley.nz/factors">R for Data Science (2e), Factors</a> - the forcats chapter: how to recode, reorder and lump levels, the cleaning you did by hand here, done idiomatically.</li>
+
+<li><a href="https://sfirke.github.io/janitor/articles/tabyls.html">janitor: tabyl, a tidy table</a> - one-call frequency and cross-tabulation with counts and percentages together, the convenient tool once you know what <code>table()</code> is doing underneath.</li>
+
+<li><a href="https://ggplot2.tidyverse.org/reference/geom_bar.html">ggplot2 reference: geom_bar / geom_col</a> - bar charts in full, including the stacked and <code>position = &quot;fill&quot;</code> proportion views you saw above.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 5 complete</h2>
+
+<p>You can now explore the categorical half of a dataset as carefully as the numeric half. You counted levels with a <strong>frequency table</strong> (<code>table</code>, <code>count</code>), turned counts into <strong>proportions</strong> (<code>prop.table</code>) and learned why a small share can still be too few observations to trust, read a category from an <strong>ordered bar chart</strong>, <strong>cross-tabulated</strong> two categories and answered the right question by choosing row versus column proportions, and cleaned the three defects, <strong>mislabeled</strong>, <strong>rare</strong> and <strong>missing</strong> levels, before they could corrupt a count.</p>
+
+<p>Next, Lesson 6: Distribution shape and transformations. You will return to the numeric columns and read their <em>shape</em>, skew, heavy tails and multiple peaks, check it against a normal curve with a Q-Q plot, and tame a skewed variable with a log or Box-Cox transform so the methods in later courses behave.</p>
+</section>
+
+{% endraw %}
