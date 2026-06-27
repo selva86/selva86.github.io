@@ -1,44 +1,31 @@
-# Machine Learning Engineer Track - Complete Curriculum (2026/27, v2)
+# Machine Learning Engineer Track - Complete Curriculum (2026/27, v3)
 
-> A new sibling track completing the ladder **Data Analyst -> Data Scientist -> ML Engineer**. The DS builds the model; the ML Engineer ships it, scales it, secures it, and keeps it healthy - for both classical models and AI/LLM systems. One interactive lesson per line item, no slim lessons.
+> Completes the ladder **Data Analyst -> Data Scientist -> ML Engineer**. The DS builds the model; the ML Engineer ships, scales, secures and operates it - for classical models and AI/LLM systems alike. One interactive lesson per line item, no slim lessons.
 
-## What changed in v2 (the critique that drove this rewrite)
+## v3 changes (tightening pass - depth kept, fat trimmed)
 
-The v1 draft was strong on classical-ML production but **weighted like it was 2022**. Six problems, all fixed below:
-
-1. **GenAI was one section for an entire discipline.** v1 had a single `LLMOps` section for the whole LLM/RAG/agent world. In 2026 heading into 2027, AI/LLM systems are the *majority* of new ML-engineering work. Rebalanced into a **5-section "AI & LLM Systems" band** (serving, RAG, agents, evaluation, safety/LLMOps).
-2. **Agents were absent.** The defining workload of 2026/27. Added **M22 Agentic systems in production** (tool calling, orchestration, agent observability, agent eval, cost control, guardrails).
-3. **Evaluation was an afterthought.** Eval is now its own engineering discipline (the same "a whole section was hiding in one lesson" move you spotted for linear regression). Elevated to **M7 Testing & Evaluation Engineering** + a dedicated **M23 LLM & AI evaluation** (golden sets, LLM-as-judge and its biases, slice/subgroup eval, regression suites, red-teaming).
-4. **Serving was thin.** v1 = "plumber + REST" in 5 lessons. Serving is a discipline: deepened **M5** to runtimes (vLLM/TGI/ONNX-Runtime/BentoML/Triton), gRPC vs REST, dynamic batching, streaming, multi-model routing, serverless/edge.
-5. **Monitoring conflated three jobs.** Split into **M10 ML observability (the three pillars + tracing/OpenTelemetry + eval-in-prod)** and **M11 Drift, feedback loops & continual learning (full drift taxonomy incl. embedding/prediction drift, retraining strategy, feedback-loop hazards)**.
-6. **Security & inference-opt were pre-LLM.** **M18** now leads with **prompt injection + the OWASP LLM Top 10 + model/data supply chain (provenance, SBOM-for-ML)**; **M15 Inference optimization** is modernized (quantization PTQ/QAT/int4, KV-cache, continuous batching, speculative decoding, compilation).
-
-Also new senior pillars: **M17 Reliability & SRE for ML**, **M19 ML platform engineering**, and a deepened **M12 data & feature platform**.
+v2 was right to rebalance toward AI/LLM systems but over-split three areas. v3 consolidates without losing depth:
+- **Monitoring was 3 sections** (essentials + observability + drift). -> Core keeps a lean **M9 Monitoring & drift essentials**; Advanced has **one M10 Observability & continual learning** (the three pillars + tracing + the drift taxonomy + retraining/online learning). Two, not three.
+- **Performance was 3 sections** (scaling + inference-opt + perf/FinOps). -> **M13 Scaling** stays; **M14 Inference optimization, performance & cost** merges the model-level and app-level perf + FinOps into one.
+- **Platform engineering** was a thin standalone -> folded into **M1** (the platform you build on) and a **M22** capstone case.
+Net: 25 -> **22 sections**, ~130 lessons. Still the most complete R-centric MLE curriculum anywhere; nothing essential dropped.
 
 ## Positioning (the honest 2026 R story)
 
-Two realities, both taught, both tagged:
-- **Classical ML production is R-native and largely runnable** - vetiver, plumber, targets, pins, pointblank, testthat, duckdb make a real MLOps story you can do live.
-- **AI/LLM systems: you orchestrate and evaluate in R, and serve/train cross-language.** R's **ellmer** is a genuine entry point for LLM calls, tool/function calling (agents), structured output, and eval orchestration; **duckdb** does embeddings + vector search. The LLM *serving and training* layer (vLLM, GPUs) is Python/infra and taught as real config + concepts. We never pretend a GPU runs in a browser.
+Two realities, both taught, both tagged. **Classical ML production is R-native and largely runnable** (vetiver, plumber, targets, pins, pointblank, testthat, duckdb). **AI/LLM systems: you orchestrate and evaluate in R** (ellmer for LLM calls, tool/function calling, structured output; duckdb for embeddings + vector search) **and serve/train cross-language** (vLLM, GPUs = Python/infra, taught as real config). We never pretend a GPU runs in a browser. Does not overlap `r-developer` (R-language/package craft); this is ML/AI *systems*.
 
-This does **not** overlap `r-developer` (R-language/package craft); this is ML/AI *systems*.
-
-**Tiers / bands:** `[CORE]` certified path · `[ADV]` operate at scale · `[AI]` AI & LLM systems · capstone. **WebR tag:** `(R)` live · `(R~)` live on a reduced demo / the logic runs `(static)` real config + precomputed output (needs containers, cloud, a cluster, GPU, a live server, or an API key).
-
-**Page:** three bands on `ml-engineer.html` - **Core** (ends "- Certified ML Engineer -"), **Advanced - operate at scale**, **AI & LLM systems** - plus the capstone. `tier: core|advanced|ai` per section; renderer groups + draws the milestone (same machinery as the DS track's bands).
+**Bands/tiers:** `[CORE]` certified · `[ADV]` operate at scale · `[AI]` AI & LLM systems · capstone. **WebR:** `(R)` live · `(R~)` live on a reduced demo / the logic runs · `(static)` real config + precomputed output (containers, cloud, cluster, GPU, live server, or API key). Page = three bands on `ml-engineer.html` (Core ends "- Certified ML Engineer -", then Advanced, then AI & LLM systems) + capstone; `tier` flag per section.
 
 ---
 
 # CORE - The certified ML Engineer path
 
-> Goal: take a trained model and turn it into a validated, versioned, served, tested, CI/CD'd, monitored service - the real "notebook to a healthy endpoint" path.
-
 ## M1. The ML engineering mindset and lifecycle  [CORE]
 1. What an ML Engineer does - the system around the model (hidden technical debt, made concrete) `(static)`
 2. The ML lifecycle and MLOps maturity - manual to automated to continuous training `(static)`
 3. From notebook to a structured, packaged ML codebase `(R)`
-4. Environments, dependencies and reproducibility - renv, lockfiles, the "works on my machine" tax `(R)`
-5. The DS -> MLE handoff - model cards, contracts, and what to demand before you ship `(static)`
+4. Environments, dependencies and reproducibility - renv, lockfiles `(R)`
+5. The platform you build on, and the DS -> MLE handoff (model cards, contracts, paved roads) `(static)`
 
 ## M2. Reproducible pipelines and orchestration  [CORE]
 1. From a pile of scripts to a DAG - why pipelines `(R~)`
@@ -46,7 +33,7 @@ This does **not** overlap `r-developer` (R-language/package craft); this is ML/A
 3. Caching, invalidation and incremental runs `(R~)`
 4. Parameterized and dynamically-branched pipelines `(R~)`
 5. Scheduling and orchestration - cron, and Airflow/Dagster-style when targets is not enough `(static)`
-6. Pipeline testing, debugging and observability `(R)`
+6. Pipeline testing and debugging `(R)`
 
 ## M3. Data and features for production  [CORE]
 1. Data validation and contracts with pointblank `(R)`
@@ -66,7 +53,7 @@ This does **not** overlap `r-developer` (R-language/package craft); this is ML/A
 
 ## M5. Serving models - the serving discipline  [CORE]
 1. The serving landscape - REST, gRPC, batch, streaming, embedded `(static)`
-2. REST APIs with plumber - endpoints, input schemas, validation, error contracts `(R~)`
+2. REST APIs with plumber - endpoints, schemas, validation, error contracts `(R~)`
 3. Serving a tidymodels / vetiver model end to end `(R~)`
 4. Throughput and latency - dynamic batching, concurrency, connection pooling `(R~)`
 5. Multi-model serving and version routing `(R~)`
@@ -77,15 +64,15 @@ This does **not** overlap `r-developer` (R-language/package craft); this is ML/A
 1. Docker for R - a minimal, reproducible image `(static)`
 2. Multi-stage builds and slim, secure images `(static)`
 3. Configuration and secrets management `(static)`
-4. Deploying - Posit Connect, Cloud Run, the Kubernetes basics you actually need `(static)`
+4. Deploying - Posit Connect, Cloud Run, the Kubernetes basics you need `(static)`
 5. Health checks, readiness and graceful shutdown `(R~)`
 
 ## M7. Testing and evaluation engineering  [CORE]
 1. Unit and integration testing for ML code (testthat) `(R)`
 2. Testing data - schema, ranges, distributions `(R)`
-3. Testing models - behavioral, invariance, directional and metamorphic tests `(R)`
+3. Testing models - behavioral, invariance, directional, metamorphic tests `(R)`
 4. Testing the serving layer - the API contract and golden requests `(R~)`
-5. Evaluation sets and golden datasets - building the source of truth `(R)`
+5. Evaluation sets and golden datasets - the source of truth `(R)`
 6. Regression testing for models - did the new model quietly break a segment? `(R)`
 7. Slice-based and subgroup evaluation - where the average hides failure `(R)`
 8. Offline vs online evaluation, and eval-driven development `(R~)`
@@ -104,29 +91,23 @@ This does **not** overlap `r-developer` (R-language/package craft); this is ML/A
 4. Alerts and thresholds without alert fatigue `(R)`
 5. Closing the loop - drift that triggers retraining `(R~)`
 
-> **- Certified ML Engineer -**  (Core complete)
+> **- Certified ML Engineer -**
 
 ---
 
 # ADVANCED - Operate at scale
 
-## M10. ML observability - the three pillars  [ADV]
-1. Metrics, logs and traces for ML systems `(R~)`
+## M10. Observability and continual learning  [ADV]
+1. The three pillars - metrics, logs and traces for ML `(R~)`
 2. Distributed tracing across a prediction request - OpenTelemetry `(static)`
-3. Structured logging and a prediction store - log what you scored `(R)`
-4. The ML observability stack - Evidently / Arize / Grafana-style `(static)`
-5. Eval-in-production - shadow scoring and delayed-label backfill `(R~)`
-6. Debugging a production incident from traces and logs `(static)`
+3. The prediction store and eval-in-production (shadow scoring, delayed-label backfill) `(R~)`
+4. The full drift taxonomy - covariate, label, concept, prediction drift `(R)`
+5. Multivariate and embedding drift - drift on unstructured data `(R~)`
+6. Retraining strategy - cadence, triggers and the cost of staleness `(R)`
+7. Online and incremental learning - when and how `(R~)`
+8. Feedback loops and their dangers - the model that poisons its own data `(static)`
 
-## M11. Drift, feedback loops and continual learning  [ADV]
-1. The full drift taxonomy - covariate, label, concept and prediction drift `(R)`
-2. Multivariate and embedding drift - drift on unstructured data `(R~)`
-3. Monitoring quality when labels are delayed or absent `(R)`
-4. Retraining strategy - cadence, triggers and the cost of staleness `(R)`
-5. Online and incremental learning - when and how `(R~)`
-6. Feedback loops and their dangers - the model that poisons its own data `(static)`
-
-## M12. The data and feature platform  [ADV]
+## M11. The data and feature platform  [ADV]
 1. Feature stores - the online/offline split, and when you actually need one `(static)`
 2. Point-in-time correctness and time-travel joins `(R~)`
 3. Feature freshness, the dual-write problem and serving latency `(R~)`
@@ -134,7 +115,7 @@ This does **not** overlap `r-developer` (R-language/package craft); this is ML/A
 5. The lakehouse and medallion architecture for ML `(static)`
 6. Streaming features and real-time pipelines `(static)`
 
-## M13. Deployment strategies and progressive delivery  [ADV]
+## M12. Deployment strategies and progressive delivery  [ADV]
 1. Shadow deployment - test on prod traffic, risk-free `(static)`
 2. Canary and blue-green releases `(static)`
 3. Online A/B testing of models - and why offline metrics mislead `(R~)`
@@ -142,7 +123,7 @@ This does **not** overlap `r-developer` (R-language/package craft); this is ML/A
 5. Progressive rollout, guardrail metrics and automated rollback `(static)`
 6. Multi-model serving, routing and champion/challenger `(R~)`
 
-## M14. Scaling and distributed ML  [ADV]
+## M13. Scaling and distributed ML  [ADV]
 1. Parallel R - future, furrr, mirai `(R~)`
 2. Out-of-core and chunked processing `(R~)`
 3. arrow and duckdb at warehouse scale `(R~)`
@@ -150,30 +131,24 @@ This does **not** overlap `r-developer` (R-language/package craft); this is ML/A
 5. Distributed and multi-GPU training - the concepts `(static)`
 6. Autoscaling the serving layer `(static)`
 
-## M15. Inference optimization  [ADV]
+## M14. Inference optimization, performance and cost  [ADV]
 1. The accuracy-latency-cost-throughput frontier `(R)`
 2. Quantization - PTQ, QAT, int8/int4 (GPTQ / AWQ for LLMs) `(static)`
-3. Pruning and sparsity `(static)`
-4. Knowledge distillation and simpler-model substitution `(R~)`
-5. Compilation and kernels - ONNX Runtime, TensorRT, torch.compile `(static)`
-6. LLM-specific - KV-cache, continuous batching, speculative decoding, paged attention `(static)`
+3. Pruning, distillation and simpler-model substitution `(R~)`
+4. Compilation and kernels - ONNX Runtime, TensorRT, torch.compile `(static)`
+5. LLM-specific - KV-cache, continuous batching, speculative decoding, paged attention `(static)`
+6. Profiling R hot paths and the hot 5% - profvis, data.table, Rcpp `(R)`
+7. Latency budgets, tail latency (p99 is the product) and caching - predictions, features, semantic `(R)`
+8. The economics of AI - GPU hours, token costs, cost-aware routing and FinOps `(static)`
 
-## M16. Performance, caching and FinOps for AI  [ADV]
-1. Profiling R hot paths - profvis, bench `(R)`
-2. The hot 5% - vectorization, data.table, Rcpp `(R~)`
-3. Latency budgets and tail latency - p99 is the product `(R~)`
-4. Caching - predictions, features, embeddings, semantic caching `(R)`
-5. The economics of AI - GPU hours, token costs, cost-aware model routing `(static)`
-6. FinOps - cost attribution, budgets and the cost/quality trade-off `(static)`
-
-## M17. Reliability and SRE for ML  [ADV]
+## M15. Reliability and SRE for ML  [ADV]
 1. SLOs, SLIs and error budgets for ML services `(static)`
 2. Graceful degradation and fallback models - always have a plan B `(R~)`
 3. Load, soak and chaos testing for ML `(static)`
 4. Incident response, on-call and blameless postmortems for ML `(static)`
 5. Capacity planning and the cost of reliability `(static)`
 
-## M18. Security, privacy and governance  [ADV]
+## M16. Security, privacy and governance  [ADV]
 1. Securing an ML/AI API - authn/z, rate limiting, abuse prevention `(static)`
 2. The ML attack surface - data poisoning, model stealing, membership inference, adversarial inputs `(R~)`
 3. LLM security - prompt injection, jailbreaks and the OWASP LLM Top 10 `(static)`
@@ -181,19 +156,13 @@ This does **not** overlap `r-developer` (R-language/package craft); this is ML/A
 5. Privacy in production - PII handling, differential privacy, federated basics `(R~)`
 6. Governance and compliance - audit trails, lineage, model risk, the EU AI Act `(static)`
 
-## M19. ML platform engineering  [ADV]
-1. The internal ML platform - paved roads and golden paths `(static)`
-2. Self-serve templates and scaffolding for teams `(R~)`
-3. Standardizing the stack - registry, serving and monitoring as a product `(static)`
-4. Developer experience and platform adoption `(static)`
-
 ---
 
 # AI & LLM SYSTEMS - the 2026/27 pillar
 
-> You orchestrate and evaluate in R (ellmer, duckdb); you serve and train cross-language. Tagged honestly.
+> Orchestrate and evaluate in R (ellmer, duckdb); serve and train cross-language. Tagged honestly.
 
-## M20. LLM serving and inference systems  [AI]
+## M17. LLM serving and inference systems  [AI]
 1. The LLM serving stack - vLLM, TGI and the gateway pattern `(static)`
 2. Calling and routing LLMs from R with ellmer `(static)`
 3. Streaming responses (SSE) and token-level UX `(R~)`
@@ -201,7 +170,7 @@ This does **not** overlap `r-developer` (R-language/package craft); this is ML/A
 5. Model routing and fallback - cheap-to-expensive, multi-provider `(R~)`
 6. Self-hosted vs API - the build/buy/cost decision `(static)`
 
-## M21. RAG and retrieval systems in production  [AI]
+## M18. RAG and retrieval systems in production  [AI]
 1. The RAG architecture - and where it actually breaks `(static)`
 2. Chunking and the indexing pipeline `(R~)`
 3. Embeddings and vector search - duckdb `vss`, and the vector-DB landscape `(R~)`
@@ -210,7 +179,7 @@ This does **not** overlap `r-developer` (R-language/package craft); this is ML/A
 6. Freshness, incremental indexing and cache invalidation `(R~)`
 7. RAG observability and failure analysis `(static)`
 
-## M22. Agentic systems in production  [AI]
+## M19. Agentic systems in production  [AI]
 1. From chains to agents - tool and function calling with ellmer `(R~)`
 2. Agent architectures - ReAct, plan-and-execute, multi-agent `(static)`
 3. Orchestration, state and memory `(R~)`
@@ -219,7 +188,7 @@ This does **not** overlap `r-developer` (R-language/package craft); this is ML/A
 6. Cost and latency control for multi-call agents `(R~)`
 7. Guardrails and human-in-the-loop for agents `(static)`
 
-## M23. LLM and AI evaluation  [AI]
+## M20. LLM and AI evaluation  [AI]
 1. Why LLM eval is hard - there is no single ground truth `(static)`
 2. Building eval sets and golden datasets for LLM tasks `(R~)`
 3. LLM-as-judge - and its pitfalls (position, verbosity, self-preference bias) `(R~)`
@@ -228,7 +197,7 @@ This does **not** overlap `r-developer` (R-language/package craft); this is ML/A
 6. Online eval and regression suites in CI `(R~)`
 7. Red-teaming and adversarial evaluation `(static)`
 
-## M24. AI safety, guardrails and LLMOps  [AI]
+## M21. AI safety, guardrails and LLMOps  [AI]
 1. Guardrails - input/output filtering, schema enforcement, validation `(R~)`
 2. Content safety, toxicity and PII redaction `(R~)`
 3. Hallucination mitigation and grounding `(static)`
@@ -241,14 +210,15 @@ This does **not** overlap `r-developer` (R-language/package craft); this is ML/A
 
 # CAPSTONE
 
-## M25. ML and AI system design  [CAPSTONE]
+## M22. ML and AI system design  [CAPSTONE]
 1. The system-design framework - from requirements to architecture `(static)`
 2. Latency, scale and cost trade-offs `(static)`
-3. Case study - a real-time recommendation service `(static)`
-4. Case study - a batch scoring pipeline `(R~)`
-5. Case study - a production RAG service `(static)`
-6. Case study - an agentic workflow `(static)`
-7. The ML/AI system design interview `(static)`
+3. Case - a real-time recommendation service `(static)`
+4. Case - a batch scoring pipeline `(R~)`
+5. Case - a production RAG service `(static)`
+6. Case - an agentic workflow `(static)`
+7. Case - building the internal ML platform (paved roads) `(static)`
+8. The ML/AI system design interview `(static)`
 
 ---
 
@@ -256,19 +226,19 @@ This does **not** overlap `r-developer` (R-language/package craft); this is ML/A
 
 | Band | Sections | Lessons | Live `(R)`+`(R~)` | `(static)` |
 |---|---|---|---|---|
-| Core (M1-M9) | 9 | ~51 | **~63%** | ~37% (Docker, deploy, CI, IaC, serving runtimes) |
-| Advanced (M10-M19) | 10 | ~56 | **~45%** | ~55% (infra, scale-out, deploy strategies, security, platform) |
-| AI & LLM systems (M20-M24) | 5 | ~33 | **~40%** | ~60% (serving, fine-tuning, vLLM, infra = cross-language) |
-| Capstone (M25) | 1 | 7 | ~15% | ~85% |
-| **Whole track** | **25** | **~147** | **~48%** | **~52%** |
+| Core (M1-M9) | 9 | ~52 | **~63%** | ~37% |
+| Advanced (M10-M16) | 7 | ~44 | **~45%** | ~55% |
+| AI & LLM systems (M17-M21) | 5 | ~33 | **~40%** | ~60% |
+| Capstone (M22) | 1 | 8 | ~13% | ~87% |
+| **Whole track** | **22** | **~137** | **~49%** | **~51%** |
 
-The runnable half is real and concentrated where it counts: **pipelines, data validation, drift math, testing, evaluation (incl. LLM-as-judge and retrieval eval orchestrated via ellmer + duckdb), serialization, profiling, caching, agent tool-calling logic**. The static half is genuine infrastructure (containers, GPUs, clusters, live servers, vLLM) - taught with the real Dockerfile/YAML/config + precomputed output + a "run this locally / in your cloud" callout, plus diagram and architecture widgets so a `(static)` lesson is still interactive *in experience*. For an engineering track that now spans GPU-served AI systems, ~48% genuinely-live is strong - and far beyond any slides-only MLOps course.
+~half genuinely live, concentrated where it counts (pipelines, validation, drift math, testing, evaluation incl. LLM-as-judge + retrieval eval via ellmer/duckdb, serialization, profiling, caching, agent tool-calling). The static half is real infrastructure - taught with the real Dockerfile/YAML/config + precomputed output + architecture/DAG widgets so a `(static)` lesson is still interactive in experience.
 
 # Boundary with the Data Scientist track
-- DS **C12** is the *shipping intro* (hello plumber/vetiver/targets); everything past it is this track.
-- DS **A7 (robustness/drift)** is the *modeling* response; MLE **M9/M10/M11** are the *systems* response. Cross-link, don't duplicate.
-- DS Specialization **S4 (LLMs & GenAI)** teaches the DS how to *use* LLMs; MLE **M20-M24** teach how to *operate* them at scale. Same topic, different altitude.
+- DS **C12** = the shipping intro; everything past it is this track.
+- DS **A7 (robustness/drift)** = the modeling response; MLE **M9/M10** = the systems response. Cross-link.
+- DS Spec **S4 (LLMs/GenAI)** = how a DS *uses* LLMs; MLE **M17-M21** = how to *operate* them. Same topic, different altitude.
 - Prerequisite: finish DS Core (you cannot productionize what you cannot build).
 
 # Build order
-1. M2 (targets) + M3 (data validation) + M7 (testing/eval) - high-WebR backbone. 2. M4/M5 (registry, serving). 3. M6/M8 (Docker, CI). 4. M9/M10/M11 (monitoring, observability, drift - high value). 5. the AI band: M21 (RAG) + M23 (eval) + M22 (agents) first - they are the strongest marketing hooks and the most ellmer-runnable. 6. the rest of Advanced as demand dictates; M25 capstone last.
+1. M2 + M3 + M7 (high-WebR backbone). 2. M4/M5 (registry, serving). 3. M6/M8 (Docker, CI). 4. M9/M10 (monitoring, observability). 5. the AI band - M18 (RAG) + M20 (eval) + M19 (agents) first (most ellmer-runnable, strongest hooks). 6. remaining Advanced; M22 capstone last.
