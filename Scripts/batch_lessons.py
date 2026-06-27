@@ -59,13 +59,46 @@ def resolve_targets(args):
     return [slug for slug, v in st.items() if v.get('status', 'pending') in want]
 
 
-def run_claude(cli, prompt):
+def _kill_tree(pid):
+    """Kill a process AND every descendant: the spawned claude plus its
+    interactive-R verifier (node), any MCP servers, and child claudes. A bare
+    kill of the parent would orphan those children, which is exactly what hung
+    a prior run. Best-effort and idempotent."""
+    if os.name == 'nt':
+        subprocess.run(['taskkill', '/T', '/F', '/PID', str(pid)],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    else:
+        import signal
+        try:
+            os.killpg(os.getpgid(pid), signal.SIGKILL)
+        except Exception:
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except Exception:
+                pass
+
+
+def run_claude(cli, prompt, timeout=None):
     print('+ %s -p "%s"  (cwd=%s)' % (cli, prompt, PROJECT_ROOT), flush=True)
     try:
-        return subprocess.run([cli, '-p', prompt, '--dangerously-skip-permissions'], cwd=PROJECT_ROOT).returncode
+        proc = subprocess.Popen([cli, '-p', prompt, '--dangerously-skip-permissions'], cwd=PROJECT_ROOT)
     except FileNotFoundError:
         print('  ERROR: claude CLI not found (%s). Pass --claude <path>.' % cli)
         return 127
+    try:
+        return proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        # Self-heal: a step that produces nothing within the budget is treated as
+        # hung. Tree-kill it (and its verifier children) and return non-zero so the
+        # caller marks the lesson failed and moves on instead of blocking forever.
+        print('  TIMEOUT: "%s" produced no result in %ss - killing the hung worker '
+              '(and its verifier children) and moving on.' % (prompt, timeout), flush=True)
+        _kill_tree(proc.pid)
+        try:
+            proc.wait(timeout=20)
+        except Exception:
+            pass
+        return 124
 
 
 def sync():
@@ -82,6 +115,9 @@ def main():
     ap.add_argument('--regenerate', action='store_true')
     ap.add_argument('--sync-every', type=int, default=5)
     ap.add_argument('--claude', default='claude')
+    ap.add_argument('--timeout', type=int, default=1800,
+                    help='per-step (write/check/publish) seconds before a worker is treated as '
+                         'hung: tree-kill it, mark the lesson failed, and continue. 0 disables.')
     args = ap.parse_args()
 
     targets = resolve_targets(args)
@@ -119,7 +155,7 @@ def main():
             st[slug] = {'course_id': args.course or st.get(slug, {}).get('course_id', ''), 'status': 'writing'}
             save_status(st)
 
-            if run_claude(args.claude, '/write-lesson ' + slug) != 0 or not os.path.exists(os.path.join(ROOT, 'lessons', slug + '.md')):
+            if run_claude(args.claude, '/write-lesson ' + slug, args.timeout or None) != 0 or not os.path.exists(os.path.join(ROOT, 'lessons', slug + '.md')):
                 st[slug]['status'] = 'failed'
                 save_status(st)
                 print('  write failed: %s (see %s)' % (slug, os.path.relpath(FAILLOG, ROOT)))
@@ -127,7 +163,7 @@ def main():
 
             st[slug]['status'] = 'reviewing'
             save_status(st)
-            if run_claude(args.claude, '/check-lesson ' + slug) != 0:
+            if run_claude(args.claude, '/check-lesson ' + slug, args.timeout or None) != 0:
                 st[slug]['status'] = 'manual_review'
                 save_status(st)
                 print('  review flagged manual_review: %s (see Scripts/lesson-review.log)' % slug)
@@ -135,7 +171,7 @@ def main():
 
             st[slug]['status'] = 'publishing'
             save_status(st)
-            if run_claude(args.claude, '/publish-lesson %s --skip-sync' % slug) != 0:
+            if run_claude(args.claude, '/publish-lesson %s --skip-sync' % slug, args.timeout or None) != 0:
                 st[slug]['status'] = 'publish_failed'
                 save_status(st)
                 print('  publish failed: %s' % slug)
