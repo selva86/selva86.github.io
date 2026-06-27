@@ -1,0 +1,340 @@
+---
+title: "data.table Lesson 3: Bigger-than-memory data in R"
+description: "Your data is bigger than your laptop memory. Stream it in chunks and query it on disk with DuckDB and dplyr from R, without ever loading the whole file."
+keywords: "bigger than memory data R, out of core R, duckdb in R, duckplyr, data.table fread, streaming chunks R, large data R, query parquet R"
+mathjax: true
+webr: true
+curriculum_id: "2.6.3"
+post_type: "LESSON"
+course_id: "da-datatable"
+course_title: "Fast Data Wrangling with data.table"
+course_lesson: "3"
+course_total: "3"
+course_landing: "data-table-Course.html"
+course_next: ""
+course_prev: "dplyr-vs-data-table.html"
+lesson_access: "free"
+---
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 3 of 3</div>
+<h2>When the data is bigger than the laptop</h2>
+
+<p>Maya's bakery chain has been logging every sale for five years. That till log is now a single CSV of about <strong>38 million rows, roughly 12 GB on disk</strong>. Her laptop has <strong>8 GB of memory</strong>. When she runs the import she has used since Lesson 1, R thinks for a minute and then quits:</p>
+
+<pre><code class="language-r">read.csv(&quot;till_log_2021_2025.csv&quot;)
+#&gt; Error: cannot allocate vector of size 6.7 Gb</code></pre>
+
+<p>The file is bigger than the memory. In Lessons 1 and 2 you learned the <code>DT[i, j, by]</code> bracket and watched data.table beat dplyr on speed and memory, but every one of those tricks still assumed the table fit in RAM. This lesson is about the moment it does not.</p>
+
+<p>By the end you will be able to:</p>
+
+<ul>
+
+<li>Explain why a file larger than memory cannot simply be loaded into R</li>
+
+<li>Stream a too-big file in chunks, keeping only a small running answer</li>
+
+<li>Query data <strong>on disk</strong> with DuckDB, in SQL and in dplyr, never loading the whole thing</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R; you know the data.table bracket from <a href="data-table-Syntax-and-Keys.html">Lesson 1</a> and the <a href="The-dplyr-Verbs.html">dplyr verbs and the pipe</a>. No databases or SQL assumed; we build the SQL up from scratch.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"1. Do not load it all","sub":"a 12 GB file cannot fit in 8 GB of RAM, so never read the whole thing into R"},{"title":"2. Send the query to the data","sub":"let an engine scan the file where it sits on disk and compute the answer there"},{"title":"3. Pull back only the answer","sub":"a few summary rows come into R, not the millions of rows behind them"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">Why it breaks</div>
+<h2>R works in memory</h2>
+
+<p>Here is the thing to understand first, because everything else follows from it. <strong>R holds every object in RAM</strong> (random-access memory, the fast working space your computer can read instantly). When you call <code>read.csv</code>, R builds the entire data frame in RAM before you can touch a single row. <strong>Disk</strong> (the hard drive or SSD where the file lives) is far larger but far slower, and R does not work from it directly. So the file has to pass <em>through</em> memory, and a 12 GB file simply will not fit in 8 GB.</p>
+
+<p>And memory grows in lock-step with the rows. A table with \(n\) rows costs about \(O(n)\) memory, meaning double the rows and you double the RAM. Watch it happen: the same four-column table at ten thousand, a hundred thousand, and a million rows.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+# megabytes used by a 4-column numeric table, as the rows grow 10x each step
+mb &lt;- sapply(c(1e4, 1e5, 1e6), function(r) {
+  tbl &lt;- data.frame(a = runif(r), b = runif(r), c = runif(r), d = runif(r))
+  as.numeric(object.size(tbl)) / 1e6
+})
+round(mb, 1)
+#&gt; [1]  0.3  3.2 32.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Ten times the rows, ten times the memory. There is no clever option that makes 38 million rows weigh nothing; the chart below is the wall Maya hit.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Tidier types help a little: store a category as a <code>factor</code> or an integer instead of text, drop columns you do not need, and a table can shrink two or three times over. But that is a constant factor. It buys you a bigger laptop, not an unlimited one. Past some row count you still need a different idea.</div></div>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"10K rows","y":0.3},{"x":"100K rows","y":3.2},{"x":"1M rows","y":32}],"geoms":["bar"],"x":"rows","y":"MB","code":{"bar":"ggplot(mem, aes(rows, mb)) +\n  geom_col()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Escape route 1</div>
+<h2>Stream it in chunks</h2>
+
+<p>Here is the first real idea, and it is one you can picture. Maya does not actually need all 38 million rows in memory at once. She needs <strong>total revenue per shop</strong>, which is just a handful of numbers. So read the file a slice at a time, add each slice into a small running total, then throw the slice away before reading the next.</p>
+
+<p>The whole table never lives in memory at once. Only one chunk plus a tiny running total does, so the memory you need is \(O(g)\) where \(g\) is the number of groups (here, the number of shops), not \(O(n)\). The number of passes is about \(n / c\) rounded up (the \(\lceil\;\rceil\) ceiling brackets just mean "round up to the next whole pass") for a chunk size \(c\). The flow below is the loop.</p>
+
+<p>Here is the pattern in miniature. We build a 30,000-row stand-in for the real file, then process it in three 10,000-row chunks, keeping only a per-shop total:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+# stand-in for the giant file: pretend we can only see 10,000 rows at a time
+big &lt;- data.frame(
+  shop    = sample(c(&quot;Austin&quot;, &quot;Denver&quot;, &quot;Seattle&quot;), 3e4, replace = TRUE),
+  revenue = round(runif(3e4, 1, 200), 2)
+)
+
+totals &lt;- c(Austin = 0, Denver = 0, Seattle = 0)   # the small running answer
+for (start in seq(1, 3e4, by = 1e4)) {
+  chunk &lt;- big[start:(start + 1e4 - 1), ]           # one chunk = one disk read
+  s     &lt;- tapply(chunk$revenue, chunk$shop, sum)   # this chunk's per-shop sums
+  totals[names(s)] &lt;- totals[names(s)] + s          # fold into the running total
+}
+round(totals)
+#&gt;  Austin  Denver Seattle
+#&gt; 1006020 1002774 1003664</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A close cousin of chunking is to <strong>read only the columns you need</strong>. Maya's file has 14 columns; for revenue per shop she needs two. <code>fread</code> can skip the rest, so much less ever reaches memory:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">write.csv(big, &quot;till.csv&quot;, row.names = FALSE)   # write a small example file to this session
+
+library(data.table)
+setDTthreads(1)                                  # the in-browser R runs on one core
+cols_needed &lt;- fread(&quot;till.csv&quot;, select = c(&quot;shop&quot;, &quot;revenue&quot;))
+head(cols_needed, 3)
+#&gt;      shop revenue
+#&gt; 1: Austin   53.18
+#&gt; 2: Denver  176.41
+#&gt; 3: Austin   118.6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Read a chunk","sub":"pull the next million rows off disk into memory"},{"title":"Update the totals","sub":"add this chunk into a small running per-shop total"},{"title":"Discard the chunk","sub":"free those rows, so the full table is never in memory all at once"},{"title":"Repeat to the end","sub":"after about n / chunk passes the running totals are complete"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Pick the right move</h2>
+
+<p>Maya has a <strong>50 GB</strong> sales file and a laptop with <strong>16 GB</strong> of RAM. She just needs total revenue per shop. What is the soundest first move?</p>
+<section class="exercise" data-exercise-id="Bigger-than-Memory-Data-in-R-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Open it with <code>read.csv()</code> and wait; R will page it in from disk as needed</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Read it in chunks, or hand it to an out-of-core engine, computing the per-shop totals without ever holding all 50 GB at once</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Randomly sample 10% so it fits, then multiply the totals by 10</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The total is just a small running per-shop sum, so stream the file (or let an engine scan it on disk). Memory stays tiny no matter how big the file grows.</div><div class="lesson-qfb lesson-qfb-no">A sample answers a different, noisier question and can miss whole shops or rare days entirely. You can get the exact total without sampling, by streaming or by querying on disk.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">Escape route 2</div>
+<h2>Send the query to the data</h2>
+
+<p>Chunking works, but you had to write the loop yourself, and it only handles sums that fold together neatly. The better idea is to stop moving the data to your code and instead <strong>move your question to the data</strong>.</p>
+
+<p>That is what an <strong>out-of-core</strong> engine does ("out-of-core" just means "works on data too big for RAM, straight from disk"). The friendliest one for R is <strong>DuckDB</strong>: an analytical database that runs <strong>in-process</strong> (no server to start, it is just a <code>library()</code> call) and reads CSV or Parquet files <strong>where they sit on disk</strong>. You hand it a question; it scans the file, and two things keep it light:</p>
+
+<ul>
+
+<li><strong>Column pruning:</strong> it reads only the columns your query names, skipping the other twelve.</li>
+
+<li><strong>Predicate pushdown:</strong> it reads only the rows that pass your filter, skipping the rest.</li>
+
+</ul>
+
+<p>So a query over 38 million rows touches only the bytes it truly needs and returns a small answer. The millions of rows stay on disk; a few summary rows come back to R.</p>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"code":"SELECT year, SUM(revenue) FROM sales GROUP BY year","caption":"DuckDB scans all 38 million rows where they sit on disk, but only this 3-row summary is sent back to R. The query does the shrinking, so your laptop never holds the full table.","before":{"cols":["year","shop","units","revenue"],"rows":[[2021,"Austin",18,1240],[2021,"Denver",22,1510],[2022,"Austin",27,1880],[2022,"Seattle",15,990],[2023,"Denver",30,2100],[2023,"Austin",24,1660]]},"after":{"cols":["year","revenue"],"rows":[[2021,116230],[2022,133400],[2023,152130]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="widget">
+<div class="lesson-step-eyebrow">The payoff</div>
+<h2>Query it, live</h2>
+
+<p>Let us actually do it. We connect to DuckDB, hand it a small <code>sales</code> table (picture it as the 38-million-row file), and ask a question in <strong>SQL</strong>, the language databases speak. Read the query as a sentence: <strong>SELECT</strong> the columns you want, <strong>FROM</strong> the table, <strong>GROUP BY</strong> the column that defines each group. Only the small grouped result returns to R.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(duckdb)
+library(DBI)
+
+con &lt;- dbConnect(duckdb())          # start an in-process database, no server needed
+
+# Maya's sales (small here; imagine 38 million rows behind it)
+sales &lt;- data.frame(
+  year    = c(2021, 2021, 2021, 2022, 2022, 2022, 2023, 2023, 2023),
+  shop    = c(&quot;Austin&quot;, &quot;Denver&quot;, &quot;Seattle&quot;, &quot;Austin&quot;, &quot;Denver&quot;, &quot;Seattle&quot;, &quot;Austin&quot;, &quot;Denver&quot;, &quot;Seattle&quot;),
+  revenue = c(48210, 39880, 28140, 53120, 44230, 36050, 61040, 49870, 41220)
+)
+dbWriteTable(con, &quot;sales&quot;, sales)   # hand the table to DuckDB
+
+# ask DuckDB the question; only the small answer comes back to R
+dbGetQuery(con, &quot;SELECT year, SUM(revenue) AS revenue FROM sales GROUP BY year ORDER BY year&quot;)
+#&gt;   year revenue
+#&gt; 1 2021  116230
+#&gt; 2 2022  133400
+#&gt; 3 2023  152130</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three rows came back, not 38 million. That is the whole point: the heavy lifting happened inside DuckDB, and R only ever saw the summary, which is exactly why this scales to files far bigger than memory.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"2021","y":116230},{"x":"2022","y":133400},{"x":"2023","y":152130}],"geoms":["bar"],"x":"year","y":"revenue","code":{"bar":"ggplot(by_year, aes(year, revenue)) +\n  geom_col()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Group it your way</h2>
+
+<p>The connection <code>con</code> and the <code>sales</code> table from the last step are still live. Now answer a different question: <strong>total revenue per shop, biggest first</strong>. The <code>SELECT</code>, <code>FROM</code> and <code>ORDER BY</code> are written for you; fill in the grouping column so the sum is computed once per shop.</p>
+<section class="exercise" data-exercise-id="Bigger-than-Memory-Data-in-R-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="GROUP\s+BY\s+shop"><textarea class="lesson-tryit-input" spellcheck="false">dbGetQuery(con, &quot;SELECT shop, SUM(revenue) AS revenue
+                 FROM sales
+                 GROUP BY ____
+                 ORDER BY revenue DESC&quot;)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it: GROUP BY shop tells DuckDB to total revenue once per shop. The scan happens on disk and only three small rows return to R.</span><span class="lesson-tryit-fb lesson-tryit-no">Group by the shop column: replace the blank with shop, so the line reads GROUP BY shop.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">dbGetQuery(con, &quot;SELECT shop, SUM(revenue) AS revenue
+                 FROM sales
+                 GROUP BY shop
+                 ORDER BY revenue DESC&quot;)
+#&gt;      shop revenue
+#&gt; 1  Austin  162370
+#&gt; 2  Denver  133980
+#&gt; 3 Seattle  105410</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Keep your dplyr</div>
+<h2>Point it at the files, write dplyr</h2>
+
+<p>You do not have to write SQL. DuckDB can stand behind ordinary <strong>dplyr</strong>: you point a table at the files on disk, write the same <code>group_by</code> and <code>summarise</code> you already know, and DuckDB runs it out-of-core. The catch, and the feature, is that it is <strong>lazy</strong>: nothing runs while you build the pipeline. It only runs when you call <strong><code>collect()</code></strong>, and only the small final result is pulled into R.</p>
+
+<pre><code class="language-r">library(duckdb)
+library(dplyr)
+
+con &lt;- dbConnect(duckdb())
+
+# point a lazy table at five years of Parquet files - nothing is read yet
+sales &lt;- tbl(con, &quot;read_parquet('till_logs/*.parquet')&quot;)
+
+revenue_by_year &lt;- sales |&gt;
+  group_by(year) |&gt;
+  summarise(revenue = sum(revenue)) |&gt;
+  arrange(year) |&gt;
+  collect()          # only NOW does DuckDB scan the files; only this small result enters R</code></pre>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">The <strong>duckplyr</strong> package makes this even smoother: load it and your normal dplyr on a plain data frame is quietly executed by DuckDB, with no connection to manage. The <strong>arrow</strong> package does the same trick for folders of Parquet files. Different front doors, same idea: write dplyr, let an out-of-core engine do the scanning. <strong>Parquet</strong> is worth knowing here too: a columnar file format that, unlike CSV, lets the engine grab one column without reading the rest, which is what makes column pruning so cheap.</div></div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Describe the query","sub":"write group_by plus summarise on a table pointed at the files; nothing runs yet"},{"title":"DuckDB runs it on disk","sub":"the engine scans the Parquet files out of core, never loading them into R"},{"title":"collect() the result","sub":"only now does the work happen, and only the small summary enters R"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does collect() do?</h2>
+
+<p>You build a lazy DuckDB table over Maya's Parquet files, pipe it through <code>group_by</code>, <code>summarise</code> and <code>arrange</code>, and assign the result to <code>q</code>, all without calling <code>collect()</code> yet. What is in <code>q</code>, and when does the work actually happen?</p>
+<section class="exercise" data-exercise-id="Bigger-than-Memory-Data-in-R-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The full result table, already computed and sitting in R memory</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A query plan; DuckDB runs it only when you call <code>collect()</code>, and only the small final result enters R</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">An error, because you must call <code>collect()</code> after every verb</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. A lazy table records what you asked for; <code>collect()</code> (or printing it) triggers the scan on disk, and just the summarised rows come back to R.</div><div class="lesson-qfb lesson-qfb-no">You can chain as many verbs as you like onto a lazy table; they stack onto the plan. A single <code>collect()</code> at the end runs the whole thing once.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Choosing</div>
+<h2>Which tool, when</h2>
+
+<p>You now have three moves for big data: use less memory, stream in chunks, or push the query to the data. Pick by how the data compares to your RAM.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Your situation</th>
+<th>Reach for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fits comfortably in RAM</td>
+<td>dplyr or data.table, as in Lessons 1 and 2</td>
+</tr>
+<tr>
+<td>Close to your RAM limit</td>
+<td>data.table with <code>fread</code>, reading only the columns you need</td>
+</tr>
+<tr>
+<td>Bigger than RAM, or many files</td>
+<td><strong>DuckDB</strong> (SQL or dplyr), or <strong>arrow</strong> for Parquet folders</td>
+</tr>
+<tr>
+<td>A one-off pass for a single total</td>
+<td>a chunked read loop</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">DuckDB is built for <strong>analytical</strong> scans, aggregations and joins over large files, not for many tiny single-row writes (that is a transactional database like Postgres). Two more honest limits: store big data as <strong>Parquet</strong>, not CSV, or you lose most of the column-pruning speed; and <code>collect()</code> still pulls its result into RAM, so if you <code>collect()</code> a query that returns millions of rows you are right back to the memory wall. Summarise first, collect small.</div></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://duckdb.org/docs/current/clients/r.html">DuckDB R API documentation</a> - the official guide to <code>dbConnect(duckdb())</code>, querying files, and the dplyr interface used here.</li>
+
+<li><a href="https://duckplyr.tidyverse.org/">duckplyr (tidyverse)</a> - run ordinary dplyr on a data frame and have DuckDB execute it out-of-core, no SQL.</li>
+
+<li><a href="https://arrow.apache.org/docs/r/">Arrow for R</a> - query and stream folders of Parquet/CSV files that are larger than memory, with a dplyr backend.</li>
+
+<li><a href="https://cran.r-project.org/web/packages/data.table/vignettes/datatable-intro.html">Introduction to data.table (CRAN vignette)</a> - <code>fread</code>, <code>select=</code> and the memory-frugal reading from this lesson.</li>
+
+<li><a href="https://csgillespie.github.io/efficientR/input-output.html">Efficient R Programming, Input/Output chapter (free)</a> - a clear, practical tour of reading large data and keeping memory in check.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Course complete</h2>
+
+<p>You can now work with data that does not fit in memory. The trick is never to fight the memory wall head-on: <strong>load less</strong> (fewer columns, leaner types), <strong>stream</strong> the file in chunks while keeping a small running answer, or best of all <strong>send the query to the data</strong> and let DuckDB scan it on disk, in SQL or in dplyr, returning only the summary you asked for.</p>
+
+<p>That closes the <strong>Fast Data Wrangling with data.table</strong> course. Across three lessons you went from the <code>DT[i, j, by]</code> bracket and keys, to data.table versus dplyr head to head, to querying data far bigger than your laptop. This course is part of the Data Analyst track: pass the track assessment and it counts toward your verified certificate.</p>
+</section>
+
