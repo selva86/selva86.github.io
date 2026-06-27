@@ -1,0 +1,425 @@
+---
+title: "Joining Data Lesson 4: Nest, unnest and rectangle data in R"
+description: "List-columns in R: nest() bundles each group into a cell, map() runs a summary or model over each, then unnest() and unnest_wider flatten nested data into tidy rows."
+keywords: "nest, unnest, list columns, rectangling, unnest_wider, unnest_longer, hoist, purrr map, many models, tidyr in R"
+webr: true
+curriculum_id: "2.2.4"
+post_type: "LESSON"
+course_id: "da-joins"
+course_title: "Joining and Reshaping Data in R"
+course_lesson: "4"
+course_total: "4"
+course_landing: "Join-Reshape-Course.html"
+course_next: ""
+course_prev: "Splitting-Uniting-and-Fuzzy-Joins.html"
+lesson_access: "free"
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 4 of 4</div>
+<h2>A column that holds whole tables</h2>
+
+<p>In Lesson 3 you cleaned messy columns and keys. This is the last reshape in the course, and the most surprising one: a single cell can hold not a word or a number, but an <strong>entire table</strong>.</p>
+
+<p>Maya, who runs a small bakery, has grown to three branches: Riverside, Hilltop and Station. She keeps one tidy row per branch per month, and now she wants one thing <em>per branch</em>: first an average, then a sales <strong>trend</strong> (is this branch growing or shrinking?). Doing that branch by branch, by hand, is exactly the tedium this lesson removes.</p>
+
+<p>By the end you will be able to:</p>
+
+<ul>
+
+<li>Build a <strong>list-column</strong> (a column whose cells are whole tables) with <code>nest()</code></li>
+
+<li>Run a summary, and even a whole <strong>model</strong>, over every group at once with <code>map()</code>, and flatten the result with <code>unnest()</code></li>
+
+<li><strong>Rectangle</strong> nested, JSON-like data into tidy rows and columns with <code>unnest_wider()</code>, <code>unnest_longer()</code> and <code>hoist()</code></li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R, and you know a <a href="Importing-and-Tidy-Data-in-R.html">tibble</a>, the pipe <code>%&gt;%</code> and the <a href="The-dplyr-Verbs.html">dplyr verbs</a>. You met <code>nest()</code> briefly in <a href="Pivoting-Long-and-Wide-in-R.html">Lesson 2</a>; here we build on it properly. Press Run to see where we are heading.</p>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"code":"by_branch %>% mutate(avg_units = map_dbl(data, ~ mean(.x$units)))","caption":"Each data cell holds a whole month-by-units table for one branch. Press Run to compute a single average per branch straight from those bundled tables, with no loop.","before":{"cols":["branch","data"],"rows":[["Riverside","tibble 3x2",44.3],["Hilltop","tibble 3x2",30.3],["Station","tibble 3x2",55.7]]},"after":{"cols":["branch","data","avg_units"],"rows":[["Riverside","tibble 3x2",44.3],["Hilltop","tibble 3x2",30.3],["Station","tibble 3x2",55.7]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The new idea</div>
+<h2>A cell can hold a table</h2>
+
+<p>Every table you have made so far holds simple values: a cell is one number, one word, one date. A <strong>list-column</strong> breaks that rule. Each of its cells holds a whole R object, and the object we care about here is a smaller <strong>tibble</strong>. Picture a column called <code>data</code> where the Riverside cell <em>is</em> Riverside's little month-and-units table, the Hilltop cell is Hilltop's, and so on.</p>
+
+<p>Why would you want that? Because once each branch's rows are bundled into a single cell, you can do <strong>one operation per branch</strong> (compute a trend, fit a model, write one file) while still treating the whole thing as one tidy table of three rows.</p>
+
+<p>Each lesson runs in a fresh R session, so we build Maya's three-branch sales right here as a tidy long table. <code>month</code> is stored as a number (month 1 is January) so we can model the trend later:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)    # the pipe and the verbs
+library(tidyr)    # nest(), unnest(), unnest_wider(), unnest_longer(), hoist()
+library(purrr)    # map(), map_dbl()
+library(tibble)   # tribble()
+
+sales &lt;- tribble(
+  ~branch,     ~month, ~units,
+  &quot;Riverside&quot;,  1,     40,
+  &quot;Riverside&quot;,  2,     44,
+  &quot;Riverside&quot;,  3,     49,
+  &quot;Hilltop&quot;,    1,     33,
+  &quot;Hilltop&quot;,    2,     30,
+  &quot;Hilltop&quot;,    3,     28,
+  &quot;Station&quot;,    1,     52,
+  &quot;Station&quot;,    2,     55,
+  &quot;Station&quot;,    3,     60
+)
+sales
+#&gt; # A tibble: 9 x 3
+#&gt;   branch    month units
+#&gt;   &lt;chr&gt;     &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Riverside     1    40
+#&gt; 2 Riverside     2    44
+#&gt; 3 Riverside     3    49
+#&gt; # ... 6 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Nine rows, three branches. The next move folds each branch's three rows into a single cell.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Pack the groups</div>
+<h2>nest() folds each group into a list-column</h2>
+
+<p><code>nest()</code> takes the rows belonging to each group and tucks them into one cell. You name the grouping column with <code>.by</code>, and everything else is bundled into a new list-column called <code>data</code>:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">by_branch &lt;- sales %&gt;%
+  nest(.by = branch)   # one row per branch; the rest folds into `data`
+by_branch
+#&gt; # A tibble: 3 x 2
+#&gt;   branch    data
+#&gt;   &lt;chr&gt;     &lt;list&gt;
+#&gt; 1 Riverside &lt;tibble [3 x 2]&gt;
+#&gt; 2 Hilltop   &lt;tibble [3 x 2]&gt;
+#&gt; 3 Station   &lt;tibble [3 x 2]&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three rows now, one per branch. The <code>data</code> column is not a number or a word: each cell holds a small <code>month</code>/<code>units</code> tibble, the three sales for that branch. Read the result as a picture:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>branch</th>
+<th>data (a whole tibble in one cell)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Riverside</td>
+<td>month/units: (1, 40), (2, 44), (3, 49)</td>
+</tr>
+<tr>
+<td>Hilltop</td>
+<td>month/units: (1, 33), (2, 30), (3, 28)</td>
+</tr>
+<tr>
+<td>Station</td>
+<td>month/units: (1, 52), (2, 55), (3, 60)</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><code>nest()</code> does not summarise or throw anything away. It re-files the same nine rows inside three cells. <code>unnest(data)</code> is the exact undo and rebuilds the original table, so the round trip is lossless, just like <code>pivot_longer()</code> and <code>pivot_wider()</code> in Lesson 2.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What did nest() actually do?</h2>
+
+<p><code>sales</code> has 9 rows across 3 branches. After <code>by_branch &lt;- sales %&gt;% nest(.by = branch)</code>, how many rows does <code>by_branch</code> have, and can you get the original 9 back?</p>
+<section class="exercise" data-exercise-id="Nest-Unnest-and-Rectangling-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">9 rows; <code>nest()</code> just adds a <code>data</code> column alongside the others</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">3 rows, and <code>unnest(data)</code> rebuilds all 9; nesting is lossless</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">3 rows, but the other 6 rows are summarised away</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. One row per branch, and the rows are not gone, just re-filed inside the <code>data</code> cells. <code>unnest(data)</code> spills them straight back out, exactly like a pivot round trip.</div><div class="lesson-qfb lesson-qfb-no"><code>nest()</code> never summarises or drops anything. All 9 rows are still there, tucked inside the three <code>data</code> cells; nothing is averaged or lost.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The whole point</div>
+<h2>map() runs a function on every cell at once</h2>
+
+<p>Now the payoff. Because each branch's table sits in one cell, you can hand the <strong>whole</strong> <code>data</code> column to <code>map()</code> and it applies your function to every cell, returning one result per branch. Use <code>map_dbl()</code> when each answer is a single number:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">by_branch %&gt;%
+  mutate(avg_units = map_dbl(data, ~ mean(.x$units)))
+#&gt; # A tibble: 3 x 3
+#&gt;   branch    data             avg_units
+#&gt;   &lt;chr&gt;     &lt;list&gt;               &lt;dbl&gt;
+#&gt; 1 Riverside &lt;tibble [3 x 2]&gt;      44.3
+#&gt; 2 Hilltop   &lt;tibble [3 x 2]&gt;      30.3
+#&gt; 3 Station   &lt;tibble [3 x 2]&gt;      55.7</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read <code>~ mean(.x$units)</code> as a tiny throwaway function: for each cell, call that cell <code>.x</code> (a branch's tibble) and return the mean of its <code>units</code> column. <code>map_dbl</code> collects the three means into a new column.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">For a plain mean you did not strictly need nesting at all, <code>group_by(branch) %&gt;% summarise(avg_units = mean(units))</code> gives the same numbers. List-columns earn their keep when the per-group answer is something a summary table cannot hold, like a whole model. That is the next step. Press Run to watch the average appear for each bundled table.</div></div>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"code":"by_branch %>% mutate(avg_units = map_dbl(data, ~ mean(.x$units)))","caption":"map_dbl walks down the data column, runs mean on each bundled table, and returns one number per branch: 44.3, 30.3, 55.7.","before":{"cols":["branch","data"],"rows":[["Riverside","tibble 3x2",44.3],["Hilltop","tibble 3x2",30.3],["Station","tibble 3x2",55.7]]},"after":{"cols":["branch","data","avg_units"],"rows":[["Riverside","tibble 3x2",44.3],["Hilltop","tibble 3x2",30.3],["Station","tibble 3x2",55.7]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The killer app</div>
+<h2>A whole model per group, then flatten it</h2>
+
+<p>Maya's real question is not the average, it is the <strong>trend</strong>: is each branch growing? Fit a straight line <code>units ~ month</code> to every branch and read its <strong>slope</strong> (units gained per month). <code>map()</code> stores a whole <code>lm</code> model in a list-column; a second <code>map_dbl()</code> pulls each model's slope out:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fits &lt;- by_branch %&gt;%
+  mutate(model = map(data, ~ lm(units ~ month, data = .)),
+         slope = map_dbl(model, ~ coef(.)[[&quot;month&quot;]]))
+
+fits %&gt;% select(branch, slope)
+#&gt; # A tibble: 3 x 2
+#&gt;   branch    slope
+#&gt;   &lt;chr&gt;     &lt;dbl&gt;
+#&gt; 1 Riverside   4.5
+#&gt; 2 Hilltop    -2.5
+#&gt; 3 Station     4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There it is: Riverside and Station are climbing (+4.5 and +4 units a month), but <strong>Hilltop's slope is negative</strong>, its sales are sliding. You just fit three separate regressions without a single loop. This nest then map pattern is how analysts fit "many models" at once.</p>
+
+<p>A list-column of models is not a final answer, though; eventually you flatten back to a plain table. <code>unnest()</code> does that. Map a small <strong>summary tibble</strong> over each branch, then unnest it into ordinary columns:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">by_branch %&gt;%
+  mutate(stats = map(data, ~ tibble(total = sum(.x$units),
+                                    peak  = max(.x$units)))) %&gt;%
+  select(branch, stats) %&gt;%
+  unnest(stats)
+#&gt; # A tibble: 3 x 3
+#&gt;   branch    total  peak
+#&gt;   &lt;chr&gt;     &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 Riverside   133    49
+#&gt; 2 Hilltop      91    28
+#&gt; 3 Station     167    60</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is the full arc: <strong>nest</strong> to bundle, <strong>map</strong> to compute per group, <strong>unnest</strong> to flatten back to tidy rows.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Add a peak-sales column</h2>
+
+<p>Maya wants each branch's <strong>peak</strong>: the most <code>units</code> it ever sold in a single month, as a new column. The answer is one number per branch, so reach for the number-returning member of the map family. Fill in the verb, then check it.</p>
+<section class="exercise" data-exercise-id="Nest-Unnest-and-Rectangling-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="map_dbl"><textarea class="lesson-tryit-input" spellcheck="false">by_branch %&gt;%
+  mutate(peak = ____(data, ~ max(.x$units)))
+#&gt; a peak column: Riverside 49, Hilltop 33, Station 60</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Exactly. map_dbl runs max() on each branch's table and returns one number per branch (49, 33, 60). Use map_dbl when the per-group answer is a single number; plain map() would keep the results in a list-column instead.</span><span class="lesson-tryit-fb lesson-tryit-no">The per-group answer is a single NUMBER, so use the double-returning map: map_dbl(data, ~ max(.x$units)).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">by_branch %&gt;%
+  mutate(peak = map_dbl(data, ~ max(.x$units)))</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The other direction</div>
+<h2>Rectangling: nested data arriving from outside</h2>
+
+<p>So far you built list-columns yourself with <code>nest()</code>. But list-columns also arrive <strong>uninvited</strong>: data from an app, an API or a JSON file often lands with cells that are already nested records or lists. Turning that mess into a flat, tidy table is called <strong>rectangling</strong>, and the verb you reach for depends on the <strong>shape</strong> of the cell.</p>
+
+<p><strong>A named record spreads sideways into columns</strong> with <code>unnest_wider()</code>. Maya's loyalty export gives each customer a <code>profile</code> cell holding fields like city and age:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">people &lt;- tibble(
+  customer = c(&quot;Ana&quot;, &quot;Ben&quot;, &quot;Cy&quot;),
+  profile  = list(
+    list(city = &quot;Pune&quot;,   age = 30),
+    list(city = &quot;Delhi&quot;,  age = 41),
+    list(city = &quot;Mumbai&quot;, age = 25)
+  )
+)
+
+people %&gt;% unnest_wider(profile)
+#&gt; # A tibble: 3 x 3
+#&gt;   customer city     age
+#&gt;   &lt;chr&gt;    &lt;chr&gt;  &lt;dbl&gt;
+#&gt; 1 Ana      Pune      30
+#&gt; 2 Ben      Delhi     41
+#&gt; 3 Cy       Mumbai    25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><strong>A vector of several values stacks downward into rows</strong> with <code>unnest_longer()</code>. Each customer also has a list of order amounts, of different lengths:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">visits &lt;- tibble(
+  customer = c(&quot;Ana&quot;, &quot;Ben&quot;),
+  orders   = list(c(12, 8, 15), c(20, 5))
+)
+
+visits %&gt;% unnest_longer(orders)
+#&gt; # A tibble: 5 x 2
+#&gt;   customer orders
+#&gt;   &lt;chr&gt;     &lt;dbl&gt;
+#&gt; 1 Ana          12
+#&gt; 2 Ana           8
+#&gt; 3 Ana          15
+#&gt; 4 Ben          20
+#&gt; 5 Ben           5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>And when you want just <strong>one field</strong> out of a deep record without unpacking the rest, <code>hoist()</code> plucks it and leaves the remainder nested:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">people %&gt;% hoist(profile, city = &quot;city&quot;)
+#&gt; # A tibble: 3 x 3
+#&gt;   customer city   profile
+#&gt;   &lt;chr&gt;    &lt;chr&gt;  &lt;list&gt;
+#&gt; 1 Ana      Pune   &lt;named list [1]&gt;
+#&gt; 2 Ben      Delhi  &lt;named list [1]&gt;
+#&gt; 3 Cy       Mumbai &lt;named list [1]&gt;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The three moves, matched to what the cell holds:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>The cell holds...</th>
+<th>which goes...</th>
+<th>verb</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a record: named fields (city, age)</td>
+<td>sideways, into new columns</td>
+<td><code>unnest_wider()</code></td>
+</tr>
+<tr>
+<td>a vector: several values (12, 8, 15)</td>
+<td>downward, into new rows</td>
+<td><code>unnest_longer()</code></td>
+</tr>
+<tr>
+<td>a record, but you want one field</td>
+<td>pull one out, keep the rest nested</td>
+<td><code>hoist()</code></td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Real nested data is rarely uniform: some records miss a field, or use a different name. <code>unnest_wider()</code> fills the gaps with <code>NA</code> and will warn you if records disagree on their fields. Always look at the result, and reach for <code>hoist()</code> when you only need a known field or two out of a large, ragged record.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which rectangling verb?</h2>
+
+<p>Maya's import has a <code>profile</code> cell per customer holding a record like <code>{city: Pune, age: 30}</code>. She wants <code>city</code> and <code>age</code> as their own columns, one row per customer. Which verb does that?</p>
+<section class="exercise" data-exercise-id="Nest-Unnest-and-Rectangling-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx"><code>unnest_longer(profile)</code></span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx"><code>unnest_wider(profile)</code></span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx"><code>pivot_wider(profile)</code></span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A named record spreads SIDEWAYS: each field (city, age) becomes its own column, one row per customer. <code>unnest_wider()</code> is the record-to-columns move.</div><div class="lesson-qfb lesson-qfb-no"><code>pivot_wider()</code> reshapes a flat long table around a key column; it cannot crack open a list-column. Prying apart a nested cell is the job of the <code>unnest_*()</code> / <code>hoist()</code> family.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://tidyr.tidyverse.org/reference/nest.html">tidyr: nest()</a> - the reference for nesting rows into a list-column of data frames, with every argument explained.</li>
+
+<li><a href="https://tidyr.tidyverse.org/articles/rectangle.html">tidyr: Rectangling (vignette)</a> - the canonical guide to turning deeply nested, JSON-like data into tidy tables.</li>
+
+<li><a href="https://tidyr.tidyverse.org/reference/unnest_wider.html">tidyr: unnest_wider()</a> - the record-to-columns move, plus links to <code>unnest_longer()</code> and <code>hoist()</code>.</li>
+
+<li><a href="https://purrr.tidyverse.org/reference/map.html">purrr: map()</a> - the full map family (<code>map</code>, <code>map_dbl</code>, <code>map_chr</code>, ...), the engine that runs a function over every cell.</li>
+
+<li><a href="https://r4ds.had.co.nz/many-models.html">R for Data Science, Many models</a> - the classic worked example of nest then map then a model per group, on the gapminder data.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Lesson 4 complete, and the course with it</h2>
+
+<p>You can now treat a column as a column of tables. You built a <strong>list-column</strong> with <code>nest()</code> (one row per group, lossless), ran a summary and a whole <strong>model</strong> over every group at once with <code>map()</code>/<code>map_dbl()</code>, flattened the results back with <code>unnest()</code>, and <strong>rectangled</strong> nested, JSON-like data by matching the verb to the cell's shape: <code>unnest_wider()</code> for records, <code>unnest_longer()</code> for value-lists, <code>hoist()</code> to pluck one field.</p>
+
+<p>That closes <strong>Joining and Reshaping Data in R</strong>. Across four lessons you learned to combine two tables with joins, reshape one table between long and wide, clean the columns and keys real data throws at you, and now bundle, model and rectangle nested data. You have the full toolkit for getting scattered, messy data into one analysis-ready table, the step every project depends on. Next, point that clean data at exploratory data analysis and the first charts.</p>
+</section>
+
+{% endraw %}
