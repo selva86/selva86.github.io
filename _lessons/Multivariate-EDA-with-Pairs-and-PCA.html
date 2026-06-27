@@ -1,0 +1,368 @@
+---
+title: "Exploratory Data Analysis Lesson 7: Multivariate EDA with pairs and PCA"
+description: "Multivariate EDA in R: read a scatterplot matrix and correlation heatmap, then compress correlated columns with PCA (prcomp) and read a scree plot and biplot."
+keywords: "PCA in R, prcomp, scatterplot matrix, ggpairs, GGally, correlation heatmap, scree plot, biplot, principal component analysis, multivariate EDA, dimensionality reduction"
+mathjax: true
+webr: true
+curriculum_id: "2.3.7"
+post_type: "LESSON"
+course_id: "da-eda"
+course_title: "Exploratory Data Analysis in R"
+course_lesson: "7"
+course_total: "8"
+course_landing: "EDA-Course.html"
+course_next: "Data-Quality-and-Validation.html"
+course_prev: "Distribution-Shape-and-Transformations.html"
+lesson_access: "free"
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 7 of 8</div>
+<h2>Six columns, two hidden stories</h2>
+
+<p>In Lesson 6 you read the <strong>shape</strong> of one column at a time, and in Lesson 2 you compared <strong>two</strong> columns with a scatterplot and a correlation. But Maya's bakery has outgrown one-and-two-at-a-time. Her new logbook has <strong>six</strong> numeric columns recorded over <strong>22 days</strong>: how many people walked in (<code>foot_traffic</code>), how many sales she rang up (<code>transactions</code>), her takings (<code>revenue</code>), the day's <code>temperature</code>, and how many <code>iced_coffee</code> and <code>hot_cocoa</code> cups she sold.</p>
+
+<p>Six columns make \(15\) different pairs to inspect. Squint at them one by one and you drown. The skill in this lesson is to take in <strong>all the columns at once</strong>, find which ones really move together, and then <strong>squeeze</strong> them down to the handful of underlying stories actually driving the data. The heatmap below is the first hint: paint every pair's correlation as colour and two blocks jump out, before you compute anything by hand.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>See every pair of numeric columns at once with a <strong>scatterplot matrix</strong> and a <strong>correlation heatmap</strong></li>
+
+<li>Explain what a <strong>principal component</strong> is and why many correlated columns can be compressed into a few</li>
+
+<li>Run <strong>PCA</strong> with <code>prcomp()</code> and use a <strong>scree plot</strong> to decide how many components to keep</li>
+
+<li>Read a component's <strong>loadings</strong> to name what it measures, and read a <strong>biplot</strong> to place each day in component space</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and load a package with <code>library()</code>, and you have met the scatterplot, Pearson's <code>cor()</code>, and the <strong>correlation matrix</strong> in <a href="Two-Variables-and-Correlation-in-R.html">Lesson 2</a>. Every new term is defined as it appears.</p>
+<div class="lesson-widget" data-widget-type="correlation-heatmap" data-widget-config='{"vars":["foot_traffic","transactions","revenue","temperature","iced_coffee","hot_cocoa"],"data":{"foot_traffic":[170,196,146,199,228,113,170,153,131,90,128,181,163,98,187,90,153,155,141,166,130,155],"transactions":[132,157,110,157,184,90,138,114,107,70,99,147,128,85,156,70,122,118,108,134,108,122],"revenue":[510,600,435,588,659,377,526,456,429,300,426,552,522,338,576,300,477,478,435,523,426,476],"temperature":[71,70,68,48,65,74,75,75,66,62,68,71,59,69,78,69,84,62,69,73,49,69],"iced_coffee":[30,25,27,4,19,38,33,28,21,13,26,30,13,22,33,26,50,16,32,27,4,36],"hot_cocoa":[10,15,11,30,14,9,7,10,23,18,22,10,23,15,10,12,1,19,8,10,22,12]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">Every pair at once</div>
+<h2>The scatterplot matrix</h2>
+
+<p>The honest first move with many numeric columns is to <strong>look at all the pairs</strong>, not pick favourites. The tool for that is the <strong>scatterplot matrix</strong> (also called a <strong>pairs plot</strong>): a grid with your variables along both the rows and the columns, where each cell is the scatterplot of that row's variable against that column's variable. With four variables you get a 4-by-4 grid of little scatters, all on one screen.</p>
+
+<p>Each lesson runs in a fresh R session, so let us build Maya's 22-day logbook right here (run this once). It is fixed, so every number below is exact.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">bakery &lt;- data.frame(
+  foot_traffic = c(170,196,146,199,228,113,170,153,131,90,128,181,163,98,187,90,153,155,141,166,130,155),
+  transactions = c(132,157,110,157,184,90,138,114,107,70,99,147,128,85,156,70,122,118,108,134,108,122),
+  revenue      = c(510,600,435,588,659,377,526,456,429,300,426,552,522,338,576,300,477,478,435,523,426,476),
+  temperature  = c(71,70,68,48,65,74,75,75,66,62,68,71,59,69,78,69,84,62,69,73,49,69),
+  iced_coffee  = c(30,25,27,4,19,38,33,28,21,13,26,30,13,22,33,26,50,16,32,27,4,36),
+  hot_cocoa    = c(10,15,11,30,14,9,7,10,23,18,22,10,23,15,10,12,1,19,8,10,22,12)
+)
+nrow(bakery)   # one row per day
+#&gt; [1] 22
+head(bakery)
+#&gt;   foot_traffic transactions revenue temperature iced_coffee hot_cocoa
+#&gt; 1          170          132     510          71          30        10
+#&gt; 2          196          157     600          70          25        15
+#&gt; 3          146          110     435          68          27        11
+#&gt; 4          199          157     588          48           4        30
+#&gt; 5          228          184     659          65          19        14
+#&gt; 6          113           90     377          74          38         9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>ggpairs()</code> function from the <strong>GGally</strong> package draws the whole matrix in one line. Below the diagonal it puts the scatterplots, above it prints each pair's correlation, and down the diagonal it shows each variable's own distribution:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(GGally)
+# every pair of four columns at once
+ggpairs(bakery[, c(&quot;foot_traffic&quot;, &quot;revenue&quot;, &quot;temperature&quot;, &quot;iced_coffee&quot;)])</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Reading a pairs plot is just reading many small scatters at once. Here is one cell pulled out and enlarged, <code>foot_traffic</code> against <code>revenue</code>: the dots march tightly up and to the right, a near-perfect line, exactly the strong positive relationship the matrix would show you in miniature.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":170,"y":510},{"x":196,"y":600},{"x":146,"y":435},{"x":199,"y":588},{"x":228,"y":659},{"x":113,"y":377},{"x":170,"y":526},{"x":153,"y":456},{"x":131,"y":429},{"x":90,"y":300},{"x":128,"y":426},{"x":181,"y":552},{"x":163,"y":522},{"x":98,"y":338},{"x":187,"y":576},{"x":90,"y":300},{"x":153,"y":477},{"x":155,"y":478},{"x":141,"y":435},{"x":166,"y":523},{"x":130,"y":426},{"x":155,"y":476}],"geoms":["point"],"x":"foot_traffic","y":"revenue","code":{"point":"ggplot(bakery, aes(foot_traffic, revenue)) +\n  geom_point()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">All the numbers, as colour</div>
+<h2>The correlation heatmap</h2>
+
+<p>The pairs plot shows you the shapes, but with six columns the grid gets busy fast. The faster summary is the one you met in Lesson 2: hand the whole data frame to <code>cor()</code> and read the <strong>correlation matrix</strong>, every variable against every other, as a single grid of numbers between \(-1\) and \(+1\).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(cor(bakery), 2)
+#&gt;              foot_traffic transactions revenue temperature iced_coffee hot_cocoa
+#&gt; foot_traffic         1.00         0.99    0.99       -0.00       -0.01     -0.02
+#&gt; transactions         0.99         1.00    0.99        0.00       -0.01     -0.02
+#&gt; revenue              0.99         0.99    1.00       -0.00       -0.01      0.01
+#&gt; temperature         -0.00         0.00   -0.00        1.00        0.93     -0.87
+#&gt; iced_coffee         -0.01        -0.01   -0.01        0.93        1.00     -0.87
+#&gt; hot_cocoa           -0.02        -0.02    0.01       -0.87       -0.87      1.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Thirty-six numbers are still a lot to scan, so paint them: the <strong>heatmap</strong> below colours each cell green for positive, blue for negative, deeper colour for stronger. Now the structure is impossible to miss, it falls into two <strong>blocks</strong>.</p>
+
+<ul>
+
+<li>A <strong>busyness block</strong>: <code>foot_traffic</code>, <code>transactions</code> and <code>revenue</code> all correlate at about \(0.99\). On a busy day all three rise together; they are practically three thermometers for one thing, how busy the shop was.</li>
+
+<li>A <strong>weather block</strong>: <code>temperature</code> and <code>iced_coffee</code> rise together (\(0.93\)), and both push <code>hot_cocoa</code> down (\(-0.87\)). One underlying thing again, how hot the day was.</li>
+
+</ul>
+
+<p>And the two blocks barely talk to each other: every cross-block correlation is essentially \(0.00\). Maya's takings track footfall, not the weather, exactly as you found in Lesson 2.</p>
+<div class="lesson-widget" data-widget-type="correlation-heatmap" data-widget-config='{"vars":["foot_traffic","transactions","revenue","temperature","iced_coffee","hot_cocoa"],"data":{"foot_traffic":[170,196,146,199,228,113,170,153,131,90,128,181,163,98,187,90,153,155,141,166,130,155],"transactions":[132,157,110,157,184,90,138,114,107,70,99,147,128,85,156,70,122,118,108,134,108,122],"revenue":[510,600,435,588,659,377,526,456,429,300,426,552,522,338,576,300,477,478,435,523,426,476],"temperature":[71,70,68,48,65,74,75,75,66,62,68,71,59,69,78,69,84,62,69,73,49,69],"iced_coffee":[30,25,27,4,19,38,33,28,21,13,26,30,13,22,33,26,50,16,32,27,4,36],"hot_cocoa":[10,15,11,30,14,9,7,10,23,18,22,10,23,15,10,12,1,19,8,10,22,12]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Read the blocks</h2>
+
+<p>In Maya's heatmap, <code>foot_traffic</code>-<code>revenue</code> is \(0.99\) (deep green) and <code>foot_traffic</code>-<code>temperature</code> is \(-0.00\) (white). Read together, what do those two cells tell you?</p>
+<section class="exercise" data-exercise-id="Multivariate-EDA-with-Pairs-and-PCA-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Temperature must be measured wrong, because a real variable cannot correlate \(0.00\) with anything</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Revenue rises almost perfectly with footfall, while footfall has essentially no straight-line relationship with temperature</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The \(0.99\) proves foot_traffic and revenue are the same column entered twice</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. A near-\(1\) cell means the pair moves together tightly (the busyness block); a near-\(0\) cell means no linear link (busyness and weather are separate stories). That is the two-block structure.</div><div class="lesson-qfb lesson-qfb-no">They are different things, people through the door versus dollars taken. A high correlation means they move together, not that they are identical. Only a variable with itself, the diagonal, is exactly \(1\).</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">Why compress</div>
+<h2>What a principal component is</h2>
+
+<p>Here is the insight the heatmap hands you: those six columns are not six independent facts. Three of them (the busyness block) say almost exactly the same thing, and three more (the weather block) say one other thing. So the logbook really only carries about <strong>two</strong> pieces of information, dressed up as six columns. <strong>Principal Component Analysis (PCA)</strong> is the method that finds those few underlying pieces automatically and hands you new columns that capture them.</p>
+
+<p>The intuition first. Look again at the <code>foot_traffic</code>-versus-<code>revenue</code> cloud below: the points lie along one long diagonal stripe. Almost all their spread runs <em>along</em> that stripe; hardly any runs across it. PCA does exactly what your eye does, it draws a <strong>new axis</strong> down the longest direction of the cloud, and that single new axis captures nearly everything the two original columns were telling you.</p>
+
+<p>Now the formalism. A <strong>principal component</strong> is a new variable built as a weighted blend of the originals. Write the standardized columns as \(z_1, z_2, \ldots, z_p\) (here \(p = 6\)). The first component is</p>
+
+<p>\[ \mathrm{PC}_1 = w_1 z_1 + w_2 z_2 + \cdots + w_p z_p, \qquad \sum_{j=1}^{p} w_j^2 = 1 \]</p>
+
+<p>where each \(z_j\) is the \(j\)-th column after <strong>standardizing</strong> it (subtract its mean, divide by its standard deviation, so it has mean \(0\) and spread \(1\)), and the <strong>weights</strong> \(w_j\) (called the <strong>loadings</strong>) say how much each column contributes to the blend. PCA chooses those weights to make \(\mathrm{PC}_1\) have the <strong>largest possible variance</strong>, the most spread, which is the same as finding that longest direction through the cloud. The keep-the-weights-on-a-unit-circle rule \(\sum w_j^2 = 1\) just stops it cheating by making the weights huge. Then \(\mathrm{PC}_2\) is the next blend with the most remaining variance, with the extra rule that it is <strong>uncorrelated</strong> with \(\mathrm{PC}_1\), and so on. (For the curious: the weight vectors are the eigenvectors of the correlation matrix, and each component's variance is its eigenvalue.)</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Two ideas carry all of PCA. (1) <strong>Standardize first</strong>, or a big-unit column like <code>revenue</code> (hundreds) would dwarf <code>iced_coffee</code> (tens) just for being measured in larger numbers. (2) Each component points along a <strong>direction of maximum remaining variance</strong>, and the components are <strong>ordered</strong> so the first few capture the most. That is why a few of them can replace many columns.</div></div>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":170,"y":510},{"x":196,"y":600},{"x":146,"y":435},{"x":199,"y":588},{"x":228,"y":659},{"x":113,"y":377},{"x":170,"y":526},{"x":153,"y":456},{"x":131,"y":429},{"x":90,"y":300},{"x":128,"y":426},{"x":181,"y":552},{"x":163,"y":522},{"x":98,"y":338},{"x":187,"y":576},{"x":90,"y":300},{"x":153,"y":477},{"x":155,"y":478},{"x":141,"y":435},{"x":166,"y":523},{"x":130,"y":426},{"x":155,"y":476}],"geoms":["point"],"x":"foot_traffic","y":"revenue","code":{"point":"ggplot(bakery, aes(foot_traffic, revenue)) +\n  geom_point()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Doing it in R</div>
+<h2>prcomp and the scree plot</h2>
+
+<p>R's built-in <code>prcomp()</code> runs PCA for you. Pass <code>scale. = TRUE</code> so it standardizes every column first (the non-negotiable step from the last slide), then ask <code>summary()</code> how much of the total spread each component captures.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pca &lt;- prcomp(bakery, scale. = TRUE)
+summary(pca)
+#&gt; Importance of components:
+#&gt;                           PC1    PC2    PC3    PC4    PC5    PC6
+#&gt; Standard deviation     1.7274 1.6668 0.3911 0.2663 0.0944 0.0693
+#&gt; Proportion of Variance 0.4973 0.4631 0.0255 0.0118 0.0015 0.0008
+#&gt; Cumulative Proportion  0.4973 0.9604 0.9859 0.9977 0.9992 1.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the bottom two rows. <strong>Proportion of Variance</strong> is the share of the total spread each component explains. For component \(k\) it is</p>
+
+<p>\[ \text{proportion}_k = \frac{\lambda_k}{\lambda_1 + \lambda_2 + \cdots + \lambda_p} \]</p>
+
+<p>where \(\lambda_k\) (lambda) is the variance of component \(k\). PC1 carries \(49.7\%\) and PC2 \(46.3\%\): together <strong>\(96\%\)</strong> of everything in six columns, in just two new ones. PC3 onward scrape up tiny leftovers.</p>
+
+<p>The picture that makes this decision obvious is the <strong>scree plot</strong>: the proportion of variance against the component number. You look for the <strong>elbow</strong>, the point where the bars fall off a cliff and flatten into rubble (scree is the loose rock at the foot of a hill). Keep the components above the elbow.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">pve &lt;- pca$sdev^2 / sum(pca$sdev^2)   # proportion of variance explained
+round(pve * 100, 1)
+#&gt; [1] 49.7 46.3  2.5  1.2  0.1  0.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The cliff after PC2 could not be clearer: two tall bars, then nothing. Two components it is.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"PC1","y":49.7},{"x":"PC2","y":46.3},{"x":"PC3","y":2.5},{"x":"PC4","y":1.2},{"x":"PC5","y":0.1},{"x":"PC6","y":0.1}],"geoms":["col"],"x":"component","y":"percent variance explained","code":{"col":"ggplot(scree, aes(factor(component), variance)) +\n  geom_col()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>How much do two components capture?</h2>
+
+<p>The scree plot says keep two components. Confirm it with a number: add up the proportion of variance for the <strong>first two</strong> components and turn it into a percentage. Fill in the blank with the index range that selects components 1 and 2 from <code>pve</code>.</p>
+<section class="exercise" data-exercise-id="Multivariate-EDA-with-Pairs-and-PCA-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="1\s*:\s*2"><textarea class="lesson-tryit-input" spellcheck="false">pve &lt;- pca$sdev^2 / sum(pca$sdev^2)
+round(sum(pve[____]) * 100, 1)   # total variance kept by PC1 and PC2</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That returns 96: two components keep 96% of everything in six columns. Dropping the other four costs you only 4% of the spread, a great trade.</span><span class="lesson-tryit-fb lesson-tryit-no">Select the first two with the range 1:2, so sum(pve[1:2]).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">pve &lt;- pca$sdev^2 / sum(pca$sdev^2)
+round(sum(pve[1:2]) * 100, 1)
+#&gt; [1] 96</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Naming the components</div>
+<h2>Loadings: what each component means</h2>
+
+<p>A component is only useful once you can say what it <em>measures</em>, and that is what the <strong>loadings</strong> tell you, the weights \(w_j\) from the blend. They live in <code>pca$rotation</code>, one column per component. Before reading them, one honest caveat that trips up everyone.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">The sign of a whole component is <strong>arbitrary</strong>. A direction and its exact opposite describe the same axis, so <code>prcomp</code> may hand you any component with all its signs flipped, and a different machine may flip it back. Only the <strong>pattern</strong> within a component matters (which variables share a sign, and their relative sizes), never whether the numbers come out \(+\) or \(-\). To make the table readable we orient each component so the busier and hotter direction is positive:</div></div>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># orient PC1 and PC2 so busier / hotter reads as positive (signs only, no analysis change)
+if (pca$rotation[&quot;revenue&quot;, 1] &lt; 0)     { pca$rotation[, 1] &lt;- -pca$rotation[, 1]; pca$x[, 1] &lt;- -pca$x[, 1] }
+if (pca$rotation[&quot;temperature&quot;, 2] &lt; 0) { pca$rotation[, 2] &lt;- -pca$rotation[, 2]; pca$x[, 2] &lt;- -pca$x[, 2] }
+round(pca$rotation[, 1:2], 2)
+#&gt;                PC1   PC2
+#&gt; foot_traffic  0.58  0.02
+#&gt; transactions  0.58  0.02
+#&gt; revenue       0.58  0.02
+#&gt; temperature  -0.02  0.58
+#&gt; iced_coffee  -0.03  0.58
+#&gt; hot_cocoa     0.01 -0.57</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now read each column as a recipe:</p>
+
+<ul>
+
+<li><strong>PC1</strong> loads heavily and equally on <code>foot_traffic</code>, <code>transactions</code> and <code>revenue</code> (all \(0.58\)) and near-zero on everything else. PC1 <em>is</em> the busyness block. Call it <strong>"how busy the day was."</strong></li>
+
+<li><strong>PC2</strong> loads on <code>temperature</code> and <code>iced_coffee</code> (\(0.58\)) and pulls <code>hot_cocoa</code> the opposite way (\(-0.57\)), with near-zero on the busyness columns. PC2 <em>is</em> the weather block. Call it <strong>"how hot the day was."</strong></li>
+
+</ul>
+
+<p>PCA rediscovered, with no hints, the exact two stories you spotted in the heatmap, and handed you a single clean number for each.</p>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Placing every day</div>
+<h2>The biplot</h2>
+
+<p>The loadings name the components; the <strong>scores</strong> place each day on them. Scores live in <code>pca$x</code>, one row per day giving its PC1 and PC2 value (its position along the two new axes).</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(head(pca$x[, 1:2]), 2)
+#&gt;        PC1   PC2
+#&gt; [1,]  0.71  0.85
+#&gt; [2,]  2.21  0.14
+#&gt; [3,] -0.55  0.35
+#&gt; [4,]  2.31 -3.77
+#&gt; [5,]  3.64 -0.39
+#&gt; [6,] -1.88  1.48</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Plot those scores, PC1 across and PC2 up, and you get a map of all 22 days in the two-dimensional space PCA built. Because PC1 means "how busy" and PC2 means "how hot," it reads like a weather-and-trade chart. (R's <code>biplot(pca)</code> draws the full <strong>biplot</strong>, this same map of days with the variable loadings overlaid as arrows, so you see the points and what pushes them in one picture; the day positions below are its heart.)</p>
+
+<p>Read the map by its edges:</p>
+
+<ul>
+
+<li><strong>Far right</strong> sits day 5 (\(228\) people through the door), the busiest day of the fortnight. <strong>Far left</strong> sit days 10 and 16 (just \(90\) people), the quietest.</li>
+
+<li><strong>Top</strong> sits day 17 (\(84\) degrees, \(50\) iced coffees), the hottest. <strong>Bottom-right</strong> sits day 4: busy <em>and</em> cold (\(48\) degrees, \(30\) hot cocoas), high on PC1, low on PC2.</li>
+
+</ul>
+
+<p>One last detail worth noticing: the widget prints \(r = 0\) for this scatter. That is not a coincidence, it is the design. PC1 and PC2 are built to be <strong>uncorrelated</strong>, so the busyness axis and the weather axis carry genuinely separate information, no overlap.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":0.71,"y":0.85},{"x":2.21,"y":0.14},{"x":-0.55,"y":0.35},{"x":2.31,"y":-3.77},{"x":3.64,"y":-0.39},{"x":-1.88,"y":1.48},{"x":0.91,"y":1.55},{"x":-0.25,"y":0.99},{"x":-0.85,"y":-1.13},{"x":-3.02,"y":-1.49},{"x":-1.09,"y":-0.65},{"x":1.45,"y":0.87},{"x":0.69,"y":-1.99},{"x":-2.4,"y":-0.25},{"x":1.85,"y":1.54},{"x":-3.08,"y":0.2},{"x":-0.06,"y":3.55},{"x":0.07,"y":-1.31},{"x":-0.7,"y":0.94},{"x":0.77,"y":0.83},{"x":-0.79,"y":-3.14},{"x":0.06,"y":0.84}],"geoms":["point"],"x":"PC1 score (busier to the right)","y":"PC2 score (hotter is higher)","code":{"point":"ggplot(scores, aes(PC1, PC2)) +\n  geom_point()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Read the map</h2>
+
+<p>A new Saturday comes in with a PC1 score of about \(+3\) and a PC2 score of about \(0\). Using Maya's components (PC1 = how busy, PC2 = how hot), what kind of day was it?</p>
+<section class="exercise" data-exercise-id="Multivariate-EDA-with-Pairs-and-PCA-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A very busy day at an unremarkable, middling temperature</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A scorching hot day with average trade</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A quiet day, because a single score of \(3\) is small</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. A large positive PC1 means far over on the busyness axis (lots of footfall, sales and takings); a PC2 near \(0\) means an average-temperature day. The two axes read independently.</div><div class="lesson-qfb lesson-qfb-no">On these standardized components a score of \(+3\) is far out toward the high end, the busy extreme, not small. Compare it to the biplot, where the busiest day sat near \(+3.6\) on PC1.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take multivariate EDA and PCA further:</p>
+
+<ul>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning (free PDF), Chapter 12</a> - the canonical, gentle-but-rigorous treatment of PCA, loadings, scores, scree plots and the proportion of variance explained.</li>
+
+<li><a href="https://doi.org/10.1038/nmeth.4346">Lever, Krzanowski and Altman (2017), Principal component analysis, Nature Methods</a> - a two-page primer that builds the geometric intuition (directions of maximum variance) cleanly and visually.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/prcomp.html">R help: prcomp {stats}</a> - the canonical docs for the function you used, including <code>scale.</code>, <code>rotation</code>, <code>x</code> and <code>sdev</code>.</li>
+
+<li><a href="https://ggobi.github.io/ggally/reference/ggpairs.html">GGally: ggpairs() reference</a> - how to build and customise the scatterplot matrix you started the lesson with.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 7 complete</h2>
+
+<p>You can now explore many variables at once instead of two at a time. You read a <strong>scatterplot matrix</strong> with <code>ggpairs()</code>, summarised every pair as a <strong>correlation heatmap</strong> and spotted its two blocks, then used <strong>PCA</strong> (<code>prcomp(scale. = TRUE)</code>) to compress six correlated columns into two components carrying \(96\%\) of the spread. You read a <strong>scree plot</strong> to choose how many to keep, named each component from its <strong>loadings</strong> (PC1 = how busy, PC2 = how hot) while respecting the arbitrary-sign caveat, and placed all 22 days on a <strong>biplot</strong> of their scores.</p>
+
+<p>Next, Lesson 8: Data Quality and Validation. Every method in this course, from a histogram to PCA, quietly trusts that the data is clean. Before you believe any of it, you will run a pre-analysis quality pass, checking types, ranges, uniqueness and key integrity, and codify those checks as reusable rules that run on every refresh.</p>
+</section>
+
+{% endraw %}
