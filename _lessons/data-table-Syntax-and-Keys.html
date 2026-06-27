@@ -1,0 +1,379 @@
+---
+title: "data.table Lesson 1: The DT[i, j, by] syntax and keys"
+description: "Learn data.table in R from scratch: the DT[i, j, by] syntax to filter rows, compute columns and group, plus keys for lightning-fast lookups and joins."
+keywords: "data.table, data.table in R, DT i j by, setkey, data.table keys, group by, by reference, fast data wrangling in R"
+mathjax: true
+webr: true
+curriculum_id: "2.6.1"
+post_type: "LESSON"
+course_id: "da-datatable"
+course_title: "Fast Data Wrangling with data.table"
+course_lesson: "1"
+course_total: "3"
+course_landing: "data-table-Course.html"
+course_next: "dplyr-vs-data-table.html"
+course_prev: ""
+lesson_access: "free"
+---
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 1 of 3</div>
+<h2>One bracket, three jobs</h2>
+
+<p>Maya's single bakery has grown into a chain. Her till now logs hundreds of thousands of sales a week across every shop, and the tidy dplyr pipelines that felt instant on one shop's data have started to crawl. <strong>data.table</strong> is R's tool for exactly this moment: the same filter, compute and group you already know, written in one compact bracket and engineered to fly on millions of rows.</p>
+
+<p>Below is a week of sales from two of her shops. Press Run to keep just the Austin rows, your first look at the bracket in action.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Read the <code>DT[i, j, by]</code> grammar and name what each of the three slots does</li>
+
+<li>Filter rows in <code>i</code>, compute and select columns in <code>j</code>, and aggregate per group with <code>by</code></li>
+
+<li>Set a <strong>key</strong> with <code>setkey()</code> and use it for lightning-fast lookups and joins</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R, and you know the dplyr verbs and the pipe from <a href="The-dplyr-Verbs.html">The dplyr Verbs</a>. We define every data.table idea by translating its dplyr equivalent, so no prior data.table experience is needed.</p>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"code":"sales[shop == \"Austin\"]","caption":"The i slot filters rows: keep the Austin sales, the four Denver rows fall away.","before":{"cols":["shop","item","units","revenue"],"rows":[["Austin","Sourdough",18,81],["Austin","Bagel",40,60],["Denver","Sourdough",22,99],["Denver","Croissant",15,60],["Austin","Croissant",27,108],["Denver","Bagel",30,45],["Austin","Sourdough",20,90],["Denver","Sourdough",12,54]]},"after":{"cols":["shop","item","units","revenue"],"rows":[["Austin","Sourdough",18,81],["Austin","Bagel",40,60],["Austin","Croissant",27,108],["Austin","Sourdough",20,90]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The whole grammar</div>
+<h2>DT[i, j, by]: take rows, do something, by group</h2>
+
+<p>Almost everything in data.table happens inside one square bracket with three slots, read left to right like a sentence: <strong><code>DT[i, j, by]</code></strong> means "take the rows <code>i</code>, compute <code>j</code>, grouped by <code>by</code>."</p>
+
+<ul>
+
+<li>**<code>i</code><em>* = </em>which rows* (a condition, like dplyr's <code>filter()</code>).</li>
+
+<li>**<code>j</code><em>* = </em>what to compute* (select columns, build new ones, or summarise them, like <code>select()</code> plus <code>mutate()</code> plus <code>summarise()</code>).</li>
+
+<li>**<code>by</code><em>* = </em>grouped how* (split into groups and run <code>j</code> inside each, like <code>group_by()</code>).</li>
+
+</ul>
+
+<p>Let us build Maya's sales as a data.table. Each lesson runs in a fresh R session, so we create the data right here. The one setup line that matters is <code>setDTthreads(1)</code>: it just tells data.table to use a single core, which is all the in-browser R has.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(data.table)
+setDTthreads(1)   # the in-browser R runs on one core
+
+# A week of sales from two shops, one row per sale:
+sales &lt;- data.table(
+  shop    = c(&quot;Austin&quot;, &quot;Austin&quot;, &quot;Denver&quot;, &quot;Denver&quot;,
+              &quot;Austin&quot;, &quot;Denver&quot;, &quot;Austin&quot;, &quot;Denver&quot;),
+  item    = c(&quot;Sourdough&quot;, &quot;Bagel&quot;, &quot;Sourdough&quot;, &quot;Croissant&quot;,
+              &quot;Croissant&quot;, &quot;Bagel&quot;, &quot;Sourdough&quot;, &quot;Sourdough&quot;),
+  units   = c(18, 40, 22, 15, 27, 30, 20, 12),
+  revenue = c(81, 60, 99, 60, 108, 45, 90, 54)
+)
+sales
+#&gt;      shop      item units revenue
+#&gt; 1: Austin Sourdough    18      81
+#&gt; 2: Austin     Bagel    40      60
+#&gt; 3: Denver Sourdough    22      99
+#&gt; 4: Denver Croissant    15      60
+#&gt; 5: Austin Croissant    27     108
+#&gt; 6: Denver     Bagel    30      45
+#&gt; 7: Austin Sourdough    20      90
+#&gt; 8: Denver Sourdough    12      54</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A data.table is also a data frame, so anything that expects a data frame still works. The difference is everything you can now do inside that bracket. The flow below is the map we will follow for the rest of the lesson.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"i   which rows","sub":"keep the rows where a condition is TRUE, like dplyr filter"},{"title":"j   what to compute","sub":"select or build columns, or summarise them, like select plus mutate plus summarise"},{"title":"by   grouped how","sub":"split into groups and run j inside each, like group_by"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The first slot</div>
+<h2>i: keep the rows you want</h2>
+
+<p>The <code>i</code> slot is the row filter. Put a condition there and data.table keeps the rows where it is TRUE. For a pure row filter you do not even need the comma: <code>sales[shop == &quot;Austin&quot;]</code> is complete on its own.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales[shop == &quot;Austin&quot;]          # keep the Austin rows
+#&gt;      shop      item units revenue
+#&gt; 1: Austin Sourdough    18      81
+#&gt; 2: Austin     Bagel    40      60
+#&gt; 3: Austin Croissant    27     108
+#&gt; 4: Austin Sourdough    20      90
+
+sales[units &gt; 25]                # keep the busy sales
+sales[shop == &quot;Denver&quot; &amp; units &gt; 20]   # combine conditions with &amp;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>It is the same idea as <code>filter(sales, shop == &quot;Austin&quot;)</code> in dplyr, only shorter: the table name sits outside the bracket, the condition goes inside. Use <code>==</code> (two equals signs) to test a value, <code>&amp;</code> for "and", <code>|</code> for "or", and <code>%in%</code> to test membership, for example <code>sales[shop %in% c(&quot;Austin&quot;, &quot;Denver&quot;)]</code>.</p>
+
+<p>Drag your eye down the widget: the rows that fail <code>units &gt; 25</code> are struck out, the busy three remain.</p>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"code":"sales[units > 25]","caption":"The i slot again, now with a number test: keep the busy sales where units is above 25; the quieter five fall away.","before":{"cols":["shop","item","units","revenue"],"rows":[["Austin","Sourdough",18,81],["Austin","Bagel",40,60],["Denver","Sourdough",22,99],["Denver","Croissant",15,60],["Austin","Croissant",27,108],["Denver","Bagel",30,45],["Austin","Sourdough",20,90],["Denver","Sourdough",12,54]]},"after":{"cols":["shop","item","units","revenue"],"rows":[["Austin","Bagel",40,60],["Austin","Croissant",27,108],["Denver","Bagel",30,45]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The second slot</div>
+<h2>j: select and compute columns</h2>
+
+<p>Where <code>i</code> picks rows, the <code>j</code> slot says what to do with the columns. Wrap your request in <code>.()</code>, data.table's shorthand for "make a table from these". Name bare columns to <strong>select</strong> them, or write an expression to <strong>compute</strong> a new one:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales[, .(item, revenue)]              # select two columns (note the leading comma)
+sales[, .(price = revenue / units)]    # compute a new column, one value per row
+#&gt;    price
+#&gt; 1:   4.5
+#&gt; 2:   1.5
+#&gt; 3:   4.5
+#&gt; 4:   4.0
+#&gt; 5:   4.0
+#&gt; 6:   1.5
+#&gt; 7:   4.5
+#&gt; 8:   4.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The leading comma matters: it leaves <code>i</code> empty (all rows) and moves your request into <code>j</code>. So <code>sales[, .(item, revenue)]</code> is "all rows, these two columns", the data.table way of writing <code>select(sales, item, revenue)</code>.</p>
+
+<p>There is also a second, faster way to add a column. The <code>:=</code> operator (read "colon-equals") adds or updates a column <strong>by reference</strong>, meaning it writes straight into the existing table instead of building a fresh copy. On a million-row table that saved copy is a large chunk of the speed and memory you came to data.table for.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dt &lt;- copy(sales)               # an independent copy, so sales stays untouched
+dt[, price := revenue / units]  # add price to dt in place, no copy made
+dt[]                            # the trailing [] just prints the result</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Because <code>:=</code> changes the table in place, every name pointing at it sees the new column at once. That is the point, but it surprises people: if you want to keep the original intact, take an explicit <code>copy()</code> first, exactly as we did above. A plain <code>dt &lt;- sales</code> does NOT copy; it is just a second name for the same table.</div></div>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"code":"sales[, .(item, revenue)]","caption":"The j slot selecting columns: ask for item and revenue and only those come back; shop and units are dropped, and every row stays.","before":{"cols":["shop","item","units","revenue"],"rows":[["Austin","Sourdough",18,81],["Austin","Bagel",40,60],["Denver","Sourdough",22,99],["Denver","Croissant",15,60],["Austin","Croissant",27,108],["Denver","Bagel",30,45],["Austin","Sourdough",20,90],["Denver","Sourdough",12,54]]},"after":{"cols":["item","revenue"],"rows":[["Austin","Sourdough",18,81],["Austin","Bagel",40,60],["Denver","Sourdough",22,99],["Denver","Croissant",15,60],["Austin","Croissant",27,108],["Denver","Bagel",30,45],["Austin","Sourdough",20,90],["Denver","Sourdough",12,54]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which slot does which job?</h2>
+
+<p>Maya wants the total revenue of the <strong>Austin shops only</strong>, a single number. In <code>DT[i, j, by]</code>, where does the Austin filter go, and where does <code>sum(revenue)</code> go?</p>
+<section class="exercise" data-exercise-id="data-table-Syntax-and-Keys-step5" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The filter goes in <code>i</code>, the sum goes in <code>j</code>: <code>sales[shop == &quot;Austin&quot;, sum(revenue)]</code></span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Both the filter and the sum go in <code>j</code></span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The filter goes in <code>i</code> and the sum goes in <code>i</code> too</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. <code>i</code> decides WHICH rows (the Austin filter); <code>j</code> decides WHAT to compute on them (the sum). Read the bracket as: take these rows, do this.</div><div class="lesson-qfb lesson-qfb-no">One job per slot. <code>i</code> selects rows; a calculation like <code>sum(revenue)</code> is a computation, so it must live in <code>j</code>, not <code>i</code>.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The third slot</div>
+<h2>by: one answer per group</h2>
+
+<p>So far <code>j</code> has worked on the whole table at once. Add the <code>by</code> slot and data.table runs your <code>j</code> <strong>separately inside each group</strong>, then stacks the answers. This is the classic split-apply-combine pattern, and it is dplyr's <code>group_by()</code> plus <code>summarise()</code> folded into the same bracket.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales[, .(units = sum(units),
+          revenue = sum(revenue),
+          n = .N), by = shop]
+#&gt;      shop units revenue n
+#&gt; 1: Austin   105     339 4
+#&gt; 2: Denver    79     258 4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two shops in, two rows out: each is one shop's totals. The special symbol <strong><code>.N</code></strong> is the number of rows in the current group, the quickest way to count, so <code>n = .N</code> tells us each shop made four sales. You can group by several columns at once with <code>by = .(shop, item)</code>, and if you want the result sorted by the grouping column, use <code>keyby =</code> instead of <code>by =</code>.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Split","sub":"cut the rows into groups by the by column, here one group per shop"},{"title":"Apply","sub":"run the j expression inside each group, here sum(revenue) and .N"},{"title":"Combine","sub":"stack the per-group answers into one small result table"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Put i, j and by together</h2>
+
+<p>Now combine all three slots in one bracket. Maya wants <strong>total revenue per item, for the Austin shops only</strong>. The <code>i</code> filter and the <code>j</code> summary are written for you; fill in the grouping slot so the sum is computed once per item.</p>
+<section class="exercise" data-exercise-id="data-table-Syntax-and-Keys-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="by\s*=\s*item"><textarea class="lesson-tryit-input" spellcheck="false">sales[shop == &quot;Austin&quot;, .(revenue = sum(revenue)), ____]
+#&gt; revenue summed within each item, Austin only</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the by slot: by = item splits the Austin rows by item and runs sum(revenue) inside each. i filters, j computes, by groups, all in one bracket.</span><span class="lesson-tryit-fb lesson-tryit-no">You need the grouping slot. Group the Austin rows by item: by = item.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">sales[shop == &quot;Austin&quot;, .(revenue = sum(revenue)), by = item]
+#&gt;         item revenue
+#&gt; 1: Sourdough     171
+#&gt; 2:     Bagel      60
+#&gt; 3: Croissant     108</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Now make it fast</div>
+<h2>Keys: sort once, then search</h2>
+
+<p>Everything so far works on any size of table. But Maya looks up one shop's sales over and over, and on a million-row table each <code>sales[shop == &quot;Austin&quot;]</code> has to <strong>scan every row</strong> to find the matches. A <strong>key</strong> removes that cost.</p>
+
+<p><code>setkey(DT, shop)</code> sorts the whole table by <code>shop</code>, one time. Once the rows are sorted, finding a shop is like finding a name in a phone book: you do not read every entry, you open to the middle, decide which half to keep, and repeat. That is a <strong>binary search</strong>.</p>
+
+<p>Here is the difference made concrete. An unsorted scan checks all \(n\) rows, so its cost grows in step with the data: \(O(n)\). A binary search on the sorted key throws away half the remaining rows at every step, so it finds the block in about \(\log_2 n\) hops: \(O(\log n)\). For a million rows that is the difference between a million comparisons and about twenty.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(1)
+big &lt;- data.table(
+  shop    = sample(c(&quot;Austin&quot;, &quot;Denver&quot;, &quot;Seattle&quot;, &quot;Boston&quot;, &quot;Miami&quot;),
+                   1e6, replace = TRUE),
+  revenue = round(runif(1e6, 1, 200), 2)
+)
+
+# No key yet: data.table must scan all 1,000,000 rows
+system.time(big[shop == &quot;Austin&quot;, sum(revenue)])
+#&gt;    user  system elapsed
+#&gt;   0.040   0.002   0.042
+
+setkey(big, shop)   # sort by shop, once
+
+# Keyed: a binary search jumps straight to the Austin block
+system.time(big[&quot;Austin&quot;, sum(revenue)])
+#&gt;    user  system elapsed
+#&gt;   0.003   0.000   0.003</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Your exact times will vary, but the shape holds: the keyed lookup stays fast as the table grows, while the plain scan slows in step with the row count. The sort is a one-time cost you pay with <code>setkey</code>; every lookup afterwards is cheap.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Sort once","sub":"setkey(DT, shop) orders every row by shop, a one-time cost"},{"title":"Jump to the middle","sub":"is the target shop above or below the middle row?"},{"title":"Halve the range","sub":"discard the half that cannot contain it, then repeat"},{"title":"Land on the block","sub":"after about log2(n) hops the matching rows are found"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">What a key buys you</div>
+<h2>Instant lookups and fast joins</h2>
+
+<p>With a key set, two everyday jobs get much faster. The first is <strong>lookup</strong>: pass the key value straight into <code>i</code> and data.table binary-searches for it. <code>sales[&quot;Austin&quot;]</code> means "the rows whose key is Austin", and <code>sales[&quot;Austin&quot;, sum(revenue)]</code> filters and sums in one fast step.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">setkey(sales, shop)          # sort our small table by shop, once
+sales[&quot;Austin&quot;]              # binary-search straight to the Austin rows
+sales[&quot;Austin&quot;, sum(revenue)]
+#&gt; [1] 339</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The second is <strong>joins</strong>. A keyed join, written <code>X[Y]</code>, looks each row of <code>Y</code> up in the keyed table <code>X</code> by binary search. Give every sale its shop's region by keying a small lookup table and joining:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">regions &lt;- data.table(
+  shop   = c(&quot;Austin&quot;, &quot;Denver&quot;),
+  region = c(&quot;South&quot;, &quot;West&quot;)
+)
+setkey(regions, shop)        # key both tables on the join column
+sales[regions]               # attach each shop's region to every sale
+#&gt;      shop      item units revenue region
+#&gt; 1: Austin Sourdough    18      81  South
+#&gt; 2: Austin     Bagel    40      60  South
+#&gt; 3: Austin Croissant    27     108  South
+#&gt; 4: Austin Sourdough    20      90  South
+#&gt; 5: Denver Sourdough    22      99   West
+#&gt; 6: Denver Croissant    15      60   West
+#&gt; 7: Denver     Bagel    30      45   West
+#&gt; 8: Denver Sourdough    12      54   West</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Because the key is sorted, that join never scans; it binary-searches, which is what makes data.table joins scale to tables far too large for a plain merge.</p>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"code":"sales[\"Austin\"]","caption":"A keyed lookup. With shop as the key, sales of [Austin] jump straight to the Austin rows by binary search; the Denver rows are never scanned.","before":{"cols":["shop","item","units","revenue"],"rows":[["Austin","Sourdough",18,81],["Austin","Bagel",40,60],["Denver","Sourdough",22,99],["Denver","Croissant",15,60],["Austin","Croissant",27,108],["Denver","Bagel",30,45],["Austin","Sourdough",20,90],["Denver","Sourdough",12,54]]},"after":{"cols":["shop","item","units","revenue"],"rows":[["Austin","Sourdough",18,81],["Austin","Bagel",40,60],["Austin","Croissant",27,108],["Austin","Sourdough",20,90]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What happens on each lookup?</h2>
+
+<p>You run <code>setkey(sales, shop)</code> once, then look up <code>sales[&quot;Austin&quot;]</code> many times over the course of your analysis. What does data.table do on each of those lookups?</p>
+<section class="exercise" data-exercise-id="data-table-Syntax-and-Keys-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It re-sorts the whole table every time you look up a value</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It binary-searches the already-sorted table, so each lookup is fast</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It scans all the rows, exactly like an unkeyed filter</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The sorting cost was paid once by <code>setkey</code>; every keyed lookup after that is an \(O(\log n)\) binary search on the sorted rows.</div><div class="lesson-qfb lesson-qfb-no">That is the unkeyed case. With a key set, data.table binary-searches instead of scanning, which is why a keyed lookup stays fast as the table grows.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://cran.r-project.org/web/packages/data.table/vignettes/datatable-intro.html">Introduction to data.table (CRAN vignette)</a> - the canonical first tour of the <code>DT[i, j, by]</code> grammar, by the package authors.</li>
+
+<li><a href="https://cran.r-project.org/web/packages/data.table/vignettes/datatable-keys-fast-subset.html">Keys and fast binary-search subset (CRAN vignette)</a> - exactly the keys topic from this lesson, with the binary-search story in full.</li>
+
+<li><a href="https://cran.r-project.org/web/packages/data.table/vignettes/datatable-reference-semantics.html">Reference semantics (CRAN vignette)</a> - what <code>:=</code> (modify by reference) really does, and why it saves the copy.</li>
+
+<li><a href="https://rdatatable.gitlab.io/data.table/">data.table official documentation</a> - the complete function reference, news and cheat sheet.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 1 complete</h2>
+
+<p>You can now read and write the data.table bracket. You learned the <code>DT[i, j, by]</code> grammar, <code>i</code> to filter rows, <code>j</code> to select and compute columns (and <code>:=</code> to add one by reference, no copy), and <code>by</code> to summarise per group, plus <strong>keys</strong>: <code>setkey()</code> sorts a table once so lookups and joins become a fast binary search instead of a full scan.</p>
+
+<p>Next, Lesson 2: dplyr vs data.table, head to head. You will write the same task in both, see exactly where data.table's speed and memory savings come from, and learn how to keep dplyr's readable syntax while getting data.table's speed underneath with dtplyr.</p>
+</section>
+
