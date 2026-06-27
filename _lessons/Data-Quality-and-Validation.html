@@ -1,0 +1,443 @@
+---
+title: "Exploratory Data Analysis Lesson 8: Data quality and validation"
+description: "Validate a data export before you trust it: check column types, ranges, consistency and key integrity in R, then codify the checks as reusable validation rules."
+keywords: "data quality, data validation in R, check column types, parse_number, impossible values, duplicate rows, primary key, validation rules, stopifnot, pointblank, readr, dplyr"
+mathjax: true
+webr: true
+curriculum_id: "2.3.8"
+post_type: "LESSON"
+course_id: "da-eda"
+course_title: "Exploratory Data Analysis in R"
+course_lesson: "8"
+course_total: "8"
+course_landing: "EDA-Course.html"
+course_next: ""
+course_prev: "Multivariate-EDA-with-Pairs-and-PCA.html"
+lesson_access: "free"
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 8 of 8</div>
+<h2>Trust, but verify the data first</h2>
+
+<p>In Lesson 7 you compressed six of Maya's bakery columns into two clean PCA components. Every method in this course, the histogram in Lesson 1, the correlation in Lesson 2, the outlier rules in Lesson 3, the PCA in Lesson 7, quietly assumed one thing: that the numbers it was handed were real. This lesson questions that assumption before you ever plot a thing.</p>
+
+<p>Maya has stopped typing her numbers in by hand. Her till now emails her a spreadsheet every Monday, <code>bakery_week.csv</code>, and she wants to run the same analysis on it automatically each week. The trouble is that an automatic export is a <strong>promise, not a fact</strong>: a stray dollar sign, a sensor that misfires, a day logged twice, and your tidy pipeline produces a confident, wrong answer.</p>
+
+<p>Below is the export that just landed: ten rows for two weeks of trading. It looks fine at a glance. In fact it hides five different problems, one for each check you are about to learn, and any one of them would poison a mean, a correlation or a PCA. By the end of this lesson you will catch every one in seconds, every week, without looking.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Run a repeatable <strong>five-point quality pass</strong> on a fresh export before trusting it</li>
+
+<li>Spot and fix wrong column <strong>types</strong> (text that should be a number)</li>
+
+<li>Catch impossible values with <strong>range</strong> and cross-field <strong>consistency</strong> checks, and tell an impossible value apart from a genuine outlier</li>
+
+<li>Verify <strong>uniqueness and key integrity</strong>, finding duplicate rows and a broken primary key</li>
+
+<li><strong>Codify</strong> every check as a reusable rule that re-runs itself on next week's export</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and load a package with <code>library()</code>. It helps to have met the <a href="An-EDA-Framework-and-One-Variable.html">EDA framework</a> (Lesson 1), <a href="Two-Variables-and-Correlation-in-R.html">correlation</a> (Lesson 2), and especially <a href="Outliers-and-Automated-EDA.html">outliers and the outlier-versus-error distinction</a> (Lesson 3, the $905 festival day). Every new term is defined as it appears.</p>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["date","foot_traffic","transactions","revenue","temp_f","pastries"],"rows":[["2026-03-02",170,132,"$510",71,88],["2026-03-03",196,157,"$600",70,95],["2026-03-04",146,110,"$435",68,72],["2026-03-05",99,157,"$588",66,101],["2026-03-06",228,184,"$1,250",65,130],["2026-03-09",113,90,"$377",74,64],["2026-03-10",90,70,"$300",75,"NA"],["2026-03-11",154,121,"$455",203,96],["2026-03-11",154,121,"$455",203,96],["2026-03-12",163,128,"$522",59,85]],"title":"bakery_week.csv (latest export)","note":"Ten rows came in. Several are quietly wrong. Which ones?"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">What we are checking</div>
+<h2>Data quality is "fitness for use"</h2>
+
+<p><strong>Data quality</strong> is not about perfection, it is about <strong>fitness for use</strong>: is this table good enough to answer the question you are about to ask of it? A festival day of $1,250 is unusual but perfectly real and usable; a temperature reading of 203 degrees is not a hot day, it is a broken thermometer, and it will wreck any average it touches.</p>
+
+<p>The good news is that almost every real defect falls into one of <strong>five buckets</strong>. Walk a fresh export through these five checks, in order, and you will catch the overwhelming majority of problems before they reach your analysis:</p>
+
+<ul>
+
+<li><strong>Types</strong>: is each column the <em>kind</em> of thing it should be (a number stored as a number, not as text)?</li>
+
+<li><strong>Ranges</strong>: is every value physically possible (no 203-degree day, no negative count)?</li>
+
+<li><strong>Completeness</strong>: are the values that should be there actually present, or are some missing?</li>
+
+<li><strong>Consistency</strong>: do related columns agree with each other (you cannot ring up more sales than people who walked in)?</li>
+
+<li><strong>Keys</strong>: is each row a distinct thing, one row per day, with no duplicates?</li>
+
+</ul>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The whole point of this lesson is the last word in each bucket: a <strong>check</strong>. A check is just a yes/no question you can write as code. Once it is code, it costs nothing to run it again on next week's export, and the week after that. You do the thinking once; the computer does the watching forever.</div></div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Types","sub":"is each column the kind it should be"},{"title":"Ranges","sub":"is every value physically possible"},{"title":"Completeness","sub":"are any required values missing"},{"title":"Consistency","sub":"do related columns agree"},{"title":"Keys","sub":"one row per thing, no duplicates"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Check 1 of 5</div>
+<h2>Types: a number hiding as text</h2>
+
+<p>The first thing to verify is that each column holds the <strong>type</strong> you expect. A column's type is the kind of value it stores: a <code>&lt;dbl&gt;</code> (a double, that is, a number you can do arithmetic on), a <code>&lt;chr&gt;</code> (character, plain text), a <code>&lt;date&gt;</code>, and so on. Get this wrong and nothing downstream works: you cannot average text.</p>
+
+<p>Each lesson runs in its own interactive R session, so let us load Maya's export right here. We hold the raw CSV as a block of text and read it with <code>read_csv()</code>, which guesses a type for every column:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(readr)
+library(dplyr)
+
+raw_csv &lt;- &quot;date,weekday,foot_traffic,transactions,revenue,temp_f,pastries
+2026-03-02,Mon,170,132,$510,71,88
+2026-03-03,Tue,196,157,$600,70,95
+2026-03-04,Wed,146,110,$435,68,72
+2026-03-05,Thu,99,157,$588,66,101
+2026-03-06,Fri,228,184,\&quot;$1,250\&quot;,65,130
+2026-03-09,Mon,113,90,$377,74,64
+2026-03-10,Tue,90,70,$300,75,NA
+2026-03-11,Wed,154,121,$455,203,96
+2026-03-11,Wed,154,121,$455,203,96
+2026-03-12,Thu,163,128,$522,59,85&quot;
+
+raw &lt;- read_csv(I(raw_csv), show_col_types = FALSE)
+raw
+#&gt; # A tibble: 10 x 7
+#&gt;    date       weekday foot_traffic transactions revenue temp_f pastries
+#&gt;    &lt;date&gt;     &lt;chr&gt;          &lt;dbl&gt;        &lt;dbl&gt; &lt;chr&gt;    &lt;dbl&gt;    &lt;dbl&gt;
+#&gt;  1 2026-03-02 Mon              170          132 $510        71       88
+#&gt;  2 2026-03-03 Tue              196          157 $600        70       95
+#&gt;  3 2026-03-04 Wed              146          110 $435        68       72
+#&gt;  4 2026-03-05 Thu               99          157 $588        66      101
+#&gt;  5 2026-03-06 Fri              228          184 $1,250      65      130
+#&gt;  6 2026-03-09 Mon              113           90 $377        74       64
+#&gt;  7 2026-03-10 Tue               90           70 $300        75       NA
+#&gt;  8 2026-03-11 Wed              154          121 $455       203       96
+#&gt;  9 2026-03-11 Wed              154          121 $455       203       96
+#&gt; 10 2026-03-12 Thu              163          128 $522        59       85</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the type printed under each column name. <code>foot_traffic</code>, <code>transactions</code>, <code>temp_f</code> and <code>pastries</code> came in as <code>&lt;dbl&gt;</code>, good. But look at <code>revenue</code>: it is <code>&lt;chr&gt;</code>, <strong>text</strong>, not a number. The dollar signs and the comma in <code>$1,250</code> told <code>read_csv()</code> "this column is not purely numeric," so it stored every value as a string. Confirm it directly:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">class(raw$revenue)
+#&gt; [1] &quot;character&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That single fact is a silent landmine. Ask R for <code>mean(raw$revenue)</code> and it does not compute the average, it warns and returns <code>NA</code>. Every revenue calculation in your pipeline would quietly fail.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Turn the text back into numbers</h2>
+
+<p>To fix a text-number you <strong>coerce</strong> it: convert it to the right type. <code>readr</code>'s <code>parse_number()</code> is built for exactly this, it reads through a string, ignores currency symbols and thousands separators, and returns the number inside. Fill in the blank to coerce <code>revenue</code>, then check the column's type:</p>
+<section class="exercise" data-exercise-id="Data-Quality-and-Validation-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="parse_number"><textarea class="lesson-tryit-input" spellcheck="false">clean &lt;- raw |&gt; mutate(revenue = ____(revenue))
+class(clean$revenue)   # should now read &quot;numeric&quot;</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That strips the $ and the comma and returns the number, so $1,250 becomes 1250 and the column is numeric. Now you can average it.</span><span class="lesson-tryit-fb lesson-tryit-no">Use parse_number(): mutate(revenue = parse_number(revenue)).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">clean &lt;- raw |&gt; mutate(revenue = parse_number(revenue))
+class(clean$revenue)
+#&gt; [1] &quot;numeric&quot;</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">Checks 2 and 3 of 5</div>
+<h2>Ranges and completeness: possible, and present?</h2>
+
+<p>With the types fixed, ask the next question of every numeric column: <strong>is each value even possible?</strong> This is the <strong>range check</strong>. You declare a plausible lower bound \(\ell\) and upper bound \(u\) for a column from what you know about the world, and call a value \(x\) valid when</p>
+
+<p>\[ \ell \le x \le u \]</p>
+
+<p>For a temperature in Maya's town, no real day is below \(\ell = 20\) or above \(u = 110\) degrees. Scan <code>temp_f</code> against that range and the broken thermometer falls right out:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># a value is impossible if it lands outside a range you know to be real
+clean |&gt; filter(temp_f &lt; 20 | temp_f &gt; 110)
+#&gt; # A tibble: 2 x 7
+#&gt;   date       weekday foot_traffic transactions revenue temp_f pastries
+#&gt;   &lt;date&gt;     &lt;chr&gt;          &lt;dbl&gt;        &lt;dbl&gt;   &lt;dbl&gt;  &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 2026-03-11 Wed              154          121     455    203       96
+#&gt; 2 2026-03-11 Wed              154          121     455    203       96</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Two rows report 203 degrees. That is not weather, it is a sensor glitch, and it would drag the average temperature far above any real day.</p>
+
+<p>The same first pass answers the <strong>completeness</strong> check: are any required values <strong>missing</strong>? In R a missing value is <code>NA</code>. The completeness of a table is the share of its cells that are filled in,</p>
+
+<p>\[ \text{completeness} = 1 - \frac{m}{n \times p} \]</p>
+
+<p>where \(m\) is the number of missing cells, \(n\) the number of rows and \(p\) the number of columns. Count the gaps per column with one line:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">colSums(is.na(clean))
+#&gt;         date      weekday foot_traffic transactions      revenue       temp_f     pastries
+#&gt;            0            0            0            0            0            0            1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One value is missing, a <code>pastries</code> count on 2026-03-10. Finding it is this lesson's job; deciding what to do with it (drop the row, or fill it in) is its own craft, covered in <a href="Missing-Value-Treatment.html">Missing-Value Treatment</a>.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">A range is a judgement you supply, not something R can know. "Between 20 and 110 degrees" comes from you understanding the data. The check only catches what you thought to bound, which is exactly why writing the bounds down, as code, is the whole game.</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Check 4 of 5</div>
+<h2>Consistency: do the columns agree?</h2>
+
+<p>A value can be the right type and inside its own range and <em>still</em> be wrong, because it contradicts another column. That is a <strong>consistency</strong> (or cross-field) check: a rule that ties two or more columns together.</p>
+
+<p>Maya's bakery has an obvious one. <code>transactions</code> is the number of sales rung up, and <code>foot_traffic</code> is the number of people who came through the door. You cannot make more sales than you had customers, so every honest row must satisfy <code>transactions &lt;= foot_traffic</code>. Test it:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">clean |&gt; filter(transactions &gt; foot_traffic)
+#&gt; # A tibble: 1 x 7
+#&gt;   date       weekday foot_traffic transactions revenue temp_f pastries
+#&gt;   &lt;date&gt;     &lt;chr&gt;          &lt;dbl&gt;        &lt;dbl&gt;   &lt;dbl&gt;  &lt;dbl&gt;    &lt;dbl&gt;
+#&gt; 1 2026-03-05 Thu               99          157     588     66      101</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One row breaks the rule: 157 sales from only 99 customers. Each value on its own looked fine (99 is a plausible footfall, 157 a plausible sale count); only by <strong>relating</strong> them did the error surface. It is almost certainly a typo, perhaps <code>foot_traffic</code> should read 199. Run the rule below and watch the impossible row get struck out of the valid set:</p>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"code":"clean |> filter(transactions <= foot_traffic)","caption":"The rule keeps only rows where sales do not exceed footfall. The 2026-03-05 row (157 sales, 99 customers) is impossible, so it is struck out of the valid set.","before":{"cols":["date","foot_traffic","transactions"],"rows":[["2026-03-02",170,132],["2026-03-03",196,157],["2026-03-04",146,110],["2026-03-05",99,157],["2026-03-06",228,184]]},"after":{"cols":["date","foot_traffic","transactions"],"rows":[["2026-03-02",170,132],["2026-03-03",196,157],["2026-03-04",146,110],["2026-03-06",228,184]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Bad data, or just unusual?</h2>
+
+<p>Two values in Maya's export stand out: the festival day with <strong>$1,250</strong> in revenue, and the day reading <strong>203 degrees</strong>. A beginner is tempted to treat any extreme number as an error and delete it. Which one is a genuine data-quality defect, and which check catches it?</p>
+<section class="exercise" data-exercise-id="Data-Quality-and-Validation-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Both are errors: any value far from the rest should be removed before analysis</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The 203-degree reading is the defect, caught by the range check; the $1,250 is a real outlier, not a quality error</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The $1,250 is the defect, because revenue should never be that high</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. 203 degrees is physically impossible, so the range check flags it as broken data to fix or drop. $1,250 is unusual but possible, a real festival day, so it is an outlier to handle thoughtfully, not a quality defect. An impossible value and a large value are not the same thing.</div><div class="lesson-qfb lesson-qfb-no">Being the largest value does not make it wrong. The festival genuinely happened, $1,250 is real money, and a range check would only flag revenue that is impossible (say, negative), not merely big. The impossible reading here is the 203-degree temperature.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Check 5 of 5</div>
+<h2>Keys: one row per thing</h2>
+
+<p>The last bucket is the one people forget. A clean table has a <strong>primary key</strong>: a column (or set of columns) whose value uniquely identifies each row. For a daily log, the key is <code>date</code>, because there should be exactly <strong>one row per day</strong>. A column is a valid key precisely when it has as many distinct values as the table has rows:</p>
+
+<p>\[ \text{date is a key} \iff n_{\text{distinct}} = n_{\text{rows}} \]</p>
+
+<p>where \(n_{\text{distinct}}\) is the number of different dates and \(n_{\text{rows}}\) the number of rows. Compare the two counts:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">nrow(clean)
+#&gt; [1] 10
+n_distinct(clean$date)
+#&gt; [1] 9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Ten rows but only nine distinct dates: the key is broken, so some day appears twice. Find the culprit by counting rows per date and keeping the ones that repeat:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">clean |&gt; count(date) |&gt; filter(n &gt; 1)
+#&gt; # A tibble: 1 x 2
+#&gt;   date           n
+#&gt;   &lt;date&gt;     &lt;int&gt;
+#&gt; 1 2026-03-11     2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>2026-03-11 was logged twice, an exact duplicate, probably the till exporting one day's row twice. A duplicate row silently double-counts: it would inflate that day in any total and weight it twice in any average. Drop exact duplicates with <code>distinct()</code>:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">deduped &lt;- distinct(clean)
+nrow(deduped)
+#&gt; [1] 9</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><code>distinct()</code> only removes rows that are identical in <em>every</em> column. If the till had exported the same day with one different value (say a corrected pastry count), both rows would survive and you would have to decide which is authoritative. Always check your key with the <code>n_distinct</code> test; do not assume <code>distinct()</code> made it unique.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">The whole point</div>
+<h2>Codify the checks so they run themselves</h2>
+
+<p>You have now run all five checks by hand. The real payoff is that <strong>a check is just a logical test</strong>, so you can write every one as code and re-run the whole pass on next week's export with a single command. Collect them into a small report:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">report &lt;- data.frame(
+  check = c(&quot;revenue is numeric&quot;, &quot;temp_f within 20 to 110&quot;,
+            &quot;transactions &lt;= foot_traffic&quot;, &quot;date is a unique key&quot;,
+            &quot;no missing values&quot;),
+  pass = c(
+    is.numeric(deduped$revenue),
+    all(deduped$temp_f &gt;= 20 &amp; deduped$temp_f &lt;= 110),
+    all(deduped$transactions &lt;= deduped$foot_traffic),
+    n_distinct(deduped$date) == nrow(deduped),
+    sum(is.na(deduped)) == 0
+  )
+)
+report
+#&gt;                          check  pass
+#&gt; 1           revenue is numeric  TRUE
+#&gt; 2      temp_f within 20 to 110 FALSE
+#&gt; 3 transactions &lt;= foot_traffic FALSE
+#&gt; 4         date is a unique key  TRUE
+#&gt; 5            no missing values FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Better still, wrap the hard rules in a function that <strong>refuses to continue</strong> when the data is unfit. <code>stopifnot()</code> errors out the moment a named condition is false, so a broken export can never sneak into your analysis unnoticed:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">validate_log &lt;- function(df) {
+  stopifnot(
+    &quot;revenue must be numeric&quot;      = is.numeric(df$revenue),
+    &quot;temp_f must be 20 to 110&quot;     = all(df$temp_f &gt;= 20 &amp; df$temp_f &lt;= 110),
+    &quot;sales cannot exceed footfall&quot; = all(df$transactions &lt;= df$foot_traffic),
+    &quot;date must be a unique key&quot;    = n_distinct(df$date) == nrow(df)
+  )
+  &quot;all checks passed&quot;
+}
+
+# the deduped data still has the 203-degree reading, so a rule fires:
+tryCatch(validate_log(deduped), error = function(e) conditionMessage(e))
+#&gt; [1] &quot;temp_f must be 20 to 110&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The function stops at the first failing rule and tells you which one. Fix that defect, run it again, and it walks to the next, until it returns "all checks passed" and your pipeline is safe to proceed.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">At scale you do not hand-roll this. Dedicated packages let you declare rules once and get a tidy pass/fail report. This runs locally, not in your browser:</div></div>
+
+<pre><code class="language-r">library(pointblank)
+agent &lt;- create_agent(deduped) |&gt;
+  col_is_numeric(vars(revenue)) |&gt;
+  col_vals_between(vars(temp_f), 20, 110) |&gt;
+  col_vals_lte(vars(transactions), vars(foot_traffic)) |&gt;
+  rows_distinct() |&gt;
+  interrogate()
+agent</code></pre>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Validation is not truth. These rules catch values that are impossible, missing, mistyped or duplicated. They cannot catch a value that is wrong but plausible, a real-looking $480 day that should have been $840. A passing report means "nothing obviously broken," never "every number is correct."</div></div>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["check","status"],"rows":[["revenue is numeric","pass"],["temp_f within 20 to 110","fail"],["sales not over footfall","fail"],["date is a unique key","pass"],["no missing values","fail"]],"title":"Quality report for the latest export","note":"Two checks pass, three still fail. Re-run this on every refresh."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Write the key check</h2>
+
+<p>Make the key check from the last section reusable. A column is a valid key when it has as many distinct values as the table has rows. Fill in the function that counts the rows of <code>deduped</code>:</p>
+<section class="exercise" data-exercise-id="Data-Quality-and-Validation-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="nrow"><textarea class="lesson-tryit-input" spellcheck="false"># date is a key when distinct dates equal the number of rows
+n_distinct(deduped$date) == ____(deduped)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. After de-duplicating there are 9 distinct dates and nrow(deduped) is 9, so the two match and date is now a valid key (TRUE).</span><span class="lesson-tryit-fb lesson-tryit-no">Use nrow(): the number of rows must equal the number of distinct dates, so n_distinct(deduped$date) == nrow(deduped).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">n_distinct(deduped$date) == nrow(deduped)
+#&gt; [1] TRUE</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take data validation further:</p>
+
+<ul>
+
+<li><a href="https://r4ds.hadley.nz/data-import">R for Data Science (2e), Data import</a> - how <code>read_csv()</code> guesses column types, the parsing snags you saw, and <code>parse_number()</code>.</li>
+
+<li><a href="https://rstudio.github.io/pointblank/">pointblank documentation</a> - the production tool for declaring data-quality rules and getting an interrogation report on every refresh.</li>
+
+<li><a href="https://data-cleaning.github.io/validate/">validate: data validation infrastructure (Statistics Netherlands)</a> - a rules-as-data approach used by national statistics offices to validate large datasets.</li>
+
+<li><a href="https://doi.org/10.18637/jss.v059.i10">Wickham (2014), Tidy Data, Journal of Statistical Software</a> - one row per observation, the principle behind the primary-key check you ran.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Course complete</h2>
+
+<p>You now run a quality pass before you trust any export. You checked column <strong>types</strong> and coerced a text-number with <code>parse_number()</code>; flagged an impossible value with a <strong>range</strong> check and a missing one with a <strong>completeness</strong> count; caught a contradiction with a cross-field <strong>consistency</strong> rule; verified the primary <strong>key</strong> with the <code>n_distinct</code> test and removed a duplicate; and, the real win, <strong>codified</strong> all five as a reusable report and a <code>validate_log()</code> function that stops a broken export before it can poison your analysis. You also kept the crucial distinction clear: an impossible value is a defect to fix, a genuine outlier is a real story to handle.</p>
+
+<p>That completes <strong>Exploratory Data Analysis in R</strong>. Across eight lessons you went from one variable to many, from a single histogram to PCA, and finally to the quality pass that makes any of it trustworthy. Validation is the quiet habit that separates an analysis people can act on from one that merely looks finished. From here, the visualization and modelling courses build on clean, validated data, exactly the kind you now know how to guarantee.</p>
+</section>
+
+{% endraw %}
