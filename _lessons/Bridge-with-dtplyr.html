@@ -1,0 +1,294 @@
+---
+title: "data.table Lesson 4: Write dplyr, get data.table speed with dtplyr"
+description: "Keep dplyr's readable syntax and get data.table's speed. dtplyr's lazy_dt() translates your pipes into data.table; see the translation with show_query()."
+keywords: "dtplyr, lazy_dt, dplyr to data.table, show_query, dtplyr collect, fast dplyr in R, data.table backend, dplyr speed R"
+mathjax: true
+webr: true
+curriculum_id: "2.6.4"
+post_type: "LESSON"
+course_id: "da-datatable"
+course_title: "Fast Data Wrangling with data.table"
+course_lesson: "4"
+course_total: "4"
+course_landing: "data-table-Course.html"
+course_next: ""
+course_prev: "Bigger-than-Memory-Data-in-R.html"
+lesson_access: "free"
+---
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 4 of 4</div>
+<h2>You should not have to choose</h2>
+
+<p>Across this course Maya learned data.table on her bakery chain's sales: the <code>DT[i, j, by]</code> bracket and keys in Lesson 1, data.table beating dplyr on speed in Lesson 2, and querying data too big for memory in Lesson 3. One friction stuck around. data.table is fast, but its compact bracket is a second language to learn and to read, while the dplyr she already writes is slower on big tables.</p>
+
+<p><strong>dtplyr</strong> removes the trade-off. You keep writing ordinary dplyr, and dtplyr quietly translates it into data.table and lets data.table's engine do the work. Readable code on top, fast engine underneath.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Wrap a table with <code>lazy_dt()</code> and run the dplyr verbs you already know on it</li>
+
+<li>Reveal the data.table code dtplyr wrote with <code>show_query()</code>, and read it back as <code>DT[i, j, by]</code></li>
+
+<li>Materialize a result with <code>collect()</code>, and judge when the bridge is worth it and where it leaks</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R; you know the <a href="The-dplyr-Verbs.html">dplyr verbs and the pipe</a> and the [data.table <code>DT[i, j, by]</code> bracket and <code>:=</code>](data-table-Syntax-and-Keys.html). We translate between the two, so both halves stay familiar.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Write dplyr","sub":"filter, group_by, summarise, the pipe, exactly as you already write it"},{"title":"lazy_dt records it","sub":"wrap the table once; the verbs are saved as a plan, not run yet"},{"title":"data.table runs it","sub":"the plan becomes fast data.table code and its engine executes it"},{"title":"collect the answer","sub":"pull the small result back into R as a tibble or data.table"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The wrapper</div>
+<h2>lazy_dt(): wrap once, then write the dplyr you know</h2>
+
+<p>The whole bridge starts with one function. <code>lazy_dt()</code> takes a data frame (or a data.table) and wraps it into a <strong>lazy data.table</strong>: an object that looks like your table but, instead of running dplyr verbs the moment you type them, <strong>records</strong> them as a plan to hand to data.table later. "Lazy" just means "does not do the work yet."</p>
+
+<p>Each lesson runs in a fresh R session, so we build Maya's sales right here, then wrap them once.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+library(data.table)
+library(dtplyr)
+setDTthreads(1)   # the in-browser R runs on one core
+
+# Maya's bakery chain: a week of sales across three shops, one row per sale
+sales &lt;- data.table(
+  shop    = c(&quot;Austin&quot;,&quot;Austin&quot;,&quot;Austin&quot;,&quot;Denver&quot;,&quot;Denver&quot;,&quot;Denver&quot;,
+              &quot;Seattle&quot;,&quot;Seattle&quot;,&quot;Seattle&quot;,&quot;Austin&quot;,&quot;Denver&quot;,&quot;Seattle&quot;),
+  item    = c(&quot;Sourdough&quot;,&quot;Bagel&quot;,&quot;Croissant&quot;,&quot;Sourdough&quot;,&quot;Bagel&quot;,&quot;Croissant&quot;,
+              &quot;Sourdough&quot;,&quot;Bagel&quot;,&quot;Croissant&quot;,&quot;Sourdough&quot;,&quot;Sourdough&quot;,&quot;Bagel&quot;),
+  units   = c(18, 40, 27, 22, 30, 15, 12, 33, 19, 20, 24, 28),
+  revenue = c(81, 60, 108, 99, 45, 60, 54, 49, 76, 90, 108, 42)
+)
+
+sales_dt &lt;- lazy_dt(sales)   # wrap once into a lazy data.table
+sales_dt
+#&gt; Source: local data table [12 x 4]
+#&gt; Call:   `_DT1`
+#&gt;
+#&gt;   shop   item      units revenue
+#&gt;   &lt;chr&gt;  &lt;chr&gt;     &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 Austin Sourdough    18      81
+#&gt; 2 Austin Bagel        40      60
+#&gt; 3 Austin Croissant    27     108
+#&gt; # 9 more rows
+#&gt; # Use as.data.table()/as.data.frame()/as_tibble() to access results</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now write dplyr against <code>sales_dt</code> exactly as you always would. Nothing about the verbs changes:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales_dt |&gt;
+  filter(shop == &quot;Austin&quot;)
+#&gt; Source: local data table [4 x 4]
+#&gt; Call:   `_DT1`[shop == &quot;Austin&quot;]
+#&gt;
+#&gt;   shop   item      units revenue
+#&gt;   &lt;chr&gt;  &lt;chr&gt;     &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 Austin Sourdough    18      81
+#&gt; 2 Austin Bagel        40      60
+#&gt; 3 Austin Croissant    27     108
+#&gt; 4 Austin Sourdough    20      90</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same <code>filter()</code> you already know, now carried out by data.table under the hood. The widget shows that step: keep the Austin rows, the others fall away.</p>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"code":"sales_dt |> filter(shop == \"Austin\")","caption":"The same filter() you already write, now translated to data.table and run by its engine: keep the Austin rows, the four others fall away.","before":{"cols":["shop","item","units","revenue"],"rows":[["Austin","Sourdough",18,81],["Austin","Croissant",27,108],["Denver","Sourdough",22,99],["Denver","Bagel",30,45],["Seattle","Croissant",19,76],["Seattle","Bagel",28,42]]},"after":{"cols":["shop","item","units","revenue"],"rows":[["Austin","Sourdough",18,81],["Austin","Croissant",27,108]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The reveal</div>
+<h2>show_query(): see the data.table it wrote</h2>
+
+<p>Here is the part that makes dtplyr more than a black box. Pipe your dplyr through <code>show_query()</code> and dtplyr prints the <strong>exact data.table code it generated</strong>, instead of running it. This is how you confirm there is real data.table underneath, and a surprisingly good way to learn the bracket.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sales_dt |&gt;
+  group_by(shop) |&gt;
+  summarise(revenue = sum(revenue)) |&gt;
+  show_query()
+#&gt; `_DT1`[, .(revenue = sum(revenue)), keyby = .(shop)]</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read that output back as the <code>DT[i, j, by]</code> grammar from Lesson 1. `<code> </code>_DT1<code> </code><code> is your </code>sales<code> table. The bracket has an empty </code>i<code> (all rows), a </code>j<code> of </code>.(revenue = sum(revenue))<code> (compute the total), and </code>keyby = .(shop)` (group by shop and return the result sorted). Your three readable dplyr verbs became one data.table bracket. That is precisely the line you would have had to write, and remember, by hand.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><code>show_query()</code> does not run anything. It shows you the translation. Every dplyr pipe on a lazy data.table has a data.table bracket waiting behind it, and this is how you read it.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does the work?</h2>
+
+<p>You wrap <code>sales</code> with <code>lazy_dt()</code>, then run <code>sales_dt |&gt; group_by(shop) |&gt; summarise(revenue = sum(revenue))</code>. Under the hood, what actually carries out that grouped sum?</p>
+<section class="exercise" data-exercise-id="Bridge-with-dtplyr-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Plain dplyr runs it the usual way; <code>lazy_dt()</code> only changes how the object prints</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">dtplyr translates your verbs into data.table code, and data.table's engine runs it</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A separate engine built into dtplyr, independent of data.table</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. dtplyr is a translator, not an engine. It turns <code>group_by</code> plus <code>summarise</code> into `<code> </code>_DT1<code>[, .(revenue = sum(revenue)), keyby = .(shop)] </code>` and hands that to data.table, which does the actual work.</div><div class="lesson-qfb lesson-qfb-no">dtplyr has no engine of its own. It only writes data.table code (confirm it with <code>show_query()</code>); data.table is what executes it. That is exactly why you must have data.table installed to use dtplyr.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The catch, and the feature</div>
+<h2>Nothing runs until you collect()</h2>
+
+<p>A lazy data.table is lazy on purpose: building a pipe only <strong>records</strong> the plan, it does not touch the data. (Earlier the Austin <code>filter()</code> still printed rows because <em>printing</em> a lazy table forces a quick preview; assign the pipe to a name, as below, and nothing runs until you ask for it.) To actually run it and pull the answer back into R, you call <strong><code>collect()</code></strong>. It executes the recorded data.table code once and returns a tibble. (Use <code>as.data.table()</code> instead if you want a data.table back, or <code>as_tibble()</code> for a tibble by another name.)</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">result &lt;- sales_dt |&gt;
+  group_by(shop) |&gt;
+  summarise(revenue = sum(revenue)) |&gt;
+  arrange(desc(revenue)) |&gt;
+  collect()             # NOW it runs; the small result comes back to R
+result
+#&gt; # A tibble: 3 x 2
+#&gt;   shop    revenue
+#&gt;   &lt;chr&gt;     &lt;dbl&gt;
+#&gt; 1 Austin      339
+#&gt; 2 Denver      312
+#&gt; 3 Seattle     221
+
+sales_dt |&gt;
+  summarise(total = sum(revenue)) |&gt;
+  as.data.table()       # same idea, returns a data.table instead of a tibble
+#&gt;    total
+#&gt; 1:   872</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Why add a step at all? Because laziness lets dtplyr see your <strong>whole</strong> pipe before running it, so data.table can fuse the filter, the grouping and the summary into one efficient pass instead of building a throwaway table after every verb. The translating is a fixed, one-time cost: \(O(1)\), it does not grow with the data. The work that scales is the single pass over the \(n\) rows, \(O(n)\), and data.table does that pass with a smaller constant and no intermediate copies. So the bigger the table, the more the translation cost disappears and the more you are simply paying data.table speed.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Run the plan</h2>
+
+<p>The lazy table <code>sales_dt</code> is still wrapped. The pipe below filters to the Austin shop, groups by item, and sums revenue, but as written it only holds the <strong>recipe</strong>: nothing has run, and no result has come back to R. Add the one step that executes the plan and returns a tibble.</p>
+<section class="exercise" data-exercise-id="Bridge-with-dtplyr-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="collect\s*\(\s*\)"><textarea class="lesson-tryit-input" spellcheck="false">sales_dt |&gt;
+  filter(shop == &quot;Austin&quot;) |&gt;
+  group_by(item) |&gt;
+  summarise(revenue = sum(revenue)) |&gt;
+  ____</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it. collect() runs the recorded data.table code once and returns the small tibble. Without it you only hold the plan, never the answer.</span><span class="lesson-tryit-fb lesson-tryit-no">Add collect() as the final step. A lazy data.table records the verbs but runs nothing until you collect() (or as.data.table() / as_tibble()).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">sales_dt |&gt;
+  filter(shop == &quot;Austin&quot;) |&gt;
+  group_by(item) |&gt;
+  summarise(revenue = sum(revenue)) |&gt;
+  collect()
+#&gt; # A tibble: 3 x 2
+#&gt;   item      revenue
+#&gt;   &lt;chr&gt;       &lt;dbl&gt;
+#&gt; 1 Bagel          60
+#&gt; 2 Croissant     108
+#&gt; 3 Sourdough     171</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">When it pays off</div>
+<h2>The right tool for the size of the job</h2>
+
+<p>dtplyr is not always the answer, and that is the honest way to teach it. The bridge earns its keep when a table is <strong>large but still fits in memory</strong> and you want data.table speed without rewriting your analysis in the bracket. For a small table, plain dplyr is already instant and the translation is just extra ceremony. And when the data is <strong>bigger than memory</strong>, no in-memory tool helps; that is the out-of-core job you met in Lesson 3 (DuckDB). Pick by how the data compares to your RAM.</p>
+
+<p>A second, quieter payoff: because <code>show_query()</code> prints the data.table behind any pipe, dtplyr is one of the best ways to <strong>learn</strong> data.table. Write the dplyr you know, read the bracket it produced, and the terse syntax slowly stops being a second language.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Small, fits easily","sub":"plain dplyr is already instant; the bridge overhead is not worth it"},{"title":"Big, but fits in RAM","sub":"lazy_dt gives data.table speed with the dplyr you already write"},{"title":"Bigger than RAM","sub":"go out of core with DuckDB, as in Lesson 3, not an in-memory bridge"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Where it leaks</div>
+<h2>Honest limits of the bridge</h2>
+
+<p>A bridge has seams. Four are worth knowing before you lean on dtplyr in real work:</p>
+
+<ul>
+
+<li><strong>It is lazy.</strong> Nothing runs until <code>collect()</code>, <code>as.data.table()</code>, <code>as_tibble()</code>, or printing. Forgetting to materialize, and then wondering why you are holding a plan instead of data, is the single most common dtplyr surprise.</li>
+
+<li><strong>It copies by default.</strong> <code>lazy_dt(x)</code> is <em>immutable</em>, so dtplyr makes a copy rather than editing in place. You do <strong>not</strong> automatically get data.table's <code>:=</code> no-copy memory saving from Lesson 1. <code>lazy_dt(x, immutable = FALSE)</code> opts into in-place updates, but then operations can change your original table, so use it deliberately.</li>
+
+<li><strong>Not every verb translates.</strong> Some dplyr operations have no clean data.table equivalent; dtplyr runs those in ordinary dplyr (in memory) and tells you with a message. The translation is best effort, not total.</li>
+
+<li><strong>Tiny data is not worth it.</strong> On a small table the translation overhead can cost more than it saves. The win shows up on large tables, exactly where data.table shines.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">The immutable default is the seam that bites hardest. People reach for dtplyr expecting data.table's in-place, no-copy memory behavior and quietly get copies instead. If the no-copy saving is the reason you came, set <code>immutable = FALSE</code> on purpose, or write that hot path in data.table directly.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Do you get the no-copy saving for free?</h2>
+
+<p>Maya wraps a 50-million-row table with <code>lazy_dt()</code> and adds a column with <code>mutate()</code>. She remembers from Lesson 1 that data.table's <code>:=</code> updates in place with no copy. Does her dtplyr pipe get that same no-copy memory saving automatically?</p>
+<section class="exercise" data-exercise-id="Bridge-with-dtplyr-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">No. <code>lazy_dt()</code> is immutable by default, so dtplyr copies; she must set <code>immutable = FALSE</code> to update in place</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Yes. dtplyr always modifies in place, just like a bare data.table</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Yes, because <code>:=</code> is automatic whenever you use <code>mutate()</code> on a lazy table</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The safe default protects her original table by copying, which means the <code>:=</code> no-copy saving is opt-in, not automatic. <code>lazy_dt(x, immutable = FALSE)</code> turns it on, with the usual care that her original can now change.</div><div class="lesson-qfb lesson-qfb-no"><code>mutate()</code> does translate toward <code>:=</code>, but the immutable default still makes a copy first. The translation choosing <code>:=</code> and the table being modified in place are two different things; the second needs <code>immutable = FALSE</code>.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://dtplyr.tidyverse.org/">dtplyr (tidyverse)</a> - the package homepage: <code>lazy_dt()</code>, <code>collect()</code>, and the immutable default in the authors' own words.</li>
+
+<li><a href="https://dtplyr.tidyverse.org/articles/translation.html">dtplyr translation vignette</a> - exactly what <code>show_query()</code> shows, which dplyr verbs translate cleanly, and which fall back.</li>
+
+<li><a href="https://cran.r-project.org/web/packages/data.table/vignettes/datatable-intro.html">Introduction to data.table (CRAN vignette)</a> - the <code>DT[i, j, by]</code> engine your dplyr is translated into.</li>
+
+<li><a href="https://dplyr.tidyverse.org/">dplyr (tidyverse)</a> - the verbs and the pipe you keep writing on the near side of the bridge.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Course complete</h2>
+
+<p>You can now write dplyr and get data.table speed underneath. Wrap a table once with <code>lazy_dt()</code>, write the verbs you already know, read the translation with <code>show_query()</code>, and run it with <code>collect()</code>, all while knowing when the bridge pays off (big, in-memory tables) and where it leaks (it is lazy, it copies by default, and not every verb translates).</p>
+
+<p>That closes <strong>Fast Data Wrangling with data.table</strong>. Across the course you went from the <code>DT[i, j, by]</code> bracket and keys, to data.table versus dplyr head to head, to querying data far bigger than your laptop, and finally to the dtplyr bridge that lets you keep dplyr's readability with data.table's speed. This course is part of the Data Analyst track: pass the track assessment and it counts toward your verified certificate.</p>
+</section>
+
