@@ -1,0 +1,361 @@
+---
+title: "Report-Ready Tables Lesson 2: Summary tables and number formatting"
+description: "Build one-line summary tables and regression tables with gtsummary, then format numbers, percentages and units in R so a whole table reads cleanly."
+keywords: "gtsummary, tbl_summary, tbl_regression, summary table in R, regression table R, format numbers in R, scales package, signif, round half to even, significant figures"
+mathjax: true
+webr: true
+curriculum_id: "2.7.2"
+post_type: "LESSON"
+course_id: "da-tables"
+course_title: "Report-Ready Tables in R"
+course_lesson: "2"
+course_total: "2"
+course_landing: "Report-Tables-Course.html"
+course_next: ""
+course_prev: "Report-Tables-with-gt-and-flextable.html"
+lesson_access: "free"
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 2 of 2</div>
+<h2>Two tables that answer "so what?"</h2>
+
+<p>In Lesson 1, Maya turned her bakery's product sales into a polished gt table for a loan application. The bank liked it, and asked for two more things: a one-glance summary of <em>who</em> actually shops at the bakery, and a short analysis of <em>what</em> drives how much each customer spends.</p>
+
+<p>Those are two classic report tables. A <strong>summary table</strong> describes a whole dataset in one block (here, Members versus Guests). A <strong>regression table</strong> shows the effect of each factor on an outcome. This lesson builds both in about one line each, then sweats the details that make any table read cleanly: rounding, percentages, units and separators.</p>
+
+<p>Toggle the table below. This is the customer summary you will be able to produce by the end.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Build a one-line summary table with <strong>gtsummary</strong>'s <code>tbl_summary()</code>, and read its median (IQR) and n (%) cells</li>
+
+<li>Turn a fitted model into a report-ready regression table with <strong>broom</strong> and <code>tbl_regression()</code>, and read a coefficient correctly</li>
+
+<li>Format numbers, percentages and units with the <strong>scales</strong> package, and choose significant figures over decimal places when magnitudes vary</li>
+
+<li>Predict R's surprising <code>round()</code> behaviour, so a rounded column never embarrasses you</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> Lesson 1 of this course (gt, the <code>fmt_</code> verbs, and <code>scales::dollar/percent/comma</code>) and basic dplyr (<code>group_by</code>, <code>summarise</code>). Every new term, including the one-line model, is defined as it appears.</p>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["segment","visits","avg_spend","share"],"rows":[["Member",54,14,0.52],["Guest",66,10,0.48]],"formats":{"visits":"comma","avg_spend":"dollar","share":"pct"},"title":"Bakery customers at a glance","note":"Source: 120 sampled till visits, Q1 2026."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The first table</div>
+<h2>What a summary table is</h2>
+
+<p>A summary table answers one question at a glance: what is in this dataset? It has one row per variable, the right summary number in each cell, and usually one column per group you want to compare.</p>
+
+<p>Maya pulls a sample of 120 till transactions. Each row is one visit: whether the customer is a loyalty <strong>Member</strong> or a <strong>Guest</strong>, the daypart, how many items were in the basket, and the dollars spent. Each lesson runs in a fresh R session, so we build the sample right here (run this once):</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+n &lt;- 120
+visits &lt;- data.frame(
+  member  = factor(sample(c(&quot;Member&quot;, &quot;Guest&quot;), n, replace = TRUE, prob = c(0.45, 0.55))),
+  daypart = factor(sample(c(&quot;Morning&quot;, &quot;Afternoon&quot;), n, replace = TRUE)),
+  items   = rpois(n, 3) + 1                              # items in the basket
+)
+visits$spend &lt;- round(2.4 * visits$items +               # about $2.40 per item, plus...
+                      3.5 * (visits$member == &quot;Member&quot;) + # members buy a little more
+                      1.8 * (visits$daypart == &quot;Afternoon&quot;) +
+                      rnorm(n, 0, 1.5), 2)                # dollars spent that visit
+head(visits)
+#&gt;   member   daypart items spend
+#&gt; 1 Member   Morning     2 11.59
+#&gt; 2  Guest Afternoon     2 10.09
+#&gt; 3  Guest Afternoon     7 20.30
+#&gt; 4  Guest Afternoon     5 13.51
+#&gt; 5  Guest   Morning     5 12.71
+#&gt; 6 Member Afternoon     4 14.08</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Whatever the data, a good summary table follows the same short recipe:</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Pick the variables","sub":"the columns worth describing: spend, items, member, daypart"},{"title":"Choose a statistic","sub":"numbers get a median and a spread; categories get a count and a percent"},{"title":"Split by group","sub":"one column per group you compare, here Member vs Guest"},{"title":"One value per cell","sub":"every variable, in every group, lands a single summary number"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">One line does it all</div>
+<h2>tbl_summary: the whole Table 1 at once</h2>
+
+<p>Doing this by hand is a chore. With dplyr you write a <code>summarise()</code> for every statistic you want, one group at a time:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+visits |&gt;
+  group_by(member) |&gt;
+  summarise(
+    n         = n(),
+    med_spend = median(spend),
+    iqr_spend = IQR(spend),
+    med_items = median(items)
+  )
+#&gt; # A tibble: 2 × 5
+#&gt;   member     n med_spend iqr_spend med_items
+#&gt;   &lt;fct&gt;  &lt;int&gt;     &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 Guest     66      10.3      4.15         4
+#&gt; 2 Member    54      13.9      5.29         4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is useful, but it is still raw output, and you would repeat it for every variable. The <strong>gtsummary</strong> package collapses the whole job into one line. <code>tbl_summary(by = member)</code> summarises every column at once, split by membership, and formats it as a publication-ready table:</p>
+
+<pre><code class="language-r">library(gtsummary)
+
+visits |&gt;
+  tbl_summary(by = member)   # one column per group; sensible default per column type</code></pre>
+
+<p>For a numeric column, gtsummary reports the <strong>median</strong> and, in brackets, the <strong>interquartile range</strong>: the middle value, and the spread of the middle half of the data, \( \text{IQR} = Q_3 - Q_1 \), where \( Q_1 \) and \( Q_3 \) are the 25th and 75th percentiles. For a category, it reports the count and percent, n (%). gtsummary renders rich HTML, more than the interactive R session here draws, so the finished table is pictured below.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">One <code>tbl_summary()</code> call replaces a page of <code>summarise()</code> lines. You choose the grouping with <code>by =</code> and override the statistic with <code>statistic =</code>; gtsummary picks a sensible default for every column type and formats the whole thing for a reader.</div></div>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["segment","n","med_spend","med_items"],"rows":[["Member",54,13.9,4],["Guest",66,10.3,4]],"formats":{"n":"comma","med_spend":"1dp","med_items":"comma"},"title":"Who shops at the bakery","note":"Median spend (in dollars) and basket size by membership. n = 120 visits."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does tbl_summary show by default?</h2>
+
+<p>Maya runs <code>tbl_summary(by = member)</code> without setting the <code>statistic</code> argument. For the numeric <code>spend</code> column, what does each cell show by default?</p>
+<section class="exercise" data-exercise-id="Summary-Tables-and-Number-Formatting-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The mean and standard deviation, as mean (SD)</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The median and interquartile range, as median (IQR)</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The minimum and maximum, the full range</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Correct. tbl_summary reports median (IQR) for continuous variables by default, a robust choice for skewed, outlier-prone data. Ask for mean (SD) explicitly with statistic = list(all_continuous() ~ "{mean} ({sd})").</div><div class="lesson-qfb lesson-qfb-no">The range swings with a single extreme value, so it is rarely a table's headline. tbl_summary defaults to median (IQR): the middle value and the spread of the middle half.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The second table</div>
+<h2>From a model to a regression table</h2>
+
+<p>Maya's second question is about cause: what drives spend, the basket size, membership, or the time of day? The tool is a <strong>linear model</strong>. <code>lm(spend ~ items + member + daypart)</code> finds the combination of effects that best predicts spend from those three columns. You do not need the math behind the fit to use the result; you need to read its coefficients.</p>
+
+<p>The model estimates one number, a <strong>coefficient</strong>, for each predictor:</p>
+
+<p>\( \widehat{\text{spend}} = \beta_0 + \beta_1\,\text{items} + \beta_2\,\text{member} + \beta_3\,\text{daypart} \)</p>
+
+<p>Each coefficient \( \beta_j \) is the change in predicted spend for a one-unit increase in that predictor, holding the others fixed. The <strong>broom</strong> package turns the fitted model into a tidy data frame, one row per coefficient, with the estimate, a 95% confidence interval (the plausible range for the true effect) and a p-value (small when the effect is unlikely to be noise; below 0.05 is the usual cutoff):</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(broom)
+model &lt;- lm(spend ~ items + member + daypart, data = visits)
+tidy(model, conf.int = TRUE)
+#&gt; # A tibble: 4 × 7
+#&gt;   term           estimate std.error statistic  p.value conf.low conf.high
+#&gt;   &lt;chr&gt;             &lt;dbl&gt;     &lt;dbl&gt;     &lt;dbl&gt;    &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1 (Intercept)        3.36    0.432       7.79 3.13e-12     2.51      4.22
+#&gt; 2 items              2.04    0.0962     21.2  8.84e-42     1.85      2.23
+#&gt; 3 memberMember       3.38    0.284      11.9  8.14e-22     2.82      3.94
+#&gt; 4 daypartMorning    -2.07    0.287      -7.23 5.66e-11    -2.64     -1.50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>tidy()</code> is readable but bare. <strong>gtsummary::tbl_regression()</strong> wraps the same model into a report table: clean labels, the coefficient (it labels it <strong>Beta</strong>), the 95% confidence interval and the p-value, formatted and ready to drop into a document:</p>
+
+<pre><code class="language-r">library(gtsummary)
+
+tbl_regression(model)   # the same model, formatted for a reader</code></pre>
+
+<p>Read the <code>items</code> row: each extra item in the basket is worth about $2.04 more spend, holding membership and daypart fixed. The whole journey from data to readable table is four moves:</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Fit","sub":"lm(spend ~ items + member + daypart) estimates each effect"},{"title":"Tidy","sub":"broom::tidy() turns the model into a data frame of coefficients"},{"title":"Report","sub":"gtsummary::tbl_regression() labels and formats it, with confidence intervals"},{"title":"Read","sub":"each row shows how one predictor moves spend, with the others held fixed"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Read the coefficient</h2>
+
+<p>In Maya's regression table, the <code>items</code> row has an estimate (Beta) of about <strong>2.04</strong>, with a p-value far below 0.05. What does that tell her?</p>
+<section class="exercise" data-exercise-id="Summary-Tables-and-Number-Formatting-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Each extra item in the basket is associated with about $2.04 more spend, holding membership and daypart fixed</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Items explain about 2.04% of the variation in spend</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A typical basket holds about 2.04 items</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. A linear-model coefficient is the change in the predicted outcome per one-unit increase in that predictor, with the others held constant. One more item, about $2.04 more spend.</div><div class="lesson-qfb lesson-qfb-no">That confuses the coefficient with an average. 2.04 is the effect of one more item on spend (about $2.04), not the mean basket size, which is about 4 items here.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Make every number read</div>
+<h2>The three jobs of number formatting</h2>
+
+<p>A table can have the right structure and still read badly if the numbers are raw. Formatting a number for a reader is really three small jobs:</p>
+
+<ol>
+
+<li><strong>Round</strong> it to a sensible precision, so <code>14.6231</code> does not shout false exactness.</li>
+
+<li><strong>Separate</strong> the thousands, so <code>218450</code> becomes <code>218,450</code> at a glance.</li>
+
+<li><strong>Add the symbol or unit</strong>, so a bare <code>0.48</code> becomes <code>48%</code> and <code>2.4</code> becomes <code>$2.40</code>.</li>
+
+</ol>
+
+<p>The <strong>scales</strong> package (you met <code>dollar</code>, <code>percent</code> and <code>comma</code> in Lesson 1) does all three. Here it is on Maya's quarter headline figures:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(scales)
+dollar(c(5520, 218450))                        # money, with separators
+#&gt; [1] &quot;$5,520&quot;   &quot;$218,450&quot;
+percent(0.4823, accuracy = 1)                  # a proportion as a whole percent
+#&gt; [1] &quot;48%&quot;
+comma(1234567)                                 # plain thousands separators
+#&gt; [1] &quot;1,234,567&quot;
+number(218450, scale_cut = cut_short_scale())  # a short, human scale
+#&gt; [1] &quot;218K&quot;
+number(2.4, prefix = &quot;$&quot;, suffix = &quot; / item&quot;, accuracy = 0.01)  # a custom unit
+#&gt; [1] &quot;$2.40 / item&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Toggle the table below between the raw print and the report version. The structure is identical; only the formatting changed, and only one of them is something you would hand a bank.</p>
+<div class="lesson-widget" data-widget-type="styled-table" data-widget-config='{"cols":["segment","revenue","share","avg_basket"],"rows":[["Members",105320,0.4823,14.62],["Guests",113130,0.5177,11.2]],"formats":{"revenue":"dollar","share":"pct","avg_basket":"1dp"},"title":"Q1 revenue by membership","note":"Toggle raw vs report: the same numbers, formatted to read at a glance."}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Precision, done right</div>
+<h2>Significant figures, decimals, and a rounding surprise</h2>
+
+<p>How many digits should a number show? There are two different rules, and they do not agree:</p>
+
+<ul>
+
+<li><strong>Decimal places</strong>, <code>round(x, d)</code>, keeps <code>d</code> digits after the point. <code>round(1287.4, 1)</code> stays <code>1287.4</code>; <code>round(0.04231, 3)</code> gives <code>0.042</code>.</li>
+
+<li><strong>Significant figures</strong>, <code>signif(x, d)</code>, keeps the <code>d</code> most meaningful digits, wherever the decimal point falls. <code>signif(0.04231, 3)</code> gives <code>0.0423</code>; <code>signif(1287.4, 3)</code> gives <code>1290</code>.</li>
+
+</ul>
+
+<p>When a column mixes large and small numbers, significant figures keep each one equally informative; fixed decimals can crush a small value to <code>0.000</code>.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(0.04231, 3)    # 3 decimal places: only 2 useful digits survive
+#&gt; [1] 0.042
+signif(0.04231, 3)   # 3 significant figures: keeps 0.0423
+#&gt; [1] 0.0423
+signif(1287.4, 3)    # 3 significant figures, large number
+#&gt; [1] 1290</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the surprise. R does not round halves the way you were taught in school. It uses <strong>round half to even</strong> (banker's rounding): a trailing 5 goes to the nearest <em>even</em> digit, which stops rounding from biasing a long column upward.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(c(0.5, 1.5, 2.5, 3.5))   # NOT 1, 2, 3, 4
+#&gt; [1] 0 2 2 4
+round(2.675, 2)                # and floating point bites: not 2.68
+#&gt; [1] 2.67</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><code>round(2.5)</code> is <code>2</code>, not <code>3</code>, and <code>round(0.5)</code> is <code>0</code>. If a hand-checked total does not match R's rounded column, this is usually why. And <code>round(2.675, 2)</code> returns <code>2.67</code> because <code>2.675</code> cannot be stored exactly in binary (it is really <code>2.6749...</code>). Format for display at the very end with <code>scales</code>, and never re-round an already-rounded number.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does round(2.5) return?</h2>
+
+<p>In R, what does <code>round(2.5)</code> evaluate to?</p>
+<section class="exercise" data-exercise-id="Summary-Tables-and-Number-Formatting-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">3, because a trailing .5 always rounds up</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">2, because R rounds a half to the nearest even number</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">2.5, because round leaves a .5 untouched</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Correct. R uses round half to even (banker's rounding), so 2.5 goes to the even 2, and 0.5 goes to 0. It keeps rounding from systematically inflating a sum.</div><div class="lesson-qfb lesson-qfb-no">With no digits argument, round() rounds to a whole number, so it does change 2.5. The result is 2, because halves go to the nearest even digit.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Format the report numbers</h2>
+
+<p>Maya's headline figures are still raw: total revenue <code>218450</code> and the members' share <code>0.4823</code>. Turn them into the strings a reader expects. Revenue is already done with <code>dollar()</code>; fill in the <strong>scales</strong> helper that turns a proportion like <code>0.4823</code> into a whole-number percentage like <code>48%</code>.</p>
+<section class="exercise" data-exercise-id="Summary-Tables-and-Number-Formatting-step10" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="percent"><textarea class="lesson-tryit-input" spellcheck="false">library(scales)
+dollar(218450, accuracy = 1)     # -&gt; &quot;$218,450&quot;
+____(0.4823, accuracy = 1)       # -&gt; &quot;48%&quot;</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Yes. percent(0.4823, accuracy = 1) returns 48 percent as a string: it multiplies the proportion by 100 and rounds to a whole number. Store proportions (0.4823) and let percent() do the conversion at display time.</span><span class="lesson-tryit-fb lesson-tryit-no">You want a proportion shown as a percent. The scales helper is percent(): write percent(0.4823, accuracy = 1).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">library(scales)
+dollar(218450, accuracy = 1)     # &quot;$218,450&quot;
+percent(0.4823, accuracy = 1)    # &quot;48%&quot;</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://www.danieldsjoberg.com/gtsummary/">gtsummary: the official site</a> - the package behind <code>tbl_summary</code> and <code>tbl_regression</code>, with a gallery and every customization argument.</li>
+
+<li><a href="https://www.danieldsjoberg.com/gtsummary/articles/tbl_summary.html">gtsummary: the tbl_summary vignette</a> - the defaults you saw (median (IQR), n (%)) and how to change them.</li>
+
+<li><a href="https://scales.r-lib.org/">scales: formatting numbers and labels</a> - <code>dollar()</code>, <code>percent()</code>, <code>comma()</code>, <code>number()</code> and the <code>label_</code> helpers for clean axes and tables.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/Round.html">base R: the round() documentation</a> - the official word on round half to even (IEC 60559), and how <code>signif()</code> differs.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 2 complete</h2>
+
+<p>You can now build the two tables a report most often needs, each in about one line. <strong>tbl_summary()</strong> turns a whole dataset into a grouped Table 1 (median (IQR) for numbers, n (%) for categories); <strong>tbl_regression()</strong> turns a fitted model into a clean coefficient table you can actually read. And you can make any table read cleanly: format with <strong>scales</strong>, choose <strong>significant figures</strong> over fixed decimals when magnitudes vary, and you will never again be surprised that <code>round(2.5)</code> is <code>2</code>.</p>
+
+<p>That completes <strong>Report-Ready Tables in R</strong>. From Lesson 1's first gt table to the summary and regression tables here, you have the full toolkit to turn an analysis into something a reader, or a bank, trusts at a glance.</p>
+</section>
+
+{% endraw %}
