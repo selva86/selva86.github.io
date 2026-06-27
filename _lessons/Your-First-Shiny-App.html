@@ -1,0 +1,293 @@
+---
+title: "Interactive Dashboards Lesson 3: Your first Shiny app"
+description: "Reactivity from scratch in R: build the smallest Shiny app, an input that drives an output, and see exactly how the reactive graph re-runs only what changed."
+keywords: "Shiny, reactivity, reactive graph, your first Shiny app, shinyApp, renderText, reactive, sliderInput, R dashboard, input output"
+webr: true
+curriculum_id: "2.8.3"
+post_type: "LESSON"
+course_id: "da-dashboards"
+course_title: "Interactive Dashboards in R"
+course_lesson: "3"
+course_total: "3"
+course_landing: "Dashboards-Course.html"
+course_next: ""
+course_prev: "Quarto-Dashboards-and-Linked-Views.html"
+lesson_access: "free"
+---
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 3 of 3</div>
+<h2>Your first Shiny app</h2>
+
+<p>In Lesson 2 you put Maya's six bakery shops on one screen and <strong>linked</strong> the tiles with crosstalk: click a shop and every chart narrows to it. But crosstalk has a hard edge. It only ever <em>filters rows that were already computed</em> when the page was built. It can never run new R after the page loads.</p>
+
+<p>So when Maya asks a planning question, <em>"if I raise prices by 10%, what would my projected revenue be?"</em>, crosstalk is stuck. That number does not exist anywhere on the page yet. Someone has to <strong>run R again</strong> with the new 10% to compute it. That is exactly what <strong>Shiny</strong> does, and the engine that makes it happen is called <strong>reactivity</strong>.</p>
+
+<p>The dashboard below is the goal. Move the <strong>Price increase</strong> control and watch the projected-revenue boxes and both charts recompute, live, each from a fresh calculation.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Say what <strong>reactive</strong> means: an output that recomputes by itself when an input it depends on changes</li>
+
+<li>Name the three parts of every Shiny app, <code>ui</code>, <code>server</code>, and <code>shinyApp()</code>, and write the smallest one</li>
+
+<li>See that the work inside an app is ordinary R you already write, just placed where Shiny can re-run it</li>
+
+<li>Trace how the <strong>reactive graph</strong> re-runs only what changed, and decide when you truly need Shiny</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and load a package with <code>library()</code>, you have built a ggplot and computed a summary in the <a href="ggplot2-Course.html">ggplot2 course</a>, and you have finished <a href="Interactive-Charts-and-Maps-in-R.html">Lesson 1</a> and <a href="Quarto-Dashboards-and-Linked-Views.html">Lesson 2</a>, where you met crosstalk and its limit: it filters, it does not re-run R. Every new term is defined as it appears.</p>
+<div class="lesson-widget" data-widget-type="dashboard-layout" data-widget-config='{"filterLabel":"Price increase","views":{"0%":{"boxes":[["Projected revenue","$227K"],["Extra vs now","$0"],["Customers/day","1,015"]],"line":[{"x":1,"y":205},{"x":2,"y":212},{"x":3,"y":218},{"x":4,"y":221},{"x":5,"y":224},{"x":6,"y":227}],"bar":[{"x":"Old Town","y":53},{"x":"University","y":47},{"x":"Riverside","y":42},{"x":"Garden Gate","y":36},{"x":"Harbour","y":28},{"x":"Market Sq","y":21}]},"+5%":{"boxes":[["Projected revenue","$238K"],["Extra vs now","+$11K"],["Customers/day","1,015"]],"line":[{"x":1,"y":215},{"x":2,"y":223},{"x":3,"y":229},{"x":4,"y":232},{"x":5,"y":235},{"x":6,"y":238}],"bar":[{"x":"Old Town","y":56},{"x":"University","y":49},{"x":"Riverside","y":44},{"x":"Garden Gate","y":38},{"x":"Harbour","y":29},{"x":"Market Sq","y":22}]},"+10%":{"boxes":[["Projected revenue","$250K"],["Extra vs now","+$23K"],["Customers/day","1,015"]],"line":[{"x":1,"y":226},{"x":2,"y":233},{"x":3,"y":240},{"x":4,"y":243},{"x":5,"y":246},{"x":6,"y":250}],"bar":[{"x":"Old Town","y":58},{"x":"University","y":52},{"x":"Riverside","y":46},{"x":"Garden Gate","y":40},{"x":"Harbour","y":31},{"x":"Market Sq","y":23}]}}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The idea</div>
+<h2>What "reactive" means</h2>
+
+<p>Think of a spreadsheet. Maya types each shop's monthly revenue into cells, and in one more cell she writes a formula that adds them up: <code>=SUM(B2:B7)</code>, which reads <strong>$227,000</strong>. Now she edits Old Town from 53,000 to 60,000. She does not re-run anything. The total <strong>updates itself</strong>, instantly, to $234,000. The total <em>depends on</em> those cells, so the moment they change, it recomputes.</p>
+
+<p>That self-updating is <strong>reactivity</strong>, and a Shiny app is built from exactly three kinds of thing:</p>
+
+<ul>
+
+<li>An <strong>input</strong>: a value the user sets, here a slider for the price increase. (The editable cells.)</li>
+
+<li>An <strong>output</strong>: something shown back, here the projected-revenue number and a chart. (The total cell.)</li>
+
+<li>A <strong>reaction</strong>: the R code that turns inputs into outputs. (The <code>SUM</code> formula.)</li>
+
+</ul>
+
+<p>The magic word is <em>depends</em>. You never tell Shiny "recompute now." You just declare which output is built from which input, and Shiny recomputes it for you the instant that input changes.</p>
+
+<p>Everything below is built from Maya's six shops. Each lesson runs in a fresh R session, so build that data right here (run this once, then every later block can use it):</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">shops &lt;- data.frame(
+  name      = c(&quot;Riverside&quot;, &quot;Old Town&quot;, &quot;Market Square&quot;, &quot;University&quot;, &quot;Harbour&quot;, &quot;Garden Gate&quot;),
+  area      = c(&quot;South&quot;, &quot;North&quot;, &quot;South&quot;, &quot;North&quot;, &quot;South&quot;, &quot;North&quot;),
+  customers = c(180, 240, 95, 210, 130, 160),   # average customers per day
+  revenue   = c(42000, 53000, 21000, 47000, 28000, 36000)   # revenue last month, dollars
+)
+sum(shops$revenue)   # the total Maya's spreadsheet shows today
+#&gt; [1] 227000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Reactivity is automatic recomputation. You describe <em>dependencies</em> (this output is built from that input), not <em>timing</em>. Shiny watches the inputs and re-runs the right code itself.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The structure</div>
+<h2>The reactive graph</h2>
+
+<p>Those dependencies form a small map that Shiny keeps in its head, called the <strong>reactive graph</strong>. It has a direction: arrows point from an input, through the R that uses it, to the output it produces.</p>
+
+<p>For Maya's app the graph is a straight line: the <strong>slider</strong> (<code>input$increase</code>) feeds a <strong>reaction</strong> that recomputes projected revenue, which feeds the <strong>output</strong> on screen.</p>
+
+<p>The single rule that makes everything work: <strong>when an input changes, Shiny re-runs everything downstream of it in the graph, and nothing else.</strong> Drag the slider and the projected-revenue output recomputes, because it depends on the slider. The shop names, the page title, the layout? Untouched, because nothing connects them to that slider.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">"Downstream" is the whole idea. An output re-runs only if there is a path to it <em>from</em> the input that just changed. This is why Shiny apps stay fast even when they are large: a click re-runs a sliver of the graph, never the whole thing.</div></div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Input","sub":"the slider value input$increase, set by the user"},{"title":"Reaction","sub":"R re-runs and recomputes projected revenue from it"},{"title":"Output","sub":"the number and the bar chart redraw by themselves"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which depends on which?</h2>
+
+<p>Maya's app shows <strong>projected revenue</strong> computed from a <strong>price-increase slider</strong>. In the reactive graph, what is the relationship between the two?</p>
+<section class="exercise" data-exercise-id="Your-First-Shiny-App-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The output (projected revenue) depends on the input (the slider); change the slider and the output recomputes by itself</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The input (the slider) depends on the output; the projected number drives the slider</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">They are independent; Maya must refresh the page to make them match</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Arrows run input to output. The projected number is built from the slider, so it sits downstream and re-runs whenever the slider moves.</div><div class="lesson-qfb lesson-qfb-no">Refreshing is exactly what reactivity removes. Because the output depends on the input, Shiny recomputes it automatically the moment the slider changes, with no refresh.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The anatomy</div>
+<h2>The smallest Shiny app</h2>
+
+<p>Every Shiny app, from this one to a giant dashboard, is just <strong>two objects and one call</strong>:</p>
+
+<ul>
+
+<li>a <strong><code>ui</code></strong> object: what the user sees, the inputs and the empty slots where outputs will appear;</li>
+
+<li>a <strong><code>server</code></strong> function: the recipe that fills each output from the inputs;</li>
+
+<li>a <strong><code>shinyApp(ui, server)</code></strong> call: hands both to Shiny, which starts the app.</li>
+
+</ul>
+
+<p>Here is the entire smallest app for Maya's question. A slider feeds one text output. (Run this one <em>locally</em> in RStudio, an app needs a live R server, which a later step explains; here we read it.)</p>
+
+<pre><code class="language-r">library(shiny)
+# shops is the data frame you built earlier, defined at the top of the app file
+
+ui &lt;- fluidPage(
+  sliderInput(&quot;increase&quot;, &quot;Price increase (%)&quot;, min = 0, max = 20, value = 0),
+  textOutput(&quot;projected_text&quot;)
+)
+
+server &lt;- function(input, output) {
+  output$projected_text &lt;- renderText({
+    total &lt;- sum(shops$revenue * (1 + input$increase / 100))
+    paste0(&quot;Projected revenue: $&quot;, format(round(total), big.mark = &quot;,&quot;))
+  })
+}
+
+shinyApp(ui, server)</code></pre>
+
+<p>Read the wiring: the <code>ui</code> names a slider <code>&quot;increase&quot;</code> and an output slot <code>&quot;projected_text&quot;</code>. The <code>server</code> fills that slot by <strong>reading <code>input$increase</code><strong> and </strong>writing <code>output$projected_text</code></strong>. That single <code>renderText({ ... })</code> block <em>is</em> the reaction from the graph: Shiny re-runs it whenever <code>input$increase</code> changes.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>The reaction is ordinary R</h2>
+
+<p>Strip the Shiny wrapper away and the reaction is plain R you can run right now. A price increase of <code>p</code> percent multiplies every shop's revenue by <code>(1 + p / 100)</code>. Write that as a function and it computes real numbers, no app required:</p>
+<section class="exercise" data-exercise-id="Your-First-Shiny-App-step6" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="projected\D*5(?!\d)"><textarea class="lesson-tryit-input" spellcheck="false">projected &lt;- function(increase) {
+  shops$revenue * (1 + increase / 100)   # each shop's revenue after the rise
+}
+projected(10)                            # all six shops at +10%
+#&gt; [1] 46200 58300 23100 51700 30800 39600
+sum(projected(10))                       # the company total at +10%
+#&gt; [1] 249700</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it: sum(projected(5)) returns 238350. Swap the 5 for input$increase and the same line becomes a live Shiny output.</span><span class="lesson-tryit-fb lesson-tryit-no">Call the function with the rate as its argument: projected(5), then wrap it in sum().</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">total_at_5 &lt;- sum(projected(5))
+total_at_5
+#&gt; [1] 238350</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="widget">
+<div class="lesson-step-eyebrow">Feel it</div>
+<h2>Move the input, the output recomputes</h2>
+
+<p>Here is the reactive loop you just built, made tangible. Move the <strong>Price increase</strong> control. Each setting hands a new value to the reaction, which recomputes the projected-revenue boxes and redraws both charts, exactly what the running app does when the slider moves.</p>
+
+<p>Nothing here is faked: the projected-revenue boxes and the bars are <code>shops$revenue * (1 + p / 100)</code> for that increase, the same arithmetic your <code>projected()</code> function runs.</p>
+<div class="lesson-widget" data-widget-type="dashboard-layout" data-widget-config='{"filterLabel":"Price increase","views":{"0%":{"boxes":[["Projected revenue","$227K"],["Extra vs now","$0"],["Customers/day","1,015"]],"line":[{"x":1,"y":205},{"x":2,"y":212},{"x":3,"y":218},{"x":4,"y":221},{"x":5,"y":224},{"x":6,"y":227}],"bar":[{"x":"Old Town","y":53},{"x":"University","y":47},{"x":"Riverside","y":42},{"x":"Garden Gate","y":36},{"x":"Harbour","y":28},{"x":"Market Sq","y":21}]},"+5%":{"boxes":[["Projected revenue","$238K"],["Extra vs now","+$11K"],["Customers/day","1,015"]],"line":[{"x":1,"y":215},{"x":2,"y":223},{"x":3,"y":229},{"x":4,"y":232},{"x":5,"y":235},{"x":6,"y":238}],"bar":[{"x":"Old Town","y":56},{"x":"University","y":49},{"x":"Riverside","y":44},{"x":"Garden Gate","y":38},{"x":"Harbour","y":29},{"x":"Market Sq","y":22}]},"+10%":{"boxes":[["Projected revenue","$250K"],["Extra vs now","+$23K"],["Customers/day","1,015"]],"line":[{"x":1,"y":226},{"x":2,"y":233},{"x":3,"y":240},{"x":4,"y":243},{"x":5,"y":246},{"x":6,"y":250}],"bar":[{"x":"Old Town","y":58},{"x":"University","y":52},{"x":"Riverside","y":46},{"x":"Garden Gate","y":40},{"x":"Harbour","y":31},{"x":"Market Sq","y":23}]}}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What re-runs when you drag the slider?</h2>
+
+<p>There is one efficiency to add first. Maya's real dashboard has <em>two</em> outputs that both need the projected numbers, the headline figure <strong>and</strong> the bar chart. Rather than computing the projection twice, wrap the shared work in <strong><code>reactive({ ... })</code></strong>. A reactive expression is a reusable node in the graph: it computes once when its inputs change, and every output that calls it reads the same result.</p>
+
+<pre><code class="language-r">server &lt;- function(input, output) {
+  # the shared reaction: computed once whenever the slider changes
+  projected &lt;- reactive({
+    shops$revenue * (1 + input$increase / 100)
+  })
+
+  output$projected_text &lt;- renderText({
+    paste0(&quot;Projected revenue: $&quot;, format(round(sum(projected())), big.mark = &quot;,&quot;))
+  })
+
+  output$projected_plot &lt;- renderPlot({
+    barplot(projected(), names.arg = shops$name)
+  })
+}</code></pre>
+
+<p>Now the question. Maya drags the slider from 0% to 10%. What does Shiny actually do?</p>
+<section class="exercise" data-exercise-id="Your-First-Shiny-App-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Nothing happens until she clicks a Run or Submit button</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It re-runs the whole app from scratch, rebuilding the ui and re-reading the data</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It re-runs only the reaction and the outputs that read input$increase, recomputing projected revenue; everything else is left alone</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The slider invalidates the <code>projected()</code> reactive; both outputs that call it recompute; nodes with no path from the slider are untouched. That selective re-run is the reactive graph at work.</div><div class="lesson-qfb lesson-qfb-no">Reactivity is selective, not a full reset. The ui is not rebuilt and the data is not re-read; only the parts that depend on the changed input re-run.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Wire the slider into the output</h2>
+
+<p>Here is the text output's reaction, almost complete. It should read the slider so it recomputes whenever Maya moves it. Right now the rate is hard-coded to <code>10</code>. Replace the blank with the value Shiny gives you for the slider named <code>&quot;increase&quot;</code>, so the output becomes truly reactive.</p>
+<section class="exercise" data-exercise-id="Your-First-Shiny-App-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="input\$increase"><textarea class="lesson-tryit-input" spellcheck="false">output$projected_text &lt;- renderText({
+  total &lt;- sum(shops$revenue * (1 + ____ / 100))   # read the slider, not a fixed 10
+  paste0(&quot;Projected revenue: $&quot;, format(round(total), big.mark = &quot;,&quot;))
+})</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Yes. input$increase is how the server reads the slider named in the ui. Because the reaction reads it, Shiny re-runs this output every time the slider moves, that is the dependency that makes it reactive.</span><span class="lesson-tryit-fb lesson-tryit-no">An input named "increase" in the ui is read in the server as input$increase. Put that where the rate goes.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">output$projected_text &lt;- renderText({
+  total &lt;- sum(shops$revenue * (1 + input$increase / 100))
+  paste0(&quot;Projected revenue: $&quot;, format(round(total), big.mark = &quot;,&quot;))
+})</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Know the edge</div>
+<h2>When you actually need Shiny</h2>
+
+<p>Reactivity is powerful, but it comes with a real cost worth understanding before you reach for it. Because Shiny <em>runs R live</em> in response to every input, it needs a <strong>running R process</strong> to talk to, a server. That is the whole difference from the tools in Lessons 1 and 2.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>You want to...</th>
+<th>Reach for</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Re-run a calculation, model, or query when the user acts</td>
+<td><strong>Shiny</strong></td>
+<td>Live R reacting to inputs; needs a running R server</td>
+</tr>
+<tr>
+<td>Filter or highlight the same precomputed data across charts</td>
+<td><strong>crosstalk</strong> (Lesson 2)</td>
+<td>Browser-only row filtering; ships in a static file, no server</td>
+</tr>
+<tr>
+<td>Show fixed numbers and charts at a glance, no interaction between tiles</td>
+<td><strong>Quarto dashboard</strong> (Lesson 2)</td>
+<td>Value boxes and cards are enough; skip reactivity entirely</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A Shiny app is not a file you can email. A Quarto dashboard renders to a static <code>.html</code> anyone can open; a Shiny app must be <strong>hosted</strong> on something that keeps R running, the free <a href="https://www.shinyapps.io/">shinyapps.io</a>, Posit Connect, or your own server. If your interaction only needs <em>filtering</em>, crosstalk stays server-free. Reach for Shiny when, and only when, you need a number that does not exist until the user asks for it, like Maya's projection.</div></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://mastering-shiny.org/">Mastering Shiny, by Hadley Wickham (free online)</a> - the definitive guide; start with "Your first Shiny app" and grow from there.</li>
+
+<li><a href="https://mastering-shiny.org/basic-reactivity.html">Mastering Shiny, ch. 3: Basic reactivity</a> - the reactive graph, reactive expressions, and exactly how re-running works, in depth.</li>
+
+<li><a href="https://shiny.posit.co/r/getstarted/shiny-basics/lesson1/index.html">Shiny get-started tutorial (Posit)</a> - the canonical hands-on walkthrough from the package authors.</li>
+
+<li><a href="https://shiny.posit.co/r/deploy.html">Deploying Shiny apps (Posit)</a> - because a Shiny app needs a running R server: the official options for putting one online.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Course complete</h2>
+
+<p>You built reactivity from scratch. You saw that <strong>reactive</strong> means an output recomputes itself when an input it depends on changes; that every Shiny app is just a <strong><code>ui</code><strong>, a </strong><code>server</code><strong>, and a </strong><code>shinyApp()</code></strong> call; that the reaction inside it is ordinary R, the same <code>projected()</code> arithmetic you ran here, placed where Shiny can re-run it; and that the <strong>reactive graph</strong> re-runs only what is downstream of the input that changed. You also learned the edge: Shiny needs a live R server, so reach for it only when you need a value that does not yet exist on the page.</p>
+
+<p>That completes <strong>Interactive Dashboards in R</strong>. Across three lessons you went from a single interactive chart and map, to a linked Quarto dashboard, to a live Shiny app, the full toolkit for turning a data frame into something a decision-maker can actually use. Claim your certificate from the course page, and put Maya's app online with the deployment guide above.</p>
+</section>
+
