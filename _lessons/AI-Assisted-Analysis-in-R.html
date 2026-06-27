@@ -1,0 +1,315 @@
+---
+title: "Communicate and Automate Lesson 3: AI-assisted analysis in R"
+description: "Use an LLM from R to summarize and label data with ellmer, force tidy structured output, ground it in real data with tools, and know when to trust it and when not to."
+keywords: "AI assisted analysis, LLM in R, ellmer, large language model, structured output, type_enum, text classification, sentiment labeling, hallucination, tool calling, data analyst, R"
+webr: true
+curriculum_id: "2.9.3"
+post_type: "LESSON"
+course_id: "da-communicate"
+course_title: "Communicate and Automate with R"
+course_lesson: "3"
+course_total: "3"
+course_landing: "Communicate-Automate-Course.html"
+course_next: ""
+course_prev: "Telling-a-Story-with-Data.html"
+lesson_access: "free"
+---
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 3 of 3</div>
+<h2>Let a model read what you cannot</h2>
+
+<p>In Lesson 2, Priya, the analyst at the Inkwell Books chain, learned to lead with the answer. This Monday she is stuck on a different problem. A new feedback form has produced about 4,000 free-text customer reviews across the six stores, things like "Great books, painfully slow checkout." There is no star rating, just sentences. She cannot read 4,000 of them before the morning meeting.</p>
+
+<p>A <strong>large language model</strong> (LLM), a program trained on huge amounts of text that, given an instruction, writes a sensible text response, can read every review in about a minute. It can summarize the themes and tag each review as positive, neutral, or negative. The question this whole lesson answers is the hard one: where is that genuinely useful, and where will the model quietly make something up?</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Use an LLM from R to summarize free text and label each row, with the <code>ellmer</code> package</li>
+
+<li>Force structured output so the model hands back a tidy column, not a paragraph</li>
+
+<li>Ground the model in your real data with tools, so it stops guessing numbers</li>
+
+<li>Decide, task by task, when to trust an LLM and when to compute the answer in R instead</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and load a package with <code>library()</code>, you know the dplyr verbs <code>filter()</code>, <code>count()</code> and <code>summarise()</code> from <a href="The-dplyr-Verbs.html">The dplyr Verbs</a>, and you have a reproducible report from <a href="Reproducible-Reports-with-Quarto.html">Lesson 1</a>. Every new term is defined as it appears.</p>
+
+<p>The widget below is where we are heading: an LLM reasoning over Priya's store data, one step at a time, to answer a real question. Press <strong>Step</strong> to watch. We spend the lesson earning the right to trust it.</p>
+<div class="lesson-widget" data-widget-type="agent-loop" data-widget-config='{"trace":[{"p":"Thought","t":"The user asks which store has the worst service; I should query the ratings, not guess."},{"p":"Action","t":"avg_rating_by_store(metric = service)"},{"p":"Observation","t":"Lakeside 2.9, Riverside 3.4, all other stores above 4.1"},{"p":"Thought","t":"Lakeside is lowest. I should read WHY by summarizing its negative reviews."},{"p":"Action","t":"summarize_reviews(store = Lakeside, sentiment = negative)"},{"p":"Observation","t":"Recurring theme: long checkout lines and understaffed evenings."},{"p":"Answer","t":"Lakeside has the worst service rating at 2.9; reviews blame long lines and understaffing."}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">What it is</div>
+<h2>An LLM is a text-to-text function</h2>
+
+<p>Strip away the hype and an LLM is one thing: a function whose input is text and whose output is text. You hand it an instruction, called a <strong>prompt</strong>, and it returns words. Under the hood it works in <strong>tokens</strong> (short chunks of text, roughly a few characters each) and predicts the next likely token over and over. You do not need that machinery to use it; you need to know what it is good at.</p>
+
+<p>For a data analyst, two jobs fit it almost perfectly, and both turn messy text into something you can use:</p>
+
+<ul>
+
+<li><strong>Summarize</strong>: many rows of text in, one short paragraph out. "Here are 4,000 reviews; give me the three most common complaints."</li>
+
+<li><strong>Label (classify)</strong>: one row of text in, one category out. "Is this single review positive, neutral, or negative?" Run it over every row and you have a new column.</li>
+
+</ul>
+
+<p>Notice what these have in common. Both take language, the thing spreadsheets and <code>mean()</code> cannot touch, and hand back something tidy: a paragraph you can read, or a category you can count. That is the whole reason an LLM earns a place next to dplyr. Keep one thing in mind from the start, though: it is reading and judging text, not doing arithmetic. We will lean on that distinction for the rest of the lesson.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Summarize</div>
+<h2>Calling the model from R</h2>
+
+<p>You do not leave R to do this. The <strong><code>ellmer</code></strong> package (from the team behind the tidyverse) connects R to a model from a provider such as OpenAI or Anthropic. You create a chat object pointed at a model, then send it a prompt with <code>$chat()</code>.</p>
+
+<p>Here is Priya summarizing a batch of reviews. This needs an API key and a network call, so it runs on your own machine, not here in the lesson, but the shape is exactly what you would type:</p>
+
+<pre><code class="language-r">library(ellmer)
+
+# point ellmer at a model (set your API key once, e.g. OPENAI_API_KEY)
+chat &lt;- chat_openai(model = &quot;gpt-4o-mini&quot;)
+
+# summarize: many reviews in, one short answer out
+chat$chat(&quot;Summarize the three most common complaints in these reviews,
+           one bullet each:
+           - Waited twenty minutes to pay
+           - Great books, painfully slow checkout
+           - Understaffed on weeknights
+           - Loved the staff-picks shelf&quot;)
+#&gt; - Slow checkout and long waits to pay
+#&gt; - Stores feel understaffed, especially on weeknights
+#&gt; - Book selection and staff picks are appreciated</code></pre>
+
+<p>That is the summarize job, done in three lines. It is genuinely useful: in seconds you have the gist of text that would take an hour to skim. But a paragraph is hard to chart. For the analysis Priya actually needs, store-by-store counts, the label job is what we want, and labeling well takes one more idea.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<div class="lesson-step-eyebrow">Label every row</div>
+<h2>Make the output a tidy column</h2>
+
+<p>If you ask the model "is this review positive or negative?" in plain language, it might reply "Mostly positive, though the customer notes a delay." That is a sentence, not data. You cannot <code>count()</code> sentences. The fix is <strong>structured output</strong>: you tell the model, up front, the exact shape of the answer you will accept.</p>
+
+<p>In <code>ellmer</code> you describe that shape with a type. <code>type_object</code> declares the record you want back, and inside it <code>type_enum</code> pins the answer to a fixed set of allowed values, so every review comes back as exactly one of <code>positive</code>, <code>neutral</code>, or <code>negative</code>, never a paragraph. Then <code>parallel_chat_structured()</code> sends all the reviews at once and returns one tidy row per review. The flow is the same five steps every time:</p>
+
+<p>In code, that schema and call look like this (again, run on your own machine):</p>
+
+<pre><code class="language-r">library(ellmer)
+
+# 1. Pin the output: exactly one label from a fixed set, nothing else
+review_label &lt;- type_object(
+  &quot;Sentiment of one customer review&quot;,
+  sentiment = type_enum(
+    &quot;Overall sentiment of the review&quot;,
+    values = c(&quot;positive&quot;, &quot;neutral&quot;, &quot;negative&quot;)
+  )
+)
+
+# 2. Send every review at once; get one tidy row back per review
+chat   &lt;- chat_openai(model = &quot;gpt-4o-mini&quot;)
+labels &lt;- parallel_chat_structured(chat, reviews$text, type = review_label)
+
+# labels$sentiment is now a clean column, aligned to your reviews</code></pre>
+
+<p>The schema is the whole trick. Without it you get prose; with it you get a column that slots straight into dplyr.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Define the task","sub":"one review in, one label out, from a fixed list"},{"title":"Pin a schema","sub":"type_enum forces positive, neutral or negative, never a paragraph"},{"title":"Label every row","sub":"parallel_chat_structured sends all reviews, returns a tidy column"},{"title":"Validate","sub":"check the labels are in your set; spot-check a sample by hand"},{"title":"Analyze in R","sub":"count, group and chart the labels like any other column"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why pin the labels with type_enum?</h2>
+
+<p>Priya could just ask the model, in plain English, to describe each review's sentiment. Instead she forces the answer to be one of <code>positive</code>, <code>neutral</code>, or <code>negative</code> with <code>type_enum</code>. What does that constraint buy her?</p>
+<section class="exercise" data-exercise-id="AI-Assisted-Analysis-in-R-step5" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Every review comes back as the same kind of value, a clean category she can count, group and chart like any other column</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The model is more accurate when it is forced to write less</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It is mainly a way to use fewer tokens and save money</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Structured output turns free text into tidy data: one column, a fixed set of values, the same shape on every row. That is what makes it usable in dplyr and ggplot.</div><div class="lesson-qfb lesson-qfb-no">Shorter answers cost slightly less, but that is a side effect. The real win is structure: a fixed-value column you can analyze, instead of a different sentence every row.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Back in plain R</div>
+<h2>A label is just another column</h2>
+
+<p>Once the model has labeled the reviews, the AI part is over. The result is an ordinary column of categories, and from here it is the plain dplyr you already know. To prove it runs end to end, each lesson starts a fresh R session, so we build the labeled table right here, pasting in the labels the model returned, then count them:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+
+# the model read each review and returned a sentiment label;
+# we paste those labels in as a column so this runs offline
+reviews &lt;- data.frame(
+  store     = c(&quot;Downtown&quot;, &quot;Lakeside&quot;, &quot;Lakeside&quot;, &quot;Riverside&quot;,
+                &quot;Downtown&quot;, &quot;Lakeside&quot;, &quot;Airport&quot;, &quot;Riverside&quot;),
+  text      = c(&quot;Loved the staff-picks shelf&quot;,
+                &quot;Waited twenty minutes to pay&quot;,
+                &quot;Great books, painfully slow checkout&quot;,
+                &quot;Friendly team, cozy reading corner&quot;,
+                &quot;Best little bookshop in town&quot;,
+                &quot;Understaffed on weeknights&quot;,
+                &quot;Quick and easy visit&quot;,
+                &quot;Helpful clerk tracked down my order&quot;),
+  sentiment = c(&quot;positive&quot;, &quot;negative&quot;, &quot;negative&quot;, &quot;positive&quot;,
+                &quot;positive&quot;, &quot;negative&quot;, &quot;positive&quot;, &quot;positive&quot;)
+)
+
+# the model's labels are now just a column we can count
+reviews |&gt; count(sentiment)
+#&gt;   sentiment n
+#&gt; 1  negative 3
+#&gt; 2  positive 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Five positive, three negative, computed by R from the labels the model produced. The model did the reading; dplyr did the counting. That split, model for the words, R for the numbers, is the backbone of trustworthy AI-assisted analysis, and the rest of the lesson is about getting it right.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Which store is dragging on service?</h2>
+
+<p>The three negative reviews are the ones Priya needs to act on. Find where they cluster: keep only the negative reviews, then count them by <code>store</code>. Fill in the blank so <code>count()</code> tallies the rows per store.</p>
+<section class="exercise" data-exercise-id="AI-Assisted-Analysis-in-R-step7" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="count\s*[(]\s*store"><textarea class="lesson-tryit-input" spellcheck="false">reviews |&gt;
+  filter(sentiment == &quot;negative&quot;) |&gt;
+  count(____)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Exactly. All three negatives are Lakeside, so count(store) returns Lakeside = 3. That is the same store the agent flagged on the cover, now found from the data itself.</span><span class="lesson-tryit-fb lesson-tryit-no">You want to tally the filtered rows by store: count(store).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">reviews |&gt;
+  filter(sentiment == &quot;negative&quot;) |&gt;
+  count(store)
+#&gt;      store n
+#&gt; 1 Lakeside 3</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="widget">
+<div class="lesson-step-eyebrow">Stop it guessing</div>
+<h2>Ground the model in your real data</h2>
+
+<p>Here is the trap that catches people. You ask the model directly, "What was Lakeside's average service rating?" It answers "about 3.8," in a confident, fluent sentence. The problem: it never saw your data. It is predicting plausible text, so it produced a plausible-looking number. That is a <strong>hallucination</strong>, an answer that reads as fact but was invented.</p>
+
+<p>The fix is <strong>grounding</strong>: instead of asking the model to recall a number, you give it a <strong>tool</strong>, an R function it is allowed to call, that fetches the real value. The model then works in a loop known as <strong>ReAct</strong>: it has a <strong>Thought</strong>, takes an <strong>Action</strong> (calls your tool), reads the <strong>Observation</strong> (your function's real result), and repeats until it can give a grounded <strong>Answer</strong>. This is the loop from the cover. Press <strong>Step</strong> and watch it query the data instead of guessing:</p>
+
+<p>Every number in that answer came from an Action, a real R function running on real data, not from the model's memory. In <code>ellmer</code> you wrap a function with <code>tool()</code> and register it on the chat:</p>
+
+<pre><code class="language-r">library(ellmer)
+
+# a tool is just an R function the model may call to get a REAL number;
+# `ratings` is Priya's score table: one row per rating, with a numeric
+# `rating` and a `kind` column naming the metric (e.g. &quot;service&quot;)
+avg_rating_by_store &lt;- function(metric) {
+  ratings |&gt;
+    group_by(store) |&gt;
+    summarise(rating = mean(rating[kind == metric]))
+}
+
+chat &lt;- chat_openai(model = &quot;gpt-4o-mini&quot;)
+chat$register_tool(tool(
+  avg_rating_by_store,
+  &quot;Average rating for a given service metric, by store&quot;
+))
+
+# now the model calls your function instead of inventing a value
+chat$chat(&quot;Which store has the worst service rating, and why?&quot;)</code></pre>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A grounded model does not need to KNOW your numbers; it needs to be able to LOOK THEM UP. Tools turn "trust the model's memory" into "trust your own R function, narrated by the model."</div></div>
+<div class="lesson-widget" data-widget-type="agent-loop" data-widget-config='{"trace":[{"p":"Thought","t":"The user asks which store has the worst service; I should query the ratings, not guess."},{"p":"Action","t":"avg_rating_by_store(metric = service)"},{"p":"Observation","t":"Lakeside 2.9, Riverside 3.4, all other stores above 4.1"},{"p":"Thought","t":"Lakeside is lowest. I should read WHY by summarizing its negative reviews."},{"p":"Action","t":"summarize_reviews(store = Lakeside, sentiment = negative)"},{"p":"Observation","t":"Recurring theme: long checkout lines and understaffed evenings."},{"p":"Answer","t":"Lakeside has the worst service rating at 2.9; reviews blame long lines and understaffing."}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Be honest about it</div>
+<h2>When to trust it, and when not</h2>
+
+<p>Grounding fixes the worst failure, but an LLM has three you should keep in mind before you put its output in a report:</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Hallucination.</strong> Asked for a fact it does not have, the model invents a fluent, confident-sounding one. Never accept a number, a citation, or a quote from a model that was not handed the source. Confidence is not evidence.</div></div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><strong>Non-determinism.</strong> Send the same prompt twice and you can get two different answers. For labeling that is usually small noise; for anything that must be exactly reproducible (the Lesson 1 goal), pin it down: lower the randomness setting, spot-check, and store the labels rather than re-generating them each render.</div></div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><strong>Privacy.</strong> A hosted model sends your text to an outside company. Customer names, emails, anything confidential should be removed or kept on a local model before it leaves your machine. "Convenient" is not "allowed."</div></div>
+
+<p>The practical rule is a division of labor. Let the model do what only it can, read and judge language, and let R do what it does exactly:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Give it to the LLM</th>
+<th>Keep it in R / SQL</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Summarize 4,000 reviews into three themes</td>
+<td>Count how many reviews each store got</td>
+</tr>
+<tr>
+<td>Label each review positive / neutral / negative</td>
+<td>Compute the average rating per store</td>
+</tr>
+<tr>
+<td>Draft a first-pass title for a chart</td>
+<td>Sum revenue, calculate the percent change</td>
+</tr>
+<tr>
+<td>Suggest which columns might explain churn</td>
+<td>Fit the model and report the actual numbers</td>
+</tr>
+</tbody>
+</table>
+
+<p>The left column is judgement on text; the right column is arithmetic with one correct answer. Never ask the model to do the right column. You can already compute it, exactly, and the model can only guess.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>The confident wrong number</h2>
+
+<p>Priya types into the chat: "What was Inkwell's total revenue last week?" The model replies, instantly and fluently, "Approximately $48,200." She never gave it the sales data. What should she do?</p>
+<section class="exercise" data-exercise-id="AI-Assisted-Analysis-in-R-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Treat it as unknown and compute it in R from the sales data with <code>sum()</code>; an invented statistic is worthless however confident it sounds</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Trust it; the model was trained on enormous amounts of data and stated it with confidence</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Ask the same question a few more times and average the replies</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The model never saw the numbers, so its answer is a plausible-sounding guess, a hallucination. Revenue is exact arithmetic: compute it in R, where there is one right answer.</div><div class="lesson-qfb lesson-qfb-no">Averaging guesses does not turn them into a measurement. The model still has no access to your data; every reply is invented. Compute the real figure in R instead.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://ellmer.tidyverse.org/">ellmer: call LLMs from R</a> - the package used throughout this lesson, from the tidyverse team; start here to install it and make your first call.</li>
+
+<li><a href="https://ellmer.tidyverse.org/articles/structured-data.html">ellmer: Structured data</a> - the canonical guide to <code>type_enum</code>, <code>type_object</code> and <code>parallel_chat_structured</code>, the tidy-column trick at the heart of labeling.</li>
+
+<li><a href="https://ellmer.tidyverse.org/articles/tool-calling.html">ellmer: Tool and function calling</a> - how to register R functions as tools so the model looks up real values instead of guessing them.</li>
+
+<li><a href="https://arxiv.org/abs/2202.03629">Ji et al. (2023), Survey of Hallucination in Natural Language Generation</a> - the research survey on why models invent fluent, confident, wrong answers, and what to do about it.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 3 complete, and the course is done</h2>
+
+<p>You added an LLM to the analyst's toolkit without losing your footing. An LLM is a <strong>text-to-text function</strong> that shines at two jobs: <strong>summarizing</strong> many rows into a paragraph and <strong>labeling</strong> each row into a category. With <code>ellmer</code> you call it from R, and with <strong>structured output</strong> (<code>type_enum</code>) you get a tidy column instead of prose, then analyze it in plain dplyr. You learned to <strong>ground</strong> the model with <strong>tools</strong> so the ReAct loop looks numbers up instead of inventing them, and you built a clear rule for <strong>trust</strong>: the model judges language, R computes the numbers, and you verify anything that matters.</p>
+
+<p>That completes <strong>Communicate and Automate with R</strong>. Across three lessons you turned an analysis into a reproducible Quarto report, structured it to lead with the answer so a busy reader acts in thirty seconds, and learned to bring an LLM in safely. Priya can now go from raw data to a trustworthy, self-updating, well-told report, with AI doing the parts it is actually good at.</p>
+</section>
+
