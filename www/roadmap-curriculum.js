@@ -388,18 +388,23 @@
     'Annotations that explain':'/ggplot2-Labels-and-Annotations.html',
     'Compose plots with patchwork':'/patchwork-Package.html',
     'Label points with ggrepel':'/ggplot2-Labels-and-Annotations.html',
-    // Analyst S6 - data.table
+    // Analyst S6 - data.table  (interactive lessons; syntax/keys + dplyr-vs wired in the full pass)
     'data.table syntax in one lesson':'/datatable-as-data-table-in-R.html',
     'Keys and lightning-fast joins':'/data-table-vs-dplyr.html',
     'dplyr vs data.table, head to head':'/data-table-vs-dplyr.html',
-    'Wrangling millions of rows':'/data-table-Exercises.html',
-    // Analyst S7 - tables
-    'Polished tables with gt':'/gt-Package.html',
-    'Formatting numbers and units':'/gt-Package.html',
-    // Analyst S8 - interactive
-    'Interactive charts with plotly':'/Combining-ggplot2-with-plotly.html',
-    'Maps with leaflet':'/Interactive-Maps-in-R-with-leaflet.html',
-    'Your first Shiny app':'/Shiny-Exercises-in-R.html',
+    'Wrangling millions of rows':'/Bigger-than-Memory-Data-in-R.html',
+    'Bigger-than-memory data with duckdb and duckplyr':'/Bigger-than-Memory-Data-in-R.html',
+    // Analyst S7 - tables  (interactive lessons)
+    'Polished tables with gt':'/Report-Tables-with-gt-and-flextable.html',
+    'Reporting tables with flextable':'/Report-Tables-with-gt-and-flextable.html',
+    'Summary and regression tables with gtsummary':'/Summary-Tables-and-Number-Formatting.html',
+    'Formatting numbers and units':'/Summary-Tables-and-Number-Formatting.html',
+    // Analyst S8 - interactive  (interactive lessons)
+    'Interactive charts with plotly':'/Interactive-Charts-and-Maps-in-R.html',
+    'Maps with leaflet':'/Interactive-Charts-and-Maps-in-R.html',
+    'Linked views with crosstalk':'/Quarto-Dashboards-and-Linked-Views.html',
+    'Quarto dashboards':'/Quarto-Dashboards-and-Linked-Views.html',
+    'Your first Shiny app':'/Your-First-Shiny-App.html',
     // Analyst S9 - communicate
     'Reports with Quarto and R Markdown':'/Statistical-Report-Writing-in-R.html',
     'Parameterized, repeatable reports':'/R-Markdown-Exercises.html',
