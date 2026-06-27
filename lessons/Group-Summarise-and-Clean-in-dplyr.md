@@ -10,14 +10,14 @@ lesson_access: "free"
 course_id: "da-dplyr"
 course_title: "Data Wrangling with dplyr"
 course_lesson: "3"
-course_total: "3"
+course_total: "4"
 course_landing: "Data-Wrangling-dplyr-Course.html"
-course_next: ""
+course_next: "Missing-Value-Treatment.html"
 course_prev: "The-dplyr-Verbs.html"
 ---
 
 === step === cover
-::eyebrow Lesson 3 of 3
+::eyebrow Lesson 3 of 4
 ## Group, summarise and clean
 
 In Lesson 2 you learned the verbs that act on a table as a whole: `filter`, `select`, `mutate`, `arrange`. But Maya rarely wants the whole table. She wants answers about *parts* of it: how many of each loaf did I sell, what is the average revenue *per item*, which days were busy. That means splitting the table into groups, computing a number for each group, and stacking the results back together. This three-move pattern, plus labelling rows by a rule and dealing with the blanks that real data always has, is the last set of skills that turns a tidy table into an answer.
@@ -300,8 +300,10 @@ A few authoritative places to take this further:
 - [R for Data Science (2e), Missing values](https://r4ds.hadley.nz/missing-values) - a clear-eyed chapter on explicit and implicit `NA`s and how to handle them.
 
 === step === complete
-## Lesson 3 complete, and the course with it
+## Lesson 3 complete
 
-You can now turn a tidy table into an answer. You collapsed columns with `summarise()`, made it work per category with `group_by()` (the split-apply-combine pattern), labelled rows with `case_when()`, and handled missing values honestly with `na.rm`, dropping or imputing, always saying which.
+You can now turn a tidy table into an answer. You collapsed columns with `summarise()`, made it work per category with `group_by()` (the split-apply-combine pattern), labelled rows with `case_when()`, and met the first fix for missing values: `na.rm`, dropping or imputing.
 
-That closes **Data Wrangling with dplyr**. Across three lessons you went from a raw CSV to tidy data, learned the one-table verbs and the pipe, and now grouping, summarising and cleaning. From here, two natural next courses: **Joining and reshaping** (combining several tables and pivoting between long and wide), and **Exploratory Data Analysis** (using exactly these skills to interrogate a new dataset). Maya is ready to run her bakery on her numbers, and so are you.
+That one unlogged Bagel sale was a gentle introduction. Real datasets are riddled with blanks, and the choice of how to treat them can change the answer more than the data does. So the course closes with a dedicated lesson on exactly that.
+
+Next, Lesson 4: Treating missing data honestly. You will find missingness, learn the three reasons data goes missing (MCAR, MAR, MNAR), and weigh dropping against imputing so Maya's numbers stay trustworthy.

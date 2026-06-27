@@ -1,0 +1,410 @@
+---
+title: "Data Wrangling Lesson 4: Treating Missing Data Honestly"
+description: "Find missing values in R, learn why data goes missing (MCAR, MAR, MNAR), and weigh dropping versus imputing (mean, median, mode) so your numbers stay honest."
+keywords: "missing values in R, NA, drop_na, replace_na, coalesce, imputation, mean imputation, median, mode, MCAR, MAR, MNAR, complete.cases, tidyr, dplyr"
+mathjax: true
+webr: true
+curriculum_id: "2.1.4"
+post_type: "LESSON"
+course_id: "da-dplyr"
+course_title: "Data Wrangling with dplyr"
+course_lesson: "4"
+course_total: "4"
+course_landing: "Data-Wrangling-dplyr-Course.html"
+course_next: ""
+course_prev: "Group-Summarise-and-Clean-in-dplyr.html"
+lesson_access: "free"
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 4 of 4</div>
+<h2>The holes in your data</h2>
+
+<p>In Lesson 3 you met one blank cell, the unlogged Bagel sale, and patched it with <code>na.rm = TRUE</code>. Real data is never that tidy. Maya ran a quick exit survey one busy morning, twelve customers, five questions each, and came back with a table full of holes: a spend she never recorded, a rating the tablet ate, tips people simply would not say.</p>
+
+<p>The wrong move is to delete every row with a blank and carry on. As you will see, that throws away two thirds of Maya's survey and quietly biases what is left. This lesson is about treating those holes <strong>honestly</strong>.</p>
+
+<p>By the end you will be able to:</p>
+
+<ul>
+
+<li>Find and count missing values, and see how far the damage spreads</li>
+
+<li>Name why data goes missing (the three mechanisms: MCAR, MAR, MNAR)</li>
+
+<li>Choose between dropping and filling, and say how each choice bends the answer</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> Lessons 1 to 3 of this course, so you know <a href="Importing-and-Tidy-Data-in-R.html">tidy data</a>, the <a href="The-dplyr-Verbs.html">dplyr verbs and the pipe</a>, and <a href="Group-Summarise-and-Clean-in-dplyr.html">group_by / summarise with na.rm</a>. Everything new is defined as it appears.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"spend","y":3},{"x":"rating","y":2},{"x":"tip","y":4}],"geoms":["col"],"x":"column","y":"missing values","code":{"col":"survey %>%\n  summarise(across(everything(),\n    ~ sum(is.na(.))))"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">First, see it</div>
+<h2>Find the holes before you fix them</h2>
+
+<p>Here is Maya's survey. Each lesson starts in a fresh R session, so we build the table right here (run this once). A blank answer is stored as <code>NA</code>, which R reads as "a value exists but I do not know it". One column carries each kind of hole, and we will return to that on purpose.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)    # the verbs and the pipe
+library(tibble)   # tibble()
+
+survey &lt;- tibble(
+  customer = c(&quot;Ana&quot;,&quot;Ben&quot;,&quot;Cara&quot;,&quot;Dan&quot;,&quot;Eve&quot;,&quot;Finn&quot;,&quot;Gus&quot;,&quot;Hana&quot;,&quot;Ivy&quot;,&quot;Jon&quot;,&quot;Kim&quot;,&quot;Leo&quot;),
+  payment  = c(&quot;card&quot;,&quot;cash&quot;,&quot;card&quot;,&quot;card&quot;,&quot;cash&quot;,&quot;card&quot;,&quot;card&quot;,&quot;cash&quot;,&quot;card&quot;,&quot;cash&quot;,&quot;card&quot;,&quot;card&quot;),
+  spend    = c(  12,   NA,   18,    9,   NA,   25,   14,    8,   11,   NA,   30,   16),
+  rating   = c(   5,    4,   NA,    4,    5,    4,    2,   NA,    5,    3,    4,    3),
+  tip      = c(   3,    2,    4,   NA,    5,    6,   NA,    3,    4,   NA,    8,   NA)
+)
+survey
+#&gt; # A tibble: 12 x 5
+#&gt;    customer payment spend rating   tip
+#&gt;    &lt;chr&gt;    &lt;chr&gt;   &lt;dbl&gt;  &lt;dbl&gt; &lt;dbl&gt;
+#&gt;  1 Ana      card       12      5     3
+#&gt;  2 Ben      cash       NA      4     2
+#&gt;  3 Cara     card       18     NA     4
+#&gt;  4 Dan      card        9      4    NA
+#&gt;  5 Eve      cash       NA      5     5
+#&gt;  6 Finn     card       25      4     6
+#&gt;  7 Gus      card       14      2    NA
+#&gt;  8 Hana     cash        8     NA     3
+#&gt;  9 Ivy      card       11      5     4
+#&gt; 10 Jon      cash       NA      3    NA
+#&gt; 11 Kim      card       30      4     8
+#&gt; 12 Leo      card       16      3    NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>is.na(x)</code> is the workhorse: it returns <code>TRUE</code> wherever a value is missing. Wrap it in <code>sum()</code> to count blanks, and <code>colSums()</code> to count them per column:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">colSums(is.na(survey))
+#&gt; customer  payment    spend   rating      tip
+#&gt;        0        0        3        2        4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>So nine cells are blank: three spends, two ratings, four tips. The dplyr way says the same thing, one verb per column:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">survey %&gt;% summarise(across(everything(), ~ sum(is.na(.))))
+#&gt; # A tibble: 1 x 5
+#&gt;   customer payment spend rating   tip
+#&gt;      &lt;int&gt;   &lt;int&gt; &lt;int&gt;  &lt;int&gt; &lt;int&gt;
+#&gt; 1        0       0     3      2     4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Counting per column hides something, though. The real question is how many whole <strong>rows</strong> are usable. <code>complete.cases()</code> flags the rows with no blank anywhere:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sum(complete.cases(survey))    # rows with zero missing values
+#&gt; [1] 4
+mean(complete.cases(survey))   # ... as a share of all 12 rows
+#&gt; [1] 0.3333333</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Only four of the twelve customers, Ana, Finn, Ivy and Kim, answered every question. Nine scattered blanks have spoiled two thirds of the rows.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Where did the rows go?</h2>
+
+<p>Only <strong>3</strong> of the 12 spend values are missing, yet <code>complete.cases()</code> says only <strong>4</strong> rows are fully complete. Why are eight rows incomplete when one column lost just three values?</p>
+<section class="exercise" data-exercise-id="Missing-Value-Treatment-step3" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A row is incomplete if it has a blank in ANY column, and the 9 blanks fall in 8 different rows</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">complete.cases() counted each of the 9 blank cells as its own row</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">complete.cases() miscounts when the table has text columns</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The three missing columns rarely overlap: spend, rating and tip lost values in mostly different customers, so the holes touch 8 separate rows. Per-column counts always understate how many rows are affected.</div><div class="lesson-qfb lesson-qfb-no">It handles every column type. <code>customer</code> and <code>payment</code> simply have no blanks, so they never cause a row to be dropped here.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">Then, ask why</div>
+<h2>Three reasons data goes missing</h2>
+
+<p>Before you touch a blank, ask <em>why it is blank</em>, because the answer decides whether any fix is safe. Statisticians sort missingness into three mechanisms, and Maya's three leaky columns are one clean example of each.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Mechanism</th>
+<th>Plain meaning</th>
+<th>Maya's column</th>
+<th>Bias risk</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>MCAR</strong> (missing completely at random)</td>
+<td>The blank has nothing to do with any value, seen or unseen</td>
+<td><code>rating</code>: the tablet battery died for two customers</td>
+<td>Low: the survivors still look like everyone else</td>
+</tr>
+<tr>
+<td><strong>MAR</strong> (missing at random)</td>
+<td>The blank depends on another column you DID record</td>
+<td><code>spend</code>: card auto-logs, cash sometimes did not</td>
+<td>Medium: fixable if you use the observed driver (<code>payment</code>)</td>
+</tr>
+<tr>
+<td><strong>MNAR</strong> (missing not at random)</td>
+<td>The blank depends on the missing value itself</td>
+<td><code>tip</code>: people who tipped little just skipped the question</td>
+<td>High: the people who answered are not like the ones who did not</td>
+</tr>
+</tbody>
+</table>
+
+<p>The names are slippery, so anchor them to the story. The dead tablet did not care who Cara and Hana were or how they would have rated, so <code>rating</code> is <strong>MCAR</strong>, the benign case. Cash customers were likelier to have an unrecorded <code>spend</code>, and <code>payment</code> is right there in the table, so <code>spend</code> is <strong>MAR</strong>. The customers who left no tip are exactly the ones who declined to report it, and we never see those values, so <code>tip</code> is <strong>MNAR</strong>, the dangerous case.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">You can never <em>prove</em> the mechanism from the data alone, because MNAR depends on values you cannot see. You reason it out from how the data was collected. That judgement, not the R code, is the hard part of missing-value work.</div></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>The tip column</h2>
+
+<p>The customers who left little or no tip are the ones who skipped the tip question, so <code>tip</code> is missing exactly for the low tippers. Maya thinks of filling every blank tip with the average of the tips she <em>did</em> collect ($4.4). Which mechanism is this, and why is that fill dangerous?</p>
+<section class="exercise" data-exercise-id="Missing-Value-Treatment-step5" data-grade-mode="self-check" data-difficulty="advanced">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">MNAR: the blanks depend on the unseen tip itself, so the customers who answered are not representative and their $4.4 average is already too high</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">MCAR: the blanks are random, so filling them with the mean is perfectly safe</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">MAR: the missingness depends only on an observed column, so adjusting for that column removes the bias</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The reported tips skew high because the low tippers censored themselves. Filling blanks with that inflated average bakes the bias in deeper, it does not remove it.</div><div class="lesson-qfb lesson-qfb-no">That is the MAR remedy, but here the missingness depends on the tip value itself, which you never observe, so no observed column can fully correct it.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Treatment one</div>
+<h2>Drop: simple, and quietly expensive</h2>
+
+<p>The bluntest fix is to throw away rows with blanks. <code>drop_na()</code> from tidyr keeps only the complete rows; with no arguments it drops a row that is blank in <em>any</em> column.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(tidyr)              # drop_na()
+
+survey %&gt;% drop_na()        # keep only fully complete rows
+#&gt; # A tibble: 4 x 5     (Ana, Finn, Ivy, Kim)
+
+survey %&gt;% drop_na(spend)   # or drop rows missing one named column
+#&gt; # A tibble: 9 x 5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Pressing Run below shows the damage from the full <code>drop_na()</code>: eight of twelve customers vanish.</p>
+
+<p>Dropping rows like this (called <em>listwise deletion</em>) is honest only when the blanks are MCAR. Here they are not, and there is a second cost: the four survivors are all card customers who spent a lot, so the average spend over the complete rows is badly skewed.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">survey %&gt;% drop_na() %&gt;% summarise(mean_spend = mean(spend))
+#&gt; # A tibble: 1 x 1
+#&gt;   mean_spend
+#&gt;        &lt;dbl&gt;
+#&gt; 1       19.5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When too many rows would die for one bad column, the alternative is to <strong>drop that column</strong> instead with <code>select(-tip)</code>, keeping every customer. Both moves trade information for tidiness; the skill is knowing which you can afford to lose.</p>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"code":"survey %>% drop_na()","caption":"drop_na() keeps only rows with no blank anywhere. Eight of twelve customers had at least one missing answer, so listwise deletion discards two thirds of the survey.","before":{"cols":["customer","payment","spend","rating","tip"],"rows":[["Ana","card",12,5,3],["Ben","cash",null,4,2],["Cara","card",18,null,4],["Dan","card",9,4,null],["Eve","cash",null,5,5],["Finn","card",25,4,6],["Gus","card",14,2,null],["Hana","cash",8,null,3],["Ivy","card",11,5,4],["Jon","cash",null,3,null],["Kim","card",30,4,8],["Leo","card",16,3,null]]},"after":{"cols":["customer","payment","spend","rating","tip"],"rows":[["Ana","card",12,5,3],["Finn","card",25,4,6],["Ivy","card",11,5,4],["Kim","card",30,4,8]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Treatment two</div>
+<h2>Impute: fill the blank with a stand-in</h2>
+
+<p>The other option is to <em>impute</em>: replace each blank with a plausible value so the row survives. The four common stand-ins:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Method</th>
+<th>Fills the blank with</th>
+<th>Best when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>mean</strong></td>
+<td>the column average</td>
+<td>numeric, roughly symmetric, MCAR</td>
+</tr>
+<tr>
+<td><strong>median</strong></td>
+<td>the column's middle value</td>
+<td>numeric and skewed, or with outliers</td>
+</tr>
+<tr>
+<td><strong>mode</strong></td>
+<td>the most common value</td>
+<td>a category or a discrete code</td>
+</tr>
+<tr>
+<td><strong>LOCF</strong></td>
+<td>the previous value in order</td>
+<td>time-ordered data with short gaps</td>
+</tr>
+</tbody>
+</table>
+
+<p>The mean is the arithmetic average you met in Lesson 3: for values \(x_1, \dots, x_n\), where \(x_i\) is one observed spend and \(n\) the number observed,</p>
+
+<p>\[ \bar{x} = \frac{1}{n}\sum_{i=1}^{n} x_i. \]</p>
+
+<p><code>coalesce()</code> fills a blank with the first non-missing value you give it, so it makes mean or median imputation a one-liner. Maya's spend is right-skewed (one $30 sale), so watch how the two stand-ins differ:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">survey %&gt;%
+  mutate(spend_mean = coalesce(spend, mean(spend, na.rm = TRUE)),
+         spend_med  = coalesce(spend, median(spend, na.rm = TRUE))) %&gt;%
+  select(customer, payment, spend, spend_mean, spend_med)
+#&gt; # A tibble: 12 x 5  (the three blank rows shown)
+#&gt;   customer payment spend spend_mean spend_med
+#&gt;   &lt;chr&gt;    &lt;chr&gt;   &lt;dbl&gt;      &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 2 Ben      cash       NA       15.9        14
+#&gt; 5 Eve      cash       NA       15.9        14
+#&gt; 10 Jon     cash       NA       15.9        14</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The mean fills each blank with 15.9, the median with the sturdier 14. For a category you would use the <strong>mode</strong> instead, the most frequent level:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sort(table(survey$rating), decreasing = TRUE)   # rating is a discrete 1 to 5 score
+#&gt; 4 5 3 2
+#&gt; 4 3 2 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Rating 4 is the mode (it appears four times), so it is the natural fill for a missing rating. And for time-ordered data, <strong>last observation carried forward</strong> repeats the previous reading, which only makes sense in row order:</p>
+
+<pre><code class="language-r"># LOCF: only for time-ordered data, e.g. Maya's daily sales from Lesson 3
+daily %&gt;% arrange(date) %&gt;% fill(temperature, .direction = &quot;down&quot;)</code></pre>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Imputing keeps every row, but it invents data: it shrinks the natural spread of the column and, under MNAR, it cements the bias rather than removing it. A filled value is a guess wearing the costume of a measurement.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="widget">
+<div class="lesson-step-eyebrow">The payoff</div>
+<h2>Same data, three different answers</h2>
+
+<p>Here is why the choice matters. Below are three honest ways to estimate Maya's average spend from the <em>same</em> survey: drop the incomplete rows, keep all observed spends with <code>na.rm</code>, or impute each missing cash spend with the average spend of cash customers. Every bar is a real number computed from the data, yet they disagree by six dollars.</p>
+
+<p>Dropping rows gives <strong>$19.5</strong>, because the survivors happen to be big-spending card customers. Averaging the observed spends gives <strong>$15.9</strong>. But the blanks are MAR, missing mostly for <em>cash</em> customers, who spent far less. Filling each blank with the average of the cash spends Maya <em>did</em> record pulls the estimate down to <strong>$13.9</strong>, the most defensible of the three. The lesson is not "imputing is best"; it is that your treatment of the holes can move the headline number more than the real data does, so the choice must be deliberate and disclosed.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":"drop rows","y":19.5},{"x":"na.rm only","y":15.9},{"x":"impute by group","y":13.9}],"geoms":["col"],"x":"how we handle the missing spend","y":"estimated mean spend ($)","code":{"col":"# same survey, three defensible estimates\n# drop rows:        complete cases only\n# na.rm only:       average the observed spends\n# impute by group:  fill cash blanks with the cash mean"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Impute the honest way</h2>
+
+<p>Mean-imputing every blank spend with the overall average ($15.9) overstates Maya's takings, because the missing spends belong to cheaper cash customers. Fix it: group the survey by <code>payment</code> first, so each blank is filled with the mean spend of <em>its own</em> payment type. Fill in the blank.</p>
+<section class="exercise" data-exercise-id="Missing-Value-Treatment-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="group_by\(\s*payment"><textarea class="lesson-tryit-input" spellcheck="false">survey %&gt;%
+  group_by(______) %&gt;%
+  mutate(spend_filled = coalesce(spend, mean(spend, na.rm = TRUE))) %&gt;%
+  ungroup()</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the MAR fix: grouping by payment fills the cash blanks with the cash average (about $8), not the inflated $15.9 overall mean, so the estimate stops overstating spend. Conditioning on the observed driver is what makes MAR repairable.</span><span class="lesson-tryit-fb lesson-tryit-no">Group by the column that explains the missingness: group_by(payment). Then coalesce() fills each blank with its own group's mean.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">survey %&gt;%
+  group_by(payment) %&gt;%
+  mutate(spend_filled = coalesce(spend, mean(spend, na.rm = TRUE))) %&gt;%
+  ungroup()</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://r4ds.hadley.nz/missing-values">R for Data Science (2e), Missing values</a> - the canonical, free chapter on explicit and implicit <code>NA</code>s and how to handle them in the tidyverse.</li>
+
+<li><a href="https://tidyr.tidyverse.org/reference/replace_na.html">tidyr: replace_na() and fill() reference</a> - the official docs for the imputation verbs you used here.</li>
+
+<li><a href="https://stefvanbuuren.name/fimd/">van Buuren, Flexible Imputation of Missing Data (free online)</a> - the standard modern text; chapter 1 explains MCAR/MAR/MNAR carefully and why single-value imputation understates uncertainty.</li>
+
+<li><a href="https://naniar.njtierney.com/">naniar: tidy tools for missing data</a> - an R package for visualising and exploring missingness patterns before you treat them.</li>
+
+<li><a href="https://doi.org/10.1093/biomet/63.3.581">Rubin (1976), Inference and missing data, Biometrika 63(3)</a> - the paper that defined the three mechanisms you used to reason about Maya's columns.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Lesson 4 complete, and the course with it</h2>
+
+<p>You can now treat missing data honestly. You <strong>found</strong> it with <code>is.na</code>, <code>colSums</code> and <code>complete.cases</code>; you asked <strong>why</strong> it was missing (MCAR, MAR, MNAR) before touching it; you weighed <strong>dropping</strong> rows or columns against <strong>imputing</strong> with the mean, median, mode or LOCF; and you saw how the same survey yields three different averages depending on that one choice, so you now know to make it deliberately and write it down.</p>
+
+<p>That closes <strong>Data Wrangling with dplyr</strong>. Across four lessons you went from a raw CSV to tidy data, learned the one-table verbs and the pipe, grouped and summarised, and now clean missing values with judgement. Two natural next courses build straight on this: <strong>Joining and Reshaping</strong> (combining several tables and pivoting between long and wide), and <strong>Exploratory Data Analysis</strong> (turning these skills loose on a brand-new dataset). Maya can run her bakery on numbers she trusts, and so can you.</p>
+</section>
+
+{% endraw %}
