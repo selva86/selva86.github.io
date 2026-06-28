@@ -1,5 +1,5 @@
 ---
-title: "Exploratory Data Analysis Lesson 1: An EDA framework, one variable at a time"
+title: "Exploratory Data Analysis Lesson 1: Univariate EDA"
 description: "Learn a repeatable 7-step EDA framework, then analyze one variable at a time in R: distribution shape, center, spread, and how to read a histogram and a boxplot."
 keywords: "exploratory data analysis, EDA in R, univariate analysis, histogram, boxplot, mean vs median, standard deviation, IQR, distribution, outliers"
 post_type: "LESSON"

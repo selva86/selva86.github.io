@@ -1,5 +1,5 @@
 ---
-title: "Joining Data Lesson 1: Combine two tables in R"
+title: "Joining Data Lesson 1: Joining Tables"
 description: "Combine two keyed tables in R with dplyr joins: the mutating inner, left, right and full joins, the filtering semi and anti joins, and non-equi join_by."
 keywords: "dplyr joins, inner_join, left_join, right_join, full_join, semi_join, anti_join, join_by, non-equi join, joining tables in R"
 post_type: "LESSON"

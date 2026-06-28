@@ -1,5 +1,5 @@
 ---
-title: "data.table Lesson 2: dplyr vs data.table, head to head"
+title: "data.table Lesson 2: dplyr vs data.table"
 description: "Do dplyr and data.table give the same result, and when does the choice matter? Write one task in both, benchmark it, and see real speed and memory trade-offs."
 keywords: "dplyr vs data.table, data.table vs dplyr, data.table speed, modify by reference, group by data.table, R data wrangling benchmark, dplyr or data.table"
 post_type: "LESSON"

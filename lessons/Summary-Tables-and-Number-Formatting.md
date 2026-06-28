@@ -1,5 +1,5 @@
 ---
-title: "Report-Ready Tables Lesson 2: Summary tables and number formatting"
+title: "Report-Ready Tables Lesson 2: Summary Tables & Formatting"
 description: "Build one-line summary tables and regression tables with gtsummary, then format numbers, percentages and units in R so a whole table reads cleanly."
 keywords: "gtsummary, tbl_summary, tbl_regression, summary table in R, regression table R, format numbers in R, scales package, signif, round half to even, significant figures"
 post_type: "LESSON"

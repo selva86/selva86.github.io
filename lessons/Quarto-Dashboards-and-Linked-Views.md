@@ -1,5 +1,5 @@
 ---
-title: "Interactive Dashboards Lesson 2: Quarto dashboards and linked views"
+title: "Interactive Dashboards Lesson 2: Quarto Dashboards"
 description: "Build a Quarto dashboard for six shops: value boxes and chart tiles in a row-and-column grid, then link views with crosstalk so one selection filters them all."
 keywords: "Quarto dashboard, format dashboard, value box, valuebox, crosstalk, linked views, SharedData, R dashboard layout, bslib, quarto valuebox"
 post_type: "LESSON"

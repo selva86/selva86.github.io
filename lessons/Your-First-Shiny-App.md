@@ -1,5 +1,5 @@
 ---
-title: "Interactive Dashboards Lesson 3: Your first Shiny app"
+title: "Interactive Dashboards Lesson 3: Your First Shiny App"
 description: "Reactivity from scratch in R: build the smallest Shiny app, an input that drives an output, and see exactly how the reactive graph re-runs only what changed."
 keywords: "Shiny, reactivity, reactive graph, your first Shiny app, shinyApp, renderText, reactive, sliderInput, R dashboard, input output"
 post_type: "LESSON"
