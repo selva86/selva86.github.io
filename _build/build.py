@@ -73,7 +73,7 @@ def build_lesson_widgets_bundle():
     for f in files:
         with open(os.path.join(LESSON_WIDGETS_DIR, f), encoding='utf-8') as fp:
             parts.append(f'/* {f} */\n' + fp.read())
-    with open(LESSON_WIDGETS_BUNDLE, 'w', encoding='utf-8') as fp:
+    with open(LESSON_WIDGETS_BUNDLE, 'w', encoding='utf-8', newline='\n') as fp:
         fp.write('\n;\n'.join(parts))
     print(f"  Bundled {len(files)} lesson widget(s) -> lesson-widgets.bundle.js")
 
@@ -186,7 +186,7 @@ def build_editor_bundle():
             parts.append(f.read().rstrip())
     # Trailing semicolons guard against an IIFE running into the next script.
     bundle = '\n;\n'.join(parts) + '\n'
-    with open(out_path, 'w', encoding='utf-8') as f:
+    with open(out_path, 'w', encoding='utf-8', newline='\n') as f:
         f.write(bundle)
     print(f"  Built {EDITOR_BUNDLE_NAME}: {os.path.getsize(out_path):,} bytes")
     return out_path
@@ -265,7 +265,7 @@ def minify_assets(force=False):
             try:
                 src = open(path, 'r', encoding='utf-8').read()
                 out = js_min(src)
-                open(min_path, 'w', encoding='utf-8').write(out)
+                open(min_path, 'w', encoding='utf-8', newline='\n').write(out)
                 saved = len(src.encode('utf-8')) - len(out.encode('utf-8'))
                 print(f"  Minified {basename}: saved {saved:,} bytes")
                 final[basename] = min_path
@@ -285,7 +285,7 @@ def minify_assets(force=False):
             try:
                 src = open(path, 'r', encoding='utf-8').read()
                 out = css_min(src)
-                open(min_path, 'w', encoding='utf-8').write(out)
+                open(min_path, 'w', encoding='utf-8', newline='\n').write(out)
                 saved = len(src.encode('utf-8')) - len(out.encode('utf-8'))
                 print(f"  Minified {basename}: saved {saved:,} bytes")
                 final[basename] = min_path
@@ -1136,7 +1136,7 @@ def build_post(
     if healed != content:
         fm_match = re.match(r'^---\s*\n.*?\n---\s*\n', raw, re.DOTALL)
         if fm_match:
-            with open(post_path, 'w', encoding='utf-8') as f:
+            with open(post_path, 'w', encoding='utf-8', newline='\n') as f:
                 f.write(raw[:fm_match.end()] + healed)
             print(f'  healed: {os.path.basename(post_path)}')
         content = healed
@@ -1783,7 +1783,7 @@ def update_sitemap(filenames):
                 updated.append(fname)
 
     if added or updated:
-        with open(SITEMAP_PATH, 'w', encoding='utf-8') as f:
+        with open(SITEMAP_PATH, 'w', encoding='utf-8', newline='\n') as f:
             f.write(sitemap)
         for fname in added:
             print(f"  Sitemap: added {fname}")
@@ -1841,7 +1841,7 @@ def update_sitemap_tools():
             sitemap = pattern.sub(r'\g<1>' + file_date + r'\2', sitemap)
     if inserts:
         sitemap = sitemap.replace('</urlset>', ''.join(inserts) + '</urlset>')
-    with open(SITEMAP_PATH, 'w', encoding='utf-8') as f:
+    with open(SITEMAP_PATH, 'w', encoding='utf-8', newline='\n') as f:
         f.write(sitemap)
     if added:
         print(f"  Sitemap: registered {len(added)} tool entries")
@@ -2607,7 +2607,7 @@ def patch_tool_pages(sections, asset_hrefs):
             new_html = _refresh_cache_busts(html)
             new_html = _refresh_sidebar(new_html, fname)
             if new_html != html:
-                with open(path, 'w', encoding='utf-8') as f:
+                with open(path, 'w', encoding='utf-8', newline='\n') as f:
                     f.write(new_html)
             continue
 
@@ -2671,7 +2671,7 @@ def patch_tool_pages(sections, asset_hrefs):
         _site_footer = '' if 'SITE-FOOTER-V2' in html else open(os.path.join(REPO_ROOT, '_build', 'site_footer.html'), encoding='utf-8').read()
         html = body_close_re.sub(lambda _m: wrapper_close + _site_footer + '</body>', html, count=1)
 
-        with open(path, 'w', encoding='utf-8') as f:
+        with open(path, 'w', encoding='utf-8', newline='\n') as f:
             f.write(html)
         print(f'  Tool chrome: {fname}')
 
@@ -2744,7 +2744,7 @@ def _load_sidebar_snapshot(path):
 
 def _save_sidebar_snapshot(curr_sig, path):
     try:
-        with open(path, 'w', encoding='utf-8') as f:
+        with open(path, 'w', encoding='utf-8', newline='\n') as f:
             json.dump([[t, [list(it) for it in items]] for t, items in curr_sig], f)
     except OSError:
         pass
@@ -2785,7 +2785,7 @@ def refresh_sidebar_in_root_pages(sections, post_files):
         if m.group(2) == rendered:
             continue
         new_html = html[:m.start()] + m.group(1) + rendered + m.group(3) + html[m.end():]
-        with open(out_path, 'w', encoding='utf-8') as f:
+        with open(out_path, 'w', encoding='utf-8', newline='\n') as f:
             f.write(new_html)
         touched += 1
     print(f'  Sidebar refresh: {touched} root page(s) patched, {skipped} skipped (no sidebar block found)')
@@ -2818,7 +2818,7 @@ def patch_homepage_sidebar(sections):
     if new_block == m.group(0):
         return
     new_html = html[:m.start()] + new_block + html[m.end():]
-    with open(index_path, 'w', encoding='utf-8') as f:
+    with open(index_path, 'w', encoding='utf-8', newline='\n') as f:
         f.write(new_html)
     print('  Homepage: sidebar refreshed in index.html')
 
@@ -2894,7 +2894,7 @@ def generate_feed(post_files):
 {chr(10).join(entries)}
 </feed>
 """
-    with open(feed_path, 'w', encoding='utf-8') as f:
+    with open(feed_path, 'w', encoding='utf-8', newline='\n') as f:
         f.write(feed)
     print(f"  Feed: {len(entries)} entries written to feed.xml")
 
@@ -3013,7 +3013,7 @@ def main():
             slug_to_subpath, subpath_to_slugs, post_titles, reading_time_cache,
             asset_hrefs, sidebar_sections,
         )
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, 'w', encoding='utf-8', newline='\n') as f:
             f.write(page_html)
         print(f"Built: {post_file}")
         built.append(post_file)
@@ -3042,7 +3042,7 @@ def main():
             slug_to_subpath, subpath_to_slugs, post_titles, reading_time_cache,
             asset_hrefs, sidebar_sections,
         )
-        with open(opath, 'w', encoding='utf-8') as f:
+        with open(opath, 'w', encoding='utf-8', newline='\n') as f:
             f.write(page_html)
         print(f"Built lesson: {lf}")
         built.append(lf)
@@ -3106,7 +3106,7 @@ def main():
     posts_dir = os.path.join(REPO_ROOT, 'posts')
     if os.path.isdir(posts_dir):
         compendium_path = os.path.join(posts_dir, 'index.html')
-        with open(compendium_path, 'w', encoding='utf-8') as f:
+        with open(compendium_path, 'w', encoding='utf-8', newline='\n') as f:
             f.write(compendium_html)
         print(f'  Compendium: {compendium_path}')
 
