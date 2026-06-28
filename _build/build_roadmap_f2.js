@@ -103,7 +103,7 @@ const ROLE_MAIN=`<main class="wrap">
     <a class="primary" href="/pricing.html">Join the Program <span class="a">&rarr;</span></a>
   </div></section>
 </main>`;
-function dataScripts(render){return '<script src="/www/roadmap-data.js"></script>\n<script src="/www/roadmap-curriculum.js"></script>\n<script src="/www/'+render+'"></script>';}
+function dataScripts(render){return '<script src="/www/roadmap-data.js?v=2"></script>\n<script src="/www/roadmap-curriculum.js?v=2"></script>\n<script src="/www/'+render+'"></script>';}
 
 // --- roadmap index ---
 const idx=head({title:'R Learning Roadmap · r-statistics.co',desc:'A guided route through R, sequenced by your goal: new to R, data analyst, data scientist, forecaster, researcher or R developer. Every level earns a verifiable certificate.',canon:ORIGIN+'/roadmap/',jsonld:jsonldRoadmap(),css:'roadmap-f2.css'})+
