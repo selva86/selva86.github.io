@@ -1,5 +1,6 @@
 ---
 title: "The t-test: comparing groups, and reading it honestly"
+catalog_blurb: "Compare two groups and judge whether the difference is real."
 description: "The two-sample and paired t-test through one story - comparing two dal-packing machines - plus why a tiny p-value is not a big effect, statistical power, and the ways the t-test gets misused."
 keywords: "two-sample t-test, paired t-test, Welch t-test, effect size, Cohen's d, statistical power, p-hacking, multiple comparisons, t.test in R"
 mathjax: true
@@ -18,8 +19,7 @@ lesson_access: "free"
 
 === step === cover
 ::eyebrow Lesson 2 of 2 - comparing groups
-## Two machines, not one target
-
+## Comparing groups with t-tests
 In Lesson 1, Meena tested **one** machine against a fixed target of 1000 g, and you built the whole four-step loop: assume nothing is wrong, compute signal over noise, find the tail area, decide. Here is that loop again - your map for everything below.
 
 ::widget process-flow {"steps":[{"title":"Assume nothing is wrong","sub":"the null: the two groups really have the same average"},{"title":"Signal over noise","sub":"compute t = the gap between the averages, divided by its standard error"},{"title":"Find the tail area","sub":"the p-value: how often chance alone gives a gap this big"},{"title":"Decide","sub":"p below alpha rejects the null; otherwise fail to reject"}]}

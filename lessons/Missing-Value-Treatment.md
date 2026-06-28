@@ -1,5 +1,6 @@
 ---
 title: "Data Wrangling Lesson 4: Missing Value Treatment"
+catalog_blurb: "How to handle missing values so they don't distort your results."
 description: "Find missing values in R, learn why data goes missing (MCAR, MAR, MNAR), and weigh dropping versus imputing (mean, median, mode) so your numbers stay honest."
 keywords: "missing values in R, NA, drop_na, replace_na, coalesce, imputation, mean imputation, median, mode, MCAR, MAR, MNAR, complete.cases, tidyr, dplyr"
 post_type: "LESSON"

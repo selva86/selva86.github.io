@@ -1,5 +1,6 @@
 ---
 title: "Exploratory Data Analysis Lesson 8: Data Quality & Validation"
+catalog_blurb: "Check data against expectations so problems surface early."
 description: "Validate a data export before you trust it: check column types, ranges, consistency and key integrity in R, then codify the checks as reusable validation rules."
 keywords: "data quality, data validation in R, check column types, parse_number, impossible values, duplicate rows, primary key, validation rules, stopifnot, pointblank, readr, dplyr"
 post_type: "LESSON"

@@ -1,5 +1,6 @@
 ---
 title: "Exploratory Data Analysis Lesson 2: Bivariate EDA & Correlation"
+catalog_blurb: "How two variables relate, and what correlation does and doesn't tell you."
 description: "Bivariate EDA in R: read a scatterplot's direction and strength, measure it with Pearson correlation and a correlation matrix, and see why correlation is not causation."
 keywords: "correlation in R, Pearson correlation, scatterplot, cor function, correlation matrix, correlation vs causation, confounding variable, bivariate EDA, exploratory data analysis"
 post_type: "LESSON"

@@ -13,9 +13,14 @@
     return { n: n, free: free, title: title, outcome: outcome, items: items, hub: hub, tool: tool };
   }
 
+  // Section `outcome` (S arg 4) and a lesson's `catalog_blurb` are the roadmap subtitles.
+  // Voice for both: a plain, purpose-driven reason to do it (what you can do after), <= 14
+  // words, no hype or AI-tells ("fast", "ship", "without a fight", "in seconds", "supercharge"),
+  // no function names. State it honestly; do not sell. (catalog_blurb is gated by
+  // Scripts/lesson_quality_check.py; section outcomes are hand-curated to the same bar.)
   var sections = {
     foundations: [
-      S(1, true, 'Syntax, types and vectors', 'Read and write idiomatic base R and reason about how it stores values.',
+      S(1, true, 'Syntax, types and vectors', 'Read and write everyday R, and understand how it stores data.',
         ['R Syntax 101','R Data Types','R Vectors','Operators, recycling and coercion rules','NA, NULL, NaN and Inf','Getting Help in R'],
         'R Vectors (12 problems)', 'R syntax cheat sheet'),
       S(2, false, 'Lists, data frames and tibbles', 'Hold and inspect any rectangular or nested data.',
@@ -24,13 +29,13 @@
       S(3, false, 'Subsetting, control flow and functions', 'Move from snippets to programs you can reuse.',
         ['R Subsetting','Replacement and assignment functions','R Control Flow','Writing R Functions','Arguments, defaults and the dots (...)','The pipe (|> and %>%) and the tidyverse style guide'],
         'R Functions (15 problems)', 'project starter'),
-      S(4, false, 'Importing and exporting real data', 'Load any common format without a fight.',
+      S(4, false, 'Importing and exporting real data', 'Load and save the data formats you will actually meet.',
         ['Read CSV and delimited files with readr','Read Excel workbooks with readxl','Import SPSS, Stata and SAS with haven','Pull JSON from APIs with jsonlite','Scrape and parse HTML with rvest','Query databases with DBI and dbplyr','Fast columnar data with arrow and parquet','Encodings, locales and very large files'],
         'Data import exercises', 'format picker'),
       S(5, false, 'Strings, dates and regular expressions', 'Clean messy real-world text and timestamps.',
         ['String manipulation with stringr','Regular expressions from the ground up','Find, extract and replace with regex','Dates and times with lubridate','Working across time zones','Ordered categories with forcats'],
         'String and regex exercises', 'regex tester'),
-      S(6, false, 'Iteration: the apply family and purrr', 'Replace fragile loops with vectorized, functional iteration.',
+      S(6, false, 'Iteration: the apply family and purrr', 'Replace fragile loops with clear, repeatable iteration.',
         ['Why vectorization beats loops','apply, lapply and sapply','Type-safe iteration with vapply','The map family in purrr','Iterate over two or more inputs (map2, pmap)','Side effects with walk','Resilient iteration with safely and possibly','Nested data and list-columns'],
         'Iteration exercises', 'purrr verb picker'),
       S(7, false, 'Defensive code and debugging', 'Write code that fails loudly and is quick to fix.',
@@ -44,7 +49,7 @@
       S(1, true, 'Wrangle and tidy with dplyr', 'Take a raw file to a clean, analysis-ready table.',
         ['Importing Data','Tidy data principles','dplyr filter & select','dplyr mutate and transmute','dplyr group_by & summarise','arrange, distinct and count','Recode and derive with case_when','Missing Value Treatment'],
         'dplyr (15 problems)', 'dplyr verb picker'),
-      S(2, false, 'Join and reshape any dataset', 'Combine and reshape data of any shape.',
+      S(2, false, 'Join and reshape any dataset', 'Combine and reshape data so it fits the analysis.',
         ['R Joins','Every join type, visualized','Non-equi and rolling joins with join_by','pivot_longer & pivot_wider','Nest, unnest and rectangling','separate, unite and clean columns','Fuzzy matching and joins'],
         'Joins and reshape exercises', 'join visualizer'),
       S(3, false, 'Exploratory data analysis', 'Profile any dataset and surface what matters.',
@@ -56,16 +61,16 @@
       S(5, false, 'Advanced ggplot2 and composition', 'Make figures publication and brand ready.',
         ['Facets and small multiples','Scales, guides and legends','Custom themes and branding','Annotations that explain','Compose plots with patchwork','Label points with ggrepel','Color scales and accessibility'],
         'ggplot2 mastery', 'theme builder'),
-      S(6, false, 'data.table and bigger-than-memory', 'Wrangle millions of rows fast.',
+      S(6, false, 'data.table and bigger-than-memory', 'Handle datasets too large for ordinary tools.',
         ['data.table syntax in one lesson','Keys and lightning-fast joins','dplyr vs data.table, head to head','Bridge the two with dtplyr','Wrangling millions of rows','Bigger-than-memory data with duckdb and duckplyr'],
         'data.table exercises', 'speed benchmark'),
       S(7, false, 'Report-ready tables', 'Tables that drop straight into a report.',
         ['Polished tables with gt','Reporting tables with flextable','HTML tables with kableExtra','Summary and regression tables with gtsummary','Formatting numbers and units'],
         'Tables exercises', 'table builder'),
-      S(8, false, 'Interactive output and dashboards', 'Ship a live, interactive view.',
+      S(8, false, 'Interactive output and dashboards', 'Share results people can explore, not just read.',
         ['Interactive charts with plotly','Maps with leaflet','Linked views with crosstalk','Quarto dashboards','Your first Shiny app'],
         'Dashboard exercises', 'dashboard starter'),
-      S(9, false, 'Communicate, automate and AI-assist (2026)', 'Turn a notebook into a decision, faster.',
+      S(9, false, 'Communicate, automate and AI-assist (2026)', 'Turn your analysis into clear, repeatable decisions.',
         ['Reports with Quarto and R Markdown','Parameterized, repeatable reports','Write the executive summary','Tell a story with data','Summarize and label data with an LLM (ellmer)','When to trust, and not trust, an LLM in analysis'],
         'Reporting exercises', 'report template')
     ],

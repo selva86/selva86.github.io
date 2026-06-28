@@ -109,6 +109,7 @@ def build():
         c['lessons'].append({
             'slug': slug,
             'title': LESSON_CATALOG_TITLE.get(slug) or short_title(fm.get('title'), c['title']),
+            'subtitle': str(fm.get('catalog_blurb', '') or '').strip(),
             'order': order,
             'access': access,
             'built': True,

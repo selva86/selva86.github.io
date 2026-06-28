@@ -1,5 +1,6 @@
 ---
 title: "ggplot2 Lesson 4: Publication-Ready Figures"
+catalog_blurb: "Take a basic plot to a figure ready for a report or paper."
 description: "Choose the right ggplot2 chart for any question, then polish one figure to publication quality: a finding-first title, clean labels, a tidy theme, safe colour and ggsave."
 keywords: "ggplot2 publication figures, ggsave, theme_minimal, labs title, axis labels, caption, colorblind-safe palette, Okabe-Ito, choose a chart, ggplot2 tutorial, polish a ggplot"
 post_type: "LESSON"

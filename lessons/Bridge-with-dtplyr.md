@@ -1,5 +1,6 @@
 ---
 title: "data.table Lesson 4: dtplyr: dplyr at data.table Speed"
+catalog_blurb: "Write dplyr code and run it at data.table speed."
 description: "Keep dplyr's readable syntax and get data.table's speed. dtplyr's lazy_dt() translates your pipes into data.table; see the translation with show_query()."
 keywords: "dtplyr, lazy_dt, dplyr to data.table, show_query, dtplyr collect, fast dplyr in R, data.table backend, dplyr speed R"
 post_type: "LESSON"

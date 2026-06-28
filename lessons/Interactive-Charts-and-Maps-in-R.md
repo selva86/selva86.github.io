@@ -1,5 +1,6 @@
 ---
 title: "Interactive Dashboards Lesson 1: Interactive Charts & Maps"
+catalog_blurb: "Add interactive charts and maps your readers can explore."
 description: "Make R charts interactive with ggplotly and plotly (hover, zoom) and put your data on a leaflet map with markers and popups, plus when to keep a chart static."
 keywords: "plotly in R, ggplotly, interactive charts in R, leaflet R maps, addCircleMarkers, interactive ggplot, htmlwidgets, hover tooltip, interactive visualization R"
 post_type: "LESSON"

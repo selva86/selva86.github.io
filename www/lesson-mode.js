@@ -28,6 +28,16 @@
     var ds = body.dataset || {};
     var access = (body.getAttribute('data-lesson-access') || 'free').toLowerCase();
     var courseTitle = ds.courseTitle || 'Course';
+    // the lesson's own title is its cover-step H2 (this is what the roadmap row shows); the
+    // course title stays as the exit target + rail header. Keeps chrome == roadmap == cover.
+    var lessonTitle = (function () {
+      var h = steps[0] && steps[0].querySelector('h2');
+      if (!h) return courseTitle;
+      var c = h.cloneNode(true);                       // drop any heading anchor-link ("#") before reading
+      Array.prototype.forEach.call(c.querySelectorAll('a'), function (a) { if ((a.textContent || '').trim() === '#') a.parentNode.removeChild(a); });
+      var t = (c.textContent || '').trim().replace(/^#\s*/, '').replace(/\s*#$/, '').trim();
+      return t || courseTitle;
+    })();
     var landing = ds.courseLanding || '/';
     var nextHref = ds.courseNext || '';
     var total = steps.length;
@@ -63,7 +73,7 @@
         '<a class="lm-exit" href="' + esc(landing) + '">' +
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>' +
           esc(courseTitle) + '</a>' +
-        '<span class="lm-title">' + esc(courseTitle) +
+        '<span class="lm-title">' + esc(lessonTitle) +
           (ds.courseLesson && ds.courseTotal ? ' <span>&middot; Lesson ' + esc(ds.courseLesson) + ' of ' + esc(ds.courseTotal) + '</span>' : '') +
         '</span>' +
         '<div class="lm-top-right">' +
@@ -414,7 +424,7 @@
         titleEl.innerHTML = '<a href="/roadmap/">Roadmap</a>' + sep +
           '<a href="' + tUrl + '">' + esc(rm.trackLabel || rm.track) + '</a>' + sep +
           '<a href="' + sUrl + '">' + esc(rm.sectionLabel || '') + '</a>' + sep +
-          '<span class="lm-crumb-cur">' + esc(railCourse.title) + '</span>' +
+          '<span class="lm-crumb-cur">' + esc(lessonTitle) + '</span>' +
           (ds.courseLesson && ds.courseTotal ? ' <span class="lm-crumb-les">&middot; Lesson ' + esc(ds.courseLesson) + ' of ' + esc(ds.courseTotal) + '</span>' : '');
       }
     }

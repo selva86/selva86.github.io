@@ -1,5 +1,6 @@
 ---
 title: "Advanced ggplot2 Lesson 3: Annotate & Compose"
+catalog_blurb: "Add annotations and combine separate plots into one figure."
 description: "Make a ggplot explain itself: reference lines and annotate() callouts, non-overlapping labels with ggrepel, and stitching several plots into one figure with patchwork."
 keywords: "ggplot2 annotate, geom_hline, reference line, ggrepel, geom_text_repel, patchwork, compose plots, annotate plot in R, ggplot2 tutorial"
 post_type: "LESSON"

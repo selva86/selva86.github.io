@@ -1,5 +1,6 @@
 ---
 title: "ggplot2 Lesson 2: Scatter & Line Charts"
+catalog_blurb: "The two workhorse charts for relationships and trends over time."
 description: "geom_point and geom_line in ggplot2: when to use each, mapping a third variable to colour and size, and adding a least-squares trend line that summarises the cloud."
 keywords: "ggplot2 scatter plot, geom_point, geom_line, geom_smooth, trend line in R, aes colour size, line chart in R, scatterplot in R, ggplot2 tutorial"
 post_type: "LESSON"

@@ -1,5 +1,6 @@
 ---
 title: "Advanced ggplot2 Lesson 1: Facets & Scales"
+catalog_blurb: "Compare subgroups with small multiples, and control how scales map."
 description: "Split one crowded chart into small multiples with facet_wrap and facet_grid, choose fixed vs free scales honestly, and bend axes, guides and legends to your will."
 keywords: "facet_wrap, facet_grid, small multiples, ggplot2 scales, free scales, scale_y_log10, ggplot legend, guides, facets in R, ggplot2 tutorial"
 post_type: "LESSON"

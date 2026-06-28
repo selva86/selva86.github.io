@@ -127,6 +127,33 @@ def check_lesson(path):
     if not has_visual(cov_md):
         fail('cover (step 1) has no visual (R1): needs a ::widget, <img>/<svg>, or image')
 
+    # Title match: the cover H2 must equal the catalog title (the roadmap-visible name) - the
+    # LESSON_CATALOG_TITLE override if present, else the colon-tail of `title`. Keeps
+    # roadmap row == cover heading == player chrome (the player derives its title from the H2).
+    try:
+        from build_lessons_tracker import LESSON_CATALOG_TITLE as _CAT, short_title as _short
+        cat_title = _CAT.get(slug) or _short(fm.get('title'), fm.get('course_title'))
+    except Exception:
+        _ft = str(fm.get('title') or '').strip()
+        cat_title = _ft.split(':', 1)[1].strip() if ':' in _ft else _ft
+    cov_head = heading_of(cov_md)
+    if cat_title and cov_head and cov_head != cat_title:
+        fail('cover H2 %r != catalog title %r - the lesson page title must match the roadmap row '
+             '(set the cover heading to the catalog name; put any hook in the body).' % (cov_head, cat_title))
+
+    # catalog_blurb: required, outcome-focused, no function/method names (it is the roadmap subtitle).
+    blurb = str(fm.get('catalog_blurb', '') or '').strip()
+    if not blurb:
+        fail('missing catalog_blurb (the one-line, outcome-focused roadmap subtitle).')
+    else:
+        mcall = re.search(r'[A-Za-z_][\w.]*\(', blurb)
+        if mcall:
+            fail('catalog_blurb names a function (%r) - describe the OUTCOME, not the API.' % mcall.group(0))
+        elif re.search(r'\b[a-z]+_[a-z][a-z_]*\b', blurb):
+            warn('catalog_blurb looks like it names a function (snake_case) - keep it outcome-focused.')
+        if len(blurb.split()) > 14:
+            warn('catalog_blurb is %d words (aim for <= ~12, outcome-focused).' % len(blurb.split()))
+
     # R6 - no bare-prose teaching step about a visualizable thing.
     refs_links = None
     for n, (t, md) in enumerate(steps, 1):

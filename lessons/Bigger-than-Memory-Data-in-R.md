@@ -1,5 +1,6 @@
 ---
 title: "data.table Lesson 3: Bigger-Than-Memory Data"
+catalog_blurb: "Work with datasets larger than your computer's memory."
 description: "Your data is bigger than your laptop memory. Stream it in chunks and query it on disk with DuckDB and dplyr from R, without ever loading the whole file."
 keywords: "bigger than memory data R, out of core R, duckdb in R, duckplyr, data.table fread, streaming chunks R, large data R, query parquet R"
 post_type: "LESSON"
