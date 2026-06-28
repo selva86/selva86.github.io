@@ -29,8 +29,8 @@
     }
     return '<a class="lsn pro" href="/pricing.html"><span class="lt">'+esc(t)+'</span><span class="go">Pro</span></a>';
   }
-  function secDetails(s,isFree,open){
-    return '<details class="sec"'+(open?' open':'')+'><summary><span class="car"></span><span class="sn">'+(s.n<10?'0'+s.n:s.n)+'</span><span class="st">'+esc(s.title)+'</span>'+
+  function secDetails(s,isFree,open,trackKey){
+    return '<details class="sec" data-track="'+(trackKey||'')+'" data-sec="'+s.n+'"'+(open?' open':'')+'><summary><span class="car"></span><span class="sn">'+(s.n<10?'0'+s.n:s.n)+'</span><span class="st">'+esc(s.title)+'</span>'+
       (isFree?'<span class="tag free">Free</span>':UNLOCK)+'<span class="cnt">'+s.items.length+'</span></summary>'+
       '<div class="lsns">'+s.items.map(function(t){return lessonRow(t,isFree);}).join('')+'</div></details>';
   }
@@ -39,12 +39,12 @@
     function isFree(s){return allFree||s.free;}
     var total=secs.reduce(function(a,s){return a+s.items.length;},0);
     var meta=allFree?(secs.length+' sections / '+total+' lessons / all free'):('Section 1 free / '+(secs.length-1)+' with Pro / '+total+' lessons');
-    var body=secs.map(function(s,i){return secDetails(s,isFree(s),i===0);}).join('');
+    var body=secs.map(function(s,i){return secDetails(s,isFree(s),i===0,key);}).join('');
     var acts=opts.role?'<div class="acts"><a class="open" href="'+roleHref(key)+'">Open full page <span class="a">&rarr;</span></a><a class="enroll" href="/pricing.html">Enroll</a></div>':'';
     var node=opts.step?opts.step:'<span class="dot"></span>';
     return '<div class="ms '+(opts.step?'step':'branch')+' reveal" style="--c:var('+CV[key]+')"><div class="node">'+node+'</div><div class="panel">'+
       '<div class="role">'+esc(ROLE[key])+'</div><h3>'+esc(L.head.replace(/<\/?em>/g,''))+'</h3>'+
-      '<p class="become">'+esc(L.become)+'</p><div class="meta">'+meta+'</div>'+body+acts+'</div></div>';
+      '<p class="become">'+esc(L.become)+'</p><div class="meta" data-track="'+key+'">'+meta+'</div>'+body+acts+'</div></div>';
   }
   document.getElementById('core').innerHTML=milestone('foundations',{step:'1'})+milestone('analyst',{step:'2',role:true});
   document.getElementById('tracks').innerHTML=TRACKS.map(function(k){return milestone(k,{role:true});}).join('');
@@ -91,5 +91,50 @@
 
   // option 3: "Unlock with Pro" pill lives inside <summary>; navigate without toggling the accordion
   document.addEventListener('click',function(e){var u=e.target.closest&&e.target.closest('.unlock');if(u){e.preventDefault();e.stopPropagation();window.location.href=u.getAttribute('href')||'/pricing.html';}},true);
+
+  // --- Data Analyst track: interactive-lesson hybrid rows ---
+  // The analyst curriculum is fully covered by interactive lessons, so replace each analyst
+  // section's flat concept list with one row per lesson plus the concepts it covers (no
+  // duplication). Lesson set/order come from /courses.json (authoritative for what is built);
+  // RM2.lessonConcepts attaches the "covers" detail. Every other track is left unchanged.
+  (function(){
+    var st=document.createElement('style');
+    st.textContent='.ilhy-row{display:block;padding:11px 9px;border-radius:9px;text-decoration:none;color:var(--ink,#1a1a1a)}'
+      +'.ilhy-row+.ilhy-row{border-top:1px solid var(--line,#e6e3da)}'
+      +'.ilhy-row:hover{background:color-mix(in srgb,var(--c) 7%,#fff)}'
+      +'.ilhy-head{display:flex;align-items:center;gap:9px}'
+      +'.ilhy-a{color:var(--c);font-size:10px;flex:none}'
+      +'.ilhy-t{flex:1;min-width:0;font-size:14px;font-weight:600}'
+      +'.ilhy-g{flex:none;font:600 9px/1 "JetBrains Mono",monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--c);border:1px solid var(--c);border-radius:5px;padding:3px 6px}'
+      +'.ilhy-cov{display:block;margin:5px 0 0 19px;font-size:12px;color:var(--faint,#8a8a83);line-height:1.55}';
+    document.head.appendChild(st);
+    fetch('/courses.json',{cache:'no-cache'}).then(function(r){return r.ok?r.json():null;}).then(function(cat){
+      if(!cat||!cat.courses)return;
+      var bySec={};
+      cat.courses.forEach(function(c){ if(!c.roadmap||c.roadmap.track!=='analyst')return;
+        (bySec[c.roadmap.section]=bySec[c.roadmap.section]||[]).push(c); });
+      var grand=0;
+      Object.keys(bySec).forEach(function(n){
+        var det=document.querySelector('details.sec[data-track="analyst"][data-sec="'+n+'"]'); if(!det)return;
+        var lsns=det.querySelector('.lsns'); if(!lsns)return;
+        var rows='',cnt=0;
+        bySec[n].forEach(function(c){
+          (c.lessons||[]).slice().sort(function(a,b){return (a.order||0)-(b.order||0);}).forEach(function(l){
+            if(l.built===false)return; cnt++;
+            var cov=(RM2.lessonConcepts&&RM2.lessonConcepts[l.slug])||[];
+            var covHtml=cov.length?'<span class="ilhy-cov">'+cov.map(esc).join(' &middot; ')+'</span>':'';
+            rows+='<a class="ilhy-row" href="/'+l.slug+'.html"><span class="ilhy-head"><span class="ilhy-a">&#9654;</span><span class="ilhy-t">'+esc(l.title)+'</span><span class="ilhy-g">Interactive</span></span>'+covHtml+'</a>';
+          });
+        });
+        if(!rows)return;
+        lsns.innerHTML=rows;
+        var cb=det.querySelector('.cnt'); if(cb)cb.textContent=String(cnt);
+        grand+=cnt;
+      });
+      // align the analyst milestone "lessons" count with the interactive-lesson rows now shown
+      if(grand){var m=document.querySelector('.meta[data-track="analyst"]');
+        if(m)m.textContent=RM2.sections.analyst.length+' sections / '+grand+' lessons / all free';}
+    }).catch(function(){});
+  })();
 
 })();

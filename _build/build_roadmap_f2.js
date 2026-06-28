@@ -103,11 +103,11 @@ const ROLE_MAIN=`<main class="wrap">
     <a class="primary" href="/pricing.html">Join the Program <span class="a">&rarr;</span></a>
   </div></section>
 </main>`;
-function dataScripts(render){return '<script src="/www/roadmap-data.js?v=2"></script>\n<script src="/www/roadmap-curriculum.js?v=2"></script>\n<script src="/www/'+render+'"></script>';}
+function dataScripts(render){return '<script src="/www/roadmap-data.js?v=2"></script>\n<script src="/www/roadmap-curriculum.js?v=3"></script>\n<script src="/www/'+render+'"></script>';}
 
 // --- roadmap index ---
 const idx=head({title:'R Learning Roadmap · r-statistics.co',desc:'A guided route through R, sequenced by your goal: new to R, data analyst, data scientist, forecaster, researcher or R developer. Every level earns a verifiable certificate.',canon:ORIGIN+'/roadmap/',jsonld:jsonldRoadmap(),css:'roadmap-f2.css'})+
-  '\n<body data-page="roadmap">\n<div class="prog" id="prog"></div>\n'+nav()+'\n'+ROADMAP_MAIN+'\n'+foot()+'\n'+dataScripts('roadmap-f2.js?v=3')+'\n'+SHELL+'\n</body>\n</html>\n';
+  '\n<body data-page="roadmap">\n<div class="prog" id="prog"></div>\n'+nav()+'\n'+ROADMAP_MAIN+'\n'+foot()+'\n'+dataScripts('roadmap-f2.js?v=4')+'\n'+SHELL+'\n</body>\n</html>\n';
 F.writeFileSync(p.join(root,'roadmap','index.html'),idx);
 let n=1;
 
@@ -115,7 +115,7 @@ let n=1;
 ROLES.forEach(function(r){
   const canon=ORIGIN+'/roadmap/'+r.slug+'.html';
   const h=head({title:r.title+' · r-statistics.co',desc:r.desc,canon:canon,jsonld:jsonldRole(r),css:'roadmap-role.css'});
-  const html=h+'\n<body data-page="role" data-role="'+r.k+'">\n<div class="prog" id="prog"></div>\n'+ROLE_DEFS+'\n'+nav()+'\n'+ROLE_MAIN+'\n'+foot()+'\n'+dataScripts('roadmap-role.js?v=3')+'\n'+SHELL+'\n</body>\n</html>\n';
+  const html=h+'\n<body data-page="role" data-role="'+r.k+'">\n<div class="prog" id="prog"></div>\n'+ROLE_DEFS+'\n'+nav()+'\n'+ROLE_MAIN+'\n'+foot()+'\n'+dataScripts('roadmap-role.js?v=4')+'\n'+SHELL+'\n</body>\n</html>\n';
   F.writeFileSync(p.join(root,'roadmap',r.slug+'.html'),html);
   n++;
 });

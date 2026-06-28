@@ -190,7 +190,15 @@
       +'.ilsn{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:9px;text-decoration:none;color:var(--ink,#1a1a1a);font-size:14px}'
       +'.ilsn:hover{background:color-mix(in srgb,var(--c) 12%,#fff)}'
       +'.ila{color:var(--c);font-size:10px;flex:none}.ilt{flex:1;min-width:0}'
-      +'.ilg{flex:none;font:600 9.5px/1 "JetBrains Mono",monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--c);border:1px solid var(--c);border-radius:5px;padding:3px 6px}';
+      +'.ilg{flex:none;font:600 9.5px/1 "JetBrains Mono",monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--c);border:1px solid var(--c);border-radius:5px;padding:3px 6px}'
+      +'.ilhy-row{display:block;padding:11px 9px;border-radius:9px;text-decoration:none;color:var(--ink,#1a1a1a)}'
+      +'.ilhy-row+.ilhy-row{border-top:1px solid var(--line,#e6e3da)}'
+      +'.ilhy-row:hover{background:color-mix(in srgb,var(--c) 7%,#fff)}'
+      +'.ilhy-head{display:flex;align-items:center;gap:9px}'
+      +'.ilhy-a{color:var(--c);font-size:10px;flex:none}'
+      +'.ilhy-t{flex:1;min-width:0;font-size:14px;font-weight:600}'
+      +'.ilhy-g{flex:none;font:600 9px/1 "JetBrains Mono",monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--c);border:1px solid var(--c);border-radius:5px;padding:3px 6px}'
+      +'.ilhy-cov{display:block;margin:5px 0 0 19px;font-size:12px;color:var(--faint,#8a8a83);line-height:1.55}';
     document.head.appendChild(st);
     fetch('/courses.json',{cache:'no-cache'}).then(function(r){return r.ok?r.json():null;}).then(function(cat){
       if(!cat||!cat.courses)return;
@@ -202,8 +210,28 @@
       if(s1n!=null&&bySec[s1n]){var first=null;
         bySec[s1n].forEach(function(c){(c.lessons||[]).forEach(function(l){if(l.built!==false&&(!first||(l.order||0)<(first.order||0)))first=l;});});
         if(first){var pr=document.querySelector('header.hero .primary');if(pr)pr.setAttribute('href','/'+first.slug+'.html');}}
+      var grand=0;
       Object.keys(bySec).forEach(function(n){
         var det=document.getElementById('rm-s'+n); if(!det)return;
+        var lsns=det.querySelector('.lsns');
+        if(role==='analyst'){
+          // hybrid: on this track the interactive lessons ARE the curriculum, so replace the
+          // flat concept list with one row per lesson plus the concepts it covers (no duplication).
+          var rows='',cnt=0;
+          bySec[n].forEach(function(c){
+            (c.lessons||[]).slice().sort(function(a,b){return (a.order||0)-(b.order||0);}).forEach(function(l){
+              if(l.built===false)return; cnt++;
+              var cov=(RM2.lessonConcepts&&RM2.lessonConcepts[l.slug])||[];
+              var covHtml=cov.length?'<span class="ilhy-cov">'+cov.map(esc).join(' &middot; ')+'</span>':'';
+              rows+='<a class="ilhy-row" href="/'+l.slug+'.html"><span class="ilhy-head"><span class="ilhy-a">&#9654;</span><span class="ilhy-t">'+esc(l.title)+'</span><span class="ilhy-g">Interactive</span></span>'+covHtml+'</a>';
+            });
+          });
+          if(!rows||!lsns)return;
+          lsns.innerHTML=rows;
+          var cb=det.querySelector('.cnt'); if(cb)cb.textContent=String(cnt);
+          grand+=cnt;
+          return;
+        }
         var html='';
         bySec[n].forEach(function(c){
           (c.lessons||[]).slice().sort(function(a,b){return (a.order||0)-(b.order||0);}).forEach(function(l){
@@ -214,9 +242,11 @@
         if(!html)return;
         var box=document.createElement('div'); box.className='ilsns';
         box.innerHTML='<div class="ilsns-h">Interactive lessons</div>'+html;
-        var lsns=det.querySelector('.lsns');
         if(lsns)lsns.insertBefore(box,lsns.firstChild); else det.appendChild(box);
       });
+      // align the hero "lessons" count with the interactive-lesson rows now shown
+      if(role==='analyst'&&grand){var rm=document.getElementById('roleMeta');
+        if(rm)rm.innerHTML='<span><b>'+secs.length+'</b> sections</span><span><b>'+grand+'</b> lessons</span><span>Certificate: <b>'+esc(L.cert)+'</b></span>';}
     }).catch(function(){});
   })();
 })();

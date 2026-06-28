@@ -448,5 +448,39 @@
     'When to trust, and not trust, an LLM in analysis':'/AI-Assisted-Analysis-in-R.html',
   };
 
-  root.RM2 = { sections: sections, projects: projects, projectList: projectList, links: links };
+  // analyst lesson slug -> the roadmap concepts that lesson covers (drives the hybrid roadmap rows).
+  // Lesson set/order/title come from courses.json at runtime; this only attaches 'covers:' detail.
+  var lessonConcepts = {
+    'Importing-and-Tidy-Data-in-R':['Importing Data','Tidy data principles'],
+    'The-dplyr-Verbs':['dplyr filter & select','dplyr mutate and transmute'],
+    'Group-Summarise-and-Clean-in-dplyr':['dplyr group_by & summarise','arrange, distinct and count','Recode and derive with case_when'],
+    'Missing-Value-Treatment':['Missing Value Treatment'],
+    'Joining-Tables-in-R':['R Joins','Every join type, visualized','Non-equi and rolling joins with join_by'],
+    'Pivoting-Long-and-Wide-in-R':['pivot_longer & pivot_wider'],
+    'Nest-Unnest-and-Rectangling':['Nest, unnest and rectangling'],
+    'Splitting-Uniting-and-Fuzzy-Joins':['separate, unite and clean columns','Fuzzy matching and joins'],
+    'An-EDA-Framework-and-One-Variable':['EDA (7-Step Framework)','Univariate EDA'],
+    'Two-Variables-and-Correlation-in-R':['Bivariate EDA','Correlation Analysis'],
+    'Outliers-and-Automated-EDA':['Outlier Detection','Automated EDA with skimr and DataExplorer'],
+    'The-Grammar-of-Graphics':['Grammar of Graphics','ggplot2 Getting Started'],
+    'Scatter-and-Line-Charts-in-ggplot2':['Scatter Plots','Line Charts'],
+    'Bar-and-Distribution-Charts-in-ggplot2':['Bar Charts','Distribution Charts'],
+    'A-ggplot2-Gallery-and-Publication-Figures':['Top 50 ggplot2 Visualizations','Publication-Ready Figures'],
+    'Facets-and-Scales-in-ggplot2':['Facets and small multiples','Scales, guides and legends'],
+    'Themes-Color-and-Accessibility':['Custom themes and branding','Color scales and accessibility'],
+    'Annotate-and-Compose-Plots':['Annotations that explain','Compose plots with patchwork','Label points with ggrepel'],
+    'data-table-Syntax-and-Keys':['data.table syntax in one lesson','Keys and lightning-fast joins'],
+    'dplyr-vs-data-table':['dplyr vs data.table, head to head'],
+    'Bridge-with-dtplyr':['Bridge the two with dtplyr'],
+    'Bigger-than-Memory-Data-in-R':['Wrangling millions of rows','Bigger-than-memory data with duckdb and duckplyr'],
+    'Report-Tables-with-gt-and-flextable':['Polished tables with gt','Reporting tables with flextable','HTML tables with kableExtra'],
+    'Summary-Tables-and-Number-Formatting':['Summary and regression tables with gtsummary','Formatting numbers and units'],
+    'Interactive-Charts-and-Maps-in-R':['Interactive charts with plotly','Maps with leaflet'],
+    'Quarto-Dashboards-and-Linked-Views':['Linked views with crosstalk','Quarto dashboards'],
+    'Your-First-Shiny-App':['Your first Shiny app'],
+    'Reproducible-Reports-with-Quarto':['Reports with Quarto and R Markdown','Parameterized, repeatable reports'],
+    'Telling-a-Story-with-Data':['Write the executive summary','Tell a story with data'],
+    'AI-Assisted-Analysis-in-R':['Summarize and label data with an LLM (ellmer)','When to trust, and not trust, an LLM in analysis'],
+  };
+  root.RM2 = { sections: sections, projects: projects, projectList: projectList, links: links, lessonConcepts: lessonConcepts };
 })(window);
