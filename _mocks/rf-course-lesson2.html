@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Random Forests · Lesson 2 — From one tree to a forest</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;450;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#eef2f7;--panel:#fff;--ink:#131720;--body:#434b59;--mut:#677084;--faint:#97a0b2;--line:#e0e6ef;--line2:#eef1f6;
+  --core:#2563a8;--ds:#1f7a55;--pro:#9a7320;--free:#1f7a55;--bad:#c2410c;--c0:#2563a8;--c1:#b5631a;
+  --code:#0d1117;--code2:#090d13;--ease:cubic-bezier(.2,.7,.3,1);
+  --sh1:0 1px 2px rgba(19,23,32,.04),0 6px 16px -8px rgba(19,23,32,.10);
+  --sh2:0 24px 56px -28px rgba(19,23,32,.30),0 4px 12px rgba(19,23,32,.05);
+}
+*{box-sizing:border-box;margin:0;padding:0}html,body{height:100%}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--body);font-size:17px;line-height:1.7;-webkit-font-smoothing:antialiased;overflow:hidden}
+.disp{font-family:'Fraunces',Georgia,serif;letter-spacing:-.01em}.mono{font-family:'JetBrains Mono',monospace}
+a{color:inherit;text-decoration:none}
+.player{display:flex;flex-direction:column;height:100%}
+.top{flex:none;background:var(--panel);border-bottom:1px solid var(--line);padding:0 22px;height:56px;display:flex;align-items:center;gap:14px;z-index:5}
+.top .exit{display:inline-flex;align-items:center;gap:8px;font-size:13.5px;font-weight:600;color:var(--mut)}.top .exit svg{width:16px;height:16px}.top .exit:hover{color:var(--ink)}
+.top .ttl{font-family:'Fraunces';font-weight:700;font-size:15px;color:var(--ink)}.top .ttl span{color:var(--faint);font-weight:500;font-family:'Inter'}
+.top .right{margin-left:auto;display:flex;align-items:center;gap:14px}
+.top .stepn{font-family:'JetBrains Mono';font-size:12px;color:var(--mut)}.top .stepn b{color:var(--ink)}
+.top .cert{font-size:13px;font-weight:600;color:#fff;background:var(--ink);border-radius:8px;padding:7px 14px}
+.segs{flex:none;display:flex;gap:4px;padding:9px 22px;background:var(--panel);border-bottom:1px solid var(--line)}
+.segs i{flex:1;height:5px;border-radius:99px;background:var(--line)}.segs i.done{background:var(--ds)}.segs i.cur{background:var(--line);position:relative;overflow:hidden}.segs i.cur::after{content:"";position:absolute;inset:0;width:50%;background:var(--ds);border-radius:99px}
+.stage{flex:1;overflow-y:auto;overflow-x:hidden}
+.step{display:none;max-width:760px;margin:0 auto;padding:38px 26px 64px;animation:fade .45s var(--ease)}
+.step.on{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+.eyebrow{font-family:'JetBrains Mono';font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--ds);font-weight:600}
+.step h2{font-family:'Fraunces';font-weight:600;font-size:clamp(26px,3.6vw,34px);line-height:1.12;letter-spacing:-.02em;color:var(--ink);margin:9px 0 0}
+.step p{margin:15px 0 0;font-size:17px;color:var(--body)}.step p.sm{font-size:15.5px;color:var(--mut)}
+.step code{font-family:'JetBrains Mono';font-size:.85em;background:#e6ebf3;color:#243349;padding:.12em .42em;border-radius:5px}
+.step strong{color:var(--ink);font-weight:600}.step em{font-style:italic}
+.cover{text-align:center;padding-top:24px}
+.cover .badge{display:inline-flex;align-items:center;gap:8px;font-family:'JetBrains Mono';font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ds);font-weight:600;background:color-mix(in srgb,var(--ds) 8%,#fff);border:1px solid color-mix(in srgb,var(--ds) 24%,var(--line));border-radius:999px;padding:6px 14px}
+.cover h1{font-family:'Fraunces';font-weight:700;font-size:clamp(32px,5vw,48px);line-height:1.04;letter-spacing:-.03em;color:var(--ink);margin:18px 0 0}
+.cover .sub{font-size:18.5px;color:var(--body);margin:16px auto 0;max-width:46ch}
+.recap{margin:24px auto 0;max-width:520px;background:color-mix(in srgb,var(--ds) 5%,var(--panel));border:1px solid color-mix(in srgb,var(--ds) 22%,var(--line));border-radius:14px;padding:16px 20px;text-align:left;font-size:14.5px;color:var(--body)}
+.recap b{color:var(--ink)}
+.ll{margin:22px auto 0;max-width:460px;text-align:left;display:grid;gap:10px}
+.ll .li{display:flex;gap:12px;align-items:flex-start;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 16px;box-shadow:var(--sh1);font-size:15px;color:var(--body)}
+.ll .li svg{width:18px;height:18px;color:var(--ds);flex:none;margin-top:2px}
+.start{display:inline-flex;align-items:center;gap:9px;margin:26px 0 0;background:var(--ink);color:#fff;font-weight:600;font-size:16px;border-radius:12px;padding:14px 30px;cursor:pointer;border:0;font-family:'Inter';transition:.18s var(--ease)}.start:hover{transform:translateY(-2px);box-shadow:var(--sh2)}
+.cover .meta{margin:16px 0 0;font-family:'JetBrains Mono';font-size:12px;color:var(--faint)}
+.mathbox{margin:20px 0 0;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px 22px;box-shadow:var(--sh1);text-align:center;font-family:'JetBrains Mono';font-size:16px;color:var(--ink)}
+.mathbox .small{font-size:13px;color:var(--mut);margin-top:8px;font-family:'Inter'}
+.widget{margin:22px 0 0;border:1px solid var(--line);border-radius:18px;background:var(--panel);box-shadow:var(--sh2);overflow:hidden}
+.wtop{display:flex;align-items:center;gap:10px;padding:13px 20px;border-bottom:1px solid var(--line2);background:linear-gradient(180deg,#fff,#f7f9fc)}
+.wtop .lab{font-family:'Fraunces';font-weight:700;font-size:15px;color:var(--ink)}
+.wtop .live{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-family:'JetBrains Mono';font-size:10px;font-weight:600;color:var(--ds);text-transform:uppercase;letter-spacing:.08em}.wtop .live i{width:7px;height:7px;border-radius:50%;background:var(--ds);box-shadow:0 0 0 3px color-mix(in srgb,var(--ds) 18%,transparent)}
+.wbody{padding:18px 20px}
+.ctrl{margin:0 0 14px}.ctrl .lr{display:flex;justify-content:space-between;align-items:baseline;font-size:13px;color:var(--mut);margin-bottom:7px}.ctrl .lr b{font-family:'JetBrains Mono';color:var(--ink);font-size:15px}
+.ctrl input[type=range]{width:100%;height:5px;accent-color:var(--ds)}
+.cv-grid{display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:center}
+@media(max-width:560px){.cv-grid{grid-template-columns:1fr}}
+.cv-wrap{position:relative;width:300px;height:300px;border-radius:12px;overflow:hidden;border:1px solid var(--line);flex:none;margin:0 auto}
+canvas{display:block;width:300px;height:300px}
+.cv-legend{display:flex;gap:14px;margin:10px 0 0;font-size:12px;color:var(--mut);justify-content:center;flex-wrap:wrap}.cv-legend .k{display:inline-flex;align-items:center;gap:6px}.cv-legend .sw{width:11px;height:11px;border-radius:50%}
+.cv-metrics{display:grid;gap:10px}
+.cv-metrics .m{background:var(--bg);border:1px solid var(--line);border-radius:11px;padding:12px 14px}.cv-metrics .m .v{font-family:'Fraunces';font-weight:700;font-size:23px}
+.cv-metrics .m.forest .v{color:var(--ds)}.cv-metrics .m.one .v{color:var(--mut)}
+.cv-metrics .m .k{font-family:'JetBrains Mono';font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--faint);margin-top:2px}
+.wnote{margin:14px 0 0;font-size:13px;color:var(--mut);background:var(--bg);border-radius:10px;padding:11px 14px}.wnote b{color:var(--ink)}
+/* decorrelation demo */
+.mtoggle{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin:0 0 4px}
+.mtoggle button{border:0;background:var(--panel);font-family:'Inter';font-size:13px;font-weight:600;color:var(--mut);padding:9px 15px;cursor:pointer}
+.mtoggle button.on{background:var(--ds);color:#fff}
+.dtrees{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0 0}
+@media(max-width:520px){.dtrees{grid-template-columns:repeat(2,1fr)}}
+.dcard{border:1px solid var(--line);border-radius:11px;background:var(--bg);padding:12px;text-align:center}
+.dcard .tn{font-family:'JetBrains Mono';font-size:9.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.05em}
+.dcard .rootlbl{font-family:'JetBrains Mono';font-size:9px;color:var(--faint);margin:8px 0 4px}
+.dcard .root{font-family:'Inter';font-weight:700;font-size:13.5px;color:#fff;border-radius:7px;padding:5px 8px;display:inline-block}
+.divmeter{margin:16px 0 0;display:flex;align-items:center;gap:12px}
+.divmeter .lbl{font-size:13px;color:var(--mut)}.divmeter .lbl b{color:var(--ink)}
+.divmeter .track{flex:1;height:9px;background:var(--line2);border-radius:99px;overflow:hidden}.divmeter .fill{height:100%;background:var(--ds);border-radius:99px;transition:width .3s var(--ease)}
+.divmeter .pv{font-family:'JetBrains Mono';font-size:13px;font-weight:600;color:var(--ds);width:42px;text-align:right}
+.code{margin:22px 0 0;border-radius:14px;overflow:hidden;box-shadow:var(--sh2);border:1px solid #1b212c}
+.code-bar{display:flex;align-items:center;gap:10px;background:var(--code2);padding:10px 15px}.code-bar .rb{font-family:'JetBrains Mono';font-size:10px;font-weight:700;color:#090d13;background:#7dd0a6;border-radius:5px;padding:2px 7px}.code-bar .ct{font-family:'JetBrains Mono';font-size:12px;color:#9aa6b8}.code-bar .acts{margin-left:auto}.code-bar .run{font-family:'Inter';font-size:12px;font-weight:600;border:0;border-radius:7px;padding:6px 12px;cursor:pointer;background:#7dd0a6;color:#062013}
+.code-body{background:var(--code);margin:0;padding:16px 18px;overflow-x:auto}.code-body code{font-family:'JetBrains Mono';font-size:13.5px;line-height:1.7;color:#d7deea;white-space:pre;display:block;background:none;padding:0;border-radius:0}
+.tk-c{color:#6b7689;font-style:italic}.tk-s{color:#9ece9e}.tk-out{color:#6b7689}.tk-f{color:#e6c07b}.tk-k{color:#c792ea}
+.code-out{background:#070a0e;border-top:1px solid #1b212c;padding:0 18px;max-height:0;overflow:hidden;transition:max-height .4s var(--ease),padding .4s var(--ease)}.code-out.on{max-height:140px;padding:12px 18px}.code-out .l{font-family:'JetBrains Mono';font-size:13px;color:#aab3c2}.code-out .ok{color:#6fe0a4}.code-out .res{color:#d7deea}
+.tryit{margin:22px 0 0;border:1px solid color-mix(in srgb,var(--ds) 26%,var(--line));border-radius:16px;overflow:hidden;box-shadow:var(--sh1)}
+.tryit .th{background:color-mix(in srgb,var(--ds) 7%,var(--panel));padding:13px 18px;display:flex;align-items:center;gap:10px}.tryit .th .tt{font-family:'JetBrains Mono';font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ds);font-weight:600}.tryit .th .pts{margin-left:auto;font-family:'JetBrains Mono';font-size:11px;font-weight:600;color:var(--pro)}
+.tryit .tb{padding:15px 18px;background:var(--panel)}.tryit .q{margin:0 0 11px;font-size:15.5px;color:var(--ink)}
+.tryit textarea{width:100%;font-family:'JetBrains Mono';font-size:14px;line-height:1.6;color:#e6ebf2;background:var(--code);border:1px solid #1b212c;border-radius:10px;padding:12px 14px;resize:vertical;min-height:74px}
+.tryit textarea:focus{outline:none;border-color:var(--ds);box-shadow:0 0 0 3px color-mix(in srgb,var(--ds) 22%,transparent)}
+.tryit .ta{margin:12px 0 0;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.tryit .check{background:var(--ds);color:#fff;border:0;border-radius:9px;padding:10px 18px;font-weight:600;font-size:13.5px;font-family:'Inter';cursor:pointer}
+.tryit .showsol{font-size:13px;font-weight:600;color:var(--mut);cursor:pointer;background:none;border:0;font-family:'Inter'}
+.tryit .fb{font-size:13.5px;font-weight:600;display:none;align-items:center;gap:7px}.tryit .fb.show{display:inline-flex}.tryit .fb.ok{color:var(--ds)}.tryit .fb.no{color:var(--bad)}
+.tryit .sol{margin:12px 0 0;font-family:'JetBrains Mono';font-size:13px;background:var(--code);color:#d7deea;border-radius:9px;padding:12px 14px;white-space:pre;display:none}.tryit .sol.show{display:block}.tryit .sol .tk-out{color:#6b7689}
+.quiz{margin:22px 0 0}
+.quiz .opt{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--panel);border:1.5px solid var(--line);border-radius:13px;padding:14px 17px;margin-top:10px;cursor:pointer;font-size:15.5px;color:var(--ink);font-family:'Inter';transition:.14s}.quiz .opt:hover{border-color:var(--ds)}
+.quiz .opt .mk{width:24px;height:24px;border-radius:50%;border:2px solid var(--line);flex:none;display:flex;align-items:center;justify-content:center;font-family:'JetBrains Mono';font-size:12px;color:var(--faint)}
+.quiz .opt.correct{border-color:var(--ds);background:color-mix(in srgb,var(--ds) 7%,#fff)}.quiz .opt.correct .mk{border-color:var(--ds);background:var(--ds);color:#fff}
+.quiz .opt.wrong{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 6%,#fff)}.quiz .opt.wrong .mk{border-color:var(--bad);color:var(--bad)}
+.quiz .opt.dim{opacity:.5}
+.quiz .qfb{margin:14px 0 0;font-size:14.5px;padding:14px 16px;border-radius:12px;display:none}.quiz .qfb.show{display:block}.quiz .qfb.ok{background:color-mix(in srgb,var(--ds) 8%,#fff);border:1px solid color-mix(in srgb,var(--ds) 28%,var(--line))}.quiz .qfb.no{background:color-mix(in srgb,var(--bad) 7%,#fff);border:1px solid color-mix(in srgb,var(--bad) 26%,var(--line))}.quiz .qfb b{color:var(--ink)}
+.callout{margin:22px 0 0;border-radius:14px;padding:16px 20px 16px 22px;border:1px solid var(--line);background:var(--panel);position:relative;box-shadow:var(--sh1)}.callout::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;border-radius:14px 0 0 14px;background:var(--ac,var(--core))}.callout .cl{font-family:'JetBrains Mono';font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;font-weight:600;color:var(--ac,var(--core));margin:0 0 6px}.callout p{margin:0;font-size:14.5px}.callout.aha{--ac:var(--pro)}.callout.warn{--ac:var(--bad)}
+.recipe{margin:20px 0 0;display:grid;gap:10px}
+.recipe .r{display:flex;gap:13px;align-items:flex-start;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--sh1)}
+.recipe .r .n{font-family:'JetBrains Mono';font-weight:700;font-size:13px;color:#fff;background:var(--ds);width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;flex:none}
+.recipe .r b{color:var(--ink)}.recipe .r .d{font-size:13.5px;color:var(--mut);margin-top:2px}
+.done{text-align:center;padding-top:18px}
+.done .ic{width:72px;height:72px;border-radius:50%;margin:0 auto;background:linear-gradient(135deg,var(--ds),#16a34a);display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 16px 30px -12px rgba(31,122,85,.5)}.done .ic svg{width:36px;height:36px}
+.done h2{font-family:'Fraunces';font-weight:700;font-size:32px;letter-spacing:-.03em;color:var(--ink);margin:16px 0 0}
+.done .sub{font-size:17px;color:var(--body);margin:11px auto 0;max-width:42ch}
+.done .stats{margin:22px auto 0;display:flex;gap:12px;justify-content:center;flex-wrap:wrap}.done .stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px 20px;box-shadow:var(--sh1)}.done .stat b{display:block;font-family:'Fraunces';font-weight:800;font-size:22px;color:var(--ink)}.done .stat span{font-family:'JetBrains Mono';font-size:10.5px;color:var(--mut);text-transform:uppercase;letter-spacing:.05em}
+.break{margin:24px 0 0;background:linear-gradient(120deg,#0e1320,#22324b);color:#eef2f8;border-radius:18px;padding:26px 28px;text-align:left;position:relative;overflow:hidden;box-shadow:var(--sh2)}.break::after{content:"";position:absolute;inset:0;background:radial-gradient(46% 90% at 88% 0,rgba(127,208,166,.22),transparent 70%)}.break>*{position:relative}
+.break .lk{font-family:'JetBrains Mono';font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#7dd0a6}.break h3{font-family:'Fraunces';font-weight:600;font-size:22px;color:#fff;margin:9px 0 0}.break p{font-size:14.5px;color:#c2cce0;margin:9px 0 0}
+.break .b{display:inline-flex;align-items:center;gap:8px;margin:16px 0 0;background:#fff;color:var(--ink);font-weight:600;font-size:14px;border-radius:11px;padding:12px 22px}
+.stepper{flex:none;background:var(--panel);border-top:1px solid var(--line);padding:11px 22px;display:flex;align-items:center;gap:14px;box-shadow:0 -8px 24px -18px rgba(19,23,32,.25)}
+.stepper .back{font-size:14px;font-weight:600;color:var(--mut);background:none;border:0;cursor:pointer;font-family:'Inter';padding:10px 6px}.stepper .back[disabled]{opacity:.35;cursor:default}
+.stepper .mid{margin:0 auto;font-family:'JetBrains Mono';font-size:12px;color:var(--faint)}
+.stepper .cont{font-size:15px;font-weight:600;color:#fff;background:var(--ds);border:0;border-radius:11px;padding:12px 28px;cursor:pointer;font-family:'Inter';transition:.18s var(--ease)}.stepper .cont:hover{filter:brightness(1.06)}.stepper .cont[disabled]{background:var(--line);color:var(--faint);cursor:not-allowed}
+.mocknote{position:fixed;bottom:68px;left:14px;background:linear-gradient(90deg,var(--ds),var(--core));color:#fff;font-size:10px;font-weight:700;padding:5px 11px;border-radius:8px;z-index:99;font-family:'JetBrains Mono'}
+@media(max-width:560px){.step{padding:26px 18px 50px}}
+</style>
+</head>
+<body>
+<div class="player">
+  <div class="top">
+    <a class="exit" href="rf-course-lesson1.html"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>Lesson 1</a>
+    <span class="ttl">Random Forests <span>&middot; Lesson 2 of 3</span></span>
+    <div class="right"><span class="stepn">Step <b id="sn">1</b> / <span id="st">10</span></span><a class="cert" href="/pricing.html">Get certified</a></div>
+  </div>
+  <div class="segs" id="segs"></div>
+  <div class="stage" id="stage">
+
+    <!-- 1 COVER -->
+    <section class="step on cover">
+      <span class="badge">&#9670; Lesson 2 of 3</span>
+      <h1 class="disp">From one tree<br>to a forest</h1>
+      <p class="sub">A single tree overfits and wobbles. The fix is almost embarrassingly simple, and it's one of the most powerful ideas in machine learning.</p>
+      <div class="recap"><b>Where we left off:</b> one deep decision tree hit 96% on training data but only 66% on test, it memorized noise. It's also unstable: nudge the data and the whole tree changes. We're about to turn that weakness into a strength.</div>
+      <div class="ll">
+        <div class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg>Watch averaging crush a tree's variance, live</div>
+        <div class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg>See why bootstrap samples make trees differ</div>
+        <div class="li"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><polyline points="20 6 9 17 4 12"/></svg>Meet the one trick that makes a forest beat plain bagging</div>
+      </div>
+      <button class="start" data-next>Start Lesson 2 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>
+      <div class="meta">~10 min</div>
+    </section>
+
+    <!-- 2 CONCEPT: wisdom of crowds -->
+    <section class="step">
+      <span class="eyebrow">The idea</span><h2 class="disp">The wisdom of crowds</h2>
+      <p>Ask one noisy expert and you get a noisy answer. Ask <em>hundreds</em> and average them, and the random errors cancel while the real signal survives. That is the whole trick behind a forest.</p>
+      <div class="mathbox">Var( average of B trees ) = &sigma;&sup2; / B<div class="small">If each tree has variance &sigma;&sup2; and the trees are independent, averaging B of them divides the variance by B. More trees, steadier predictions.</div></div>
+      <p class="sm">The catch is hiding in one word: <strong>independent</strong>. Hold that thought, we'll come back to it.</p>
+    </section>
+
+    <!-- 3 INTERACTIVE: forest averaging (STAR) -->
+    <section class="step">
+      <span class="eyebrow">The key experiment</span><h2 class="disp">Build a forest, tree by tree</h2>
+      <p>Below, each tree is grown deep (the jagged, overfitting kind from Lesson 1) on its own random resample. Drag the slider to average more of them, and watch the boundary smooth out while accuracy climbs.</p>
+      <div class="widget">
+        <div class="wtop"><span class="lab">Averaging trees, live</span><span class="live"><i></i>Averaging in-browser</span></div>
+        <div class="wbody">
+          <div class="ctrl"><div class="lr"><span>trees in the forest</span><b id="fVal">1</b></div><input id="fSlider" type="range" min="1" max="80" step="1" value="1"></div>
+          <div class="cv-grid">
+            <div>
+              <div class="cv-wrap"><canvas id="fcv" width="300" height="300"></canvas></div>
+              <div class="cv-legend"><span class="k"><span class="sw" style="background:#2563a8"></span>stays</span><span class="k"><span class="sw" style="background:#b5631a"></span>churns</span><span class="k"><span class="sw" style="background:#cfd6df"></span>unsure</span></span></div>
+            </div>
+            <div class="cv-metrics">
+              <div class="m forest"><div class="v" id="fAcc">,</div><div class="k">Forest test accuracy</div></div>
+              <div class="m one"><div class="v" id="oAcc">&middot;&middot;</div><div class="k">A typical single tree</div></div>
+            </div>
+          </div>
+          <div class="wnote" id="fNote"></div>
+        </div>
+      </div>
+      <p class="sm">No single tree got better, you didn't prune or tune them. The <em>average</em> simply cancels their individual mistakes.</p>
+    </section>
+
+    <!-- 4 CONCEPT: clones don't help -->
+    <section class="step">
+      <span class="eyebrow">The catch</span><h2 class="disp">Clones don't help</h2>
+      <p>Averaging only cancels errors if the trees make <em>different</em> mistakes. Grow a hundred identical trees and their average is just... that same tree. No variance reduction at all.</p>
+      <p>So the real engineering problem of a random forest is: <strong>how do we force the trees to be different on purpose?</strong> There are two tricks, and a forest uses both.</p>
+    </section>
+
+    <!-- 5 CONCEPT: bootstrap -->
+    <section class="step">
+      <span class="eyebrow">Trick 1</span><h2 class="disp">Give each tree different data</h2>
+      <p>Before growing a tree, draw a <strong>bootstrap sample</strong>: pick rows from the training set at random <em>with replacement</em>, until you have a set the same size. Some rows appear twice, others not at all.</p>
+      <div class="callout"><div class="cl">A free gift</div><p>On average each bootstrap leaves out about <strong>37%</strong> of the rows. A tree never sees its left-out rows, so they make a built-in test set for that tree. Those are the <strong>out-of-bag</strong> rows, and they power the free OOB error you'll meet in Lesson 3.</p></div>
+      <p class="sm">Different data in means a different tree out. But there's a sneakier source of sameness left to kill.</p>
+    </section>
+
+    <!-- 6 CONCEPT: still correlated -->
+    <section class="step">
+      <span class="eyebrow">Trick 2, the motivation</span><h2 class="disp">Bootstrap isn't enough</h2>
+      <p>Suppose one feature, say <code>tenure</code>, is much more predictive than the rest. Then <em>every</em> tree, even on its own bootstrap sample, will choose <code>tenure</code> for its very first split. The trees end up looking nearly identical near the top.</p>
+      <p>Statisticians call this <strong>correlation</strong> between the trees, and it's poison for averaging: remember <code>&sigma;&sup2;/B</code> only holds when the trees are independent. Correlated trees barely reduce variance.</p>
+    </section>
+
+    <!-- 7 INTERACTIVE: decorrelation -->
+    <section class="step">
+      <span class="eyebrow">The trick that names it</span><h2 class="disp">Random features</h2>
+      <p>Here's the fix that makes it a <em>random</em> forest: at <strong>each split</strong>, the tree may only consider a random handful of features, not all of them. The dominant feature can't win every time, so the trees diverge. Toggle below and watch what each tree picks for its first split.</p>
+      <div class="widget">
+        <div class="wtop"><span class="lab">Same forest, two rules</span><span class="live"><i></i>Live</span></div>
+        <div class="wbody">
+          <div class="mtoggle" id="mtoggle"><button data-m="5" class="on">Consider all 5 features (bagging)</button><button data-m="2">Random 2 of 5 (random forest)</button></div>
+          <div class="dtrees" id="dtrees"></div>
+          <div class="divmeter"><span class="lbl">Tree <b>diversity</b></span><span class="track"><span class="fill" id="divFill"></span></span><span class="pv" id="divPv">,</span></div>
+          <div class="wnote" id="dNote"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 8 QUIZ -->
+    <section class="step" data-gate>
+      <span class="eyebrow">Check yourself</span><h2 class="disp">Quick question</h2>
+      <p>Why does a random forest let each split consider only a <em>random subset</em> of the features?</p>
+      <div class="quiz" data-correct="2">
+        <button class="opt"><span class="mk">A</span>To make each individual tree more accurate</button>
+        <button class="opt"><span class="mk">B</span>To <b>decorrelate</b> the trees so averaging cuts more variance</button>
+        <button class="opt"><span class="mk">C</span>To make training faster by ignoring features</button>
+        <div class="qfb ok"><b>Exactly.</b> Restricting features stops the dominant one from winning every split, so the trees disagree more. Independent-ish trees are what let averaging drive <code>&sigma;&sup2;/B</code> down. Individual trees actually get a touch <em>weaker</em>, the forest gets stronger.</div>
+        <div class="qfb no"><b>Not quite.</b> Each tree actually gets slightly <em>weaker</em>. The point is to <b>decorrelate</b> the trees, uncorrelated errors cancel better when averaged.</div>
+      </div>
+    </section>
+
+    <!-- 9 RECIPE / recap -->
+    <section class="step">
+      <span class="eyebrow">Putting it together</span><h2 class="disp">The whole forest, in three rules</h2>
+      <p>That's it. A random forest is just these three ideas stacked:</p>
+      <div class="recipe">
+        <div class="r"><span class="n">1</span><div><b>Bootstrap</b><div class="d">Grow each tree on its own random resample of the rows.</div></div></div>
+        <div class="r"><span class="n">2</span><div><b>Random features</b><div class="d">At each split, only consider a random subset (mtry) of the features.</div></div></div>
+        <div class="r"><span class="n">3</span><div><b>Average</b><div class="d">Let all the trees vote; the majority (or mean) is the forest's answer.</div></div></div>
+      </div>
+      <div class="callout aha"><div class="cl">Why it's so reliable</div><p>Each tree is a low-bias, high-variance learner. Bootstrap + random features make them <em>diverse</em>; averaging cancels the variance. You keep the low bias and throw away most of the variance, with almost no tuning.</p></div>
+    </section>
+
+    <!-- 10 COMPLETE / BREAK -->
+    <section class="step done">
+      <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6"><polyline points="20 6 9 17 4 12"/></svg></div>
+      <h2 class="disp">Lesson 2 complete</h2>
+      <p class="sub">You now understand <em>why</em> a random forest works, not just what it does. Next, you'll build and tune a real one.</p>
+      <div class="stats"><div class="stat"><b>+45</b><span>XP</span></div><div class="stat"><b>2/3</b><span>lessons</span></div><div class="stat"><b>~10 min</b><span>to finish</span></div></div>
+      <div class="break">
+        <div class="lk">Good place to pause</div>
+        <h3 class="disp">Last one, Lesson 3: Tuning &amp; reading a forest in R</h3>
+        <p>OOB error, tuning mtry and trees on a live model, reading variable importance, and the tidymodels code to do it for real, ending in your Machine Learning certificate.</p>
+        <a class="b" href="rf-course-lesson3.html">Continue to Lesson 3 &rarr;</a>
+      </div>
+    </section>
+
+  </div>
+  <div class="stepper">
+    <button class="back" id="back" disabled>&larr; Back</button>
+    <span class="mid"><span id="mid">Lesson 2</span></span>
+    <button class="cont" id="cont" data-next>Continue &rarr;</button>
+  </div>
+</div>
+<span class="mocknote">RF COURSE &middot; Lesson 2 (interactive)</span>
+<script>
+/* engine */
+var steps=[].slice.call(document.querySelectorAll('.step')),i=0;
+var segWrap=document.getElementById('segs');segWrap.innerHTML=steps.map(function(){return '<i></i>';}).join('');
+var segEls=[].slice.call(segWrap.children);
+var labels=['Lesson 2','Wisdom of crowds','Build a forest','Clones don’t help','Bootstrap','Still correlated','Random features','Quick question','The recipe','Complete'];
+var back=document.getElementById('back'),cont=document.getElementById('cont'),mid=document.getElementById('mid'),sn=document.getElementById('sn');
+document.getElementById('st').textContent=steps.length;
+function gated(idx){return steps[idx].hasAttribute('data-gate') && !steps[idx].classList.contains('passed');}
+function render(){
+  steps.forEach(function(s,k){s.classList.toggle('on',k===i);});
+  segEls.forEach(function(e,k){e.className=k<i?'done':(k===i?'cur':'');});
+  sn.textContent=i+1;mid.textContent=labels[i]||('Step '+(i+1));
+  back.disabled=i===0;document.getElementById('stage').scrollTop=0;
+  cont.style.display=(i===steps.length-1)?'none':'';cont.disabled=gated(i);
+  if(i===2)drawForest(); if(i===6)drawDecorr();
+}
+function go(d){var n=i+d;if(n<0||n>=steps.length)return;i=n;render();}
+document.querySelectorAll('[data-next]').forEach(function(b){b.addEventListener('click',function(){go(1);});});
+back.addEventListener('click',function(){go(-1);});
+function pass(){steps[i].classList.add('passed');cont.disabled=false;}
+document.querySelectorAll('[data-run]').forEach(function(b){b.addEventListener('click',function(){b.closest('.code').querySelector('.code-out').classList.add('on');});});
+document.querySelectorAll('.tryit').forEach(function(box){var ta=box.querySelector('textarea'),ok=box.querySelector('.fb.ok'),no=box.querySelector('.fb.no'),sol=box.querySelector('.sol');if(!box.querySelector('.check'))return;box.querySelector('.check').addEventListener('click',function(){var good=/mtry/.test(ta.value);ok.classList.toggle('show',good);no.classList.toggle('show',!good);if(good)pass();});box.querySelector('.showsol').addEventListener('click',function(){sol.classList.toggle('show');});});
+document.querySelectorAll('.quiz').forEach(function(q){var correct=+q.getAttribute('data-correct'),opts=[].slice.call(q.querySelectorAll('.opt'));opts.forEach(function(o,idx){o.addEventListener('click',function(){if(q.classList.contains('answered'))return;q.classList.add('answered');var right=(idx+1)===correct;opts.forEach(function(x,j){x.classList.add('dim');if((j+1)===correct)x.classList.remove('dim');});o.classList.remove('dim');o.classList.add(right?'correct':'wrong');if(!right)opts[correct-1].classList.add('correct');q.querySelector('.qfb.'+(right?'ok':'no')).classList.add('show');pass();});});});
+
+/* ---- shared CART (from Lesson 1) + forest ---- */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+var drnd=mulberry32(7);
+function gauss(mx,my,s){var u=drnd(),v=drnd();var g=Math.sqrt(-2*Math.log(u+1e-9))*Math.cos(6.2832*v),g2=Math.sqrt(-2*Math.log(u+1e-9))*Math.sin(6.2832*v);return{x:Math.min(.97,Math.max(.03,mx+g*s)),y:Math.min(.97,Math.max(.03,my+g2*s))};}
+var DATA=[];
+(function(){function blob(mx,my,c,n){for(var k=0;k<n;k++){var p=gauss(mx,my,0.13);DATA.push({x:p.x,y:p.y,c:c});}}
+  blob(0.36,0.40,0,90);blob(0.64,0.60,1,90);
+  DATA.forEach(function(p,idx){p.test=(idx%3===0);});
+  var noise=[[0.30,0.34,1],[0.34,0.30,1],[0.33,0.41,1],[0.39,0.33,1],[0.36,0.38,1],[0.42,0.44,1],[0.70,0.66,0],[0.66,0.70,0],[0.67,0.59,0],[0.61,0.67,0],[0.64,0.62,0],[0.58,0.56,0]];
+  noise.forEach(function(n){DATA.push({x:n[0],y:n[1],c:n[2],test:false});});
+})();
+var TRAIN=DATA.filter(function(p){return !p.test;}),TEST=DATA.filter(function(p){return p.test;});
+function giniOf(pts){if(!pts.length)return 0;var c0=0;pts.forEach(function(p){if(p.c===0)c0++;});var n=pts.length,p0=c0/n;return 2*p0*(1-p0);}
+function build(pts,depth,maxD,mtry,rng){var c0=0;pts.forEach(function(p){if(p.c===0)c0++;});var maj=(c0>=pts.length-c0)?0:1;
+  if(depth>=maxD||pts.length<4||c0===0||c0===pts.length)return{leaf:true,cls:maj};
+  var axes=(mtry<2)?[(rng()<0.5?'x':'y')]:['x','y'];var best=null;
+  axes.forEach(function(ax){var vals=pts.map(function(p){return p[ax];}).sort(function(a,b){return a-b;});for(var v=0;v<vals.length-1;v++){var thr=(vals[v]+vals[v+1])/2;var L=[],R=[];pts.forEach(function(p){(p[ax]<=thr?L:R).push(p);});if(!L.length||!R.length)continue;var g=(L.length*giniOf(L)+R.length*giniOf(R))/pts.length;if(!best||g<best.g)best={g:g,ax:ax,thr:thr,L:L,R:R};}});
+  if(!best)return{leaf:true,cls:maj};
+  return{leaf:false,ax:best.ax,thr:best.thr,left:build(best.L,depth+1,maxD,mtry,rng),right:build(best.R,depth+1,maxD,mtry,rng)};}
+function predict(node,x,y){while(!node.leaf){node=((node.ax==='x'?x:y)<=node.thr)?node.left:node.right;}return node.cls;}
+function bootstrap(rng){var s=[];for(var k=0;k<TRAIN.length;k++){s.push(TRAIN[(rng()*TRAIN.length)|0]);}return s;}
+var FOREST=[];for(var ti=0;ti<80;ti++){var trng=mulberry32(1000+ti*97);FOREST.push(build(bootstrap(trng),0,7,1,trng));}
+function forestP(N,x,y){var s=0;for(var t=0;t<N;t++)s+=predict(FOREST[t],x,y);return s/N;}
+/* expected accuracy of an N-tree forest, averaged over random tree orderings: the canonical monotone curve */
+var EXP=(function(){var PRED=FOREST.map(function(tr){return TEST.map(function(p){return predict(tr,p.x,p.y);});});var E=[];for(var n=0;n<81;n++)E[n]=0;var K=24;for(var k=0;k<K;k++){var idx=[];for(var t=0;t<80;t++)idx.push(t);var rng=mulberry32(99+k*17);for(var s=79;s>0;s--){var j=(rng()*(s+1))|0;var tmp=idx[s];idx[s]=idx[j];idx[j]=tmp;}var votes=[];for(var i=0;i<TEST.length;i++)votes[i]=0;for(var n=1;n<=80;n++){var tt=idx[n-1];for(var i=0;i<TEST.length;i++)votes[i]+=PRED[tt][i];var c=0;for(var i=0;i<TEST.length;i++){if((votes[i]/n>=0.5?1:0)===TEST[i].c)c++;}E[n]+=c/TEST.length;}}for(var n=1;n<=80;n++)E[n]/=K;for(var n=2;n<=80;n++)if(E[n]<E[n-1])E[n]=E[n-1];return E;})();
+var ONE_TREE_ACC=EXP[1];
+function blend(p){var b=[219,231,244],a=[246,231,212];return 'rgb('+Math.round(b[0]+(a[0]-b[0])*p)+','+Math.round(b[1]+(a[1]-b[1])*p)+','+Math.round(b[2]+(a[2]-b[2])*p)+')';}
+function drawForest(){
+  var N=+document.getElementById('fSlider').value;document.getElementById('fVal').textContent=N;
+  var cv=document.getElementById('fcv'),ctx=cv.getContext('2d'),W=cv.width,H=cv.height,cell=6;
+  for(var px=0;px<W;px+=cell)for(var py=0;py<H;py+=cell){var x=px/W,y=1-py/H;ctx.fillStyle=blend(forestP(N,x,y));ctx.fillRect(px,py,cell,cell);}
+  DATA.forEach(function(p){var X=p.x*W,Y=(1-p.y)*H;ctx.beginPath();ctx.arc(X,Y,3.6,0,7);if(p.test){ctx.fillStyle='#fff';ctx.fill();ctx.lineWidth=2.2;ctx.strokeStyle=(p.c===0)?'#2563a8':'#b5631a';ctx.stroke();}else{ctx.fillStyle=(p.c===0)?'#2563a8':'#b5631a';ctx.fill();ctx.lineWidth=1;ctx.strokeStyle='rgba(255,255,255,.85)';ctx.stroke();}});
+  var fA=EXP[N],oA=ONE_TREE_ACC;
+  document.getElementById('fAcc').textContent=(fA*100).toFixed(0)+'%';
+  document.getElementById('oAcc').textContent=(oA*100).toFixed(0)+'%';
+  var nt=document.getElementById('fNote');
+  if(N===1)nt.innerHTML='<b>One tree.</b> Hard, jagged regions, this is the overfitter from Lesson 1. Now add more.';
+  else if(N<12)nt.innerHTML='<b>'+N+' trees.</b> The boundary is already softening as the votes blend, and test accuracy is climbing.';
+  else nt.innerHTML='<b>'+N+' trees.</b> The boundary is smooth and the forest (<b>'+(fA*100).toFixed(0)+'%</b>) clearly beats a typical single tree (<b>'+(oA*100).toFixed(0)+'%</b>). Adding more barely moves it now, it has converged.';
+}
+document.getElementById('fSlider').addEventListener('input',drawForest);
+
+/* ---- decorrelation demo ---- */
+var FEATS=[{n:'tenure',s:0.92,c:'#2563a8'},{n:'monthly_spend',s:0.64,c:'#1f7a55'},{n:'support_calls',s:0.55,c:'#b5631a'},{n:'contract',s:0.42,c:'#8a46b0'},{n:'age',s:0.22,c:'#5a4fcf'}];
+var mtry=5;
+function drawDecorr(){
+  var roots=[],host=document.getElementById('dtrees'),html='';
+  for(var t=0;t<6;t++){
+    var rng=mulberry32(50+t*131+(mtry===5?0:324));
+    var idx=[0,1,2,3,4];
+    // pick mtry features at random (Fisher-Yates partial)
+    for(var s=idx.length-1;s>0;s--){var j=(rng()*(s+1))|0;var tmp=idx[s];idx[s]=idx[j];idx[j]=tmp;}
+    var subset=idx.slice(0,mtry);
+    var bestF=subset[0];subset.forEach(function(f){if(FEATS[f].s>FEATS[bestF].s)bestF=f;});
+    roots.push(bestF);
+    html+='<div class="dcard"><div class="tn">tree '+(t+1)+'</div><div class="rootlbl">first split on</div><div class="root" style="background:'+FEATS[bestF].c+'">'+FEATS[bestF].n+'</div></div>';
+  }
+  host.innerHTML=html;
+  var distinct={};roots.forEach(function(r){distinct[r]=1;});
+  var div=Object.keys(distinct).length, pct=Math.round((div-1)/5*100);
+  document.getElementById('divFill').style.width=pct+'%';
+  document.getElementById('divPv').textContent=div+'/6';
+  document.getElementById('dNote').innerHTML=(mtry===5)
+    ? '<b>Bagging:</b> every tree may use all features, so the strongest one, <code>tenure</code>, wins every first split. The trees are near-identical, correlated, and averaging barely helps.'
+    : '<b>Random forest:</b> each tree sees only 2 random features, so <code>tenure</code> often isn\'t even an option. The first splits scatter across features, the trees decorrelate, and averaging pays off.';
+}
+document.querySelectorAll('#mtoggle button').forEach(function(b){b.addEventListener('click',function(){mtry=+b.getAttribute('data-m');document.querySelectorAll('#mtoggle button').forEach(function(x){x.classList.toggle('on',x===b);});drawDecorr();});});
+
+render();
+</script>
+</body>
+</html>
