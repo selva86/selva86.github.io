@@ -300,11 +300,16 @@
       return 'ggplot(df, aes(' + aesX + ', ' + ylab + ')) +\n  ' + (GEOML[g] || 'geom_point()');
     }
     // Self-contained, runnable: library + the data frame built inline + the ggplot call.
+    // The frame is named to match what the ggplot code references (authors may use a
+    // narrative name like `bakery`), so the block stays self-consistent and runs.
     function runnableCode(g) {
       var cols = [{ name: xlab, key: 'x' }];
       if ('y' in has) cols.push({ name: ylab, key: 'y' });
       if ('fill' in has) cols.push({ name: 'group', key: 'fill' });
-      return 'library(ggplot2)\n' + u.rdf(data, cols) + '\n\n' + ggline(g);
+      var line = ggline(g);
+      var mm = line.match(/\bggplot\s*\(\s*([A-Za-z.][\w.]*)/);
+      var frame = mm ? mm[1] : 'df';
+      return 'library(ggplot2)\n' + u.rdf(data, cols, frame) + '\n\n' + line;
     }
 
     var wrap = document.createElement('div'); wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
