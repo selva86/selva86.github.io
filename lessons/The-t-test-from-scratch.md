@@ -1,6 +1,6 @@
 ---
 title: "The t-test from scratch: is the difference real?"
-catalog_blurb: "Test whether a sample mean differs from a target."
+catalog_blurb: "Tell a real effect from random luck, the heart of every experiment."
 description: "Learn the one-sample t-test through one real story - a dal-packing machine that may be underfilling. Sample means wobble, the standard error, the t-statistic, the null distribution, the p-value, and t.test() in R."
 keywords: "t-test, one-sample t-test, t test in R, t.test, p-value, t-statistic, standard error, null hypothesis, hypothesis testing"
 mathjax: true

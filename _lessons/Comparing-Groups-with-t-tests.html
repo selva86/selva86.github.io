@@ -1,6 +1,6 @@
 ---
 title: "The t-test: comparing groups, and reading it honestly"
-catalog_blurb: "Compare two groups' means and judge the difference."
+catalog_blurb: "Decide whether two groups truly differ, or just look like they do."
 description: "The two-sample and paired t-test through one story - comparing two dal-packing machines - plus why a tiny p-value is not a big effect, statistical power, and the ways the t-test gets misused."
 keywords: "two-sample t-test, paired t-test, Welch t-test, effect size, Cohen's d, statistical power, p-hacking, multiple comparisons, t.test in R"
 mathjax: true

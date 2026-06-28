@@ -1,6 +1,6 @@
 ---
 title: "Random Forests Lesson 2: From one tree to a forest"
-catalog_blurb: "Combine many trees into one stronger prediction."
+catalog_blurb: "Discover why many rough trees beat one clever one."
 description: "Why averaging many decision trees crushes variance, how bootstrap samples make trees differ, and the random-feature trick that makes a forest beat plain bagging."
 keywords: "random forest, bagging, bootstrap, decorrelation, variance reduction, ensemble, R"
 post_type: "LESSON"

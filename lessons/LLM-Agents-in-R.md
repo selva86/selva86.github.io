@@ -1,6 +1,6 @@
 ---
 title: "LLM Agents in R: build one from scratch"
-catalog_blurb: "Build an R program that calls tools to act."
+catalog_blurb: "Go beyond chat: build an AI that takes actions for you."
 description: "What an LLM agent is, from scratch: tools, the ReAct loop of Thought, Action and Observation, guard rails, and how to build one in R with ellmer."
 keywords: "LLM agent, ReAct, tool calling, ellmer, R, AI agent, agentic, prompt injection"
 post_type: "LESSON"

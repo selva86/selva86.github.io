@@ -1,6 +1,6 @@
 ---
 title: "Report-Ready Tables Lesson 1: Report-Ready Tables"
-catalog_blurb: "Turn a data frame into a polished report table."
+catalog_blurb: "Turn a data frame into a table at home in a real report."
 description: "Turn a raw R data frame into a presentation-ready report table with gt: titles, human labels, currency and percent formatting, plus flextable and kableExtra."
 keywords: "gt R package, flextable, kableExtra, report tables in R, format numbers in R, gt fmt_currency, gt fmt_percent, kable, presentation tables, scales package"
 post_type: "LESSON"

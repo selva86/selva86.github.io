@@ -1,6 +1,6 @@
 ---
 title: "Exploratory Data Analysis Lesson 3: Outliers & Automated EDA"
-catalog_blurb: "Spot unusual values and auto-profile a dataset fast."
+catalog_blurb: "Catch the weird values that wreck results, and profile data in seconds."
 description: "Spot outliers with the 1.5xIQR rule and a boxplot, decide whether to keep, cap or drop them, then scan a whole data frame in one call with skimr and DataExplorer."
 keywords: "outliers in R, IQR rule, boxplot outliers, automated EDA, skimr, DataExplorer, winsorize, robust statistics, trimmed mean, exploratory data analysis"
 post_type: "LESSON"

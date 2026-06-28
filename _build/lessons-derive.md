@@ -24,7 +24,7 @@ Resolved against the course's planned arc (below) + `courses.json` (what is alre
 - `mathjax`: `true` if the lesson contains MathJax (`\(` or `\[`), else omit.
 - `webr`: `true` (lessons run interactive R).
 - `title`: `"<Course> Lesson <n>: <focus>"`. The text after the colon is the **catalog title** - the name shown on the roadmap, the player rail, and the player chrome. Write `<focus>` to read well alone, and make the lesson's **cover-step H2 exactly equal it** (roadmap row == cover heading == breadcrumb; the player derives its on-screen title from the cover H2). Do NOT give the cover an evocative-hook H2 that differs from the catalog title - put any hook in the cover body instead.
-- `catalog_blurb`: a one-line, outcome-focused summary (what the learner will be able to DO), shown as the lesson's subtitle on the roadmap. Required on every lesson. <= ~12 words, plain language, and **no function or method names** (write "filter and sort rows", never `filter()`/`arrange()`). Flows through `courses.json` to the roadmap; keep it about the outcome, not the API.
+- `catalog_blurb`: a one-line **reason to take the lesson** - the stakes, the payoff, or what it unlocks - written to make a learner WANT to click, not a flat restatement of the title. Required on every lesson. <= 14 words, plain language, concrete, and **no function or method names** (write "filter and sort rows", never `filter()`/`arrange()`). Flows through `courses.json` to the roadmap subtitle. GOOD: "Gaps quietly skew every result; learn to handle them so yours holds up." WEAK: "Handle missing values."
 - `description`: 150-160 char meta description. `keywords`: comma-separated.
 
 ## Access rule (canonical - do NOT diverge)
