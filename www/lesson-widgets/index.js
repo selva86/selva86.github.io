@@ -47,7 +47,43 @@
 
   var u = {
     P: P, esc: esc, num: num,
-    code: function (t) { return '<code style="display:block;font-family:IBM Plex Mono,monospace;font-size:13px;background:' + P.codeBg + ';color:' + P.codeFg + ';padding:9px 12px;border-radius:8px;overflow-x:auto;white-space:pre">' + esc(t) + '</code>'; },
+    // Static, illustrative code panel. Wraps (no horizontal scroll) so the whole
+    // snippet is visible in narrow widget columns; min-height keeps it from looking cramped.
+    code: function (t) { return '<code style="display:block;font-family:IBM Plex Mono,monospace;font-size:13px;line-height:1.55;background:' + P.codeBg + ';color:' + P.codeFg + ';padding:11px 14px;border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere">' + esc(t) + '</code>'; },
+    // Build a self-contained R data.frame literal from a widget's JS data.
+    // cols: [{name, key}] -> df <- data.frame(name = c(<d[key] values>)). Strings are quoted.
+    rdf: function (data, cols, varName) {
+      var lines = cols.map(function (c) {
+        var vals = (data || []).map(function (d) {
+          var v = d[c.key];
+          return (v == null || v === '' || isNaN(v)) ? '"' + String(v == null ? '' : v).replace(/"/g, '') + '"' : (+v);
+        }).join(', ');
+        return '  ' + c.name + ' = c(' + vals + ')';
+      });
+      return (varName || 'df') + ' <- data.frame(\n' + lines.join(',\n') + '\n)';
+    },
+    // A REAL runnable interactive-R block (same DOM contract as the build emits, so
+    // webr-init.js wires Run via the inline onclick + reads code from textContent).
+    // Self-contained code runs in the lesson's shared WebR session (packages auto-install).
+    runnable: function (code, opts) {
+      opts = opts || {}; var ec = esc(code), label = esc(opts.label || 'Interactive R');
+      return '<div class="webr-container">' +
+        '<div class="webr-code-block">' +
+          '<div class="webr-header"><div class="webr-header-left">' +
+            '<span class="webr-header-badge">R</span><span class="webr-header-label">' + label + '</span>' +
+          '</div><div class="webr-header-right">' +
+            '<button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button>' +
+          '</div></div>' +
+          '<div class="webr-editor" data-language="r">' + ec + '</div>' +
+          '<div class="webr-buttons">' +
+            '<button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>' +
+            '<button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>' +
+          '</div>' +
+          '<pre class="webr-output"></pre>' +
+        '</div>' +
+        '<div class="webr-plot-output"></div>' +
+      '</div>';
+    },
     btn: function (label, kind) { var pri = kind === 'primary'; return '<button type="button" style="font:inherit;font-size:13px;font-weight:600;border-radius:8px;padding:9px 16px;cursor:pointer;' + (pri ? 'color:#fff;background:' + P.acc + ';border:0' : 'color:' + P.mut + ';background:none;border:1px solid ' + P.line) + '">' + esc(label) + '</button>'; },
     // data table; opts: addCols{}, dropCols{}, delRows{}, hi{"r,c":color}, headBg
     tbl: function (cols, rows, opts) {

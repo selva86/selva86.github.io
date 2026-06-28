@@ -48,7 +48,43 @@
 
   var u = {
     P: P, esc: esc, num: num,
-    code: function (t) { return '<code style="display:block;font-family:IBM Plex Mono,monospace;font-size:13px;background:' + P.codeBg + ';color:' + P.codeFg + ';padding:9px 12px;border-radius:8px;overflow-x:auto;white-space:pre">' + esc(t) + '</code>'; },
+    // Static, illustrative code panel. Wraps (no horizontal scroll) so the whole
+    // snippet is visible in narrow widget columns; min-height keeps it from looking cramped.
+    code: function (t) { return '<code style="display:block;font-family:IBM Plex Mono,monospace;font-size:13px;line-height:1.55;background:' + P.codeBg + ';color:' + P.codeFg + ';padding:11px 14px;border-radius:8px;white-space:pre-wrap;overflow-wrap:anywhere">' + esc(t) + '</code>'; },
+    // Build a self-contained R data.frame literal from a widget's JS data.
+    // cols: [{name, key}] -> df <- data.frame(name = c(<d[key] values>)). Strings are quoted.
+    rdf: function (data, cols, varName) {
+      var lines = cols.map(function (c) {
+        var vals = (data || []).map(function (d) {
+          var v = d[c.key];
+          return (v == null || v === '' || isNaN(v)) ? '"' + String(v == null ? '' : v).replace(/"/g, '') + '"' : (+v);
+        }).join(', ');
+        return '  ' + c.name + ' = c(' + vals + ')';
+      });
+      return (varName || 'df') + ' <- data.frame(\n' + lines.join(',\n') + '\n)';
+    },
+    // A REAL runnable interactive-R block (same DOM contract as the build emits, so
+    // webr-init.js wires Run via the inline onclick + reads code from textContent).
+    // Self-contained code runs in the lesson's shared WebR session (packages auto-install).
+    runnable: function (code, opts) {
+      opts = opts || {}; var ec = esc(code), label = esc(opts.label || 'Interactive R');
+      return '<div class="webr-container">' +
+        '<div class="webr-code-block">' +
+          '<div class="webr-header"><div class="webr-header-left">' +
+            '<span class="webr-header-badge">R</span><span class="webr-header-label">' + label + '</span>' +
+          '</div><div class="webr-header-right">' +
+            '<button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button>' +
+          '</div></div>' +
+          '<div class="webr-editor" data-language="r">' + ec + '</div>' +
+          '<div class="webr-buttons">' +
+            '<button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>' +
+            '<button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>' +
+          '</div>' +
+          '<pre class="webr-output"></pre>' +
+        '</div>' +
+        '<div class="webr-plot-output"></div>' +
+      '</div>';
+    },
     btn: function (label, kind) { var pri = kind === 'primary'; return '<button type="button" style="font:inherit;font-size:13px;font-weight:600;border-radius:8px;padding:9px 16px;cursor:pointer;' + (pri ? 'color:#fff;background:' + P.acc + ';border:0' : 'color:' + P.mut + ';background:none;border:1px solid ' + P.line) + '">' + esc(label) + '</button>'; },
     // data table; opts: addCols{}, dropCols{}, delRows{}, hi{"r,c":color}, headBg
     tbl: function (cols, rows, opts) {
@@ -237,16 +273,16 @@
 ;
 /* chart-plotter.js */
 /* chart-plotter.js - the grammar-of-graphics / chart-type chooser.
- * Same data, switchable geom (point/line/bar/histogram/boxplot); renders the chart
- * AND the ggplot2 code that makes it, so the mapping (data -> aes -> geom) is visible.
- * On a scatter it prints Pearson r. cfg:
+ * Same data, switchable geom (point/line/bar/histogram/boxplot); renders an instant
+ * SVG preview AND a REAL runnable ggplot2 block (self-contained: builds the data frame
+ * inline, then the ggplot call) so the reader can run it and see the true plot. cfg:
  *   { data:[{x,y,fill}], geoms:["point","line","bar"], x:"month", y:"sales",
  *     code:{point:"...", line:"..."} }
  * Default = a monthly sales series (point/line/bar).
  */
 (function () {
   'use strict';
-  var GEOML = { point: 'geom_point()', line: 'geom_line()', bar: 'geom_col()', col: 'geom_col()', histogram: 'geom_histogram()', boxplot: 'geom_boxplot()' };
+  var GEOML = { point: 'geom_point()', line: 'geom_line()', bar: 'geom_col()', col: 'geom_col()', histogram: 'geom_histogram(bins = 10)', boxplot: 'geom_boxplot()' };
   function mount(el, cfg) {
     var u = window.LessonWidgets.u; if (!u) return;
     cfg = cfg || {};
@@ -254,24 +290,34 @@
     var geoms = cfg.geoms || ['point', 'line', 'bar'];
     var xlab = cfg.x || 'month', ylab = cfg.y || 'sales', codeMap = cfg.code || {};
     var cur = geoms[0];
+    var has = data[0] || {};
 
-    function codeFor(g) {
+    function ggline(g) {
       if (codeMap[g]) return codeMap[g];
-      var aesX = (g === 'bar' || g === 'col') ? 'factor(' + xlab + ')' : ((g === 'histogram') ? xlab : xlab);
+      var aesX = (g === 'bar' || g === 'col') ? 'factor(' + xlab + ')' : xlab;
       if (g === 'histogram') return 'ggplot(df, aes(' + xlab + ')) +\n  ' + GEOML[g];
       if (g === 'boxplot') return 'ggplot(df, aes(' + xlab + ', ' + ylab + ')) +\n  ' + GEOML[g];
       return 'ggplot(df, aes(' + aesX + ', ' + ylab + ')) +\n  ' + (GEOML[g] || 'geom_point()');
     }
+    // Self-contained, runnable: library + the data frame built inline + the ggplot call.
+    function runnableCode(g) {
+      var cols = [{ name: xlab, key: 'x' }];
+      if ('y' in has) cols.push({ name: ylab, key: 'y' });
+      if ('fill' in has) cols.push({ name: 'group', key: 'fill' });
+      return 'library(ggplot2)\n' + u.rdf(data, cols) + '\n\n' + ggline(g);
+    }
+
     var wrap = document.createElement('div'); wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
     wrap.innerHTML =
       '<div style="margin-bottom:11px"><span class="cp-seg"></span></div>' +
-      '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">' +
-        '<div class="cp-plot" style="flex:1;min-width:280px"></div>' +
-        '<div class="cp-code" style="flex:1;min-width:220px"></div>' +
-      '</div>';
+      '<div class="cp-plot" style="margin-bottom:12px"></div>' +
+      '<div class="cp-code"></div>';
     var segHost = wrap.querySelector('.cp-seg'); segHost.innerHTML = u.seg(geoms.map(function (g) { return { v: g, label: g }; }), cur);
     var plotEl = wrap.querySelector('.cp-plot'), codeEl = wrap.querySelector('.cp-code');
-    function render(g) { plotEl.innerHTML = u.plot(data, { geom: g, x: xlab, y: ylab, corr: g === 'point' }); codeEl.innerHTML = u.code(codeFor(g)); }
+    function render(g) {
+      plotEl.innerHTML = u.plot(data, { geom: g, x: xlab, y: ylab, corr: g === 'point' });
+      codeEl.innerHTML = u.runnable(runnableCode(g), { label: 'Run this chart' });
+    }
     u.wireSeg(segHost, function (v) { cur = v; render(v); });
     render(cur);
     el.innerHTML = ''; el.appendChild(wrap);
@@ -1284,11 +1330,18 @@
     var palHost = wrap.querySelector('.ts-pal'); palHost.innerHTML = u.seg(Object.keys(PALS).map(function (k) { return { v: k, label: PALS[k].label }; }), pal);
     var thHost = wrap.querySelector('.ts-theme'); thHost.innerHTML = u.seg(Object.keys(THEMES).map(function (k) { return { v: k, label: THEMES[k].label }; }), theme);
     var plotEl = wrap.querySelector('.ts-plot'), codeEl = wrap.querySelector('.ts-code');
+    // Self-contained, runnable: library + inline data frame + the styling pipeline.
+    function runnableCode() {
+      var p = PALS[pal], t = THEMES[theme];
+      var pre = 'library(ggplot2)\n' + u.rdf(data, [{ name: xlab, key: 'x' }, { name: ylab, key: 'y' }]) + '\n';
+      if (pal === 'cb') pre += 'okabe_ito <- c("#E69F00", "#56B4E9", "#009E73", "#0072B2", "#D55E00")\n';
+      return pre + '\nggplot(df, aes(' + xlab + ', ' + ylab + ', fill = ' + xlab + ')) +\n  geom_col() +\n  ' + p.code + ' +\n  ' + t.label + '()';
+    }
     function render() {
       var t = THEMES[theme], p = PALS[pal];
       plotEl.style.background = t.panel;
       plotEl.innerHTML = u.plot(data, { geom: 'bar', x: xlab, y: ylab, palette: p.colors });
-      codeEl.innerHTML = u.code('ggplot(df, aes(' + xlab + ', ' + ylab + ', fill = ' + xlab + ')) +\n  geom_col() +\n  ' + p.code + ' +\n  ' + t.label + '()');
+      codeEl.innerHTML = u.runnable(runnableCode(), { label: 'Run this chart' });
     }
     u.wireSeg(palHost, function (v) { pal = v; render(); });
     u.wireSeg(thHost, function (v) { theme = v; render(); });

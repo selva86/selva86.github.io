@@ -245,6 +245,30 @@ def check_lesson(path):
                 warn("library(%s) runs but its rich output does not render in WebR (%s) - show the "
                      "text form, or pair a static image." % (m.group(1), ev))
 
+    # Code that is needlessly STATIC: a ```r-static block whose every package is
+    # `runnable` in WebR (and which reads no external file) should be a LIVE ```r
+    # block so readers can run it. This catches ggplot2/dplyr/etc. snippets parked
+    # as static. Advisory (WARN): some r-static is legitimately display-only.
+    static_blocks = re.findall(r'```r-static\b(.*?)```', body, flags=re.S)
+    if static_blocks:
+        import json as _json2
+        compat2 = {}
+        try:
+            with open(os.path.join(ROOT, 'Scripts', 'webr-package-compat.json'), encoding='utf-8') as _f:
+                compat2 = _json2.load(_f).get('packages', {})
+        except Exception:
+            pass
+        for blk in static_blocks:
+            pkgs = re.findall(r'(?:library|require)\s*\(\s*["\']?([A-Za-z0-9.]+)', blk)
+            if not pkgs:
+                continue
+            reads_file = re.search(r'(?:read_csv|read\.csv|read_tsv|read_delim|fread|read_excel|readRDS|readLines|load)\s*\(', blk)
+            statuses = [(compat2.get(p) or {}).get('status') for p in pkgs]
+            if not reads_file and statuses and all(s == 'runnable' for s in statuses):
+                warn("r-static block uses only WebR-runnable packages (%s) - make it a live ```r "
+                     "block so readers can run it (reserve r-static for incompatible/illustrative "
+                     "packages)." % ', '.join(sorted(set(pkgs))))
+
     return issues, slug
 
 
