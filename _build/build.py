@@ -1158,14 +1158,19 @@ def build_post(
     # no Liquid processor so any surviving tag renders as page text.
     content = re.sub(r'\{%\s*(?:raw|endraw)\s*%\}\s*\n?', '', content)
 
-    healed = heal_fragment(content)
-    if healed != content:
-        fm_match = re.match(r'^---\s*\n.*?\n---\s*\n', raw, re.DOTALL)
-        if fm_match:
-            with open(post_path, 'w', encoding='utf-8', newline='\n') as f:
-                f.write(raw[:fm_match.end()] + healed)
-            print(f'  healed: {os.path.basename(post_path)}')
-        content = healed
+    # Lessons are emitted fully-rendered by md2lesson (prose already converted to HTML,
+    # body wrapped in {% raw %}). Re-running the inline-markdown healer on them corrupts
+    # interactive payloads - e.g. a try-it's data-check-regex `.*mpg.*` becomes
+    # `.<em>mpg.</em>`, silently breaking the grader. Heal posts only; lessons pass through.
+    if str(meta.get('post_type', '')).strip().upper() != 'LESSON':
+        healed = heal_fragment(content)
+        if healed != content:
+            fm_match = re.match(r'^---\s*\n.*?\n---\s*\n', raw, re.DOTALL)
+            if fm_match:
+                with open(post_path, 'w', encoding='utf-8', newline='\n') as f:
+                    f.write(raw[:fm_match.end()] + healed)
+                print(f'  healed: {os.path.basename(post_path)}')
+            content = healed
 
     title = meta.get('title', 'Untitled')
     mathjax = meta.get('mathjax', 'true').lower() != 'false'
@@ -1488,7 +1493,8 @@ def build_post(
         for _attr, _key in (('data-course-id', 'course_id'), ('data-course-title', 'course_title'),
                             ('data-course-lesson', 'course_lesson'),
                             ('data-course-total', 'course_total'), ('data-course-landing', 'course_landing'),
-                            ('data-course-next', 'course_next'), ('data-course-prev', 'course_prev')):
+                            ('data-course-next', 'course_next'), ('data-course-prev', 'course_prev'),
+                            ('data-lesson-kind', 'lesson_kind')):
             _v = str(meta.get(_key, '') or '').strip()
             if _v:
                 _attrs.append(f'{_attr}="{_v.replace(chr(34), "&quot;")}"')
@@ -3010,10 +3016,13 @@ def main():
     )
 
     if only_target:
-        if only_target not in post_files:
-            print(f"ERROR: --only target '{only_target}' not found in _posts/")
+        _lesson_dir = LESSONS_DIR if os.path.exists(LESSONS_DIR) else None
+        _is_lesson_target = bool(_lesson_dir) and os.path.exists(os.path.join(_lesson_dir, only_target))
+        if only_target not in post_files and not _is_lesson_target:
+            print(f"ERROR: --only target '{only_target}' not found in _posts/ or _lessons/")
             sys.exit(1)
-        targets = [only_target]
+        # A lesson-only target builds via the lesson loop below; skip the post loop.
+        targets = [only_target] if only_target in post_files else []
     else:
         targets = sorted(post_files)
 

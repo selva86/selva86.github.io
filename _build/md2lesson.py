@@ -249,7 +249,8 @@ def parse_step(stype, smd, slug, n):
 # ---------------------------------------------------------------------------
 _FM_KEYS = ['title', 'description', 'keywords', 'mathjax', 'webr', 'curriculum_id',
             'post_type', 'course_id', 'course_title', 'course_lesson', 'course_total',
-            'course_landing', 'course_next', 'course_prev', 'lesson_access']
+            'course_landing', 'course_next', 'course_prev', 'lesson_access',
+            'catalog_blurb', 'lesson_kind']
 
 def convert_lesson(md_text, slug):
     fm, body = parse_frontmatter(md_text)

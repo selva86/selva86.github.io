@@ -107,6 +107,7 @@ def check_lesson(path):
             fail('missing frontmatter: ' + k)
     if str(fm.get('post_type', '')).strip().upper() != 'LESSON':
         fail('post_type must be LESSON')
+    is_quiz = str(fm.get('lesson_kind', '')).strip().lower() == 'quiz'
 
     steps = split_steps(body)
     if not steps:
@@ -124,7 +125,7 @@ def check_lesson(path):
     cov_type, cov_md = steps[0]
     if cov_type != 'cover':
         warn('first step is "%s", expected cover' % cov_type)
-    if not has_visual(cov_md):
+    if not is_quiz and not has_visual(cov_md):
         fail('cover (step 1) has no visual (R1): needs a ::widget, <img>/<svg>, or image')
 
     # Title match: the cover H2 must equal the catalog title (the roadmap-visible name) - the
@@ -175,19 +176,47 @@ def check_lesson(path):
             fail('step %d "%s": bare prose about a visualizable idea (%s) - add a visual '
                  'or mark ::prose-only <reason> (R6)' % (n, head, ', '.join(hits[:4])))
 
-    # R5 - practice cadence.
+    # R5 - practice cadence. A section quiz is all questions: it needs >=1 quiz step but
+    # does its hands-on practice with runnable code blocks, not regex try-its.
     if 'quiz' not in types:
         fail('no quiz step (R5: >=1 quiz)')
-    if 'tryit' not in types:
+    if not is_quiz and 'tryit' not in types:
         fail('no try-it step (R5: >=1 try-it)')
 
-    # R9 - references.
-    if refs_links is None:
-        fail('no References step (R9: 3-5 references)')
-    elif len(refs_links) < 3:
-        fail('only %d references (R9: >=3)' % len(refs_links))
-    elif len(refs_links) > 5:
-        warn('%d references (R9 suggests 3-5)' % len(refs_links))
+    # R9 - references (lessons only; a section quiz is an assessment, not a taught lesson).
+    if not is_quiz:
+        if refs_links is None:
+            fail('no References step (R9: 3-5 references)')
+        elif len(refs_links) < 3:
+            fail('only %d references (R9: >=3)' % len(refs_links))
+        elif len(refs_links) > 5:
+            warn('%d references (R9 suggests 3-5)' % len(refs_links))
+
+    # Quiz answer integrity: each quiz step's `correct` index must point to the option
+    # marked ::ok (the answer key the client grades against). Catches a mis-keyed answer.
+    import json as _qjson
+    for n, (t, md) in enumerate(steps, 1):
+        if t != 'quiz':
+            continue
+        qlines = md.split('\n')
+        qi = next((k for k, ln in enumerate(qlines) if ln.strip().startswith('::quiz')), -1)
+        if qi == -1:
+            fail('step %d: quiz step has no ::quiz directive' % n); continue
+        jm = re.search(r'\{.*\}', qlines[qi])
+        try:
+            qcfg = _qjson.loads(jm.group(0)) if jm else {}
+        except Exception as e:
+            fail('step %d: ::quiz JSON is invalid (%s)' % (n, e)); continue
+        opts = [ln.strip() for ln in qlines[qi + 1:] if ln.strip().startswith('- ')]
+        if len(opts) < 2:
+            fail('step %d: quiz needs at least 2 options' % n); continue
+        ok_idx = [i for i, o in enumerate(opts, 1) if re.search(r'::ok\b', o)]
+        if len(ok_idx) != 1:
+            fail('step %d: quiz needs exactly one ::ok option (found %d)' % (n, len(ok_idx))); continue
+        if qcfg.get('correct') != ok_idx[0]:
+            fail('step %d: ::quiz "correct"=%r but the ::ok option is #%d - they must match' % (n, qcfg.get('correct'), ok_idx[0]))
+        if not qcfg.get('gate'):
+            warn('step %d: quiz is not gated (add "gate": true so a correct answer is required)' % n)
 
     # Widget types must exist in the library.
     for n, (t, md) in enumerate(steps, 1):
@@ -214,7 +243,7 @@ def check_lesson(path):
     # widgets, not prose + formulas alone (which slip past the bare-prose R6 check).
     n_widgets = len(re.findall(r'^\s*::widget\b', body, flags=re.M))
     n_teach = sum(1 for t, _ in steps if t in ('concept', 'widget'))
-    if n_widgets == 0 and n_teach >= 3:
+    if not is_quiz and n_widgets == 0 and n_teach >= 3:
         fail('no ::widget used across %d teaching steps: select widgets from '
              '_build/lesson-visual-catalog.md (show, do not just tell - R6).' % n_teach)
 
