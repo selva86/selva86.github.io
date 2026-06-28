@@ -146,7 +146,7 @@ while (step < max_steps && !answered) {
 
 You do not have to hand-roll that loop. The `ellmer` package gives you the whole pattern in R: you define a tool, register it on a chat, and call `chat$chat()`. ellmer then runs the Thought, Action, Observation loop for you, calling your R function whenever the model requests it and feeding the result back, until the model produces a final answer.
 
-```r
+```r-static
 library(ellmer)
 chat <- chat_anthropic()        # or chat_openai(), chat_ollama(), and others
 
@@ -180,7 +180,7 @@ The four moves below are all there is to it. ellmer hides the loop; the guard ra
 
 A tool's arguments are typed so the model knows what to send. Fill in the type helper that says this argument is a piece of text (a string).
 
-```r
+```r-static
 lookup <- tool(
   get_order_status,
   name = "get_order_status",

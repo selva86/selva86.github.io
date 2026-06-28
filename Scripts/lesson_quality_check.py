@@ -245,6 +245,51 @@ def check_lesson(path):
                 warn("library(%s) runs but its rich output does not render in WebR (%s) - show the "
                      "text form, or pair a static image." % (m.group(1), ev))
 
+    # Code that is needlessly STATIC: a ```r-static block whose every package is
+    # `runnable` in WebR (and which reads no external file) should be a LIVE ```r
+    # block so readers can run it. This catches ggplot2/dplyr/etc. snippets parked
+    # as static. Advisory (WARN): some r-static is legitimately display-only.
+    static_blocks = re.findall(r'```r-static\b(.*?)```', body, flags=re.S)
+    if static_blocks:
+        import json as _json2
+        compat2 = {}
+        try:
+            with open(os.path.join(ROOT, 'Scripts', 'webr-package-compat.json'), encoding='utf-8') as _f:
+                compat2 = _json2.load(_f).get('packages', {})
+        except Exception:
+            pass
+        BUILTIN_DATA = {'mtcars', 'iris', 'airquality', 'sleep', 'ToothGrowth', 'mpg', 'diamonds',
+                        'economics', 'PlantGrowth', 'ChickWeight', 'USArrests', 'faithful', 'quakes',
+                        'trees', 'women', 'cars', 'pressure', 'InsectSprays', 'warpbreaks', 'CO2',
+                        'Orange', 'npk', 'esoph', 'infert', 'swiss', 'attitude', 'rivers',
+                        'AirPassengers', 'co2', 'Nile', 'volcano'}
+        # External input (any source, not just CSV) or document/file generation -> the block
+        # is legitimately static (cannot run in a browser session); do NOT flag those.
+        EXT_IO = re.compile(r'(?:read_csv|read\.csv|read_tsv|read_delim|read_table|fread|read_excel|'
+                            r'read_parquet|read_feather|open_dataset|read_json|fromJSON|readRDS|readLines|'
+                            r'\bload\s*\(|dbConnect|dbGetQuery|\btbl\s*\(|url\s*\(|download\.file)')
+        DOC_GEN = re.compile(r'(?:create_report|\brender\s*\(|rmarkdown::|\bknit|saveWidget|save_html|ggsave|webshot)')
+        for blk in static_blocks:
+            pkgs = re.findall(r'(?:library|require)\s*\(\s*["\']?([A-Za-z0-9.]+)', blk)
+            if not pkgs:
+                continue
+            statuses = [(compat2.get(p) or {}).get('status') for p in pkgs]
+            if not (statuses and all(s == 'runnable' for s in statuses)):
+                continue
+            if EXT_IO.search(blk) or DOC_GEN.search(blk):
+                continue
+            # Uses a data object it never builds in THIS block and that is not a builtin
+            # (depends on earlier page state - a forward-preview etc.) -> not safely convertible.
+            assigned = set(re.findall(r'(?m)^\s*([A-Za-z.][\w.]+)\s*(?:<-|=)(?![=])', blk))
+            used = (set(re.findall(r'(?m)(?:^|[\s(])([A-Za-z.][\w.]+)\s*(?:%>%|\|>)', blk))
+                    | set(re.findall(r'\bdata\s*=\s*([A-Za-z.][\w.]+)', blk))
+                    | set(re.findall(r'\bggplot\s*\(\s*([A-Za-z.][\w.]+)', blk)))
+            if [o for o in used if o not in assigned and o not in BUILTIN_DATA]:
+                continue
+            warn("r-static block looks runnable (only WebR-runnable packages, self-contained, no "
+                 "file/DB/doc I/O: %s) - consider a live ```r block so readers can run it."
+                 % ', '.join(sorted(set(pkgs))))
+
     return issues, slug
 
 

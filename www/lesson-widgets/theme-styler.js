@@ -28,16 +28,26 @@
         '<div><div style="font:600 10px/1 IBM Plex Mono,monospace;letter-spacing:.06em;text-transform:uppercase;color:' + u.P.faint + ';margin-bottom:5px">Palette</div><span class="ts-pal"></span></div>' +
         '<div><div style="font:600 10px/1 IBM Plex Mono,monospace;letter-spacing:.06em;text-transform:uppercase;color:' + u.P.faint + ';margin-bottom:5px">Theme</div><span class="ts-theme"></span></div>' +
       '</div>' +
-      '<div class="ts-plot" style="border-radius:12px;padding:8px"></div>' +
-      '<div class="ts-code" style="margin-top:11px"></div>';
+      '<div class="ts-code"></div>';
     var palHost = wrap.querySelector('.ts-pal'); palHost.innerHTML = u.seg(Object.keys(PALS).map(function (k) { return { v: k, label: PALS[k].label }; }), pal);
     var thHost = wrap.querySelector('.ts-theme'); thHost.innerHTML = u.seg(Object.keys(THEMES).map(function (k) { return { v: k, label: THEMES[k].label }; }), theme);
-    var plotEl = wrap.querySelector('.ts-plot'), codeEl = wrap.querySelector('.ts-code');
+    var codeEl = wrap.querySelector('.ts-code');
+    // Self-contained, runnable: library + inline data frame + the styling pipeline.
+    function runnableCode() {
+      var p = PALS[pal], t = THEMES[theme];
+      var pre = 'library(ggplot2)\n' + u.rdf(data, [{ name: xlab, key: 'x' }, { name: ylab, key: 'y' }]) + '\n';
+      if (pal === 'cb') pre += 'okabe_ito <- c("#E69F00", "#56B4E9", "#009E73", "#0072B2", "#D55E00")\n';
+      return pre + '\nggplot(df, aes(' + xlab + ', ' + ylab + ', fill = ' + xlab + ')) +\n  geom_col() +\n  ' + p.code + ' +\n  ' + t.label + '()';
+    }
     function render() {
       var t = THEMES[theme], p = PALS[pal];
-      plotEl.style.background = t.panel;
-      plotEl.innerHTML = u.plot(data, { geom: 'bar', x: xlab, y: ylab, palette: p.colors });
-      codeEl.innerHTML = u.code('ggplot(df, aes(' + xlab + ', ' + ylab + ', fill = ' + xlab + ')) +\n  geom_col() +\n  ' + p.code + ' +\n  ' + t.label + '()');
+      codeEl.innerHTML = u.runnable(runnableCode(), { label: 'Run this chart' });
+      var po = codeEl.querySelector('.webr-plot-output');
+      if (po) {
+        po.style.background = t.panel;
+        po.innerHTML = u.previewSeed(u.plot(data, { geom: 'bar', x: xlab, y: ylab, palette: p.colors }));
+        po.classList.add('has-content');
+      }
     }
     u.wireSeg(palHost, function (v) { pal = v; render(); });
     u.wireSeg(thHost, function (v) { theme = v; render(); });

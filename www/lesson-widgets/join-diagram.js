@@ -14,6 +14,7 @@
     semi: 'semi_join keeps LEFT rows that HAVE a match (left columns only).',
     anti: 'anti_join keeps LEFT rows with NO match (left columns only).'
   };
+  var OPFN = { inner: 'inner_join', left: 'left_join', right: 'right_join', full: 'full_join', semi: 'semi_join', anti: 'anti_join' };
   function mount(el, cfg) {
     var u = window.LessonWidgets.u; if (!u) return;
     cfg = cfg || {};
@@ -53,10 +54,20 @@
       '</div>' +
       '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px"><span style="font-size:12.5px;color:' + u.P.mut + '">join by <code style="font-family:IBM Plex Mono,monospace;color:' + u.P.ink + '">' + u.esc(key) + '</code>:</span><span class="jd-seg"></span></div>' +
       '<div class="jd-res" style="overflow-x:auto"></div>' +
-      '<div class="jd-cap" style="margin-top:9px;font-size:12.5px;color:' + u.P.mut + '"></div>';
+      '<div class="jd-cap" style="margin-top:9px;font-size:12.5px;color:' + u.P.mut + '"></div>' +
+      '<div class="jd-code" style="margin-top:12px"></div>';
     var segHost = wrap.querySelector('.jd-seg'); segHost.innerHTML = u.seg(OPS, op);
-    var res = wrap.querySelector('.jd-res'), cap = wrap.querySelector('.jd-cap');
-    function render(o) { var r = compute(o); res.innerHTML = u.tbl(r.cols, r.rows); cap.innerHTML = WHY[o] + ' <span style="color:' + u.P.acc + ';font-weight:600">' + r.rows.length + ' row' + (r.rows.length === 1 ? '' : 's') + '</span>.'; }
+    var res = wrap.querySelector('.jd-res'), cap = wrap.querySelector('.jd-cap'), codeEl = wrap.querySelector('.jd-code');
+    // Self-contained, runnable: build both tables inline + the dplyr join for this op.
+    function jdCode(o) {
+      return 'library(dplyr)\n' + u.rdfCR('x', L.cols, L.rows) + '\n' + u.rdfCR('y', R.cols, R.rows) +
+        '\n\n' + OPFN[o] + '(x, y, by = "' + key + '")';
+    }
+    function render(o) {
+      var r = compute(o); res.innerHTML = u.tbl(r.cols, r.rows);
+      cap.innerHTML = WHY[o] + ' <span style="color:' + u.P.acc + ';font-weight:600">' + r.rows.length + ' row' + (r.rows.length === 1 ? '' : 's') + '</span>.';
+      codeEl.innerHTML = u.runnable(jdCode(o), { label: 'Run this join' });
+    }
     u.wireSeg(segHost, function (v) { render(v); });
     render(op);
     el.innerHTML = ''; el.appendChild(wrap);

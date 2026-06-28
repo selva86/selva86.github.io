@@ -24,19 +24,26 @@
     var delRows = {}; before.rows.forEach(function (r, i) { if (!afterKeys[JSON.stringify(r)]) delRows[i] = 1; });
     var nDel = Object.keys(delRows).length, nAddCol = Object.keys(addCols).length, nDropCol = Object.keys(dropCols).length, nAddRow = Math.max(0, after.rows.length - (before.rows.length - nDel));
 
+    // Self-contained, runnable: library + the data frame built inline + the verb.
+    function ttCode() {
+      var dt = /:=|setDT|\.SD|data\.table/.test(code);
+      var lib = dt ? 'library(data.table)\nsetDTthreads(1)\n' : 'library(dplyr)\n';
+      return lib + u.rdfCR('df', before.cols, before.rows) + '\n\n' + code;
+    }
     var wrap = document.createElement('div');
     wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
     wrap.innerHTML =
-      '<div style="display:flex;gap:9px;align-items:center;margin-bottom:11px;flex-wrap:wrap">' +
-        '<div style="flex:1;min-width:200px">' + u.code(code) + '</div>' +
-        '<button class="tt-run" style="flex:none;font:inherit;font-size:13px;font-weight:600;color:#fff;background:' + u.P.acc + ';border:0;border-radius:8px;padding:9px 16px;cursor:pointer">Run &#9654;</button>' +
-        '<button class="tt-reset" style="flex:none;font:inherit;font-size:13px;font-weight:600;color:' + u.P.mut + ';background:none;border:1px solid ' + u.P.line + ';border-radius:8px;padding:9px 14px;cursor:pointer;display:none">Reset</button>' +
-      '</div><div class="tt-stage" style="overflow-x:auto"></div>' +
+      u.runnable(ttCode(), { label: 'Run this transform' }) +
+      '<div style="display:flex;gap:9px;align-items:center;margin:12px 0 0;flex-wrap:wrap">' +
+        '<span style="font-size:12.5px;color:' + u.P.mut + '">See exactly what changed:</span>' +
+        '<button class="tt-run" style="flex:none;font:inherit;font-size:13px;font-weight:600;color:#fff;background:' + u.P.acc + ';border:0;border-radius:8px;padding:8px 14px;cursor:pointer">Show what changed</button>' +
+        '<button class="tt-reset" style="flex:none;font:inherit;font-size:13px;font-weight:600;color:' + u.P.mut + ';background:none;border:1px solid ' + u.P.line + ';border-radius:8px;padding:8px 13px;cursor:pointer;display:none">Reset</button>' +
+      '</div><div class="tt-stage" style="overflow-x:auto;margin-top:10px"></div>' +
       '<div class="tt-cap" style="margin-top:10px;font-size:12.5px;color:' + u.P.mut + '"></div>';
     var stage = wrap.querySelector('.tt-stage'), cap = wrap.querySelector('.tt-cap'),
         runB = wrap.querySelector('.tt-run'), resetB = wrap.querySelector('.tt-reset');
 
-    function showBefore() { stage.innerHTML = u.tbl(before.cols, before.rows); cap.innerHTML = '<b>Before.</b> ' + before.rows.length + ' rows &times; ' + before.cols.length + ' columns. Press Run.'; }
+    function showBefore() { stage.innerHTML = u.tbl(before.cols, before.rows); cap.innerHTML = '<b>Before.</b> ' + before.rows.length + ' rows &times; ' + before.cols.length + ' columns.'; }
     function showAfter() {
       // diff view first: original columns (plus any new), removed rows struck, new cols green
       var cols = before.cols.concat(after.cols.filter(function (c) { return before.cols.indexOf(c) < 0; }));

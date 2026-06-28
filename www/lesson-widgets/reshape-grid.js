@@ -23,22 +23,30 @@
 
     var wrap = document.createElement('div'); wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
     wrap.innerHTML =
-      '<div style="display:flex;gap:8px;align-items:center;margin-bottom:11px;flex-wrap:wrap"><span class="rs-seg"></span>' +
-        '<code style="flex:1;min-width:160px;font-family:IBM Plex Mono,monospace;font-size:12.5px;color:' + u.P.mut + '" class="rs-code"></code></div>' +
+      '<div style="margin-bottom:11px"><span class="rs-seg"></span></div>' +
       '<div class="rs-stage" style="overflow-x:auto"></div>' +
-      '<div class="rs-cap" style="margin-top:9px;font-size:12.5px;color:' + u.P.mut + '"></div>';
+      '<div class="rs-cap" style="margin-top:9px;font-size:12.5px;color:' + u.P.mut + '"></div>' +
+      '<div class="rs-code" style="margin-top:12px"></div>';
     var segHost = wrap.querySelector('.rs-seg'); segHost.innerHTML = u.seg([{ v: 'wide', label: 'Wide' }, { v: 'long', label: 'Long (tidy)' }], 'wide');
     var stage = wrap.querySelector('.rs-stage'), cap = wrap.querySelector('.rs-cap'), codeEl = wrap.querySelector('.rs-code');
+    // Self-contained, runnable: build the natural source table inline + the pivot for this direction.
+    function rsCode(form) {
+      if (form === 'long') {
+        return 'library(tidyr)\n' + u.rdfCR('df', wide.cols, wide.rows) + '\n\n' +
+          'pivot_longer(df, cols = -' + idCols.join(', -') + ', names_to = "' + namesTo + '", values_to = "' + valuesTo + '")';
+      }
+      return 'library(tidyr)\n' + u.rdfCR('long', longCols, longRows) + '\n\n' +
+        'pivot_wider(long, names_from = ' + namesTo + ', values_from = ' + valuesTo + ')';
+    }
     function render(form) {
       if (form === 'wide') {
         stage.innerHTML = u.tbl(wide.cols, wide.rows, { hi: wideHi() });
-        codeEl.textContent = 'pivot_wider(names_from = ' + namesTo + ', values_from = ' + valuesTo + ')';
         cap.innerHTML = 'Wide: one row per ' + idCols.join(', ') + ', one column per ' + namesTo + '. Easy to read, harder to plot. ' + wide.rows.length + ' rows.';
       } else {
         stage.innerHTML = u.tbl(longCols, longRows, { hi: longHi() });
-        codeEl.textContent = 'pivot_longer(cols = -' + idCols.join(', -') + ', names_to = "' + namesTo + '", values_to = "' + valuesTo + '")';
         cap.innerHTML = 'Long (tidy): one row per observation, with <b>' + namesTo + '</b> and <b>' + valuesTo + '</b> columns. This is what ggplot and most models want. ' + longRows.length + ' rows.';
       }
+      codeEl.innerHTML = u.runnable(rsCode(form), { label: 'Run this reshape' });
     }
     u.wireSeg(segHost, function (v) { render(v); });
     render('wide');
