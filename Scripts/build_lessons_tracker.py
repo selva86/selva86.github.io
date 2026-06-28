@@ -110,6 +110,7 @@ def build():
             'slug': slug,
             'title': LESSON_CATALOG_TITLE.get(slug) or short_title(fm.get('title'), c['title']),
             'subtitle': str(fm.get('catalog_blurb', '') or '').strip(),
+            'kind': str(fm.get('lesson_kind', '') or 'lesson').strip().lower(),
             'order': order,
             'access': access,
             'built': True,
@@ -120,7 +121,7 @@ def build():
            'courses': []}
     for cid in sorted(courses):
         c = courses[cid]
-        c['lessons'].sort(key=lambda l: l['order'])
+        c['lessons'].sort(key=lambda l: (1 if l.get('kind') == 'quiz' else 0, l['order']))
         c['access_default'] = 'free' if all(l['access'] == 'free' for l in c['lessons']) else 'pro'
         if cid in COURSE_ROADMAP:
             c['roadmap'] = COURSE_ROADMAP[cid]

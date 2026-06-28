@@ -38,6 +38,8 @@
       var t = (c.textContent || '').trim().replace(/^#\s*/, '').replace(/\s*#$/, '').trim();
       return t || courseTitle;
     })();
+    var lessonKind = (ds.lessonKind || '').toLowerCase();       // 'quiz' for a section quiz
+    var showCounter = !!(ds.courseLesson && ds.courseTotal) && lessonKind !== 'quiz';
     var landing = ds.courseLanding || '/';
     var nextHref = ds.courseNext || '';
     var total = steps.length;
@@ -74,7 +76,7 @@
           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>' +
           esc(courseTitle) + '</a>' +
         '<span class="lm-title">' + esc(lessonTitle) +
-          (ds.courseLesson && ds.courseTotal ? ' <span>&middot; Lesson ' + esc(ds.courseLesson) + ' of ' + esc(ds.courseTotal) + '</span>' : '') +
+          (showCounter ? ' <span>&middot; Lesson ' + esc(ds.courseLesson) + ' of ' + esc(ds.courseTotal) + '</span>' : '') +
         '</span>' +
         '<div class="lm-top-right">' +
           '<span class="lm-stepn">Step <b class="lm-cur">1</b> / ' + total + '</span>' +
@@ -425,7 +427,7 @@
           '<a href="' + tUrl + '">' + esc(rm.trackLabel || rm.track) + '</a>' + sep +
           '<a href="' + sUrl + '">' + esc(rm.sectionLabel || '') + '</a>' + sep +
           '<span class="lm-crumb-cur">' + esc(lessonTitle) + '</span>' +
-          (ds.courseLesson && ds.courseTotal ? ' <span class="lm-crumb-les">&middot; Lesson ' + esc(ds.courseLesson) + ' of ' + esc(ds.courseTotal) + '</span>' : '');
+          (showCounter ? ' <span class="lm-crumb-les">&middot; Lesson ' + esc(ds.courseLesson) + ' of ' + esc(ds.courseTotal) + '</span>' : '');
       }
     }
 

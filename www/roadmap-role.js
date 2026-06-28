@@ -198,7 +198,8 @@
       +'.ilhy-a{color:var(--c);font-size:10px;flex:none}'
       +'.ilhy-t{flex:1;min-width:0;font-size:14px;font-weight:600}'
       +'.ilhy-g{flex:none;font:600 9px/1 "JetBrains Mono",monospace;letter-spacing:.06em;text-transform:uppercase;color:var(--c);border:1px solid var(--c);border-radius:5px;padding:3px 6px}'
-      +'.ilhy-cov{display:block;margin:5px 0 0 19px;font-size:12px;color:var(--faint,#8a8a83);line-height:1.55}';
+      +'.ilhy-cov{display:block;margin:5px 0 0 19px;font-size:12px;color:var(--faint,#8a8a83);line-height:1.55}'
+      +'.ilhy-gq{background:var(--c);color:#fff;border-color:var(--c)}';
     document.head.appendChild(st);
     fetch('/courses.json',{cache:'no-cache'}).then(function(r){return r.ok?r.json():null;}).then(function(cat){
       if(!cat||!cat.courses)return;
@@ -223,7 +224,8 @@
               if(l.built===false)return; cnt++;
               var sub=(l.subtitle||'').trim();
               var covHtml=sub?'<span class="ilhy-cov">'+esc(sub)+'</span>':'';
-              rows+='<a class="ilhy-row" href="/'+l.slug+'.html"><span class="ilhy-head"><span class="ilhy-a">&#9654;</span><span class="ilhy-t">'+esc(l.title)+'</span><span class="ilhy-g">Interactive</span></span>'+covHtml+'</a>';
+              var isQ=l.kind==='quiz';
+              rows+='<a class="ilhy-row'+(isQ?' ilhy-quiz':'')+'" href="/'+l.slug+'.html"><span class="ilhy-head"><span class="ilhy-a">'+(isQ?'&#10003;':'&#9654;')+'</span><span class="ilhy-t">'+esc(l.title)+'</span><span class="ilhy-g'+(isQ?' ilhy-gq':'')+'">'+(isQ?'Quiz':'Interactive')+'</span></span>'+covHtml+'</a>';
             });
           });
           if(!rows||!lsns)return;
