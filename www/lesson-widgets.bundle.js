@@ -85,6 +85,13 @@
         '<div class="webr-plot-output"></div>' +
       '</div>';
     },
+    // Seed a runnable block's plot area with an instant SVG preview. webr-init clears
+    // this area on Run and draws the real plot in its place, so there is ONE chart, not
+    // a static copy plus a live copy. The caption sets expectation and clears on Run.
+    previewSeed: function (innerSVG) {
+      return '<div style="font:600 10px/1.4 IBM Plex Mono,monospace;letter-spacing:.04em;' +
+        'text-transform:uppercase;color:' + P.faint + ';margin:0 0 7px">Preview - press Run to render with R</div>' + innerSVG;
+    },
     btn: function (label, kind) { var pri = kind === 'primary'; return '<button type="button" style="font:inherit;font-size:13px;font-weight:600;border-radius:8px;padding:9px 16px;cursor:pointer;' + (pri ? 'color:#fff;background:' + P.acc + ';border:0' : 'color:' + P.mut + ';background:none;border:1px solid ' + P.line) + '">' + esc(label) + '</button>'; },
     // data table; opts: addCols{}, dropCols{}, delRows{}, hi{"r,c":color}, headBg
     tbl: function (cols, rows, opts) {
@@ -315,13 +322,15 @@
     var wrap = document.createElement('div'); wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
     wrap.innerHTML =
       '<div style="margin-bottom:11px"><span class="cp-seg"></span></div>' +
-      '<div class="cp-plot" style="margin-bottom:12px"></div>' +
       '<div class="cp-code"></div>';
     var segHost = wrap.querySelector('.cp-seg'); segHost.innerHTML = u.seg(geoms.map(function (g) { return { v: g, label: g }; }), cur);
-    var plotEl = wrap.querySelector('.cp-plot'), codeEl = wrap.querySelector('.cp-code');
+    var codeEl = wrap.querySelector('.cp-code');
+    // ONE chart region: the runnable block's plot area is seeded with the instant SVG
+    // preview; pressing Run clears it (webr-init) and draws the real ggplot in its place.
     function render(g) {
-      plotEl.innerHTML = u.plot(data, { geom: g, x: xlab, y: ylab, corr: g === 'point' });
       codeEl.innerHTML = u.runnable(runnableCode(g), { label: 'Run this chart' });
+      var po = codeEl.querySelector('.webr-plot-output');
+      if (po) { po.innerHTML = u.previewSeed(u.plot(data, { geom: g, x: xlab, y: ylab, corr: g === 'point' })); po.classList.add('has-content'); }
     }
     u.wireSeg(segHost, function (v) { cur = v; render(v); });
     render(cur);
@@ -1330,11 +1339,10 @@
         '<div><div style="font:600 10px/1 IBM Plex Mono,monospace;letter-spacing:.06em;text-transform:uppercase;color:' + u.P.faint + ';margin-bottom:5px">Palette</div><span class="ts-pal"></span></div>' +
         '<div><div style="font:600 10px/1 IBM Plex Mono,monospace;letter-spacing:.06em;text-transform:uppercase;color:' + u.P.faint + ';margin-bottom:5px">Theme</div><span class="ts-theme"></span></div>' +
       '</div>' +
-      '<div class="ts-plot" style="border-radius:12px;padding:8px"></div>' +
-      '<div class="ts-code" style="margin-top:11px"></div>';
+      '<div class="ts-code"></div>';
     var palHost = wrap.querySelector('.ts-pal'); palHost.innerHTML = u.seg(Object.keys(PALS).map(function (k) { return { v: k, label: PALS[k].label }; }), pal);
     var thHost = wrap.querySelector('.ts-theme'); thHost.innerHTML = u.seg(Object.keys(THEMES).map(function (k) { return { v: k, label: THEMES[k].label }; }), theme);
-    var plotEl = wrap.querySelector('.ts-plot'), codeEl = wrap.querySelector('.ts-code');
+    var codeEl = wrap.querySelector('.ts-code');
     // Self-contained, runnable: library + inline data frame + the styling pipeline.
     function runnableCode() {
       var p = PALS[pal], t = THEMES[theme];
@@ -1344,9 +1352,13 @@
     }
     function render() {
       var t = THEMES[theme], p = PALS[pal];
-      plotEl.style.background = t.panel;
-      plotEl.innerHTML = u.plot(data, { geom: 'bar', x: xlab, y: ylab, palette: p.colors });
       codeEl.innerHTML = u.runnable(runnableCode(), { label: 'Run this chart' });
+      var po = codeEl.querySelector('.webr-plot-output');
+      if (po) {
+        po.style.background = t.panel;
+        po.innerHTML = u.previewSeed(u.plot(data, { geom: 'bar', x: xlab, y: ylab, palette: p.colors }));
+        po.classList.add('has-content');
+      }
     }
     u.wireSeg(palHost, function (v) { pal = v; render(); });
     u.wireSeg(thHost, function (v) { theme = v; render(); });

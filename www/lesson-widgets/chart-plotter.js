@@ -41,13 +41,15 @@
     var wrap = document.createElement('div'); wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
     wrap.innerHTML =
       '<div style="margin-bottom:11px"><span class="cp-seg"></span></div>' +
-      '<div class="cp-plot" style="margin-bottom:12px"></div>' +
       '<div class="cp-code"></div>';
     var segHost = wrap.querySelector('.cp-seg'); segHost.innerHTML = u.seg(geoms.map(function (g) { return { v: g, label: g }; }), cur);
-    var plotEl = wrap.querySelector('.cp-plot'), codeEl = wrap.querySelector('.cp-code');
+    var codeEl = wrap.querySelector('.cp-code');
+    // ONE chart region: the runnable block's plot area is seeded with the instant SVG
+    // preview; pressing Run clears it (webr-init) and draws the real ggplot in its place.
     function render(g) {
-      plotEl.innerHTML = u.plot(data, { geom: g, x: xlab, y: ylab, corr: g === 'point' });
       codeEl.innerHTML = u.runnable(runnableCode(g), { label: 'Run this chart' });
+      var po = codeEl.querySelector('.webr-plot-output');
+      if (po) { po.innerHTML = u.previewSeed(u.plot(data, { geom: g, x: xlab, y: ylab, corr: g === 'point' })); po.classList.add('has-content'); }
     }
     u.wireSeg(segHost, function (v) { cur = v; render(v); });
     render(cur);

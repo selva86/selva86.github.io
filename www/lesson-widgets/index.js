@@ -84,6 +84,13 @@
         '<div class="webr-plot-output"></div>' +
       '</div>';
     },
+    // Seed a runnable block's plot area with an instant SVG preview. webr-init clears
+    // this area on Run and draws the real plot in its place, so there is ONE chart, not
+    // a static copy plus a live copy. The caption sets expectation and clears on Run.
+    previewSeed: function (innerSVG) {
+      return '<div style="font:600 10px/1.4 IBM Plex Mono,monospace;letter-spacing:.04em;' +
+        'text-transform:uppercase;color:' + P.faint + ';margin:0 0 7px">Preview - press Run to render with R</div>' + innerSVG;
+    },
     btn: function (label, kind) { var pri = kind === 'primary'; return '<button type="button" style="font:inherit;font-size:13px;font-weight:600;border-radius:8px;padding:9px 16px;cursor:pointer;' + (pri ? 'color:#fff;background:' + P.acc + ';border:0' : 'color:' + P.mut + ';background:none;border:1px solid ' + P.line) + '">' + esc(label) + '</button>'; },
     // data table; opts: addCols{}, dropCols{}, delRows{}, hi{"r,c":color}, headBg
     tbl: function (cols, rows, opts) {
