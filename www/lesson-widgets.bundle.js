@@ -63,6 +63,18 @@
       });
       return (varName || 'df') + ' <- data.frame(\n' + lines.join(',\n') + '\n)';
     },
+    // Like rdf but from the cols + rows-of-arrays shape the table widgets use.
+    // Backtick-quotes column names + check.names=FALSE so names like "2020" survive.
+    rdfCR: function (name, cols, rows) {
+      var lines = cols.map(function (c, ci) {
+        var vals = (rows || []).map(function (r) {
+          var v = r[ci];
+          return (v == null || v === '' || isNaN(v)) ? '"' + String(v == null ? '' : v).replace(/"/g, '') + '"' : (+v);
+        }).join(', ');
+        return '  `' + c + '` = c(' + vals + ')';
+      });
+      return name + ' <- data.frame(\n' + lines.join(',\n') + ',\n  check.names = FALSE, stringsAsFactors = FALSE\n)';
+    },
     // A REAL runnable interactive-R block (same DOM contract as the build emits, so
     // webr-init.js wires Run via the inline onclick + reads code from textContent).
     // Self-contained code runs in the lesson's shared WebR session (packages auto-install).
@@ -699,18 +711,30 @@
     var geom = cfg.geom || 'point', xlab = cfg.x || 'petal length', ylab = cfg.y || 'petal width', fvar = cfg.facetVar || 'species';
     var facets = []; data.forEach(function (d) { if (facets.indexOf(d.facet) < 0) facets.push(d.facet); });
 
+    // R-safe column names (the display labels may contain spaces).
+    var xc = (xlab || 'x').replace(/\s+/g, '_'), yc = (ylab || 'y').replace(/\s+/g, '_'), fc = (fvar || 'group').replace(/\s+/g, '_');
+    function fgCode(mode) {
+      var base = 'library(ggplot2)\n' + u.rdf(data, [{ name: xc, key: 'x' }, { name: yc, key: 'y' }, { name: fc, key: 'facet' }]) + '\n\n';
+      return mode === 'one'
+        ? base + 'ggplot(df, aes(' + xc + ', ' + yc + ', color = ' + fc + ')) +\n  geom_point()'
+        : base + 'ggplot(df, aes(' + xc + ', ' + yc + ')) +\n  geom_point() +\n  facet_wrap(~ ' + fc + ')';
+    }
+    function fgSVG(mode) {
+      if (mode === 'one') return u.plot(data, { geom: geom, x: xlab, y: ylab, w: 440, h: 260 });
+      var h = '<div style="display:flex;gap:10px;flex-wrap:wrap">';
+      facets.forEach(function (f) { var sub = data.filter(function (d) { return d.facet === f; });
+        h += '<div style="flex:1;min-width:150px"><div style="font:600 12px/1 IBM Plex Sans,sans-serif;color:' + u.P.ink + ';text-align:center;margin-bottom:2px">' + u.esc(f) + '</div>' + u.plot(sub, { geom: geom, x: xlab, y: ylab, w: 220, h: 170 }) + '</div>'; });
+      return h + '</div>';
+    }
     var wrap = document.createElement('div'); wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
-    wrap.innerHTML = '<div style="display:flex;gap:8px;align-items:center;margin-bottom:11px;flex-wrap:wrap"><span class="fg-seg"></span><code style="font-family:IBM Plex Mono,monospace;font-size:12px;color:' + u.P.mut + '" class="fg-code"></code></div><div class="fg-stage" style="overflow-x:auto"></div>';
+    wrap.innerHTML = '<div style="margin-bottom:11px"><span class="fg-seg"></span></div><div class="fg-code"></div>';
     var segHost = wrap.querySelector('.fg-seg'); segHost.innerHTML = u.seg([{ v: 'one', label: 'One chart' }, { v: 'facet', label: 'facet_wrap(~' + fvar + ')' }], 'one');
-    var stage = wrap.querySelector('.fg-stage'), codeEl = wrap.querySelector('.fg-code');
+    var codeEl = wrap.querySelector('.fg-code');
+    // ONE chart region: seed the SVG preview into the runnable block's plot area; Run draws the real plot there.
     function render(mode) {
-      if (mode === 'one') { stage.innerHTML = u.plot(data, { geom: geom, x: xlab, y: ylab, w: 440, h: 260 }); codeEl.textContent = 'aes(color = ' + fvar + ')'; }
-      else {
-        var h = '<div style="display:flex;gap:10px;flex-wrap:wrap">';
-        facets.forEach(function (f) { var sub = data.filter(function (d) { return d.facet === f; });
-          h += '<div style="flex:1;min-width:150px"><div style="font:600 12px/1 IBM Plex Sans,sans-serif;color:' + u.P.ink + ';text-align:center;margin-bottom:2px">' + u.esc(f) + '</div>' + u.plot(sub, { geom: geom, x: xlab, y: ylab, w: 220, h: 170 }) + '</div>'; });
-        stage.innerHTML = h + '</div>'; codeEl.textContent = '+ facet_wrap(~ ' + fvar + ')';
-      }
+      codeEl.innerHTML = u.runnable(fgCode(mode), { label: 'Run this chart' });
+      var po = codeEl.querySelector('.webr-plot-output');
+      if (po) { po.innerHTML = u.previewSeed(fgSVG(mode)); po.classList.add('has-content'); }
     }
     u.wireSeg(segHost, function (v) { render(v); });
     render('one');
@@ -915,6 +939,7 @@
     semi: 'semi_join keeps LEFT rows that HAVE a match (left columns only).',
     anti: 'anti_join keeps LEFT rows with NO match (left columns only).'
   };
+  var OPFN = { inner: 'inner_join', left: 'left_join', right: 'right_join', full: 'full_join', semi: 'semi_join', anti: 'anti_join' };
   function mount(el, cfg) {
     var u = window.LessonWidgets.u; if (!u) return;
     cfg = cfg || {};
@@ -954,10 +979,20 @@
       '</div>' +
       '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px"><span style="font-size:12.5px;color:' + u.P.mut + '">join by <code style="font-family:IBM Plex Mono,monospace;color:' + u.P.ink + '">' + u.esc(key) + '</code>:</span><span class="jd-seg"></span></div>' +
       '<div class="jd-res" style="overflow-x:auto"></div>' +
-      '<div class="jd-cap" style="margin-top:9px;font-size:12.5px;color:' + u.P.mut + '"></div>';
+      '<div class="jd-cap" style="margin-top:9px;font-size:12.5px;color:' + u.P.mut + '"></div>' +
+      '<div class="jd-code" style="margin-top:12px"></div>';
     var segHost = wrap.querySelector('.jd-seg'); segHost.innerHTML = u.seg(OPS, op);
-    var res = wrap.querySelector('.jd-res'), cap = wrap.querySelector('.jd-cap');
-    function render(o) { var r = compute(o); res.innerHTML = u.tbl(r.cols, r.rows); cap.innerHTML = WHY[o] + ' <span style="color:' + u.P.acc + ';font-weight:600">' + r.rows.length + ' row' + (r.rows.length === 1 ? '' : 's') + '</span>.'; }
+    var res = wrap.querySelector('.jd-res'), cap = wrap.querySelector('.jd-cap'), codeEl = wrap.querySelector('.jd-code');
+    // Self-contained, runnable: build both tables inline + the dplyr join for this op.
+    function jdCode(o) {
+      return 'library(dplyr)\n' + u.rdfCR('x', L.cols, L.rows) + '\n' + u.rdfCR('y', R.cols, R.rows) +
+        '\n\n' + OPFN[o] + '(x, y, by = "' + key + '")';
+    }
+    function render(o) {
+      var r = compute(o); res.innerHTML = u.tbl(r.cols, r.rows);
+      cap.innerHTML = WHY[o] + ' <span style="color:' + u.P.acc + ';font-weight:600">' + r.rows.length + ' row' + (r.rows.length === 1 ? '' : 's') + '</span>.';
+      codeEl.innerHTML = u.runnable(jdCode(o), { label: 'Run this join' });
+    }
     u.wireSeg(segHost, function (v) { render(v); });
     render(op);
     el.innerHTML = ''; el.appendChild(wrap);
@@ -1164,22 +1199,30 @@
 
     var wrap = document.createElement('div'); wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
     wrap.innerHTML =
-      '<div style="display:flex;gap:8px;align-items:center;margin-bottom:11px;flex-wrap:wrap"><span class="rs-seg"></span>' +
-        '<code style="flex:1;min-width:160px;font-family:IBM Plex Mono,monospace;font-size:12.5px;color:' + u.P.mut + '" class="rs-code"></code></div>' +
+      '<div style="margin-bottom:11px"><span class="rs-seg"></span></div>' +
       '<div class="rs-stage" style="overflow-x:auto"></div>' +
-      '<div class="rs-cap" style="margin-top:9px;font-size:12.5px;color:' + u.P.mut + '"></div>';
+      '<div class="rs-cap" style="margin-top:9px;font-size:12.5px;color:' + u.P.mut + '"></div>' +
+      '<div class="rs-code" style="margin-top:12px"></div>';
     var segHost = wrap.querySelector('.rs-seg'); segHost.innerHTML = u.seg([{ v: 'wide', label: 'Wide' }, { v: 'long', label: 'Long (tidy)' }], 'wide');
     var stage = wrap.querySelector('.rs-stage'), cap = wrap.querySelector('.rs-cap'), codeEl = wrap.querySelector('.rs-code');
+    // Self-contained, runnable: build the natural source table inline + the pivot for this direction.
+    function rsCode(form) {
+      if (form === 'long') {
+        return 'library(tidyr)\n' + u.rdfCR('df', wide.cols, wide.rows) + '\n\n' +
+          'pivot_longer(df, cols = -' + idCols.join(', -') + ', names_to = "' + namesTo + '", values_to = "' + valuesTo + '")';
+      }
+      return 'library(tidyr)\n' + u.rdfCR('long', longCols, longRows) + '\n\n' +
+        'pivot_wider(long, names_from = ' + namesTo + ', values_from = ' + valuesTo + ')';
+    }
     function render(form) {
       if (form === 'wide') {
         stage.innerHTML = u.tbl(wide.cols, wide.rows, { hi: wideHi() });
-        codeEl.textContent = 'pivot_wider(names_from = ' + namesTo + ', values_from = ' + valuesTo + ')';
         cap.innerHTML = 'Wide: one row per ' + idCols.join(', ') + ', one column per ' + namesTo + '. Easy to read, harder to plot. ' + wide.rows.length + ' rows.';
       } else {
         stage.innerHTML = u.tbl(longCols, longRows, { hi: longHi() });
-        codeEl.textContent = 'pivot_longer(cols = -' + idCols.join(', -') + ', names_to = "' + namesTo + '", values_to = "' + valuesTo + '")';
         cap.innerHTML = 'Long (tidy): one row per observation, with <b>' + namesTo + '</b> and <b>' + valuesTo + '</b> columns. This is what ggplot and most models want. ' + longRows.length + ' rows.';
       }
+      codeEl.innerHTML = u.runnable(rsCode(form), { label: 'Run this reshape' });
     }
     u.wireSeg(segHost, function (v) { render(v); });
     render('wide');
@@ -1274,19 +1317,26 @@
     var delRows = {}; before.rows.forEach(function (r, i) { if (!afterKeys[JSON.stringify(r)]) delRows[i] = 1; });
     var nDel = Object.keys(delRows).length, nAddCol = Object.keys(addCols).length, nDropCol = Object.keys(dropCols).length, nAddRow = Math.max(0, after.rows.length - (before.rows.length - nDel));
 
+    // Self-contained, runnable: library + the data frame built inline + the verb.
+    function ttCode() {
+      var dt = /:=|setDT|\.SD|data\.table/.test(code);
+      var lib = dt ? 'library(data.table)\nsetDTthreads(1)\n' : 'library(dplyr)\n';
+      return lib + u.rdfCR('df', before.cols, before.rows) + '\n\n' + code;
+    }
     var wrap = document.createElement('div');
     wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
     wrap.innerHTML =
-      '<div style="display:flex;gap:9px;align-items:center;margin-bottom:11px;flex-wrap:wrap">' +
-        '<div style="flex:1;min-width:200px">' + u.code(code) + '</div>' +
-        '<button class="tt-run" style="flex:none;font:inherit;font-size:13px;font-weight:600;color:#fff;background:' + u.P.acc + ';border:0;border-radius:8px;padding:9px 16px;cursor:pointer">Run &#9654;</button>' +
-        '<button class="tt-reset" style="flex:none;font:inherit;font-size:13px;font-weight:600;color:' + u.P.mut + ';background:none;border:1px solid ' + u.P.line + ';border-radius:8px;padding:9px 14px;cursor:pointer;display:none">Reset</button>' +
-      '</div><div class="tt-stage" style="overflow-x:auto"></div>' +
+      u.runnable(ttCode(), { label: 'Run this transform' }) +
+      '<div style="display:flex;gap:9px;align-items:center;margin:12px 0 0;flex-wrap:wrap">' +
+        '<span style="font-size:12.5px;color:' + u.P.mut + '">See exactly what changed:</span>' +
+        '<button class="tt-run" style="flex:none;font:inherit;font-size:13px;font-weight:600;color:#fff;background:' + u.P.acc + ';border:0;border-radius:8px;padding:8px 14px;cursor:pointer">Show what changed</button>' +
+        '<button class="tt-reset" style="flex:none;font:inherit;font-size:13px;font-weight:600;color:' + u.P.mut + ';background:none;border:1px solid ' + u.P.line + ';border-radius:8px;padding:8px 13px;cursor:pointer;display:none">Reset</button>' +
+      '</div><div class="tt-stage" style="overflow-x:auto;margin-top:10px"></div>' +
       '<div class="tt-cap" style="margin-top:10px;font-size:12.5px;color:' + u.P.mut + '"></div>';
     var stage = wrap.querySelector('.tt-stage'), cap = wrap.querySelector('.tt-cap'),
         runB = wrap.querySelector('.tt-run'), resetB = wrap.querySelector('.tt-reset');
 
-    function showBefore() { stage.innerHTML = u.tbl(before.cols, before.rows); cap.innerHTML = '<b>Before.</b> ' + before.rows.length + ' rows &times; ' + before.cols.length + ' columns. Press Run.'; }
+    function showBefore() { stage.innerHTML = u.tbl(before.cols, before.rows); cap.innerHTML = '<b>Before.</b> ' + before.rows.length + ' rows &times; ' + before.cols.length + ' columns.'; }
     function showAfter() {
       // diff view first: original columns (plus any new), removed rows struck, new cols green
       var cols = before.cols.concat(after.cols.filter(function (c) { return before.cols.indexOf(c) < 0; }));

@@ -62,6 +62,18 @@
       });
       return (varName || 'df') + ' <- data.frame(\n' + lines.join(',\n') + '\n)';
     },
+    // Like rdf but from the cols + rows-of-arrays shape the table widgets use.
+    // Backtick-quotes column names + check.names=FALSE so names like "2020" survive.
+    rdfCR: function (name, cols, rows) {
+      var lines = cols.map(function (c, ci) {
+        var vals = (rows || []).map(function (r) {
+          var v = r[ci];
+          return (v == null || v === '' || isNaN(v)) ? '"' + String(v == null ? '' : v).replace(/"/g, '') + '"' : (+v);
+        }).join(', ');
+        return '  `' + c + '` = c(' + vals + ')';
+      });
+      return name + ' <- data.frame(\n' + lines.join(',\n') + ',\n  check.names = FALSE, stringsAsFactors = FALSE\n)';
+    },
     // A REAL runnable interactive-R block (same DOM contract as the build emits, so
     // webr-init.js wires Run via the inline onclick + reads code from textContent).
     // Self-contained code runs in the lesson's shared WebR session (packages auto-install).

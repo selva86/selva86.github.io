@@ -16,18 +16,30 @@
     var geom = cfg.geom || 'point', xlab = cfg.x || 'petal length', ylab = cfg.y || 'petal width', fvar = cfg.facetVar || 'species';
     var facets = []; data.forEach(function (d) { if (facets.indexOf(d.facet) < 0) facets.push(d.facet); });
 
+    // R-safe column names (the display labels may contain spaces).
+    var xc = (xlab || 'x').replace(/\s+/g, '_'), yc = (ylab || 'y').replace(/\s+/g, '_'), fc = (fvar || 'group').replace(/\s+/g, '_');
+    function fgCode(mode) {
+      var base = 'library(ggplot2)\n' + u.rdf(data, [{ name: xc, key: 'x' }, { name: yc, key: 'y' }, { name: fc, key: 'facet' }]) + '\n\n';
+      return mode === 'one'
+        ? base + 'ggplot(df, aes(' + xc + ', ' + yc + ', color = ' + fc + ')) +\n  geom_point()'
+        : base + 'ggplot(df, aes(' + xc + ', ' + yc + ')) +\n  geom_point() +\n  facet_wrap(~ ' + fc + ')';
+    }
+    function fgSVG(mode) {
+      if (mode === 'one') return u.plot(data, { geom: geom, x: xlab, y: ylab, w: 440, h: 260 });
+      var h = '<div style="display:flex;gap:10px;flex-wrap:wrap">';
+      facets.forEach(function (f) { var sub = data.filter(function (d) { return d.facet === f; });
+        h += '<div style="flex:1;min-width:150px"><div style="font:600 12px/1 IBM Plex Sans,sans-serif;color:' + u.P.ink + ';text-align:center;margin-bottom:2px">' + u.esc(f) + '</div>' + u.plot(sub, { geom: geom, x: xlab, y: ylab, w: 220, h: 170 }) + '</div>'; });
+      return h + '</div>';
+    }
     var wrap = document.createElement('div'); wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
-    wrap.innerHTML = '<div style="display:flex;gap:8px;align-items:center;margin-bottom:11px;flex-wrap:wrap"><span class="fg-seg"></span><code style="font-family:IBM Plex Mono,monospace;font-size:12px;color:' + u.P.mut + '" class="fg-code"></code></div><div class="fg-stage" style="overflow-x:auto"></div>';
+    wrap.innerHTML = '<div style="margin-bottom:11px"><span class="fg-seg"></span></div><div class="fg-code"></div>';
     var segHost = wrap.querySelector('.fg-seg'); segHost.innerHTML = u.seg([{ v: 'one', label: 'One chart' }, { v: 'facet', label: 'facet_wrap(~' + fvar + ')' }], 'one');
-    var stage = wrap.querySelector('.fg-stage'), codeEl = wrap.querySelector('.fg-code');
+    var codeEl = wrap.querySelector('.fg-code');
+    // ONE chart region: seed the SVG preview into the runnable block's plot area; Run draws the real plot there.
     function render(mode) {
-      if (mode === 'one') { stage.innerHTML = u.plot(data, { geom: geom, x: xlab, y: ylab, w: 440, h: 260 }); codeEl.textContent = 'aes(color = ' + fvar + ')'; }
-      else {
-        var h = '<div style="display:flex;gap:10px;flex-wrap:wrap">';
-        facets.forEach(function (f) { var sub = data.filter(function (d) { return d.facet === f; });
-          h += '<div style="flex:1;min-width:150px"><div style="font:600 12px/1 IBM Plex Sans,sans-serif;color:' + u.P.ink + ';text-align:center;margin-bottom:2px">' + u.esc(f) + '</div>' + u.plot(sub, { geom: geom, x: xlab, y: ylab, w: 220, h: 170 }) + '</div>'; });
-        stage.innerHTML = h + '</div>'; codeEl.textContent = '+ facet_wrap(~ ' + fvar + ')';
-      }
+      codeEl.innerHTML = u.runnable(fgCode(mode), { label: 'Run this chart' });
+      var po = codeEl.querySelector('.webr-plot-output');
+      if (po) { po.innerHTML = u.previewSeed(fgSVG(mode)); po.classList.add('has-content'); }
     }
     u.wireSeg(segHost, function (v) { render(v); });
     render('one');
