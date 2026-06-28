@@ -17,8 +17,7 @@ course_prev: "Interactive-Charts-and-Maps-in-R.html"
 
 === step === cover
 ::eyebrow Lesson 2 of 3
-## Six charts, one screen
-
+## Quarto Dashboards
 In Lesson 1 you made single charts talk back: you wrapped Maya's bakery scatter in `ggplotly()` for hover, and pinned her six coffee-and-pastry shops onto a **leaflet** map. Useful, but each one lived in its own window. Maya kept five browser tabs open and a printout on her desk, flipping between them to answer one question.
 
 A **dashboard** ends the tab-juggling. It takes those separate tiles, the headline numbers, the trend line, the by-shop bars, the map, and arranges them on a single page so the whole business is visible at a glance. Better still, it can **link** them: pick one shop and every tile narrows to that shop at once.

@@ -17,8 +17,7 @@ course_prev: "Quarto-Dashboards-and-Linked-Views.html"
 
 === step === cover
 ::eyebrow Lesson 3 of 3
-## Your first Shiny app
-
+## Your First Shiny App
 In Lesson 2 you put Maya's six bakery shops on one screen and **linked** the tiles with crosstalk: click a shop and every chart narrows to it. But crosstalk has a hard edge. It only ever *filters rows that were already computed* when the page was built. It can never run new R after the page loads.
 
 So when Maya asks a planning question, *"if I raise prices by 10%, what would my projected revenue be?"*, crosstalk is stuck. That number does not exist anywhere on the page yet. Someone has to **run R again** with the new 10% to compute it. That is exactly what **Shiny** does, and the engine that makes it happen is called **reactivity**.

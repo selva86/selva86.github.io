@@ -17,8 +17,7 @@ course_prev: "Bar-and-Distribution-Charts-in-ggplot2.html"
 
 === step === cover
 ::eyebrow Lesson 4 of 4
-## From a draft chart to a figure
-
+## Publication-Ready Figures
 Maya the bakery owner has found something worth sharing. Quiet little Sourdough, ordered only 3 times last Saturday, quietly out-earned Coffee, her busiest seller. She wants that surprise on the front of the bakery's monthly newsletter. So she draws the bar chart and... it comes out grey, the axis says `revenue` in tiny lowercase, there is no title, and the finding is buried. A chart on your own screen and a **figure** a stranger can read in three seconds are not the same thing.
 
 Across this course you learned the grammar (Lesson 1), scatter and line charts (Lesson 2), and bars and distributions (Lesson 3). You can now draw almost anything. This final lesson is about the last mile: picking the *right* chart, then polishing one to publication quality. Drag the controls below to feel where we are headed.

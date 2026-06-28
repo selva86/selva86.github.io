@@ -18,8 +18,7 @@ course_prev: "data-table-Syntax-and-Keys.html"
 
 === step === cover
 ::eyebrow Lesson 2 of 4
-## Same answer, different engine
-
+## dplyr vs data.table
 In Lesson 1 Maya learned data.table on her bakery chain's sales: the `DT[i, j, by]` bracket and keys. But she already knew dplyr, and a fair question nags. If both tools can filter, group and summarise the same sales, why keep two? Do they even give the same answer, and when does the choice actually matter?
 
 This lesson puts them side by side on Maya's till data. You will write the same task in both dialects, confirm they return the identical result, then measure exactly where data.table pulls ahead on speed and memory, and learn when each is the right call.

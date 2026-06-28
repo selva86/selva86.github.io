@@ -18,8 +18,7 @@ course_prev: ""
 
 === step === cover
 ::eyebrow Lesson 1 of 3
-## One bracket, three jobs
-
+## data.table Syntax & Keys
 Maya's single bakery has grown into a chain. Her till now logs hundreds of thousands of sales a week across every shop, and the tidy dplyr pipelines that felt instant on one shop's data have started to crawl. **data.table** is R's tool for exactly this moment: the same filter, compute and group you already know, written in one compact bracket and engineered to fly on millions of rows.
 
 Below is a week of sales from two of her shops. Press Run to keep just the Austin rows, your first look at the bracket in action.

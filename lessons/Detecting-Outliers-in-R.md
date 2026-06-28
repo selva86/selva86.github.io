@@ -18,8 +18,7 @@ course_prev: "Outliers-and-Automated-EDA.html"
 
 === step === cover
 ::eyebrow Lesson 4 of 8
-## Beyond the boxplot
-
+## Outlier Detection Methods
 In Lesson 3 you caught Maya's $905 street-festival day with a boxplot and the 1.5 x IQR rule, then chose, on purpose, to keep it with robust summaries. That worked because you could SEE the lone dot. But real data does not always announce itself: some outliers hide behind a second extreme value, and some are invisible to any single-column rule, surfacing only when you look at two variables at once.
 
 This lesson hands you the numeric tools the eye cannot supply. The scatter below plots all 30 of Maya's March days, daily revenue against the number of customers through the door (foot traffic). Most days climb a tidy line, more customers, more revenue. A few do not, and by the end you will have a rule for each kind.

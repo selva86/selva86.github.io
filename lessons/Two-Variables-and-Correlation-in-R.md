@@ -18,8 +18,7 @@ course_prev: "An-EDA-Framework-and-One-Variable.html"
 
 === step === cover
 ::eyebrow Lesson 2 of 3
-## What moves with what
-
+## Bivariate EDA & Correlation
 In Lesson 1 you learned to read **one variable at a time**: you took Maya's daily bakery revenue and found its shape, its typical value, and the one festival day hiding in the tail. But a single column can only tell you so much. The questions Maya really loses sleep over are about *pairs*: does a busier day actually bring in more money? Do hot days sell more iced coffee? Does anything she does explain anything else?
 
 This fortnight Maya kept a richer logbook: for each of 14 days she wrote down the **foot traffic** (people who walked in), the **revenue** (dollars), the day's **temperature**, and how many **iced coffees** and **hot cocoas** she sold. Below is the first pair, foot traffic across the bottom and revenue up the side. Each dot is one day, and the pattern jumps out before you compute a single number.

@@ -18,8 +18,7 @@ course_prev: "The-dplyr-Verbs.html"
 
 === step === cover
 ::eyebrow Lesson 3 of 4
-## Group, summarise and clean
-
+## Group & Summarise
 In Lesson 2 you learned the verbs that act on a table as a whole: `filter`, `select`, `mutate`, `arrange`. But Maya rarely wants the whole table. She wants answers about *parts* of it: how many of each loaf did I sell, what is the average revenue *per item*, which days were busy. That means splitting the table into groups, computing a number for each group, and stacking the results back together. This three-move pattern, plus labelling rows by a rule and dealing with the blanks that real data always has, is the last set of skills that turns a tidy table into an answer.
 
 By the end of this lesson you will be able to:

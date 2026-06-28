@@ -17,8 +17,7 @@ course_prev: "Splitting-Uniting-and-Fuzzy-Joins.html"
 
 === step === cover
 ::eyebrow Lesson 4 of 4
-## A column that holds whole tables
-
+## Nesting & Rectangling
 In Lesson 3 you cleaned messy columns and keys. This is the last reshape in the course, and the most surprising one: a single cell can hold not a word or a number, but an **entire table**.
 
 Maya, who runs a small bakery, has grown to three branches: Riverside, Hilltop and Station. She keeps one tidy row per branch per month, and now she wants one thing *per branch*: first an average, then a sales **trend** (is this branch growing or shrinking?). Doing that branch by branch, by hand, is exactly the tedium this lesson removes.

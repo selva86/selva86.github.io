@@ -17,8 +17,7 @@ course_prev: ""
 
 === step === cover
 ::eyebrow Lesson 1 of 4
-## The grammar behind every chart
-
+## The Grammar of Graphics
 Maya runs a small neighbourhood bakery, and by now she can wrangle her till data and summarise it: last week she pulled seven rows, one per day, each with the **foot traffic** (people who walked in) and the **revenue** (dollars taken). But a column of seven numbers does not show her what is going on. The moment she draws it, the story jumps out: busier days take more money, and Saturday towers over the rest.
 
 That picture below is a `ggplot`. By the end of this lesson you will understand the small set of rules, the *grammar*, that builds it, and every other chart in this course.

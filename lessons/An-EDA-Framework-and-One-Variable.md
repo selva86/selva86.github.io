@@ -18,8 +18,7 @@ course_prev: ""
 
 === step === cover
 ::eyebrow Lesson 1 of 3
-## Looking at your data, one variable at a time
-
+## Univariate EDA
 You can now get data into R, tidy it, and join tables together. So you are holding a clean data frame. The very next question, before any model or fancy chart, is the simplest one there is: what is actually in it?
 
 Meet Maya, who runs a small neighbourhood bakery. She has just handed you one column: her daily revenue for the 30 days of March, in dollars. Below is every one of those 30 days drawn as a histogram. By the end of this lesson you will read a picture like this at a glance, and back it up with numbers.

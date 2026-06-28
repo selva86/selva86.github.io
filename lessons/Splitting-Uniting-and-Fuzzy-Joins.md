@@ -18,8 +18,7 @@ course_prev: "Pivoting-Long-and-Wide-in-R.html"
 
 === step === cover
 ::eyebrow Lesson 3 of 3
-## When the columns and keys are messy
-
+## Split, Unite & Fuzzy Joins
 In Lesson 2 you changed a table's **shape**. But real data arrives dirty in a different way: a single column crams two facts together, or two tables that should line up have keys that only *nearly* agree.
 
 Maya, who runs a small bakery, now pulls sales from an online-orders export and prices from a supplier sheet someone typed by hand. Below are her items on the left and the supplier's price sheet on the right. To you they read as the same four products. Click **inner**: an exact join finds only **two** matches. The other two are spelled just differently enough to be invisible to the join.

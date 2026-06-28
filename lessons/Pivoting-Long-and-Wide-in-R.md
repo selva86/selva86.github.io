@@ -17,8 +17,7 @@ course_prev: "Joining-Tables-in-R.html"
 
 === step === cover
 ::eyebrow Lesson 2 of 3
-## One table, the wrong shape
-
+## Pivoting: Long & Wide
 In Lesson 1 you stitched two tables together with joins. But even a single, complete table can be in the wrong **shape** for the job in front of you.
 
 Maya, who runs a small bakery, keeps her week of loaf sales on a whiteboard the way any of us would: one row per item, one column per day.

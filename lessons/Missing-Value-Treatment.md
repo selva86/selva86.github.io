@@ -18,8 +18,7 @@ course_prev: "Group-Summarise-and-Clean-in-dplyr.html"
 
 === step === cover
 ::eyebrow Lesson 4 of 4
-## The holes in your data
-
+## Missing Value Treatment
 In Lesson 3 you met one blank cell, the unlogged Bagel sale, and patched it with `na.rm = TRUE`. Real data is never that tidy. Maya ran a quick exit survey one busy morning, twelve customers, five questions each, and came back with a table full of holes: a spend she never recorded, a rating the tablet ate, tips people simply would not say.
 
 The wrong move is to delete every row with a blank and carry on. As you will see, that throws away two thirds of Maya's survey and quietly biases what is left. This lesson is about treating those holes **honestly**.

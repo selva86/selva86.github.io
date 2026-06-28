@@ -17,8 +17,7 @@ course_prev: ""
 
 === step === cover
 ::eyebrow Lesson 1 of 3
-## The report that updates itself
-
+## Quarto Reports
 Every Monday, Priya, a data analyst at the Inkwell Books chain, ships the same thing: last week's sales report. For a long time she did it by hand. She ran her R code, copied the numbers into a Word document, pasted a chart, and wrote a summary sentence. Then one Monday the data changed at the last minute. She updated the chart but forgot the sentence, and the report went out with a headline that said one revenue and a chart that showed another.
 
 That mistake has a name: **copy-paste drift**, and it is exactly what this lesson removes. With **Quarto** (and its older sibling **R Markdown**), the prose, the code, and the figures all live in **one file**. You render that file once and every number in the text is computed by R, never typed. Then you make it a *template* that re-runs for any store or any week, with no editing at all.

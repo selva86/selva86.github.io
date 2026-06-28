@@ -18,8 +18,7 @@ course_prev: "The-Grammar-of-Graphics.html"
 
 === step === cover
 ::eyebrow Lesson 2 of 4
-## Scatter and line charts
-
+## Scatter & Line Charts
 Maya the bakery owner has a new question. Through one warm fortnight she wrote down, for each of 14 days, the daily high **temperature** and the number of **iced coffees** she sold. She suspects hot days sell more iced coffee, but a column of numbers will not tell her. The moment she plots temperature against sales, the answer leans off the page.
 
 In Lesson 1 you learned the grammar: **data**, an **aesthetic mapping** inside `aes()`, and a **geom** added with `+`. Now you put it to work with the two geoms you will reach for most.

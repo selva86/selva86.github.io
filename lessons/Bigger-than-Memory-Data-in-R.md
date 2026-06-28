@@ -18,8 +18,7 @@ course_prev: "dplyr-vs-data-table.html"
 
 === step === cover
 ::eyebrow Lesson 3 of 3
-## When the data is bigger than the laptop
-
+## Bigger-Than-Memory Data
 Maya's bakery chain has been logging every sale for five years. That till log is now a single CSV of about **38 million rows, roughly 12 GB on disk**. Her laptop has **8 GB of memory**. When she runs the import she has used since Lesson 1, R thinks for a minute and then quits:
 
 ```r-static

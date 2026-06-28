@@ -18,8 +18,7 @@ course_prev: "Multivariate-EDA-with-Pairs-and-PCA.html"
 
 === step === cover
 ::eyebrow Lesson 8 of 8
-## Trust, but verify the data first
-
+## Data Quality & Validation
 In Lesson 7 you compressed six of Maya's bakery columns into two clean PCA components. Every method in this course, the histogram in Lesson 1, the correlation in Lesson 2, the outlier rules in Lesson 3, the PCA in Lesson 7, quietly assumed one thing: that the numbers it was handed were real. This lesson questions that assumption before you ever plot a thing.
 
 Maya has stopped typing her numbers in by hand. Her till now emails her a spreadsheet every Monday, `bakery_week.csv`, and she wants to run the same analysis on it automatically each week. The trouble is that an automatic export is a **promise, not a fact**: a stray dollar sign, a sensor that misfires, a day logged twice, and your tidy pipeline produces a confident, wrong answer.

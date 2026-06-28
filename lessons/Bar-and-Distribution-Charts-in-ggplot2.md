@@ -18,8 +18,7 @@ course_prev: "Scatter-and-Line-Charts-in-ggplot2.html"
 
 === step === cover
 ::eyebrow Lesson 3 of 4
-## Bars and distributions
-
+## Bar & Distribution Charts
 It is Saturday and Maya the bakery owner has logged every order, 30 of them, into a little table: the headline item the customer came for, what they spent, and whether it was the morning rush or a quiet afternoon. Two questions are nagging her. *Which pastry is pulling its weight?* and *what does a typical order actually look like?* A scatter or a line, the charts from Lesson 2, answer neither. These questions need bars and distributions.
 
 In Lesson 2 you used `geom_point()` for a relationship and `geom_line()` for a value moving through time. Now you meet the charts that compare categories and reveal the shape of a single column of numbers.

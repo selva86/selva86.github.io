@@ -17,8 +17,7 @@ course_prev: "Telling-a-Story-with-Data.html"
 
 === step === cover
 ::eyebrow Lesson 3 of 3
-## Let a model read what you cannot
-
+## AI-Assisted Analysis
 In Lesson 2, Priya, the analyst at the Inkwell Books chain, learned to lead with the answer. This Monday she is stuck on a different problem. A new feedback form has produced about 4,000 free-text customer reviews across the six stores, things like "Great books, painfully slow checkout." There is no star rating, just sentences. She cannot read 4,000 of them before the morning meeting.
 
 A **large language model** (LLM), a program trained on huge amounts of text that, given an instruction, writes a sensible text response, can read every review in about a minute. It can summarize the themes and tag each review as positive, neutral, or negative. The question this whole lesson answers is the hard one: where is that genuinely useful, and where will the model quietly make something up?

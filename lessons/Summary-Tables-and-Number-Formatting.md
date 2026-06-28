@@ -18,8 +18,7 @@ course_prev: "Report-Tables-with-gt-and-flextable.html"
 
 === step === cover
 ::eyebrow Lesson 2 of 2
-## Two tables that answer "so what?"
-
+## Summary Tables & Formatting
 In Lesson 1, Maya turned her bakery's product sales into a polished gt table for a loan application. The bank liked it, and asked for two more things: a one-glance summary of *who* actually shops at the bakery, and a short analysis of *what* drives how much each customer spends.
 
 Those are two classic report tables. A **summary table** describes a whole dataset in one block (here, Members versus Guests). A **regression table** shows the effect of each factor on an outcome. This lesson builds both in about one line each, then sweats the details that make any table read cleanly: rounding, percentages, units and separators.
