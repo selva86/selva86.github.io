@@ -176,10 +176,11 @@ def check_lesson(path):
             fail('step %d "%s": bare prose about a visualizable idea (%s) - add a visual '
                  'or mark ::prose-only <reason> (R6)' % (n, head, ', '.join(hits[:4])))
 
-    # R5 - practice cadence.
+    # R5 - practice cadence. A section quiz is all questions: it needs >=1 quiz step but
+    # does its hands-on practice with runnable code blocks, not regex try-its.
     if 'quiz' not in types:
         fail('no quiz step (R5: >=1 quiz)')
-    if 'tryit' not in types:
+    if not is_quiz and 'tryit' not in types:
         fail('no try-it step (R5: >=1 try-it)')
 
     # R9 - references (lessons only; a section quiz is an assessment, not a taught lesson).
@@ -242,7 +243,7 @@ def check_lesson(path):
     # widgets, not prose + formulas alone (which slip past the bare-prose R6 check).
     n_widgets = len(re.findall(r'^\s*::widget\b', body, flags=re.M))
     n_teach = sum(1 for t, _ in steps if t in ('concept', 'widget'))
-    if n_widgets == 0 and n_teach >= 3:
+    if not is_quiz and n_widgets == 0 and n_teach >= 3:
         fail('no ::widget used across %d teaching steps: select widgets from '
              '_build/lesson-visual-catalog.md (show, do not just tell - R6).' % n_teach)
 

@@ -1,5 +1,5 @@
 ---
-title: "Data Wrangling with dplyr: Section Quiz"
+title: "Data Wrangling with dplyr: Quiz"
 description: "A short, graded check on the dplyr section: tidy data, the core verbs, grouped summaries, case_when, and missing values."
 keywords: "dplyr quiz, tidy data, filter, mutate, group_by, summarise, case_when, missing values, R practice"
 post_type: "LESSON"
@@ -18,9 +18,9 @@ catalog_blurb: "Check what stuck before you move on."
 ---
 
 === step === cover
-::eyebrow Section quiz
-## Section Quiz
-You have finished the dplyr section: reading and tidying data, the core verbs, grouped summaries, and missing values. This short quiz checks what stuck. Answer each question to continue; you can retry until you get it. Two of the questions ask you to write a line of R and run it.
+::eyebrow Check your understanding
+## Quiz
+You have finished the dplyr section: reading and tidying data, the core verbs, grouped summaries, and missing values. This short quiz checks what stuck. Pick an answer to continue; you can retry until it clicks. The last two steps are live R, run them and tinker.
 
 === step === quiz
 ::eyebrow Question 1 of 8
@@ -82,41 +82,34 @@ Inside `case_when()`, a row satisfies two of your conditions at once. Which resu
 - The result of the first matching condition, read top to bottom. ::ok Correct. Order matters, so put your most specific conditions first.
 - An error, because the conditions overlap. ::no Overlap is allowed; the first match simply wins.
 
-=== step === tryit
-::eyebrow Question 7 of 8
-## Write it: filter rows
-Using the built-in `mtcars`, keep only the cars with `mpg` of at least 25. Fill in the blank and run it.
+=== step === concept
+::eyebrow Run it: filter rows
+## Filtering rows in live R
+Keep only the cars in `mtcars` with `mpg` of at least 25. Run the code below, then change `25` to `30` and run it again to watch the result shrink.
+
 ```r
 library(dplyr)
-mtcars %>%
-  filter(___)
-```
-::check {"regex": "filter.*mpg.*>=?\\s*2[45]", "gate": true, "difficulty": "intermediate", "ok": "Nicely done. filter keeps the rows that meet your condition.", "no": "Filter on mpg, for example filter(mpg >= 25)."}
-::solution
-```r
-library(dplyr)
+
 mtcars %>%
   filter(mpg >= 25)
 ```
 
-=== step === tryit
-::eyebrow Question 8 of 8
-## Write it: summarise by group
-Still using `mtcars`, find the average `mpg` for each value of `cyl`. The grouping is done for you; add the summary.
+That is `filter` at work: it keeps the rows meeting your condition and leaves every column in place.
+
+=== step === concept
+::eyebrow Run it: summarise by group
+## Grouped summaries in live R
+Find the average `mpg` for each cylinder count. Run it, then swap `mean` for `max` to get the best mileage in each group instead.
+
 ```r
 library(dplyr)
-mtcars %>%
-  group_by(cyl) %>%
-  ___
-```
-::check {"regex": "summari[sz]e", "gate": true, "difficulty": "intermediate", "ok": "That is the group-then-summarise pattern at work.", "no": "After group_by(cyl), use summarise() to compute mean(mpg)."}
-::solution
-```r
-library(dplyr)
+
 mtcars %>%
   group_by(cyl) %>%
   summarise(avg_mpg = mean(mpg))
 ```
+
+`group_by` then `summarise` is the workhorse pattern behind almost every report: one row out per group.
 
 === step === complete
 ## Section complete
