@@ -1113,6 +1113,32 @@ def heal_fragment(body):
     return heal_inline_md(heal_callouts(body))
 
 
+# Tutorial -> interactive-lesson map (lesson-links.json, tutorial slug -> {slug,title}).
+# Used to add a "try the free interactive lesson" callout on the matching free
+# tutorial page. All mapped lessons are free; extend by editing lesson-links.json.
+LESSON_LINKS_PATH = os.path.join(REPO_ROOT, 'lesson-links.json')
+try:
+    with open(LESSON_LINKS_PATH, encoding='utf-8') as _llf:
+        LESSON_LINKS = json.load(_llf)
+except Exception:
+    LESSON_LINKS = {}
+
+
+def lesson_callout_html(slug):
+    """Callout linking a tutorial page to its interactive lesson, or '' if unmapped.
+    slug is the output filename (e.g. 'Tidy-Data-in-R.html')."""
+    e = LESSON_LINKS.get(slug[:-5] if slug.endswith('.html') else slug)
+    if not e:
+        return ''
+    return ('<div class="callout callout-lesson" style="margin:18px 0;padding:13px 16px;border:1px solid #cfe6d8;'
+            "border-left:4px solid #1f7a55;border-radius:10px;background:#f2faf5\">"
+            "<div style=\"font:600 11px/1 'JetBrains Mono',ui-monospace,monospace;letter-spacing:.08em;"
+            'text-transform:uppercase;color:#1f7a55;margin-bottom:5px">Interactive lesson</div>'
+            '<div style="font-size:15px;line-height:1.55;color:#243349">Prefer to learn by doing? Work through the free '
+            'interactive lesson <a href="/' + e['slug'] + '.html" style="color:#1f7a55;font-weight:600">'
+            + _esc_html(e['title']) + ' &rarr;</a> - guided steps, live R you can run, and graded checks.</div></div>')
+
+
 def build_post(
     template, post_path, sidebar_map=None, prev_next_map=None,
     slug_to_subpath=None, subpath_to_slugs=None,
@@ -1257,12 +1283,16 @@ def build_post(
     # so the snippet-eligible answer sits right under the H1 with no metadata between.
     # Fallback: after the first H1 if no lead paragraph is present.
     byline_html = render_byline(date_published, date_modified)
+    # A "try the interactive lesson" callout sits right under the byline on tutorial
+    # pages that have a free interactive lesson (lesson-links.json).
+    lesson_cta = lesson_callout_html(slug)
+    after_lead = byline_html + (('\n' + lesson_cta) if lesson_cta else '')
     lead_match = re.search(r'<p class="lead"[^>]*>.*?</p>', content, re.DOTALL)
     if lead_match:
         end = lead_match.end()
-        content = content[:end] + '\n' + byline_html + content[end:]
+        content = content[:end] + '\n' + after_lead + content[end:]
     elif '</h1>' in content:
-        content = content.replace('</h1>', '</h1>\n' + byline_html, 1)
+        content = content.replace('</h1>', '</h1>\n' + after_lead, 1)
 
     # PSEO posts: auto-inject "Run live, no install" callout above the first
     # WebR code block. One-time, makes the silent moat visible. Skipped if the
