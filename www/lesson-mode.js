@@ -30,7 +30,14 @@
     var courseTitle = ds.courseTitle || 'Course';
     // the lesson's own title is its cover-step H2 (this is what the roadmap row shows); the
     // course title stays as the exit target + rail header. Keeps chrome == roadmap == cover.
-    var lessonTitle = (function () { var h = steps[0] && steps[0].querySelector('h2'); var t = h && (h.textContent || '').trim(); return t || courseTitle; })();
+    var lessonTitle = (function () {
+      var h = steps[0] && steps[0].querySelector('h2');
+      if (!h) return courseTitle;
+      var c = h.cloneNode(true);                       // drop any heading anchor-link ("#") before reading
+      Array.prototype.forEach.call(c.querySelectorAll('a'), function (a) { if ((a.textContent || '').trim() === '#') a.parentNode.removeChild(a); });
+      var t = (c.textContent || '').trim().replace(/^#\s*/, '').replace(/\s*#$/, '').trim();
+      return t || courseTitle;
+    })();
     var landing = ds.courseLanding || '/';
     var nextHref = ds.courseNext || '';
     var total = steps.length;
