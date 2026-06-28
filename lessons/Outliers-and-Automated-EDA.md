@@ -1,5 +1,5 @@
 ---
-title: "Exploratory Data Analysis Lesson 3: Outliers and automated EDA"
+title: "Exploratory Data Analysis Lesson 3: Outliers & Automated EDA"
 description: "Spot outliers with the 1.5xIQR rule and a boxplot, decide whether to keep, cap or drop them, then scan a whole data frame in one call with skimr and DataExplorer."
 keywords: "outliers in R, IQR rule, boxplot outliers, automated EDA, skimr, DataExplorer, winsorize, robust statistics, trimmed mean, exploratory data analysis"
 post_type: "LESSON"
@@ -18,8 +18,7 @@ course_prev: "Two-Variables-and-Correlation-in-R.html"
 
 === step === cover
 ::eyebrow Lesson 3 of 3
-## The one value that breaks everything
-
+## Outliers & Automated EDA
 Across Lessons 1 and 2 you met Maya's bakery and one number that kept causing trouble: a single $905 day, a one-off street-festival order. It dragged her *average* revenue above a typical day (Lesson 1), and a stray point like it can quietly distort a correlation (Lesson 2). That lone value has a name, an **outlier**, and handling it well is the difference between an honest analysis and a misleading one.
 
 This lesson tackles the two things real data forces on you. First, **finding outliers and deciding what to do** with them, like Maya's $905 day. Second, doing the whole first look **at scale**: Maya had 30 numbers you could read by eye, but real datasets have dozens of columns and thousands of rows. The boxplot below is that $905 day, caught: notice it sitting alone, far past the whisker.

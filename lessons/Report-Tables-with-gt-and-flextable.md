@@ -1,5 +1,5 @@
 ---
-title: "Report-Ready Tables Lesson 1: From data frame to report table"
+title: "Report-Ready Tables Lesson 1: Report-Ready Tables"
 description: "Turn a raw R data frame into a presentation-ready report table with gt: titles, human labels, currency and percent formatting, plus flextable and kableExtra."
 keywords: "gt R package, flextable, kableExtra, report tables in R, format numbers in R, gt fmt_currency, gt fmt_percent, kable, presentation tables, scales package"
 post_type: "LESSON"
@@ -17,8 +17,7 @@ course_prev: ""
 
 === step === cover
 ::eyebrow Lesson 1 of 2
-## The table your reader actually sees
-
+## Report-Ready Tables
 Maya runs a neighbourhood bakery, and she is applying for a small-business loan. The bank wants her Q1 numbers, so she opens R, where her till export sits as a tidy data frame: five products, the units each one sold, the revenue, and the profit margin. She copies the raw printout straight into the application.
 
 It comes out monospaced and unlabeled: `0.62` where she means 62%, `5520` with no dollar sign, column names like `margin` that only an analyst would love. The data is perfectly correct. It just does not *read* like something you hand to a bank. A **report table** fixes exactly that: a title, human column names, dollars and percentages, and a line saying where the numbers came from.

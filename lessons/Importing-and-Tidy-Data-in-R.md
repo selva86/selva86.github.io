@@ -1,5 +1,5 @@
 ---
-title: "Data Wrangling Lesson 1: Import a CSV and make it tidy"
+title: "Data Wrangling Lesson 1: Import & Tidy Data"
 description: "Read a real CSV into R with readr, fix the column-type snag that bites beginners, and learn the three rules of tidy data that make every later step easy."
 keywords: "read_csv, readr, import CSV in R, tidy data, tidyverse, pivot_longer, column types, data wrangling"
 post_type: "LESSON"
@@ -17,8 +17,7 @@ course_prev: ""
 
 === step === cover
 ::eyebrow Lesson 1 of 3
-## Getting data in, and into shape
-
+## Import & Tidy Data
 Maya runs a small neighbourhood bakery. Every analysis she will ever do, counting her best-selling loaf, charting sales by week, forecasting next month, starts with two unglamorous steps: getting the numbers off her till and into R, and arranging them into a shape R can actually work with.
 
 Those two steps are this lesson. Skip them and everything downstream fights you; get them right and the rest of the course flows.

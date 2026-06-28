@@ -55,7 +55,7 @@ COURSE_ROADMAP = {
 # t-test / llm-agents lessons), where the colon-tail is a stray fragment. List
 # those here, keyed by slug; absent slugs fall back to short_title().
 LESSON_CATALOG_TITLE = {
-    'Missing-Value-Treatment': 'Find and treat missing data',
+    'Missing-Value-Treatment': 'Missing Value Treatment',
     'LLM-Agents-in-R': 'Build an LLM agent from scratch',
     'The-t-test-from-scratch': 'The t-test from scratch',
     'Comparing-Groups-with-t-tests': 'Comparing groups with t-tests',

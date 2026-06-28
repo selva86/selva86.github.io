@@ -1,5 +1,5 @@
 ---
-title: "Exploratory Data Analysis Lesson 6: Distribution shape and transformations"
+title: "Exploratory Data Analysis Lesson 6: Distributions & Transformations"
 description: "Read distribution shape in R: skew, heavy tails, multiple peaks. Check normality with a Q-Q plot, then fix skew with log, square-root and Box-Cox transforms."
 keywords: "distribution shape, skewness in R, right-skewed, heavy tails, Q-Q plot, normality, log transformation, square root transform, Box-Cox, power transformation, EDA in R"
 post_type: "LESSON"
@@ -18,8 +18,7 @@ course_prev: "Categorical-and-Frequency-EDA.html"
 
 === step === cover
 ::eyebrow Lesson 6 of 8
-## Same average, very different shape
-
+## Distributions & Transformations
 In Lesson 5 you explored the **categories** in Maya's bakery data, what sells and how it is ordered. Now we come back to her **numbers**, but we ask a deeper question than "what is a typical value?" We ask: what is the **shape** of the whole distribution?
 
 Below is what each of 50 customers spent on a single visit to Maya's bakery, in dollars. Most spend a few dollars on a coffee and a pastry; a handful spend far more. That lopsided picture, a tall stack on the left and a long thin tail reaching right, is the most common shape in real data, and reading it is today's skill.

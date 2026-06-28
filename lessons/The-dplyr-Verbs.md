@@ -17,8 +17,7 @@ course_prev: "Importing-and-Tidy-Data-in-R.html"
 
 === step === cover
 ::eyebrow Lesson 2 of 3
-## The verbs that do the work
-
+## The dplyr Verbs
 In Lesson 1 you got Maya's bakery sales off her till, into R, and into tidy shape. The data is ready. So what do you actually DO with it? Almost every analysis is a handful of small, sharply named verbs, each doing one job to a table: keep some rows, keep some columns, add a column, sort, tally. Learn these and you can answer most questions you will ever put to a data frame.
 
 By the end of this lesson you will be able to:

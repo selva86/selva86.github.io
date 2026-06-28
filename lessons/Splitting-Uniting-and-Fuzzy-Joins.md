@@ -1,5 +1,5 @@
 ---
-title: "Joining Data Lesson 3: Split, unite and fuzzy joins in R"
+title: "Joining Data Lesson 3: Split, Unite & Fuzzy Joins"
 description: "Clean messy data in R: split a crammed column with separate(), build a key with unite(), and match names that nearly agree using string-distance fuzzy joins."
 keywords: "separate, unite, tidyr, separate columns in R, fuzzy join, fuzzyjoin, stringdist, string distance, edit distance, adist, data cleaning in R, join keys, stringr"
 post_type: "LESSON"
@@ -18,8 +18,7 @@ course_prev: "Pivoting-Long-and-Wide-in-R.html"
 
 === step === cover
 ::eyebrow Lesson 3 of 3
-## When the columns and keys are messy
-
+## Split, Unite & Fuzzy Joins
 In Lesson 2 you changed a table's **shape**. But real data arrives dirty in a different way: a single column crams two facts together, or two tables that should line up have keys that only *nearly* agree.
 
 Maya, who runs a small bakery, now pulls sales from an online-orders export and prices from a supplier sheet someone typed by hand. Below are her items on the left and the supplier's price sheet on the right. To you they read as the same four products. Click **inner**: an exact join finds only **two** matches. The other two are spelled just differently enough to be invisible to the join.

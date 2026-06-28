@@ -1,5 +1,5 @@
 ---
-title: "Report-Ready Tables Lesson 2: Summary tables and number formatting"
+title: "Report-Ready Tables Lesson 2: Summary Tables & Formatting"
 description: "Build one-line summary tables and regression tables with gtsummary, then format numbers, percentages and units in R so a whole table reads cleanly."
 keywords: "gtsummary, tbl_summary, tbl_regression, summary table in R, regression table R, format numbers in R, scales package, signif, round half to even, significant figures"
 post_type: "LESSON"
@@ -18,8 +18,7 @@ course_prev: "Report-Tables-with-gt-and-flextable.html"
 
 === step === cover
 ::eyebrow Lesson 2 of 2
-## Two tables that answer "so what?"
-
+## Summary Tables & Formatting
 In Lesson 1, Maya turned her bakery's product sales into a polished gt table for a loan application. The bank liked it, and asked for two more things: a one-glance summary of *who* actually shops at the bakery, and a short analysis of *what* drives how much each customer spends.
 
 Those are two classic report tables. A **summary table** describes a whole dataset in one block (here, Members versus Guests). A **regression table** shows the effect of each factor on an outcome. This lesson builds both in about one line each, then sweats the details that make any table read cleanly: rounding, percentages, units and separators.

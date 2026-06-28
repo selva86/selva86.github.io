@@ -1,5 +1,5 @@
 ---
-title: "data.table Lesson 3: Bigger-than-memory data in R"
+title: "data.table Lesson 3: Bigger-Than-Memory Data"
 description: "Your data is bigger than your laptop memory. Stream it in chunks and query it on disk with DuckDB and dplyr from R, without ever loading the whole file."
 keywords: "bigger than memory data R, out of core R, duckdb in R, duckplyr, data.table fread, streaming chunks R, large data R, query parquet R"
 post_type: "LESSON"
@@ -18,8 +18,7 @@ course_prev: "dplyr-vs-data-table.html"
 
 === step === cover
 ::eyebrow Lesson 3 of 3
-## When the data is bigger than the laptop
-
+## Bigger-Than-Memory Data
 Maya's bakery chain has been logging every sale for five years. That till log is now a single CSV of about **38 million rows, roughly 12 GB on disk**. Her laptop has **8 GB of memory**. When she runs the import she has used since Lesson 1, R thinks for a minute and then quits:
 
 ```r-static

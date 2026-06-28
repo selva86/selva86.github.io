@@ -1,5 +1,5 @@
 ---
-title: "Interactive Dashboards Lesson 1: Charts and maps you can explore"
+title: "Interactive Dashboards Lesson 1: Interactive Charts & Maps"
 description: "Make R charts interactive with ggplotly and plotly (hover, zoom) and put your data on a leaflet map with markers and popups, plus when to keep a chart static."
 keywords: "plotly in R, ggplotly, interactive charts in R, leaflet R maps, addCircleMarkers, interactive ggplot, htmlwidgets, hover tooltip, interactive visualization R"
 post_type: "LESSON"
@@ -17,8 +17,7 @@ course_prev: ""
 
 === step === cover
 ::eyebrow Lesson 1 of 3
-## A chart you can talk back to
-
+## Interactive Charts & Maps
 Maya's one neighbourhood bakery, the shop whose Q1 numbers you turned into a report table earlier in this track, did so well that she opened five more. She now runs **six** coffee-and-pastry shops across the city, and a printed bar chart no longer keeps up with her questions. *Which shop is that tall bar again? What exactly did the quiet one take last month? Where are they on the map?*
 
 A static chart is a photograph: it shows the shape and then stops answering. An **interactive** chart is a conversation. You hover a point and it tells you which shop and the exact dollars; you drag a box around a crowded corner and it zooms in; you pan a map and the streets move under your shops. Move the **Area** filter on the dashboard below and watch every number and chart answer at once. That responsiveness is what this lesson builds, one chart and one map at a time.

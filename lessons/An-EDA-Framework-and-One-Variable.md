@@ -1,5 +1,5 @@
 ---
-title: "Exploratory Data Analysis Lesson 1: An EDA framework, one variable at a time"
+title: "Exploratory Data Analysis Lesson 1: Univariate EDA"
 description: "Learn a repeatable 7-step EDA framework, then analyze one variable at a time in R: distribution shape, center, spread, and how to read a histogram and a boxplot."
 keywords: "exploratory data analysis, EDA in R, univariate analysis, histogram, boxplot, mean vs median, standard deviation, IQR, distribution, outliers"
 post_type: "LESSON"
@@ -18,8 +18,7 @@ course_prev: ""
 
 === step === cover
 ::eyebrow Lesson 1 of 3
-## Looking at your data, one variable at a time
-
+## Univariate EDA
 You can now get data into R, tidy it, and join tables together. So you are holding a clean data frame. The very next question, before any model or fancy chart, is the simplest one there is: what is actually in it?
 
 Meet Maya, who runs a small neighbourhood bakery. She has just handed you one column: her daily revenue for the 30 days of March, in dollars. Below is every one of those 30 days drawn as a histogram. By the end of this lesson you will read a picture like this at a glance, and back it up with numbers.

@@ -1,5 +1,5 @@
 ---
-title: "ggplot2 Lesson 4: A Gallery and Publication Figures"
+title: "ggplot2 Lesson 4: Publication-Ready Figures"
 description: "Choose the right ggplot2 chart for any question, then polish one figure to publication quality: a finding-first title, clean labels, a tidy theme, safe colour and ggsave."
 keywords: "ggplot2 publication figures, ggsave, theme_minimal, labs title, axis labels, caption, colorblind-safe palette, Okabe-Ito, choose a chart, ggplot2 tutorial, polish a ggplot"
 post_type: "LESSON"
@@ -17,8 +17,7 @@ course_prev: "Bar-and-Distribution-Charts-in-ggplot2.html"
 
 === step === cover
 ::eyebrow Lesson 4 of 4
-## From a draft chart to a figure
-
+## Publication-Ready Figures
 Maya the bakery owner has found something worth sharing. Quiet little Sourdough, ordered only 3 times last Saturday, quietly out-earned Coffee, her busiest seller. She wants that surprise on the front of the bakery's monthly newsletter. So she draws the bar chart and... it comes out grey, the axis says `revenue` in tiny lowercase, there is no title, and the finding is buried. A chart on your own screen and a **figure** a stranger can read in three seconds are not the same thing.
 
 Across this course you learned the grammar (Lesson 1), scatter and line charts (Lesson 2), and bars and distributions (Lesson 3). You can now draw almost anything. This final lesson is about the last mile: picking the *right* chart, then polishing one to publication quality. Drag the controls below to feel where we are headed.

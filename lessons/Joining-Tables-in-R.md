@@ -1,5 +1,5 @@
 ---
-title: "Joining Data Lesson 1: Combine two tables in R"
+title: "Joining Data Lesson 1: Joining Tables"
 description: "Combine two keyed tables in R with dplyr joins: the mutating inner, left, right and full joins, the filtering semi and anti joins, and non-equi join_by."
 keywords: "dplyr joins, inner_join, left_join, right_join, full_join, semi_join, anti_join, join_by, non-equi join, joining tables in R"
 post_type: "LESSON"
@@ -17,8 +17,7 @@ course_prev: ""
 
 === step === cover
 ::eyebrow Lesson 1 of 3
-## One question, two tables
-
+## Joining Tables
 You can already wrangle a single table: filter it, add columns, summarise it. But real data almost never arrives in one table. Maya's bakery keeps the week's **sales** in one place (what rang up at the till) and a **product catalogue** in another (each item's price and shelf). To answer something as simple as "how much revenue came from pastries?", she first has to stitch the two together.
 
 That stitching is a **join**, and it is the whole of this lesson. Below are Maya's two tables. The key that links them is `item`, the column they share. Click through the join types and watch which rows survive.

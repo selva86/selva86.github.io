@@ -1,5 +1,5 @@
 ---
-title: "data.table Lesson 4: Write dplyr, get data.table speed with dtplyr"
+title: "data.table Lesson 4: dtplyr: dplyr at data.table Speed"
 description: "Keep dplyr's readable syntax and get data.table's speed. dtplyr's lazy_dt() translates your pipes into data.table; see the translation with show_query()."
 keywords: "dtplyr, lazy_dt, dplyr to data.table, show_query, dtplyr collect, fast dplyr in R, data.table backend, dplyr speed R"
 post_type: "LESSON"
@@ -18,8 +18,7 @@ course_prev: "Bigger-than-Memory-Data-in-R.html"
 
 === step === cover
 ::eyebrow Lesson 4 of 4
-## You should not have to choose
-
+## dtplyr: dplyr at data.table Speed
 Across this course Maya learned data.table on her bakery chain's sales: the `DT[i, j, by]` bracket and keys in Lesson 1, data.table beating dplyr on speed in Lesson 2, and querying data too big for memory in Lesson 3. One friction stuck around. data.table is fast, but its compact bracket is a second language to learn and to read, while the dplyr she already writes is slower on big tables.
 
 **dtplyr** removes the trade-off. You keep writing ordinary dplyr, and dtplyr quietly translates it into data.table and lets data.table's engine do the work. Readable code on top, fast engine underneath.

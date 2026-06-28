@@ -1,5 +1,5 @@
 ---
-title: "Advanced ggplot2 Lesson 3: Annotate and Compose Plots"
+title: "Advanced ggplot2 Lesson 3: Annotate & Compose"
 description: "Make a ggplot explain itself: reference lines and annotate() callouts, non-overlapping labels with ggrepel, and stitching several plots into one figure with patchwork."
 keywords: "ggplot2 annotate, geom_hline, reference line, ggrepel, geom_text_repel, patchwork, compose plots, annotate plot in R, ggplot2 tutorial"
 post_type: "LESSON"
@@ -18,8 +18,7 @@ course_prev: "Themes-Color-and-Accessibility.html"
 
 === step === cover
 ::eyebrow Lesson 3 of 3
-## Make the chart explain itself
-
+## Annotate & Compose
 In Lessons 1 and 2, Maya the baker took her three branches, **Downtown**, **Riverside** and the big **Airport** shop, split the crowded chart into small multiples, and restyled it with a clean theme and colourblind-safe colours. The chart is readable and on-brand. Now she has to *present* it: on Friday she pitches two investors, and a chart that needs her standing beside it to explain it is a chart that fails the moment she sits down.
 
 This lesson is about making a plot speak for itself, then stitching several plots into one figure. Three moves: **mark** the values that matter with reference lines and notes, **label** the points so each one is named, and **compose** several charts into a single slide. The scatter below is Maya's raw canvas, foot traffic against revenue for all three branches. By the end you will turn it, and its siblings, into a briefing.

@@ -1,5 +1,5 @@
 ---
-title: "Exploratory Data Analysis Lesson 7: Multivariate EDA with pairs and PCA"
+title: "Exploratory Data Analysis Lesson 7: Multivariate EDA & PCA"
 description: "Multivariate EDA in R: read a scatterplot matrix and correlation heatmap, then compress correlated columns with PCA (prcomp) and read a scree plot and biplot."
 keywords: "PCA in R, prcomp, scatterplot matrix, ggpairs, GGally, correlation heatmap, scree plot, biplot, principal component analysis, multivariate EDA, dimensionality reduction"
 post_type: "LESSON"
@@ -18,8 +18,7 @@ course_prev: "Distribution-Shape-and-Transformations.html"
 
 === step === cover
 ::eyebrow Lesson 7 of 8
-## Six columns, two hidden stories
-
+## Multivariate EDA & PCA
 In Lesson 6 you read the **shape** of one column at a time, and in Lesson 2 you compared **two** columns with a scatterplot and a correlation. But Maya's bakery has outgrown one-and-two-at-a-time. Her new logbook has **six** numeric columns recorded over **22 days**: how many people walked in (`foot_traffic`), how many sales she rang up (`transactions`), her takings (`revenue`), the day's `temperature`, and how many `iced_coffee` and `hot_cocoa` cups she sold.
 
 Six columns make \(15\) different pairs to inspect. Squint at them one by one and you drown. The skill in this lesson is to take in **all the columns at once**, find which ones really move together, and then **squeeze** them down to the handful of underlying stories actually driving the data. The heatmap below is the first hint: paint every pair's correlation as colour and two blocks jump out, before you compute anything by hand.

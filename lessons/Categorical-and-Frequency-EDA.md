@@ -1,5 +1,5 @@
 ---
-title: "Exploratory Data Analysis Lesson 5: Categorical and frequency EDA"
+title: "Exploratory Data Analysis Lesson 5: Categorical EDA"
 description: "Explore categorical data in R: build frequency and proportion tables, cross-tabulate two variables, read row versus column proportions, and fix rare, missing and mislabeled levels."
 keywords: "categorical EDA, frequency table in R, proportion table, table function, prop.table, two-way cross tab, contingency table, bar chart, factor levels, dplyr count, exploratory data analysis"
 post_type: "LESSON"
@@ -18,8 +18,7 @@ course_prev: "Detecting-Outliers-in-R.html"
 
 === step === cover
 ::eyebrow Lesson 5 of 8
-## Categories, not just numbers
-
+## Categorical EDA
 In Lesson 4 you hunted outliers in Maya's **numbers**: her daily revenue and customer counts. But numbers are only half of most datasets. The other half is **categories**, the labels that say *which* item sold, *which* way the order came in, *which* kind of weather it was. A category has no mean and no boxplot, so it needs its own toolkit, and that toolkit is what this lesson hands you.
 
 Maya has started logging every individual **order** at her bakery, not just the daily totals. Each of her 48 March orders carries two category columns: the `item` sold (croissant, sourdough, muffin, and so on) and the `channel` it came through (walk-in, online or phone). The chart below is the very first question you ask of a category: how often does each value occur?

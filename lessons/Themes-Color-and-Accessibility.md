@@ -1,5 +1,5 @@
 ---
-title: "Advanced ggplot2 Lesson 2: Themes, Colour and Accessibility"
+title: "Advanced ggplot2 Lesson 2: Themes & Accessibility"
 description: "Restyle a ggplot without touching the data: built-in and custom themes, the right colour scale for each data type, and colourblind-safe, accessible palettes."
 keywords: "ggplot2 themes, theme_minimal, colour scales, scale_fill_viridis, scale_fill_brewer, colorblind safe palette, Okabe-Ito, viridis, accessible data visualization, ggplot2 tutorial"
 post_type: "LESSON"
@@ -18,8 +18,7 @@ course_prev: "Facets-and-Scales-in-ggplot2.html"
 
 === step === cover
 ::eyebrow Lesson 2 of 3
-## Restyle it, without touching the data
-
+## Themes & Accessibility
 In Lesson 1, Maya the baker had three branches, **Downtown**, **Riverside** and the big **Airport** shop, and you split her crowded chart into small multiples with facets, then bent the scales so every branch was readable. The numbers were finally clear.
 
 Now she wants the chart to *look* the part: clean, on-brand, and, because one of her investors is colourblind, readable by everyone in the room. None of that means changing a single data point. It means changing the **theme** (the fonts, gridlines and background) and the **colours**. Below is exactly that, the same bar chart, restyled live. Flip the **Palette** and **Theme** controls and watch the look change while the bars keep their values.

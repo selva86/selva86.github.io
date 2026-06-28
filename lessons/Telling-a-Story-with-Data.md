@@ -1,5 +1,5 @@
 ---
-title: "Communicate and Automate Lesson 2: Telling a story with data"
+title: "Communicate and Automate Lesson 2: Data Storytelling"
 description: "Lead with the answer: structure a short data story a busy reader acts on in 30 seconds, with an executive summary, the inverted pyramid, and one telling chart."
 keywords: "data storytelling, executive summary, BLUF, lead with the answer, inverted pyramid, data communication, report structure, ggplot2 title, R, data analyst"
 post_type: "LESSON"
@@ -17,8 +17,7 @@ course_prev: "Reproducible-Reports-with-Quarto.html"
 
 === step === cover
 ::eyebrow Lesson 2 of 3
-## Make the answer land in thirty seconds
-
+## Data Storytelling
 In Lesson 1 you built a report that updates itself. It is correct, reproducible, and ignored. Priya ships hers every Monday to Dev, the regional manager. Dev opens twenty reports that morning and gives each about thirty seconds. He skims Priya's first paragraph, which describes how the data was pulled, glances at a table, and moves on. He never reaches the finding at the bottom, the one that needed a decision this week.
 
 A correct report that nobody acts on has failed. This lesson is the other half of the job: structuring what you found so a busy reader gets it, and acts on it, in thirty seconds.

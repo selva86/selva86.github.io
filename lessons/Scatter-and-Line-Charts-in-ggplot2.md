@@ -1,5 +1,5 @@
 ---
-title: "ggplot2 Lesson 2: Scatter and Line Charts"
+title: "ggplot2 Lesson 2: Scatter & Line Charts"
 description: "geom_point and geom_line in ggplot2: when to use each, mapping a third variable to colour and size, and adding a least-squares trend line that summarises the cloud."
 keywords: "ggplot2 scatter plot, geom_point, geom_line, geom_smooth, trend line in R, aes colour size, line chart in R, scatterplot in R, ggplot2 tutorial"
 post_type: "LESSON"
@@ -18,8 +18,7 @@ course_prev: "The-Grammar-of-Graphics.html"
 
 === step === cover
 ::eyebrow Lesson 2 of 4
-## Scatter and line charts
-
+## Scatter & Line Charts
 Maya the bakery owner has a new question. Through one warm fortnight she wrote down, for each of 14 days, the daily high **temperature** and the number of **iced coffees** she sold. She suspects hot days sell more iced coffee, but a column of numbers will not tell her. The moment she plots temperature against sales, the answer leans off the page.
 
 In Lesson 1 you learned the grammar: **data**, an **aesthetic mapping** inside `aes()`, and a **geom** added with `+`. Now you put it to work with the two geoms you will reach for most.

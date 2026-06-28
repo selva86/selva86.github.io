@@ -1,5 +1,5 @@
 ---
-title: "Joining Data Lesson 2: Pivot data long and wide in R"
+title: "Joining Data Lesson 2: Pivoting: Long & Wide"
 description: "Reshape data in R with tidyr: pivot_longer takes wide data to long (tidy), pivot_wider takes long back to wide for reports, and nest and unnest handle nested data."
 keywords: "pivot_longer, pivot_wider, tidyr, reshape data in R, wide to long, long to wide, nest, unnest, tidy data, list columns"
 post_type: "LESSON"
@@ -17,8 +17,7 @@ course_prev: "Joining-Tables-in-R.html"
 
 === step === cover
 ::eyebrow Lesson 2 of 3
-## One table, the wrong shape
-
+## Pivoting: Long & Wide
 In Lesson 1 you stitched two tables together with joins. But even a single, complete table can be in the wrong **shape** for the job in front of you.
 
 Maya, who runs a small bakery, keeps her week of loaf sales on a whiteboard the way any of us would: one row per item, one column per day.

@@ -1,5 +1,5 @@
 ---
-title: "Advanced ggplot2 Lesson 1: Facets and Scales"
+title: "Advanced ggplot2 Lesson 1: Facets & Scales"
 description: "Split one crowded chart into small multiples with facet_wrap and facet_grid, choose fixed vs free scales honestly, and bend axes, guides and legends to your will."
 keywords: "facet_wrap, facet_grid, small multiples, ggplot2 scales, free scales, scale_y_log10, ggplot legend, guides, facets in R, ggplot2 tutorial"
 post_type: "LESSON"
@@ -18,8 +18,7 @@ course_prev: ""
 
 === step === cover
 ::eyebrow Lesson 1 of 3
-## One chart per group
-
+## Facets & Scales
 Maya the neighbourhood baker did well enough to open two more branches. She now runs three: **Downtown**, **Riverside**, and the new one inside the **Airport**. Each branch logs the same two numbers every day, the **foot traffic** (people who walked in) and the **revenue** (dollars taken). When she draws all three branches on one chart, it turns into a tangle: the Airport branch is so much bigger that the other two flatten into the floor.
 
 The fix is one of the most useful moves in all of data visualization: stop forcing every group onto one panel, and give each group its **own little chart**. Below is exactly that, the same data as one chart, then split into small multiples. Flip the toggle.
