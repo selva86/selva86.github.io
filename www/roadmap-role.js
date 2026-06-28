@@ -1,10 +1,10 @@
 (function(){
   function esc(t){return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;');}
   function freeHref(t){return (RM2.links&&RM2.links[t])||RM.STOP_LINKS[t]||'/tutorials/';}
-  var CV={foundations:'--core',analyst:'--core',ds:'--ds',ts:'--ts',researcher:'--res',developer:'--dev'};
-  var ROLE={foundations:'New to R',analyst:'Data Analyst',ds:'Data Scientist',ts:'Forecaster',researcher:'Researcher',developer:'R Developer'};
-  var CHIP={foundations:'Foundations',analyst:'Data Analyst track',ds:'Data Scientist track',ts:'Forecaster track',researcher:'Researcher track',developer:'R Developer track'};
-  var ALLOWED=['foundations','analyst','ds','ts','researcher','developer'];
+  var CV={foundations:'--core',analyst:'--core',ds:'--ds',ts:'--ts',researcher:'--res',developer:'--dev',mleng:'--mle'};
+  var ROLE={foundations:'New to R',analyst:'Data Analyst',ds:'Data Scientist',ts:'Forecaster',researcher:'Researcher',developer:'R Developer',mleng:'ML Engineer'};
+  var CHIP={foundations:'Foundations',analyst:'Data Analyst track',ds:'Data Scientist track',ts:'Forecaster track',researcher:'Researcher track',developer:'R Developer track',mleng:'ML Engineer track'};
+  var ALLOWED=['foundations','analyst','ds','ts','researcher','developer','mleng'];
   var UNLOCK='<a class="tag pro" href="/pricing.html" title="Unlock with Pro" onclick="event.stopPropagation()">Pro</a>';
   var ROWLOCK='<svg class="lk" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/></svg>';
 
@@ -133,7 +133,14 @@
       (free?'<span class="tag free">Free</span>':UNLOCK)+'<span class="cnt">'+s.items.length+'</span></summary>'+
       '<div class="lsns">'+s.items.map(function(t){return lessonRow(t,free);}).join('')+'</div></details>';
   }
-  document.getElementById('curric').innerHTML=secs.map(function(s,i){return secDetails(s,isFree(s),i===0);}).join('');
+  var TIERBAND={core:['Core','the certified path'],adv:['Advanced','operate at scale'],ai:['AI and LLM systems','the 2026/27 pillar'],spec:['Specializations','pick your domain'],capstone:['Capstone','put it all together']};
+  function bandHead(t){var b=TIERBAND[t];return b?'<div class="tband"><span class="tbk">'+b[0]+'</span><span class="tbs">'+b[1]+'</span></div>':'';}
+  function certMile(){return '<div class="tcert"><span class="th"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Core complete \u00b7 certified '+ROLE[role].toLowerCase()+'</span><span class="ts">everything below is how you go senior</span></div>';}
+  (function(){var html='',prev=null;
+    secs.forEach(function(s,i){var t=s.tier||null;
+      if(t&&t!==prev){if(prev==='core')html+=certMile();html+=bandHead(t);prev=t;}
+      html+=secDetails(s,isFree(s),i===0);});
+    document.getElementById('curric').innerHTML=html;})();
 
   // deep-link from a lesson player: /roadmap/<role>.html#rm-s<n>. #curric is built
   // here in JS, so the browser's native hash scroll already fired against nothing.

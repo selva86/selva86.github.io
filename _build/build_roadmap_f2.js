@@ -21,7 +21,9 @@ const ROLES=[
   {k:'researcher',slug:'researcher',name:'Researcher',title:'Applied Statistics in R: the Researcher Roadmap',
    desc:'Run defensible statistics in R: inference, regression, GLMs, mixed models, causal inference and Bayes. Ends in the Applied Statistics certificate.'},
   {k:'developer',slug:'r-developer',name:'R Developer',title:'Advanced R: the R Developer Roadmap',
-   desc:'Engineer production-grade R: functional and object-oriented R, packages, testing, performance and Shiny. Ends in the Advanced R certificate.'}
+   desc:'Engineer production-grade R: functional and object-oriented R, packages, testing, performance and Shiny. Ends in the Advanced R certificate.'},
+  {k:'mleng',slug:'ml-engineer',name:'ML Engineer',title:'ML Engineering in R: the Roadmap',
+   desc:'Take R models from notebook to monitored, scaled, secured production - classical ML and AI/LLM systems - with vetiver, plumber, targets and ellmer. Ends in the ML Engineering certificate.'}
 ];
 const FONTS='<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@500;600;700&family=Inter:wght@400;450;500;600&family=JetBrains+Mono:wght@500;600&family=IBM+Plex+Serif:wght@700&display=swap" rel="stylesheet">';
 const AUTHCSS='<style>.auth-anon{display:none;align-items:center}body.state-anon .auth-anon{display:inline-flex}.masthead-auth-link{font-size:14px;font-weight:600;color:var(--ink);border-bottom:2px solid var(--line);padding-bottom:1px}.masthead-auth-link:hover{border-color:var(--ink)}.nav .right{margin-left:auto;display:flex;align-items:center;gap:14px}</style>';
