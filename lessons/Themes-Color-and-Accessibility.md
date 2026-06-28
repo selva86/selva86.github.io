@@ -1,5 +1,6 @@
 ---
 title: "Advanced ggplot2 Lesson 2: Themes & Accessibility"
+catalog_blurb: "Brand your charts and choose colors everyone can read."
 description: "Restyle a ggplot without touching the data: built-in and custom themes, the right colour scale for each data type, and colourblind-safe, accessible palettes."
 keywords: "ggplot2 themes, theme_minimal, colour scales, scale_fill_viridis, scale_fill_brewer, colorblind safe palette, Okabe-Ito, viridis, accessible data visualization, ggplot2 tutorial"
 post_type: "LESSON"

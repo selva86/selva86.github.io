@@ -1,5 +1,6 @@
 ---
 title: "ggplot2 Lesson 3: Bar & Distribution Charts"
+catalog_blurb: "Compare categories and reveal a variable's spread."
 description: "geom_col and geom_bar for counts and amounts, geom_histogram for the shape of one variable, and geom_boxplot to compare groups: which ggplot2 chart answers which question."
 keywords: "ggplot2 bar chart, geom_col, geom_bar, geom_histogram, geom_boxplot, histogram in R, boxplot in R, distribution plot, ggplot2 tutorial, count vs amount"
 post_type: "LESSON"

@@ -221,8 +221,8 @@
           bySec[n].forEach(function(c){
             (c.lessons||[]).slice().sort(function(a,b){return (a.order||0)-(b.order||0);}).forEach(function(l){
               if(l.built===false)return; cnt++;
-              var cov=(RM2.lessonConcepts&&RM2.lessonConcepts[l.slug])||[];
-              var covHtml=cov.length?'<span class="ilhy-cov">'+cov.map(esc).join(' &middot; ')+'</span>':'';
+              var sub=(l.subtitle||'').trim();
+              var covHtml=sub?'<span class="ilhy-cov">'+esc(sub)+'</span>':'';
               rows+='<a class="ilhy-row" href="/'+l.slug+'.html"><span class="ilhy-head"><span class="ilhy-a">&#9654;</span><span class="ilhy-t">'+esc(l.title)+'</span><span class="ilhy-g">Interactive</span></span>'+covHtml+'</a>';
             });
           });

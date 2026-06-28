@@ -1,5 +1,6 @@
 ---
 title: "Joining Data Lesson 3: Split, Unite & Fuzzy Joins"
+catalog_blurb: "Clean messy columns and match near-identical values."
 description: "Clean messy data in R: split a crammed column with separate(), build a key with unite(), and match names that nearly agree using string-distance fuzzy joins."
 keywords: "separate, unite, tidyr, separate columns in R, fuzzy join, fuzzyjoin, stringdist, string distance, edit distance, adist, data cleaning in R, join keys, stringr"
 post_type: "LESSON"

@@ -1,5 +1,6 @@
 ---
 title: "Random Forests Lesson 3: Train, tune and read a forest in R"
+catalog_blurb: "Train, tune and interpret a random forest in R."
 description: "Score a forest with out-of-bag error, tune mtry and num.trees on a live model, read variable importance, and know where random forests shine and where they do not."
 keywords: "random forest R, ranger, OOB error, mtry tuning, variable importance, tidymodels"
 post_type: "LESSON"

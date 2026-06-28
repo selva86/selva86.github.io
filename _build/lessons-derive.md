@@ -23,7 +23,8 @@ Resolved against the course's planned arc (below) + `courses.json` (what is alre
 - `lesson_access`: the CANONICAL positional rule (below).
 - `mathjax`: `true` if the lesson contains MathJax (`\(` or `\[`), else omit.
 - `webr`: `true` (lessons run interactive R).
-- `title`: `"<Course> Lesson <n>: <focus>"`. The rail short title is everything after the colon, so write the focus to read well alone.
+- `title`: `"<Course> Lesson <n>: <focus>"`. The text after the colon is the **catalog title** - the name shown on the roadmap, the player rail, and the player chrome. Write `<focus>` to read well alone, and make the lesson's **cover-step H2 exactly equal it** (roadmap row == cover heading == breadcrumb; the player derives its on-screen title from the cover H2). Do NOT give the cover an evocative-hook H2 that differs from the catalog title - put any hook in the cover body instead.
+- `catalog_blurb`: a one-line, outcome-focused summary (what the learner will be able to DO), shown as the lesson's subtitle on the roadmap. Required on every lesson. <= ~12 words, plain language, and **no function or method names** (write "filter and sort rows", never `filter()`/`arrange()`). Flows through `courses.json` to the roadmap; keep it about the outcome, not the API.
 - `description`: 150-160 char meta description. `keywords`: comma-separated.
 
 ## Access rule (canonical - do NOT diverge)

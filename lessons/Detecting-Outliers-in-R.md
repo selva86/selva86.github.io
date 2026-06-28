@@ -1,5 +1,6 @@
 ---
 title: "Exploratory Data Analysis Lesson 4: Outlier Detection Methods"
+catalog_blurb: "Compare methods that flag real outliers, not noise."
 description: "Go past the boxplot: flag outliers with z-scores, the robust modified z-score (MAD) and Mahalanobis distance in R, then decide to keep, cap or drop them."
 keywords: "outlier detection in R, z-score outliers, modified z-score, MAD, median absolute deviation, Mahalanobis distance, multivariate outliers, winsorize, robust statistics"
 post_type: "LESSON"

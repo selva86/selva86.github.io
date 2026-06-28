@@ -1,5 +1,6 @@
 ---
 title: "The t-test from scratch: is the difference real?"
+catalog_blurb: "Test whether a sample mean differs from a target."
 description: "Learn the one-sample t-test through one real story - a dal-packing machine that may be underfilling. Sample means wobble, the standard error, the t-statistic, the null distribution, the p-value, and t.test() in R."
 keywords: "t-test, one-sample t-test, t test in R, t.test, p-value, t-statistic, standard error, null hypothesis, hypothesis testing"
 mathjax: true
@@ -18,8 +19,7 @@ lesson_access: "free"
 
 === step === cover
 ::eyebrow Lesson 1 of 2 - the one-sample test
-## Is the machine really underfilling, or is it just chance?
-
+## The t-test from scratch
 Meet Meena. She runs a small business that packs dal (lentils) into 1 kg packets, and her machine is set to drop **1000 grams** into each one. Lately a few customers have grumbled that the packets feel light. So Meena does the sensible thing: she pulls **20 packets** off the line and weighs them on a kitchen scale. Their average comes to **978 grams** - 22 grams short of the target.
 
 Now here is her real problem. She did not weigh all ten thousand packets she makes in a week; she weighed only 20. So which is it?
