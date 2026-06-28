@@ -1,6 +1,6 @@
 ---
 title: "Data Wrangling Lesson 3: Group & Summarise"
-catalog_blurb: "Go from raw rows to the numbers a decision actually needs."
+catalog_blurb: "Summarise rows into group-level figures, the basis of most reporting."
 description: "Split-apply-combine with group_by and summarise, label rows with case_when, and handle missing values honestly with na.rm, dropping or imputing in R."
 keywords: "group_by, summarise, case_when, na.rm, missing values, drop_na, dplyr, split-apply-combine, data wrangling in R"
 post_type: "LESSON"

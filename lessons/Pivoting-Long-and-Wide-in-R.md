@@ -1,6 +1,6 @@
 ---
 title: "Joining Data Lesson 2: Pivoting: Long & Wide"
-catalog_blurb: "The right shape is the difference between a stuck and a flowing analysis."
+catalog_blurb: "Switch data between long and wide, the shapes tools and charts expect."
 description: "Reshape data in R with tidyr: pivot_longer takes wide data to long (tidy), pivot_wider takes long back to wide for reports, and nest and unnest handle nested data."
 keywords: "pivot_longer, pivot_wider, tidyr, reshape data in R, wide to long, long to wide, nest, unnest, tidy data, list columns"
 post_type: "LESSON"

@@ -1,6 +1,6 @@
 ---
 title: "Random Forests Lesson 1: Decision Trees from scratch"
-catalog_blurb: "See exactly how a model makes a decision, one split at a time."
+catalog_blurb: "How a single decision tree splits data to make predictions."
 description: "Build the decision tree that a random forest is made of: how it splits, how to grow one in R, and the overfitting flaw that motivates the whole forest."
 keywords: "decision tree, random forest, gini impurity, overfitting, rpart, CART, R"
 post_type: "LESSON"
