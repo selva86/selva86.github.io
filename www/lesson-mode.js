@@ -112,9 +112,25 @@
 
     /* ---- Pro gating ---- */
     var locked = (access === 'pro') && !body.classList.contains('pro');
+
+    /* ---- account gate (free courses): first 2 lessons of a course are open to
+       anyone; lesson 3+ asks for a free account. Mutually exclusive with the Pro
+       wall above (Pro lessons use access==='pro'; this only fires on free courses). */
+    var FREE_PREVIEW_LESSONS = 2;
+    var lessonOrder = parseInt(ds.courseLesson || '0', 10) || 0;
+    function hasAuthToken() {
+      try { if (API && API.token && API.token()) return true; } catch (e) {}
+      try { for (var n = 0; n < localStorage.length; n++) { var k = localStorage.key(n); if (k && k.indexOf('sb-') === 0 && k.indexOf('-auth-token') > 0) return true; } } catch (e) {}
+      return body.classList.contains('state-pro');
+    }
+    var signedIn = hasAuthToken();
+    var accountGated = (access !== 'pro') && lessonOrder > FREE_PREVIEW_LESSONS;
+    var accountLocked = accountGated && !signedIn;
+
     document.addEventListener('auth-hydrated', function (e) {
-      var pro = !!(e.detail && e.detail.me && e.detail.me.pro);
-      if (pro && locked) { locked = false; render(); }
+      var me = e.detail && e.detail.me;
+      if (me && me.pro && locked) { locked = false; render(); }
+      if (me && me.user && accountLocked) { accountLocked = false; signedIn = true; render(); }
       hydrateSolved();
     });
 
@@ -229,7 +245,31 @@
       stage.scrollTop = 0;
     }
 
+    function renderSignInWall() {
+      steps.forEach(function (s) { s.classList.remove('on'); });
+      var w = stage.querySelector('.lm-signin');
+      if (!w) {
+        var next = encodeURIComponent(location.pathname + location.search);
+        w = document.createElement('div');
+        w.className = 'lm-signin';
+        w.innerHTML = '<h3>Create a free account to keep going</h3>' +
+          '<p>You have started <b>' + esc(courseTitle) + '</b>. It is free to continue: a free account unlocks the rest of this course, saves your progress, and lets you pick up on any device.</p>' +
+          '<a class="lm-signin-cta" href="/signin.html?next=' + next + '">Sign in to continue &rarr;</a>' +
+          '<p class="lm-signin-fine">Free account, no card. Your first two lessons stay open.</p>' +
+          '<a class="lm-signin-back" href="' + esc(exitTarget()) + '">&larr; Back to ' + esc(exitLabel()) + '</a>';
+        stage.appendChild(w);
+      } else { w.style.display = ''; }
+      segEls.forEach(function (e) { e.className = ''; });
+      curEl.textContent = Math.min(lessonOrder || (i + 1), total);
+      midEl.textContent = 'Free account needed';
+      backBtn.disabled = true;
+      contBtn.disabled = true;
+      stage.scrollTop = 0;
+    }
+
     function render() {
+      if (accountLocked) { renderSignInWall(); return; }
+      var sw = stage.querySelector('.lm-signin'); if (sw) sw.style.display = 'none';
       if (showingPaywall) { var p = stage.querySelector('.lm-paywall'); if (p) p.style.display = 'none'; showingPaywall = false; }
       steps.forEach(function (s, k) { s.classList.toggle('on', k === i); });
       segEls.forEach(function (e, k) { e.className = k < i ? 'done' : (k === i ? 'cur' : ''); });

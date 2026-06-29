@@ -95,6 +95,33 @@
     el.innerHTML=items.map(function(it){return '<a class="row" href="'+postHref(it.slug)+'">'+ic('i-mark')+'<span class="rt"><b>'+esc(titleFor(it.slug))+'</b><span>Saved</span></span>'+ARR+'</a>';}).join('');
   }
 
+  // ----- Your courses (interactive lessons): /courses.json + localStorage resume -----
+  var COURSE_TRACKS=[{key:'foundations',name:'New to R',page:'new-to-r'},{key:'analyst',name:'Data Analyst',page:'data-analyst'}];
+  function courseDone(cid){try{var s=JSON.parse(localStorage.getItem('rsc-course-v1:'+cid));return (s&&s.completed)||{};}catch(e){return {};}}
+  function trackProgress(courses,key){
+    var cs=courses.filter(function(c){return c.roadmap&&c.roadmap.track===key;}).sort(function(a,b){return (a.roadmap.section||0)-(b.roadmap.section||0);});
+    var total=0,done=0,resume=null,first=null;
+    cs.forEach(function(c){var dn=courseDone(c.course_id);
+      (c.lessons||[]).slice().sort(function(a,b){return (a.order||0)-(b.order||0);}).forEach(function(l){
+        if(l.built===false)return; total++; if(!first)first=l.slug;
+        if(dn[l.slug])done++; else if(!resume)resume=l.slug;});});
+    return {total:total,done:done,resume:resume||first,first:first,started:done>0};
+  }
+  function renderCourses(courses){
+    var host=$('dh-courselist'); if(!host)return;
+    var html=COURSE_TRACKS.map(function(t){
+      var p=trackProgress(courses,t.key); if(!p.total)return '';
+      var pct=Math.round(p.done/p.total*100), w=Math.max(2,pct);
+      var btn=p.started
+        ? '<a class="primary" href="'+postHref(p.resume)+'">Continue <span class="a">&rarr;</span></a>'
+        : '<a class="primary" href="'+postHref(p.first)+'">Start free <span class="a">&rarr;</span></a>';
+      return '<div class="dh-course"><div class="dh-course-h"><b>'+esc(t.name)+'</b><span>'+p.done+' / '+p.total+' lessons</span></div>'+
+        '<div class="pbar"><div class="pfill" style="width:'+w+'%"></div></div>'+
+        '<div class="dh-course-go">'+btn+'<a class="ghost" href="/roadmap/'+t.page+'.html">View track</a></div></div>';
+    }).join('');
+    if(html){host.innerHTML=html;var sec=$('dh-courses');if(sec)sec.hidden=false;}
+  }
+
   function render(d){
     var me=d.me, stats=d.stats||{}, tracks=d.tracks||{tracks:[]}, certsR=d.certs||{items:[]}, reading=d.reading||{items:[]}, saved=d.saved||{items:[]};
     var u=me.user||{}, pro=!!me.pro, streak=stats.current_streak_days||0;
@@ -124,6 +151,9 @@
 
   // sidebar titles (non-blocking enrichment)
   fetch('/www/sidebar.json').then(function(r){return r.ok?r.json():null;}).then(function(sb){if(!sb)return;sb.forEach(function(sec){(sec.items||[]).forEach(function(it){if(it.href&&it.text)sbTitle[String(it.href).replace(/^\//,'')]=it.text;});});}).catch(function(){});
+
+  // "Your courses" runs off /courses.json + localStorage, independent of /api/me (so it also renders in ?demo).
+  fetch('/courses.json',{cache:'no-cache'}).then(function(r){return r.ok?r.json():null;}).then(function(d){if(d&&d.courses)renderCourses(d.courses);}).catch(function(){});
 
   // review-only fixtures (auth does not complete on the pages.dev subdomain). ?demo=1 | ?demo=pro
   if(/[?&]demo=(1|pro)/.test(location.search)){
