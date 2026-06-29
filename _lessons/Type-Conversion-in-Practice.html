@@ -1,0 +1,375 @@
+---
+title: "R Foundations Lesson 5: Type Conversion in Practice"
+description: "Convert R values on purpose with as.numeric(), as.character() and as.factor(), tell explicit conversion from silent coercion, and fix a column that imported as the wrong type."
+keywords: "type conversion in R, as.numeric, as.character, as.factor, as.integer, coercion in R, fix character column, NAs introduced by coercion, factor to numeric, R for beginners"
+webr: true
+curriculum_id: "1.2.5"
+post_type: "LESSON"
+course_id: "nr-structures"
+course_title: "R Foundations: Data Structures"
+course_lesson: "5"
+course_total: "5"
+course_landing: "R-Foundations-Structures-Course.html"
+course_next: ""
+course_prev: "Matrices-and-Arrays.html"
+lesson_access: "free"
+catalog_blurb: "Change what type your data is, and fix a column that imported wrong."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 5 of 5</div>
+<h2>Type Conversion in Practice</h2>
+
+<p>In <a href="Matrices-and-Arrays.html">Lesson 4</a> you built grids of pure numbers. But real data rarely arrives in the type you want. Priya runs a small bakery and exports each day's sales to a spreadsheet. When she reads the file back into R, the <strong>price</strong> column, full of numbers like <code>3.50</code> and <code>2.75</code>, comes back as <em>text</em>, and now she cannot add up a single day's takings.</p>
+
+<p>This lesson is the fix: how to change a value's type <strong>on purpose</strong>, and how to repair a column that imported as the wrong type.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Diagnose the type of every column with <code>str()</code> and <code>class()</code></li>
+
+<li>Convert on purpose with <code>as.numeric()</code>, <code>as.character()</code>, <code>as.integer()</code> and <code>as.factor()</code></li>
+
+<li>Spot the two classic traps: text that will not become a number, and a factor that turns into meaningless codes</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> Lessons 1-4 of this course. You can build a <a href="Atomic-Vectors-and-Data-Types.html">vector</a> and a <a href="Data-Frames-and-Tibbles.html">data frame</a>, and you know an atomic vector holds <a href="Atomic-Vectors-and-Data-Types.html">one type</a>, so mixing types silently <em>coerces</em> the whole vector up the ladder logical < integer < double < character. The box below holds three of Priya's prices as numbers. Press a <strong>+ "hi" (text)</strong> button and watch all of them turn into text, the very accident we are about to learn to undo.</p>
+<div class="lesson-widget" data-widget-type="vector-coercion" data-widget-config='{"start":[{"lit":"3.50","type":"double"},{"lit":"2.75","type":"double"},{"lit":"1.50","type":"double"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">Step 1: look before you leap</div>
+<h2>Diagnose first: what type is each column?</h2>
+
+<p>Before you can fix a type, you have to <strong>see</strong> it. Let us bring Priya's sales into R exactly the way she does, by reading a small CSV. Each lesson runs in a fresh R session, so we write the file in-session first, then read it back (run this once; later steps reuse <code>sales</code>):</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rows &lt;- c(&quot;item,price,sold&quot;,
+          &quot;muffin,3.50,12&quot;,
+          &quot;scone,2.75,8&quot;,
+          &quot;latte,n/a,15&quot;,
+          &quot;cookie,1.50,20&quot;)
+writeLines(rows, &quot;bakery.csv&quot;)              # the file Priya's spreadsheet exported
+sales &lt;- read.csv(&quot;bakery.csv&quot;, stringsAsFactors = FALSE)
+str(sales)
+#&gt; 'data.frame':	4 obs. of  3 variables:
+#&gt;  $ item : chr  &quot;muffin&quot; &quot;scone&quot; &quot;latte&quot; &quot;cookie&quot;
+#&gt;  $ price: chr  &quot;3.50&quot; &quot;2.75&quot; &quot;n/a&quot; &quot;1.50&quot;
+#&gt;  $ sold : int  12 8 15 20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>str()</code> is your x-ray from Lesson 3. Read the tag after each column name: <code>item</code> is <code>chr</code> (character), <code>sold</code> is <code>int</code> (integer), but look at <code>price</code>, it is <code>chr</code> too. Those are <em>text</em>, even though they read like money. The reason is the rule from Lesson 2: one cell in that column, the missing latte price, was the text <code>n/a</code>. The moment a non-number sits in the column, R cannot keep the column numeric, so it coerces the <strong>whole</strong> column to character on import.</p>
+
+<p>To check just the kinds, ask each column for its <code>class</code>. <code>sapply()</code> simply runs <code>class()</code> on every column and lines the answers up for you:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sapply(sales, class)    # the type of every column at a glance
+#&gt;        item       price        sold
+#&gt; &quot;character&quot; &quot;character&quot;   &quot;integer&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A wrong-type column almost never announces itself. It looks right on screen (<code>3.50</code> reads like a number) but behaves wrong (you cannot multiply it). <code>str()</code> and <code>class()</code> are how you catch it before it bites.</div></div>
+
+<p>The toggles below show the same idea on a clean frame: each column is its own type, and you can read that type under the table.</p>
+<div class="lesson-widget" data-widget-type="dataframe-builder" data-widget-config='{"columns":[{"name":"item","type":"character","values":["muffin","scone","latte","cookie"]},{"name":"price","type":"character","values":["3.50","2.75","n/a","1.50"]},{"name":"sold","type":"integer","values":[12,8,15,20]}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Step 2: the toolbox</div>
+<h2>Convert on purpose: the as.* family</h2>
+
+<p>R gives you a small family of functions whose only job is to change a value's type. You name the type you want, and R rebuilds the values as that type. Each is <code>as.</code> followed by the target:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">as.numeric(c(&quot;3.50&quot;, &quot;2.75&quot;, &quot;1.50&quot;))   # text that is genuinely numeric -&gt; real numbers
+#&gt; [1] 3.50 2.75 1.50
+as.character(42)                          # a number -&gt; its text form (note the quotes)
+#&gt; [1] &quot;42&quot;
+as.integer(4.9)                           # a double -&gt; an integer (it truncates, never rounds)
+#&gt; [1] 4
+as.logical(c(1, 0, 1))                    # 1 -&gt; TRUE, 0 -&gt; FALSE
+#&gt; [1]  TRUE FALSE  TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This is the deliberate mirror image of Lesson 2. There, mixing types caused R to coerce a vector <strong>silently</strong>, behind your back. Here, <em>you</em> are in charge: you state the target type, and the conversion happens only where you ask for it.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Coercion is what R does <em>to</em> you automatically when you mix types. Conversion is what you do <em>on purpose</em> with an <code>as.*</code> function. Same machinery, opposite intent: one is a silent accident, the other is a named decision.</div></div>
+
+<p>The widget shows Priya's price column making exactly the move she needs, from text (look at the quotes) to real numbers she can multiply.</p>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"code":"sales$price <- as.numeric(sales$price)","caption":"The price column was text (the quotes are the tell). as.numeric() rebuilds it as real numbers, so price x quantity finally works.","before":{"cols":["item","price","sold"],"rows":[["muffin","3.50",12],["scone","2.75",8],["cookie","1.50",20]]},"after":{"cols":["item","price","sold"],"rows":[["muffin",3.5,12],["scone",2.75,8],["cookie",1.5,20]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which conversion do you reach for?</h2>
+
+<p>A colleague sends you three ages that arrived as text: <code>c(&quot;29&quot;, &quot;41&quot;, &quot;35&quot;)</code>. You want their average. Which function turns them into something <code>mean()</code> can work with?</p>
+<section class="exercise" data-exercise-id="Type-Conversion-in-Practice-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx"><code>as.numeric()</code>, because it rebuilds the text as real numbers you can average</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx"><code>as.character()</code>, because the values need to be clean text first</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx"><code>as.factor()</code>, because the ages fall into categories</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. <code>as.numeric(c(&quot;29&quot;,&quot;41&quot;,&quot;35&quot;))</code> gives the doubles <code>29 41 35</code>, so <code>mean()</code> returns <code>35</code>. Naming the target type is the whole move.</div><div class="lesson-qfb lesson-qfb-no">Ages are quantities, not categories. Turning them into a factor would make the averaging <em>harder</em>, not easier (you will see why factors and numbers do not mix two steps from now).</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Rescue numbers stuck as text</h2>
+
+<p>Priya also kept this week's order counts, but they arrived as <strong>text</strong>: <code>c(&quot;12&quot;, &quot;8&quot;, &quot;15&quot;, &quot;20&quot;)</code>. As characters you cannot add them. Fill the blank with the conversion that turns them into real numbers, so <code>sum()</code> can total them. The answer should be <code>55</code>.</p>
+<section class="exercise" data-exercise-id="Type-Conversion-in-Practice-step5" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="as\.(numeric|integer|double)\s*[(]\s*counts\s*[)]"><textarea class="lesson-tryit-input" spellcheck="false">counts &lt;- c(&quot;12&quot;, &quot;8&quot;, &quot;15&quot;, &quot;20&quot;)   # arrived as text
+total  &lt;- sum(____(counts))          # convert to numbers, then add them up
+total</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Exactly. as.numeric(counts) turns the text into the numbers 12, 8, 15, 20, so sum() can add them to 55.</span><span class="lesson-tryit-fb lesson-tryit-no">Wrap counts in as.numeric() before summing: sum(as.numeric(counts)).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">counts &lt;- c(&quot;12&quot;, &quot;8&quot;, &quot;15&quot;, &quot;20&quot;)
+sum(as.numeric(counts))
+#&gt; [1] 55</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Step 3: when conversion can't</div>
+<h2>When a value is not really a number</h2>
+
+<p>What happens to Priya's <code>n/a</code>? <code>as.numeric()</code> cannot invent a number for it, so it does the only safe thing: it returns <code>NA</code> (R's marker for "missing") for that cell and a <strong>warning</strong>, not an error. The conversion still succeeds for every real number:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">as.numeric(c(&quot;3.50&quot;, &quot;n/a&quot;, &quot;1.50&quot;))   # &quot;n/a&quot; cannot become a number
+#&gt; [1] 3.50   NA 1.50
+#&gt; Warning message:
+#&gt; NAs introduced by coercion</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read that warning as a gift, not a scolding. The exact phrase, <strong>"NAs introduced by coercion"</strong>, is R telling you precisely which values were not really numbers. To find <em>which</em> cells turned into <code>NA</code>, ask with <code>is.na()</code>:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prices &lt;- as.numeric(c(&quot;3.50&quot;, &quot;n/a&quot;, &quot;1.50&quot;))
+which(is.na(prices))    # the position of each value that failed to convert
+#&gt; [1] 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">"NAs introduced by coercion" is not noise to silence. It means the column held something that was never a number, a stray <code>n/a</code>, a <code>sold out</code>, a <code>$</code> sign, or a <code>1,200</code> with a comma. Track that value down before you trust the column. The conversion is doing you a favour by flagging it.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Step 4: a new structure</div>
+<h2>Categories become factors</h2>
+
+<p>Not every text column should become a number. Some columns are <strong>categories</strong>, a value drawn from a fixed, repeating set: a day of the week, a size, a product name. R has a purpose-built type for these called a <strong>factor</strong>. You make one with <code>as.factor()</code> (or <code>factor()</code> for more control):</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">item &lt;- c(&quot;muffin&quot;, &quot;scone&quot;, &quot;latte&quot;, &quot;muffin&quot;, &quot;cookie&quot;)
+f &lt;- as.factor(item)
+f
+#&gt; [1] muffin scone  latte  muffin cookie
+#&gt; Levels: cookie latte muffin scone</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A factor looks like text, but underneath it stores two things: a dictionary of the distinct values (its <strong>levels</strong>), and, for each element, a small <strong>integer code</strong> pointing into that dictionary. Reveal the codes with <code>as.integer()</code>:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">levels(f)        # the dictionary: each distinct value, sorted
+#&gt; [1] &quot;cookie&quot; &quot;latte&quot;  &quot;muffin&quot; &quot;scone&quot;
+as.integer(f)    # what is really stored: a code per value (muffin is level 3, scone 4, ...)
+#&gt; [1] 3 4 2 3 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When categories have a natural order (small < medium < large), say so with <code>factor(..., ordered = TRUE)</code>, and R will respect that order in comparisons and plots:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">size &lt;- factor(c(&quot;small&quot;, &quot;large&quot;, &quot;medium&quot;),
+               levels = c(&quot;small&quot;, &quot;medium&quot;, &quot;large&quot;), ordered = TRUE)
+size
+#&gt; [1] small  large  medium
+#&gt; Levels: small &lt; medium &lt; large</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>This "text in, levels and codes out" pipeline is exactly what <code>as.factor()</code> builds for you:</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Raw text","sub":"muffin, scone, latte, muffin, cookie"},{"title":"Find the levels","sub":"cookie, latte, muffin, scone (the sorted distinct values)"},{"title":"Store a code","sub":"each value kept as an integer: 3, 4, 2, 3, 1"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Step 5: the famous gotcha</div>
+<h2>The one factor trap everyone hits</h2>
+
+<p>Here is the mistake that catches every R user once. Suppose a year column was read as a <strong>factor</strong> (it happens with older import settings). You try to turn it back into numbers the obvious way, and get nonsense:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">years &lt;- factor(c(&quot;2019&quot;, &quot;2021&quot;, &quot;2020&quot;))   # years that came in as a factor
+as.numeric(years)                             # WRONG: you get the level CODES
+#&gt; [1] 1 3 2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>1 3 2</code>? Those are not years, they are the <em>integer codes</em> from the step before. <code>as.numeric()</code> on a factor returns what the factor actually stores (the codes), not what the labels look like. The fix is to step through <strong>text</strong> first, so R reads the labels rather than the codes:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">as.numeric(as.character(years))    # RIGHT: labels -&gt; text -&gt; numbers
+#&gt; [1] 2019 2021 2020</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Never call <code>as.numeric()</code> directly on a factor of numbers. You will silently get the codes <code>1, 2, 3, ...</code> instead of the real values, and nothing will error to warn you. Always go through <code>as.character()</code> first: <code>as.numeric(as.character(f))</code>.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why the wrong years?</h2>
+
+<p>A year column was read as a factor, <code>factor(c(&quot;2019&quot;, &quot;2021&quot;, &quot;2020&quot;))</code>. You run <code>as.numeric()</code> on it directly and get <code>1 3 2</code> instead of the years. What happened?</p>
+<section class="exercise" data-exercise-id="Type-Conversion-in-Practice-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx"><code>as.numeric()</code> rounded the years down to small numbers</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A factor stores each value as an integer code pointing into its levels, and <code>as.numeric()</code> returned those codes, not the labels</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The years were corrupted when the file was read</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The levels are <code>2019, 2020, 2021</code>, so the codes are 1, 2, 3; your three values map to codes <code>1, 3, 2</code>. Convert through <code>as.character()</code> first to read the labels.</div><div class="lesson-qfb lesson-qfb-no">The data is fine. <code>as.character(years)</code> would show the real <code>&quot;2019&quot; &quot;2021&quot; &quot;2020&quot;</code>. The codes appear only because you converted the factor to numbers directly.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Put it all together</div>
+<h2>Fix the column and finish the job</h2>
+
+<p>Back to Priya. Her <code>sales</code> frame is still as it imported: <code>price</code> is text. Your job is the full repair, the exact workflow you will use on real data:</p>
+
+<ol>
+
+<li><strong>Diagnose</strong> (done: <code>str()</code> showed <code>price</code> is <code>chr</code>)</li>
+
+<li><strong>Convert</strong> the column to the right type</li>
+
+<li><strong>Verify</strong> by doing the arithmetic you needed all along</li>
+
+</ol>
+
+<p>Fill the blank to convert <code>price</code> to numbers. The <code>n/a</code> becomes <code>NA</code> (that is fine, <code>na.rm = TRUE</code> skips it), and the day's revenue comes out as <code>94</code>.</p>
+<section class="exercise" data-exercise-id="Type-Conversion-in-Practice-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="as\.numeric\s*[(]\s*sales\$price\s*[)]"><textarea class="lesson-tryit-input" spellcheck="false">str(sales$price)                          # still text from the import: chr &quot;3.50&quot; &quot;2.75&quot; &quot;n/a&quot; &quot;1.50&quot;
+sales$price &lt;- ____(sales$price)          # convert the price column to real numbers
+revenue     &lt;- sales$price * sales$sold   # price x quantity, row by row
+sum(revenue, na.rm = TRUE)                # total takings, skipping the missing price</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Exactly. as.numeric(sales$price) rebuilds the column as numbers (the n/a becomes NA), so price x sold works and the takings total to 94.</span><span class="lesson-tryit-fb lesson-tryit-no">Convert the column with as.numeric(): sales$price <- as.numeric(sales$price). The n/a will become NA, which na.rm = TRUE then skips.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">sales$price &lt;- as.numeric(sales$price)
+revenue     &lt;- sales$price * sales$sold
+sum(revenue, na.rm = TRUE)
+#&gt; [1] 94</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few trustworthy places to take this further, all free:</p>
+
+<ul>
+
+<li><a href="https://adv-r.hadley.nz/vectors-chap.html">Advanced R (2e): Vectors</a> - the definitive account of R's types and the coercion rules that conversion undoes.</li>
+
+<li><a href="https://r4ds.hadley.nz/factors">R for Data Science (2e): Factors</a> - a clear, example-led chapter on factors, levels and ordering, the structure behind today's trap.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/factor.html">R documentation: factor()</a> - every argument of <code>factor()</code>, including <code>levels</code> and <code>ordered</code>, straight from the source.</li>
+
+<li><a href="https://cran.r-project.org/doc/manuals/r-release/R-intro.html#Objects">An Introduction to R: objects, their modes and attributes</a> - the canonical reference on R's modes and how a value's type is recorded.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 5 complete</h2>
+
+<p>You learned to change a value's type <strong>on purpose</strong>: diagnose every column with <code>str()</code> and <code>class()</code>, then convert with the <code>as.*</code> family, <code>as.numeric()</code>, <code>as.character()</code>, <code>as.integer()</code>, <code>as.logical()</code> and <code>as.factor()</code>. You saw the two traps that catch everyone: converting genuinely non-numeric text gives <code>NA</code> and the warning "NAs introduced by coercion" (a flag, not noise), and calling <code>as.numeric()</code> straight on a factor returns its hidden integer codes, so you go through <code>as.character()</code> first. Finally you fixed a real imported column end to end, diagnose, convert, verify, and got Priya her day's takings.</p>
+
+<p>That completes <strong>R Foundations: Data Structures</strong>. You can now build, inspect and repair every core R object: vectors, lists, data frames, matrices and factors. Next in the foundations track comes <strong>Programming</strong>, where you start acting on these structures: subsetting and replacing their elements, branching with <code>if</code>/<code>else</code>, looping, and writing your own functions.</p>
+</section>
+
+{% endraw %}
