@@ -1,0 +1,351 @@
+---
+title: "R Foundations Lesson 2: tryCatch and Input Validation"
+description: "How to use tryCatch in R to recover from errors instead of crashing, and stopifnot to validate a function's inputs up front so failures are clear and early."
+keywords: "tryCatch in R, error handling in R, input validation, stopifnot, R conditions, recover from errors, finally in R, defensive programming R"
+webr: true
+curriculum_id: "1.7.2"
+post_type: "LESSON"
+course_id: "nr-debugging"
+course_title: "R Foundations: Debugging"
+course_lesson: "2"
+course_total: "3"
+course_landing: "R-Foundations-Debugging-Course.html"
+course_next: "Debugging-Tools-in-R.html"
+course_prev: "Errors-Warnings-and-Messages.html"
+lesson_access: "free"
+catalog_blurb: "Recover from errors instead of crashing, and catch bad inputs early."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 2 of 3</div>
+<h2>tryCatch and Input Validation</h2>
+
+<p>In Lesson 1, Priya's lending library taught its <code>late_fee()</code> function three voices: <code>message()</code>, <code>warning()</code> and <code>stop()</code>. She can now <em>raise</em> a clear signal when something is wrong. But raising a signal is only half the job.</p>
+
+<p>Tonight she runs the nightly batch: 200 book returns, one after another, each priced by <code>late_fee()</code>. Buried in that list is a single corrupt record, a book scanned as <code>-3</code> days late. With what she knows so far, that one bad row throws an error and the <em>entire</em> run stops dead, leaving the other 199 books unpriced. She needs two new skills: a way to <strong>catch</strong> that error and keep going, and a way to <strong>check</strong> each input up front so the failure is clean and obvious instead of a crash three steps later.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Use <code>tryCatch()</code> to catch an error and return a fallback instead of crashing</li>
+
+<li>Explain exactly what <code>tryCatch()</code> returns, and when the <code>finally</code> block runs</li>
+
+<li>Wrap a batch so one bad record is skipped and the rest still process</li>
+
+<li>Guard a function's inputs with <code>stopifnot()</code> so bad input fails fast with a clear message</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can <a href="Writing-Functions-in-R.html">write a function</a> with arguments and a return value, you know [<code>if</code> and <code>else</code>](Control-Flow-in-R.html), and you have met [<code>stop()</code>, <code>warning()</code> and <code>message()</code>](Errors-Warnings-and-Messages.html) from Lesson 1.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Run the risky line","sub":"the call that might fail on a bad record"},{"title":"It fails","sub":"an error is raised, which would normally halt everything"},{"title":"Catch it","sub":"your handler runs instead of the program stopping"},{"title":"Carry on","sub":"return a fallback value and move to the next record"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>One bad record halts the whole run</h2>
+
+<p>Here is Priya's helper from Lesson 1. It refuses impossible input by calling <code>stop()</code>, which raises an <strong>error</strong>: a condition severe enough that R abandons the rest of the work. Defining the function and calling it on a sensible value is perfectly safe:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Priya's helper from Lesson 1: it stops on impossible input
+late_fee &lt;- function(days_late, rate = 0.25) {
+  if (!is.numeric(days_late)) stop(&quot;days_late must be a number; you gave &quot;, class(days_late), &quot;.&quot;)
+  if (days_late &lt; 0) stop(&quot;days_late must be 0 or more; you gave &quot;, days_late, &quot;.&quot;)
+  days_late * rate
+}
+
+late_fee(5)    # a normal return: 5 days at 25 cents
+#&gt; [1] 1.25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the nightly batch. The third book was scanned as <code>-3</code> days late. Watch what that one record does to the loop:</p>
+
+<pre><code class="language-r">returns &lt;- c(5, 12, -3, 7)        # the -3 book came back before it was due
+for (d in returns) print(late_fee(d))
+#&gt; [1] 1.25
+#&gt; [1] 3
+#&gt; Error in late_fee(-3) : days_late must be 0 or more; you gave -3.
+# the loop dies on -3, so the 7-day book is never priced</code></pre>
+
+<p>The error did its job, it stopped bad work, but it stopped <em>all</em> the work. Two books priced, the bad one rejected, and the last book silently lost. Priya does not want the run to die; she wants it to skip the one bad record and finish the other 199. For that she needs to <strong>catch</strong> the error.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The core tool</div>
+<h2>tryCatch(): run this, and if it fails, do that</h2>
+
+<p><code>tryCatch()</code> runs an expression for you and stands ready with a <strong>handler</strong> in case that expression raises a condition. If the expression finishes normally, you get its value. If it raises an error, R does not crash; instead it runs your <code>error = </code> handler and gives you <em>that</em> value back. You decide what "recovered" looks like.</p>
+
+<p>A handler is just a function of one argument, the condition object. Inside it, <code>conditionMessage()</code> pulls out the human-readable message that <code>stop()</code> attached, so you can log exactly what went wrong:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># tryCatch runs the first expression; if it raises an error, the
+# error = ... handler runs INSTEAD and supplies the value
+result &lt;- tryCatch(
+  late_fee(-3),                    # this raises an error
+  error = function(e) {
+    message(&quot;Skipped one record: &quot;, conditionMessage(e))
+    NA_real_                        # the fallback value to use instead
+  }
+)
+result
+#&gt; [1] NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The error from <code>late_fee(-3)</code> never reached the top level, so nothing crashed. The handler ran, printed a note, and handed back <code>NA</code>. That <code>NA</code> is now sitting in <code>result</code>, ready to be filtered out later.</p>
+
+<p><code>tryCatch()</code> can listen for more than errors. You name one handler per condition type, plus an optional <code>finally</code>:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Argument</th>
+<th>Fires when the expression raises...</th>
+<th>Typical use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>error = function(e)</code></td>
+<td>an error (from <code>stop()</code>)</td>
+<td>recover, log, return a fallback</td>
+</tr>
+<tr>
+<td><code>warning = function(w)</code></td>
+<td>a warning (from <code>warning()</code>)</td>
+<td>treat a warning as fatal, or note it</td>
+</tr>
+<tr>
+<td><code>message = function(m)</code></td>
+<td>a message (from <code>message()</code>)</td>
+<td>capture or silence a status note</td>
+</tr>
+<tr>
+<td><code>finally = </code></td>
+<td>always (error or not)</td>
+<td>cleanup that must happen either way</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">A handler is matched by the <em>type</em> of condition. An <code>error = </code> handler ignores warnings and messages; it only catches errors. If you want to catch a warning, add a <code>warning = </code> handler too.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">How it runs</div>
+<h2>What runs, and in what order</h2>
+
+<p>The single thing learners get wrong about <code>tryCatch()</code> is the order of events, so let us pin it down. R evaluates the first expression. The moment a <em>matching</em> condition is raised, it abandons the rest of that expression, jumps to the handler, and the handler's return value becomes the value of the whole <code>tryCatch()</code> call. Whether or not anything failed, the <code>finally</code> block runs last.</p>
+
+<p><code>finally</code> is for cleanup you cannot afford to skip: closing a file, logging that a record was processed, releasing a connection. It runs on the happy path and the error path alike. Here is the same call on a good record and a bad one:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">process_one &lt;- function(x) {
+  tryCatch(
+    late_fee(x),
+    error = function(e) NA_real_,
+    finally = message(&quot;Processed one return record.&quot;)
+  )
+}
+
+process_one(7)     # valid: returns the fee, and finally still runs
+#&gt; Processed one return record.
+#&gt; [1] 1.75
+
+process_one(-3)    # invalid: error caught, returns NA, finally STILL runs
+#&gt; Processed one return record.
+#&gt; [1] NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Notice the <code>finally</code> note prints in <em>both</em> calls, the successful one and the failed one. That is the guarantee: <code>finally</code> is the code that always happens.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Evaluate the expression","sub":"tryCatch runs its first argument"},{"title":"On a matching condition, jump","sub":"abandon the rest, run that handler instead"},{"title":"The handler supplies the value","sub":"its return becomes the value of tryCatch"},{"title":"finally always runs","sub":"cleanup happens whether or not there was a failure"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>When nothing goes wrong</h2>
+
+<p>You write <code>tryCatch(late_fee(5), error = function(e) NA_real_)</code>. The call <code>late_fee(5)</code> succeeds, no error at all. What value does the <code>tryCatch()</code> return?</p>
+<section class="exercise" data-exercise-id="tryCatch-and-Input-Validation-step5" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx"><code>1.25</code>, the value of the expression; the error handler is skipped entirely</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx"><code>NA</code>, because the error handler always provides the return value</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx"><code>NULL</code>, because no handler was triggered</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The handler only runs when a matching condition is raised. With no error, <code>tryCatch()</code> simply hands back the expression's own value, here <code>5 * 0.25</code>.</div><div class="lesson-qfb lesson-qfb-no"><code>tryCatch()</code> is not empty-handed on success. It returns the value of the expression it ran; the handler is simply bypassed.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The payoff</div>
+<h2>Catch per record, keep the batch alive</h2>
+
+<p>Now the move Priya actually needs. Instead of wrapping the whole loop in one <code>tryCatch()</code> (which would still stop at the first bad row), she wraps <em>each record</em> individually. One corrupt row becomes a single <code>NA</code>, and every other row sails through:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">returns &lt;- c(5, 12, -3, 7, -1)        # two impossible values mixed in
+fees &lt;- sapply(returns, function(d) {
+  tryCatch(late_fee(d), error = function(e) NA_real_)
+})
+fees
+#&gt; [1] 1.25 3.00   NA 1.75   NA
+
+sum(fees, na.rm = TRUE)                 # the good rows still total up cleanly
+#&gt; [1] 6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Five records in, five results out, no crash. The two impossible days became <code>NA</code>, the three valid books were priced, and <code>na.rm = TRUE</code> quietly drops the gaps when Priya totals the night's fees. This pattern, <em>wrap the risky step per item and return a sentinel on failure</em>, is how you make a long batch resilient instead of brittle.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Where you put the <code>tryCatch()</code> decides what survives a failure. Around the whole loop, one bad row sinks the batch. Around each item, one bad row sinks only itself. Catch as close to the risky operation as you can.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The other half</div>
+<h2>Guard the inputs up front with stopifnot()</h2>
+
+<p>Catching errors handles the records you cannot fix. But many failures are avoidable, and the kindest thing a function can do is refuse bad input <em>immediately</em>, before it computes anything, with a message that says exactly which rule broke. In Lesson 1 Priya wrote that guard by hand with <code>if</code> and <code>stop()</code>. <code>stopifnot()</code> collapses a whole stack of those guards into one line.</p>
+
+<p>You give <code>stopifnot()</code> a series of conditions that must all be <code>TRUE</code>. If every one holds, it returns nothing and your function carries on. The instant one is <code>FALSE</code>, it raises an error and stops. Name each condition and that name becomes the error message:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">late_fee &lt;- function(days_late, rate = 0.25) {
+  stopifnot(
+    &quot;days_late must be numeric&quot;             = is.numeric(days_late),
+    &quot;days_late must be 0 or more&quot;           = days_late &gt;= 0,
+    &quot;rate must be a single positive number&quot; = length(rate) == 1 &amp;&amp; rate &gt; 0
+  )
+  days_late * rate
+}
+
+late_fee(5)     # every check passes, so the function sails straight through
+#&gt; [1] 1.25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>All three checks held, so <code>stopifnot()</code> was silent and you got the fee. Now feed it the impossible record and the matching name comes back as a clean, specific error:</p>
+
+<pre><code class="language-r">late_fee(-3)
+#&gt; Error in late_fee(-3) : days_late must be 0 or more</code></pre>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Always <em>name</em> your conditions. The unnamed form, <code>stopifnot(days_late &gt;= 0)</code>, still works but reports the raw expression: <code>Error: days_late &gt;= 0 is not TRUE</code>. The named form lets you write a sentence a human can act on. Put these guards at the very top of the function, before any real work, so bad input fails fast and the rest of the body can trust its arguments.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Prevent, or recover?</h2>
+
+<p>A function is handed a value that is plainly wrong, a piece of text where it needs a number. You want it to refuse immediately, with a clear message, rather than compute nonsense or limp along. Which tool fits?</p>
+<section class="exercise" data-exercise-id="tryCatch-and-Input-Validation-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Wrap the function body in <code>tryCatch()</code> so the bad input is caught</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Guard the top of the function with <code>stopifnot()</code>, so it fails fast with a clear message</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Issue a <code>warning()</code> and keep going, fixing the value later</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. <code>stopifnot()</code> checks the inputs before any real work and raises a clear, named error the moment a rule is broken, so the function never computes on input it already knows is wrong.</div><div class="lesson-qfb lesson-qfb-no">A warning lets the function press on with input it already knows is invalid, and warnings are easy to miss. When the input cannot be right, stop, do not warn.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Make late_fee robust</h2>
+
+<p>Put both halves together. Below, <code>late_fee()</code> should <strong>validate</strong> its input up front, and the nightly job should <strong>recover</strong> from any record that still slips through. The validation line is missing.</p>
+
+<p>Replace the <code>____</code> with the function that checks a list of conditions and stops on the first failure (use the named-condition form already written for you). Then check your answer.</p>
+<section class="exercise" data-exercise-id="tryCatch-and-Input-Validation-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="stopifnot"><textarea class="lesson-tryit-input" spellcheck="false">late_fee &lt;- function(days_late, rate = 0.25) {
+  ____(
+    &quot;days_late must be 0 or more&quot; = days_late &gt;= 0
+  )
+  days_late * rate
+}
+
+# the nightly job validates each record but never crashes on a bad one
+safe_total &lt;- sum(sapply(c(5, -3, 7), function(d) {
+  tryCatch(late_fee(d), error = function(e) NA_real_)
+}), na.rm = TRUE)
+safe_total</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the pairing to remember: stopifnot guards the input so bad data fails fast, and tryCatch around the batch turns that failure into a skipped record instead of a crash. The -3 book becomes NA, and 5 plus 7 days totals to 3.</span><span class="lesson-tryit-fb lesson-tryit-no">Use stopifnot here. It takes the named conditions and raises a clear error the moment one is FALSE, exactly the up-front guard the function needs.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">late_fee &lt;- function(days_late, rate = 0.25) {
+  stopifnot(&quot;days_late must be 0 or more&quot; = days_late &gt;= 0)
+  days_late * rate
+}
+
+safe_total &lt;- sum(sapply(c(5, -3, 7), function(d) {
+  tryCatch(late_fee(d), error = function(e) NA_real_)
+}), na.rm = TRUE)
+safe_total
+#&gt; [1] 3</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative, free places to take this further:</p>
+
+<ul>
+
+<li><a href="https://adv-r.hadley.nz/conditions.html">Advanced R (2e): Conditions</a> - Hadley Wickham on R's condition system, including how <code>tryCatch()</code> matches and handles errors, warnings and messages.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/conditions.html">Base R help: conditions and tryCatch</a> - the canonical reference page for <code>tryCatch</code>, <code>withCallingHandlers</code>, <code>conditionMessage</code> and friends.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/stopifnot.html">Base R help: stopifnot</a> - the official page for the validation function you used, including the named-message form.</li>
+
+<li><a href="https://style.tidyverse.org/error-messages.html">Tidyverse style guide: Error messages</a> - a practical checklist for writing the kind of clear, actionable messages your <code>stopifnot()</code> names should contain.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Lesson 2 complete</h2>
+
+<p>You can now make a function survive the real world. <code>tryCatch()</code> lets you catch an error and return a fallback instead of crashing, you know its handler runs only on a matching condition and that <code>finally</code> always runs, and wrapping each record in its own <code>tryCatch()</code> keeps a long batch alive past any single bad row. On the other side, <code>stopifnot()</code> guards a function's inputs up front with named, human-readable messages, so avoidable failures fail fast and clearly. Validate what you can; recover from what you cannot.</p>
+
+<p>Next, Lesson 3: Debugging Tools in R. When something still goes wrong and you do not yet know why, you will trace an error back to its source with <code>traceback()</code>, freeze a running function and look around with <code>browser()</code>, and drive the IDE's debugger, turning a mysterious failure into a fixable one.</p>
+</section>
+
+{% endraw %}
