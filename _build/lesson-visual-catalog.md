@@ -46,6 +46,8 @@ A concept step is "visualizable" if its prose contains any of: tree, split, node
 | A data frame as equal-length typed columns | toggle columns -> table, dim, per-column type + run | `dataframe-builder` | interactive | built |
 | Control flow: a loop with if/else executing | step a for-loop, branch taken + console builds up + run | `control-flow` | interactive | built |
 | Lexical scoping / environment lookup | name resolves local-then-global, chain highlighted + run | `scope-chain` | interactive | built |
+| What a regular expression matches | pick a pattern, every match highlights in a sample string + run | `regex-highlight` | interactive | built |
+| List-columns: nest / unnest | toggle flat frame vs one-row-per-group nested tibbles + run nest()/unnest() | `nest-unnest` | interactive | built |
 | Spread of estimates averaging to a mean | dots collapsing to a line | `estimate-averaging` | interactive | NEEDS BUILD (optional) |
 
 ## Gaps surfaced by the RF audit (2026-06-24)
