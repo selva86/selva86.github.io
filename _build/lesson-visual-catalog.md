@@ -42,6 +42,10 @@ A concept step is "visualizable" if its prose contains any of: tree, split, node
 | Theme / palette / accessibility | restyle a chart live + scale/theme code | `theme-styler` | interactive | built |
 | Dashboard layout / reactivity | one filter input -> value boxes + chart tiles update | `dashboard-layout` | interactive | built |
 | R Markdown / Quarto doc anatomy | source (.qmd) <-> rendered toggle | `doc-structure` | interactive | built |
+| Atomic-vector type coercion | add mixed-type elements, vector coerces up the hierarchy + run | `vector-coercion` | interactive | built |
+| A data frame as equal-length typed columns | toggle columns -> table, dim, per-column type + run | `dataframe-builder` | interactive | built |
+| Control flow: a loop with if/else executing | step a for-loop, branch taken + console builds up + run | `control-flow` | interactive | built |
+| Lexical scoping / environment lookup | name resolves local-then-global, chain highlighted + run | `scope-chain` | interactive | built |
 | Spread of estimates averaging to a mean | dots collapsing to a line | `estimate-averaging` | interactive | NEEDS BUILD (optional) |
 
 ## Gaps surfaced by the RF audit (2026-06-24)
