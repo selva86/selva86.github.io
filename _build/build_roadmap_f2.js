@@ -61,7 +61,7 @@ function head(o){
     '<link rel="canonical" href="'+o.canon+'">\n<link rel="icon" type="image/png" href="/screenshots/iconb-64.png">\n'+
     '<meta property="og:type" content="website"><meta property="og:title" content="'+o.title+'"><meta property="og:description" content="'+o.desc+'"><meta property="og:url" content="'+o.canon+'"><meta property="og:site_name" content="r-statistics.co"><meta property="og:image" content="'+ORIGIN+'/screenshots/og-default.png">\n'+
     '<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="'+o.title+'"><meta name="twitter:description" content="'+o.desc+'"><meta name="twitter:image" content="'+ORIGIN+'/screenshots/og-default.png">\n'+
-    o.jsonld+'\n'+FONTS+'\n<link rel="stylesheet" href="/www/'+o.css+'?v=7">\n'+GA+'\n'+AUTHCSS+'\n</head>';
+    o.jsonld+'\n'+FONTS+'\n<link rel="stylesheet" href="/www/'+o.css+'?v=8">\n'+GA+'\n'+AUTHCSS+'\n</head>';
 }
 const ROADMAP_MAIN=`<main class="wrap">
   <header class="hero reveal">
