@@ -1,0 +1,286 @@
+---
+title: "R Foundations Lesson 1: RStudio Projects and here"
+description: "Absolute file paths break when a project moves to another computer. Use an RStudio Project to anchor the working directory and the here package to build portable paths."
+keywords: "RStudio Projects, here package in R, here::here, working directory in R, setwd, relative paths in R, file.path, reproducible R, portable file paths, R project setup"
+webr: true
+curriculum_id: "1.8.1"
+post_type: "LESSON"
+course_id: "nr-workflow"
+course_title: "R Foundations: Reproducible Workflow"
+course_lesson: "1"
+course_total: "4"
+course_landing: "R-Foundations-Workflow-Course.html"
+course_next: "Reproducibility-with-renv-and-git.html"
+course_prev: ""
+lesson_access: "free"
+catalog_blurb: "Organize a project so its file paths work on any computer."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 1 of 4</div>
+<h2>RStudio Projects and here</h2>
+
+<p>Maria, a data analyst, has just finished a tidy little sales analysis. It works perfectly on her laptop, so she emails the R script to a teammate. He opens it, hits Run, and it dies on the very first line. The script begins with <code>setwd(&quot;C:/Users/Maria/Documents/sales-analysis&quot;)</code>, and there is no folder by that name on his machine. Same script, same data, instant failure.</p>
+
+<p>This lesson fixes that, for good. The trouble is never the analysis. It is the two lines at the top that pin the work to one exact spot on one exact computer. Get the folder and the paths right and your code travels: it runs unchanged on a teammate's laptop, on a new machine, or on a server, with nothing to edit.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain why a hard-coded absolute path breaks the moment a project moves to another machine or folder</li>
+
+<li>Set up an RStudio Project so the working directory is the project root automatically, on any computer</li>
+
+<li>Use <code>here()</code> to build a file path from the project root that works no matter which subfolder the code runs from</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can <a href="R-Syntax-and-First-Objects.html">run R and call a function</a>, you have <a href="Reading-CSV-and-Delimited-Files.html">read a CSV into R</a>, and you can <a href="Install-and-Load-Packages.html">install and load a package</a>. The flow below is the whole journey.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"One project folder","sub":"keep data, scripts and output together in one place"},{"title":"Open the project","sub":"the working directory is set to the project root, automatically"},{"title":"here() builds the path","sub":"every path starts from that root, so it runs on any machine"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>An absolute path names one machine</h2>
+
+<p>Maria's first line points at a path like <code>C:/Users/Maria/Documents/sales-analysis/data/sales.csv</code>. That is an <strong>absolute path</strong>: a complete address that starts at the very top of one specific computer (here, the <code>C:</code> drive) and spells out every folder down to the file. It is the equivalent of a full street address with the country, city and house number. Precise, but it only exists in one place in the world.</p>
+
+<p>That precision is exactly the problem. Her teammate has no <code>C:/Users/Maria/</code> folder. His files live under <code>C:/Users/Raj/</code>, or <code>/home/raj/</code> on Linux. So the address Maria wrote points at nothing on his machine, and R gives up. We can see that failure for real. The path below is hard-coded to Maria's laptop, so on this machine <code>file.exists()</code> honestly reports that there is no such file:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">maria_path &lt;- &quot;C:/Users/Maria/Documents/sales-analysis/data/sales.csv&quot;
+file.exists(maria_path)   # is that exact file on THIS machine? no
+#&gt; [1] FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Here is what her teammate actually sees when he runs the original script. It stops before it does any work at all:</p>
+
+<pre><code class="language-r">setwd(&quot;C:/Users/Maria/Documents/sales-analysis&quot;)
+#&gt; Error in setwd(&quot;C:/Users/Maria/Documents/sales-analysis&quot;) :
+#&gt;   cannot change working directory</code></pre>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><code>setwd()</code> plus an absolute path is the single most common reason an R script that "works on my machine" fails on everyone else's. The fix is not a better absolute path. It is to stop writing absolute paths at all.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The idea</div>
+<h2>The working directory, and paths measured from it</h2>
+
+<p>R is always "standing in" one folder, called the <strong>working directory</strong>. It is R's sense of <em>you are here</em>. Ask for it with <code>getwd()</code>:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">getwd()                 # the folder R is standing in right now
+#&gt; [1] &quot;/home/web_user&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The alternative to an absolute path is a <strong>relative path</strong>: an address measured <em>from the working directory</em> instead of from the top of the drive. The relative path <code>data/sales.csv</code> means "starting from wherever I am standing, step into <code>data/</code> and take <code>sales.csv</code>." No drive letter, no username, nothing tied to one machine. Build relative paths with <code>file.path()</code>, which joins the pieces with the correct separator for whatever operating system is running:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">file.path(&quot;data&quot;, &quot;sales.csv&quot;)   # join folders into a portable relative path
+#&gt; [1] &quot;data/sales.csv&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Let's prove a relative path actually works. We will create a small <code>data/</code> folder right here, write Maria's tiny sales file into it, then read it back with nothing but a relative path:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dir.create(&quot;data&quot;, showWarnings = FALSE)
+writeLines(c(&quot;region,sales&quot;, &quot;North,1200&quot;, &quot;South,900&quot;, &quot;East,1500&quot;), &quot;data/sales.csv&quot;)
+read.csv(&quot;data/sales.csv&quot;)    # relative path, resolved from the working directory
+#&gt;   region sales
+#&gt; 1  North  1200
+#&gt; 2  South   900
+#&gt; 3   East  1500</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A relative path is only as good as the working directory it is measured from. Get every collaborator standing in the same folder (the project root) and the same relative path means the same file for everyone. That shared starting point is precisely what an RStudio Project gives you.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What is it measured from?</h2>
+
+<p>You run <code>read.csv(&quot;data/sales.csv&quot;)</code> and it succeeds. Which folder did R look inside to find <code>data/sales.csv</code>?</p>
+<section class="exercise" data-exercise-id="RStudio-Projects-and-here-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The folder where the script file is saved on disk</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The current working directory, the folder R is standing in</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Maria's home folder, because that is where R always starts</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A relative path is always resolved from the working directory. <code>data/sales.csv</code> means "from where R is standing, go into data and take sales.csv." Change the working directory and the same text points somewhere else.</div><div class="lesson-qfb lesson-qfb-no">There is no fixed home folder. R resolves a relative path from the current working directory, which you can move and which RStudio sets for you when you open a project.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix, part one</div>
+<h2>An RStudio Project anchors the working directory</h2>
+
+<p>An <strong>RStudio Project</strong> is just an ordinary folder with one small extra file in it, named with a <code>.Rproj</code> extension (for example <code>sales-analysis.Rproj</code>). You keep everything the analysis needs inside that one folder: the data, the scripts, the output. A typical layout looks like this:</p>
+
+<pre><code>sales-analysis/            &lt;- the project root (holds sales-analysis.Rproj)
+|-- sales-analysis.Rproj   &lt;- the marker that makes this folder a Project
+|-- data/
+|   `-- sales.csv
+|-- R/
+|   `-- clean-data.R
+`-- output/
+    `-- sales-plot.png</code></pre>
+
+<p>The magic is what happens when you open that <code>.Rproj</code> file (File > Open Project in RStudio, or double-click it): RStudio starts a fresh R session and <strong>sets the working directory to the project folder</strong>, automatically. Maria's machine, her teammate's machine, a server, it does not matter, because opening the project always makes the project root the working directory. Now this single line means the same file for everyone, with no <code>setwd()</code> anywhere:</p>
+
+<pre><code class="language-r"># At the top of any script in the project. No setwd(), no drive letter:
+sales &lt;- read.csv(&quot;data/sales.csv&quot;)   # data/ is right inside the project root</code></pre>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">The rule of thumb from here on: never call <code>setwd()</code>, and never write an absolute path in a script. Open the project instead, and write every path relative to the project root. The <code>.Rproj</code> file does the anchoring so you do not have to.</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The leak</div>
+<h2>One gap relative paths still cannot close</h2>
+
+<p>Opening a project fixes the working directory at the start. But the working directory can quietly <strong>move while your code runs</strong>, and when it does, a bare relative path breaks again. The classic case is rendering a report. When you knit an R Markdown or Quarto file that lives in a <code>report/</code> subfolder, R moves the working directory <em>into</em> <code>report/</code> for the duration of the render. So this line, which worked fine from the project root, now looks in the wrong place:</p>
+
+<pre><code class="language-r"># Knitting report/analysis.Rmd moves the working directory into report/.
+# So R now hunts for the file inside report/data/, which does not exist:
+read.csv(&quot;data/sales.csv&quot;)
+#&gt; Error: cannot open file 'data/sales.csv': No such file or directory</code></pre>
+
+<p>The same thing happens whenever code runs from somewhere other than the root: a script sourced from a subfolder, a scheduled job, a test. The relative path is correct <em>relative to the root</em>, but R is no longer standing at the root. We need a way to say "from the project root" explicitly, every time, regardless of where the code happens to be running.</p>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix, part two</div>
+<h2>here() always builds from the project root</h2>
+
+<p>The <strong>here</strong> package solves exactly this. The function <code>here()</code> does not care where R is currently standing. It finds the project root on its own and builds the path from there. It works by looking in the current folder for a root marker (a <code>.Rproj</code> file, or a small <code>.here</code> file), and if it does not find one, stepping up to the parent folder, and the parent's parent, until it does. The flow:</p>
+
+<p>Once it has the root, <code>here(&quot;data&quot;, &quot;sales.csv&quot;)</code> joins it onto your folders and gives back a full, correct path, identical whether you call it from the root, from <code>report/</code>, or from a scheduled job. Let's run it. (<code>set_here(&quot;.&quot;)</code> drops a <code>.here</code> marker so <code>here()</code> knows this folder is the root, which in a real project the <code>.Rproj</code> file already does for you.)</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(here)
+set_here(&quot;.&quot;)               # mark THIS folder as the project root (the .Rproj does this for real)
+here(&quot;data&quot;, &quot;sales.csv&quot;)   # an absolute path, built from the root</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Because <code>here()</code> resolves to the root no matter where the code runs, the read just works, every time:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">read.csv(here(&quot;data&quot;, &quot;sales.csv&quot;))   # find the file from the root, then read it
+#&gt;   region sales
+#&gt; 1  North  1200
+#&gt; 2  South   900
+#&gt; 3   East  1500</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><code>read.csv(&quot;data/sales.csv&quot;)</code> trusts wherever R happens to be standing. <code>read.csv(here(&quot;data&quot;, &quot;sales.csv&quot;))</code> rebuilds the path from the project root first, so it cannot be fooled by a working directory that moved. In a project, reach for <code>here()</code> and you never think about the working directory again.</div></div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Start where you are","sub":"begin in whatever folder the code is running from"},{"title":"Walk up the folders","sub":"check each parent folder for a project marker"},{"title":"Find the root marker","sub":"the folder holding .Rproj or .here is the project root"},{"title":"Build the path from there","sub":"join the root with data, sales.csv: the same answer every time"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Build a path from the root</h2>
+
+<p>Maria saves her charts in an <code>output/</code> folder inside the project, and wants the path to <code>sales-plot.png</code> so she can write a figure there. Using <code>here()</code>, build the path to <code>output/sales-plot.png</code> from the project root. The <code>library(here)</code> line is written for you; replace the blank with the call.</p>
+<section class="exercise" data-exercise-id="RStudio-Projects-and-here-step8" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="here\s*[(][^)]*output[^)]*plot"><textarea class="lesson-tryit-input" spellcheck="false">library(here)
+____   # build the path to output/sales-plot.png from the project root</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the habit: here(folder, file) builds from the project root, so the path is correct from any subfolder, on any machine.</span><span class="lesson-tryit-fb lesson-tryit-no">Pass the folder then the file name to here(): the folder output first, then the file sales-plot.png, each in quotes.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">library(here)
+here(&quot;output&quot;, &quot;sales-plot.png&quot;)   # path to the chart, from the project root
+#&gt; [1] &quot;/home/you/sales-analysis/output/sales-plot.png&quot;</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>When do you still need here()?</h2>
+
+<p>Your code lives in a proper RStudio Project, so opening it sets the working directory to the root. In which situation would a bare <code>read.csv(&quot;data/sales.csv&quot;)</code> still fail, where <code>read.csv(here(&quot;data&quot;, &quot;sales.csv&quot;))</code> would not?</p>
+<section class="exercise" data-exercise-id="RStudio-Projects-and-here-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Never. Once it is an RStudio Project, every relative path is guaranteed to work</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Only on Windows, because of the backslash in its file paths</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">When the code runs from a subfolder, such as knitting a report in report/, which moves the working directory</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Knitting (or sourcing from a subfolder, or a scheduled job) moves the working directory off the root, so the bare relative path looks in the wrong place. here() rebuilds from the root, so it still finds the file.</div><div class="lesson-qfb lesson-qfb-no">Path separators are a real cross-platform issue, but file.path() and here() both handle them. The failure here is about the working directory moving, not the operating system.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative, free places to take this further:</p>
+
+<ul>
+
+<li><a href="https://r4ds.hadley.nz/workflow-scripts">R for Data Science (2e): Workflow, scripts and projects</a> - the project-oriented workflow, explained by the authors of the tidyverse.</li>
+
+<li><a href="https://www.tidyverse.org/blog/2017/12/workflow-vs-script/">Jenny Bryan: Project-oriented workflow</a> - the canonical argument for why <code>setwd()</code> and absolute paths should be retired.</li>
+
+<li><a href="https://here.r-lib.org/">The here package documentation</a> - the official reference for <code>here()</code> and how it finds the project root.</li>
+
+<li><a href="https://support.posit.co/hc/en-us/articles/200526207-Using-RStudio-Projects">Using RStudio Projects (Posit Support)</a> - how to create and open a Project, step by step.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Lesson 1 complete</h2>
+
+<p>You turned a fragile script into a portable one. An <strong>absolute path</strong> (<code>C:/Users/Maria/...</code>) names one folder on one machine, so it breaks the moment the work moves. A <strong>relative path</strong> (<code>data/sales.csv</code>) is measured from the working directory, so it travels, as long as everyone starts from the same folder. An <strong>RStudio Project</strong> guarantees that shared starting point: opening the <code>.Rproj</code> sets the working directory to the project root automatically. And <code>here()</code> closes the last gap, building every path from that root so it holds even when the working directory moves under you, such as when you knit a report.</p>
+
+<p>Next, Lesson 2: <strong>Reproducibility with renv and git.</strong> A portable project still depends on the exact package versions it was written against, and on a record of how it changed over time. You will pin your packages with renv so the code runs the same a year from now, and track every change with git so you can always see what you did and undo it safely.</p>
+</section>
+
+{% endraw %}
