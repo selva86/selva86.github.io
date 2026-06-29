@@ -92,12 +92,14 @@
   // option 3: "Unlock with Pro" pill lives inside <summary>; navigate without toggling the accordion
   document.addEventListener('click',function(e){var u=e.target.closest&&e.target.closest('.unlock');if(u){e.preventDefault();e.stopPropagation();window.location.href=u.getAttribute('href')||'/pricing.html';}},true);
 
-  // --- Data Analyst track: interactive-lesson hybrid rows ---
-  // The analyst curriculum is fully covered by interactive lessons, so replace each analyst
-  // section's flat concept list with one row per lesson plus the concepts it covers (no
-  // duplication). Lesson set/order come from /courses.json (authoritative for what is built);
-  // RM2.lessonConcepts attaches the "covers" detail. Every other track is left unchanged.
+  // --- Core tracks (analyst, foundations): interactive-lesson hybrid rows ---
+  // These tracks are fully covered by interactive lessons, so each section's flat concept
+  // list is replaced by one row per lesson (+ its subtitle). The lesson data is BAKED inline
+  // at build time (window.__RMLESSONS__) so the correct rows render SYNCHRONOUSLY on first
+  // paint with no runtime-fetch dependency; the async /courses.json fetch then refreshes to
+  // pick up any lessons published since the last roadmap rebuild. Other tracks stay flat.
   (function(){
+    var HYBRID={analyst:1,foundations:1};
     var st=document.createElement('style');
     st.textContent='.ilhy-row{display:block;padding:11px 9px;border-radius:9px;text-decoration:none;color:var(--ink,#1a1a1a)}'
       +'.ilhy-row+.ilhy-row{border-top:1px solid var(--line,#e6e3da)}'
@@ -109,34 +111,40 @@
       +'.ilhy-cov{display:block;margin:5px 0 0 19px;font-size:12px;color:var(--faint,#8a8a83);line-height:1.55}'
       +'.ilhy-gq{background:var(--c);color:#fff;border-color:var(--c)}';
     document.head.appendChild(st);
-    fetch('/courses.json',{cache:'no-cache'}).then(function(r){return r.ok?r.json():null;}).then(function(cat){
+    function applyHybrid(cat){
       if(!cat||!cat.courses)return;
-      var bySec={};
-      cat.courses.forEach(function(c){ if(!c.roadmap||c.roadmap.track!=='analyst')return;
-        (bySec[c.roadmap.section]=bySec[c.roadmap.section]||[]).push(c); });
-      var grand=0;
-      Object.keys(bySec).forEach(function(n){
-        var det=document.querySelector('details.sec[data-track="analyst"][data-sec="'+n+'"]'); if(!det)return;
-        var lsns=det.querySelector('.lsns'); if(!lsns)return;
-        var rows='',cnt=0;
-        bySec[n].forEach(function(c){
-          (c.lessons||[]).slice().sort(function(a,b){return (a.order||0)-(b.order||0);}).forEach(function(l){
-            if(l.built===false)return; cnt++;
-            var sub=(l.subtitle||'').trim();
-            var covHtml=sub?'<span class="ilhy-cov">'+esc(sub)+'</span>':'';
-            var isQ=l.kind==='quiz';
-            rows+='<a class="ilhy-row'+(isQ?' ilhy-quiz':'')+'" href="/'+l.slug+'.html"><span class="ilhy-head"><span class="ilhy-a">'+(isQ?'&#10003;':'&#9654;')+'</span><span class="ilhy-t">'+esc(l.title)+'</span><span class="ilhy-g'+(isQ?' ilhy-gq':'')+'">'+(isQ?'Quiz':'Interactive')+'</span></span>'+covHtml+'</a>';
+      var byTrack={};
+      cat.courses.forEach(function(c){ if(!c.roadmap||!HYBRID[c.roadmap.track])return;
+        var t=c.roadmap.track; byTrack[t]=byTrack[t]||{};
+        (byTrack[t][c.roadmap.section]=byTrack[t][c.roadmap.section]||[]).push(c); });
+      Object.keys(byTrack).forEach(function(track){
+        var bySec=byTrack[track], grand=0;
+        Object.keys(bySec).forEach(function(n){
+          var det=document.querySelector('details.sec[data-track="'+track+'"][data-sec="'+n+'"]'); if(!det)return;
+          var lsns=det.querySelector('.lsns'); if(!lsns)return;
+          var rows='',cnt=0;
+          bySec[n].forEach(function(c){
+            (c.lessons||[]).slice().sort(function(a,b){return (a.order||0)-(b.order||0);}).forEach(function(l){
+              if(l.built===false)return; cnt++;
+              var sub=(l.subtitle||'').trim();
+              var covHtml=sub?'<span class="ilhy-cov">'+esc(sub)+'</span>':'';
+              var isQ=l.kind==='quiz';
+              rows+='<a class="ilhy-row'+(isQ?' ilhy-quiz':'')+'" href="/'+l.slug+'.html"><span class="ilhy-head"><span class="ilhy-a">'+(isQ?'&#10003;':'&#9654;')+'</span><span class="ilhy-t">'+esc(l.title)+'</span><span class="ilhy-g'+(isQ?' ilhy-gq':'')+'">'+(isQ?'Quiz':'Interactive')+'</span></span>'+covHtml+'</a>';
+            });
           });
+          if(!rows)return;
+          lsns.innerHTML=rows;
+          var cb=det.querySelector('.cnt'); if(cb)cb.textContent=String(cnt);
+          grand+=cnt;
         });
-        if(!rows)return;
-        lsns.innerHTML=rows;
-        var cb=det.querySelector('.cnt'); if(cb)cb.textContent=String(cnt);
-        grand+=cnt;
+        if(grand){var m=document.querySelector('.meta[data-track="'+track+'"]');
+          if(m&&RM2.sections[track])m.textContent=RM2.sections[track].length+' sections / '+grand+' lessons / all free';}
       });
-      // align the analyst milestone "lessons" count with the interactive-lesson rows now shown
-      if(grand){var m=document.querySelector('.meta[data-track="analyst"]');
-        if(m)m.textContent=RM2.sections.analyst.length+' sections / '+grand+' lessons / all free';}
-    }).catch(function(){});
+    }
+    // 1) synchronous first paint from inline-baked data (no fetch dependency, every browser)
+    if(window.__RMLESSONS__)applyHybrid(window.__RMLESSONS__);
+    // 2) refresh from the live catalog (picks up lessons published since the last rebuild)
+    fetch('/courses.json',{cache:'no-cache'}).then(function(r){return r.ok?r.json():null;}).then(applyHybrid).catch(function(){});
   })();
 
 })();

@@ -8,6 +8,23 @@ require(p.join(root,'www','roadmap-data.js'));
 require(p.join(root,'www','roadmap-curriculum.js'));
 const RM=window.RM, RM2=window.RM2;
 
+// Inline-bake the interactive-lesson catalog for the hybrid tracks (analyst, foundations)
+// so the roadmap renders the correct lesson rows on FIRST PAINT with no runtime-fetch
+// dependency. roadmap-f2.js reads window.__RMLESSONS__ synchronously, then refreshes from
+// /courses.json. Falls back to '' (async-fetch-only, the old behavior) if unreadable.
+let RMLESSONS='';
+try{
+  const cat=JSON.parse(F.readFileSync(p.join(root,'courses.json'),'utf8'));
+  const HY={analyst:1,foundations:1};
+  const courses=(cat.courses||[]).filter(function(c){return c.roadmap&&HY[c.roadmap.track];}).map(function(c){
+    return {roadmap:{track:c.roadmap.track,section:c.roadmap.section},
+      lessons:(c.lessons||[]).filter(function(l){return l.built!==false;}).map(function(l){
+        return {slug:l.slug,title:l.title,subtitle:l.subtitle||'',kind:l.kind||'lesson',order:l.order||0};})};
+  });
+  RMLESSONS='<script>window.__RMLESSONS__='+JSON.stringify({courses:courses})+';</script>';
+  console.log('  inlined __RMLESSONS__: '+courses.length+' hybrid courses');
+}catch(e){ console.log('  __RMLESSONS__ skipped ('+e.message+')'); }
+
 const ORIGIN='https://r-statistics.co';
 const ROLES=[
   {k:'foundations',slug:'new-to-r',name:'New to R',title:'Learn R from Scratch: the Foundations Roadmap',
@@ -107,7 +124,7 @@ function dataScripts(render){return '<script src="/www/roadmap-data.js?v=2"></sc
 
 // --- roadmap index ---
 const idx=head({title:'R Learning Roadmap · r-statistics.co',desc:'A guided route through R, sequenced by your goal: new to R, data analyst, data scientist, forecaster, researcher or R developer. Every level earns a verifiable certificate.',canon:ORIGIN+'/roadmap/',jsonld:jsonldRoadmap(),css:'roadmap-f2.css'})+
-  '\n<body data-page="roadmap">\n<div class="prog" id="prog"></div>\n'+nav()+'\n'+ROADMAP_MAIN+'\n'+foot()+'\n'+dataScripts('roadmap-f2.js?v=6')+'\n'+SHELL+'\n</body>\n</html>\n';
+  '\n<body data-page="roadmap">\n<div class="prog" id="prog"></div>\n'+nav()+'\n'+ROADMAP_MAIN+'\n'+foot()+'\n'+RMLESSONS+'\n'+dataScripts('roadmap-f2.js?v=7')+'\n'+SHELL+'\n</body>\n</html>\n';
 F.writeFileSync(p.join(root,'roadmap','index.html'),idx);
 let n=1;
 
