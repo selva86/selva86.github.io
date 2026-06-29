@@ -76,3 +76,13 @@ Nine courses, one per roadmap section of the Data Analyst track. All free (the a
 1. Reproducible-Reports-with-Quarto - The anatomy of a Quarto / R Markdown document (YAML, prose, code chunks) and what it knits to, then parameterized reports that re-run for any input. widgets: doc-structure, process-flow
 2. Telling-a-Story-with-Data - Lead with the answer (the executive summary), then structure a short data story that a busy reader can act on. widgets: chart-plotter, doc-structure
 3. AI-Assisted-Analysis-in-R - Use an LLM to summarize and label data from R (ellmer), and a clear-eyed guide to when to trust, and when not to trust, an LLM in an analysis. widgets: agent-loop, process-flow
+
+
+# New to R (Foundations) track (level 1, all free)
+The shared base track; courses map one-to-one to the New to R roadmap sections, all free (level 1). Teach from scratch for a true beginner, ground each lesson in ONE concrete running example, <=12 steps. Foundations widgets: vector-coercion, dataframe-builder, control-flow, scope-chain (plus tree-diagram, process-flow, table-transform). Each section also gets a "Quiz" (hand-authored after its lessons, like the analyst quizzes).
+
+## nr-basics  (track: foundations; curriculum_id 1.1; landing R-Foundations-Basics-Course.html; access: free)
+1. R-Syntax-and-First-Objects - Your first R session: run code, assign with <-, call functions, read an error, and get help. widgets: process-flow
+2. Atomic-Vectors-and-Data-Types - The atomic vector and R's core types (logical, integer, double, character); typeof and length. widgets: vector-coercion
+3. Operators-Recycling-and-Coercion - Arithmetic and logical operators, vector recycling, and how mixing types coerces the whole vector. widgets: vector-coercion
+4. Missing-and-Special-Values - NA, NULL, NaN, and Inf: what each means and how it propagates through your code. widgets: dataframe-builder
