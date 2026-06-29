@@ -70,7 +70,7 @@
         'Reporting exercises', 'report template')
     ],
     ds: [
-      S(1,true,"The ML workflow and first models",'',["From business question to a validated model","The bias-variance tradeoff","Train, validation, test, and data leakage","Your first end-to-end model","Reproducibility from day one"],"ML exercises","model lab",'core'),
+      S(1,true,"The ML workflow and first models",'',["Framing a business problem as machine learning (CRISP-DM)","The bias-variance tradeoff","Train, validation, test, and data leakage","Your first end-to-end model","Reproducibility from day one"],"ML exercises","model lab",'core'),
       S(2,true,"Regression, done properly",'',["OLS from scratch","Assumptions and residual analysis","Influence and leverage","Multicollinearity","Heteroskedasticity and autocorrelation","Inference and prediction","Logistic regression, properly","GLMs beyond logistic"],"ML exercises","model lab",'core'),
       S(3,true,"Classification fundamentals",'',["k-nearest neighbors and the curse of dimensionality","Naive Bayes for text and tabular data","Linear and quadratic discriminant analysis (LDA / QDA)","Decision trees from the ground up","Decision boundaries, model geometry, and generative vs discriminative","Reading a classifier"],"ML exercises","model lab",'core'),
       S(4,true,"Trees and gradient boosting",'',["Bagging and random forests with ranger","Gradient boosting","LightGBM and CatBoost in R","The hyperparameters that actually matter","Early stopping and reading learning curves","Monotonic constraints for business rules","Quantile regression forests and prediction intervals from trees"],"ML exercises","model lab",'core'),
