@@ -1,0 +1,366 @@
+---
+title: "R Foundations Lesson 1: Errors, Warnings and Messages"
+description: "How stop, warning and message signal problems in R, when to reach for each, and how to write clear error messages that your users can actually act on."
+keywords: "R error handling, stop in R, warning in R, message in R, actionable error messages, condition system in R, signalling conditions, base R debugging"
+webr: true
+curriculum_id: "1.7.1"
+post_type: "LESSON"
+course_id: "nr-debugging"
+course_title: "R Foundations: Debugging"
+course_lesson: "1"
+course_total: "3"
+course_landing: "R-Foundations-Debugging-Course.html"
+course_next: "tryCatch-and-Input-Validation.html"
+course_prev: ""
+lesson_access: "free"
+catalog_blurb: "Signal problems clearly so users know exactly what to fix."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 1 of 3</div>
+<h2>Errors, Warnings and Messages</h2>
+
+<p>Priya runs a small lending library. She is writing one R function, <code>late_fee()</code>, that takes how many days a book is overdue and returns what the borrower owes at 25 cents a day. Five days late is a tidy <code>5 * 0.25 = $1.25</code>.</p>
+
+<p>But the real world is messier than that. Sometimes the scanner hands her <em>3.5</em> days. Sometimes a typo sends in <em>-3</em> days, a book returned before it was even due. Her function needs a way to <em>speak up</em>: to say "just so you know", to say "this looks off", and to say "I cannot continue". R gives her exactly three voices for that, and they differ by one thing: how loudly they interrupt.</p>
+
+<p>This lesson is about those three voices, <code>message()</code>, <code>warning()</code> and <code>stop()</code>, the escalation ladder in the diagram below. Get them right and the people using your code (often future-you) know precisely what happened and what to do next.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Pick the right signal, <code>message()</code>, <code>warning()</code> or <code>stop()</code>, for a given situation</li>
+
+<li>Use <code>message()</code> to report progress without changing the result or halting</li>
+
+<li>Use <code>warning()</code> to flag a recoverable problem, and know warnings are easy to miss</li>
+
+<li>Use <code>stop()</code> to halt cleanly on an unrecoverable problem</li>
+
+<li>Write an error message a stranger can actually act on</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can <a href="R-Syntax-and-First-Objects.html">run R and call a function</a>, you can <a href="Writing-Functions-in-R.html">write your own function</a> with arguments and a return value, and you know [<code>if</code> and <code>else</code>](Control-Flow-in-R.html).</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"message()","sub":"just so you know; the code keeps running"},{"title":"warning()","sub":"this looks off; the code keeps running, but it is flagged"},{"title":"stop()","sub":"cannot continue; the code halts right here"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The mental model</div>
+<h2>Three ways your code can speak up</h2>
+
+<p>When R hits one of these three calls, it raises a <strong>condition</strong>: a small signal that says "something happened here." A condition does not have to be a disaster. The three you will use every day differ by <em>severity</em>, which decides whether your code keeps running.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>You call</th>
+<th>Severity</th>
+<th>Does the function keep running?</th>
+<th>Shown as</th>
+<th>Use it when...</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>message()</code></td>
+<td>info</td>
+<td>yes</td>
+<td>a plain note</td>
+<td>you want to report progress or a choice you made</td>
+</tr>
+<tr>
+<td><code>warning()</code></td>
+<td>caution</td>
+<td>yes (the warning is held until the end)</td>
+<td><code>Warning message:</code></td>
+<td>something is odd but you can sensibly continue</td>
+</tr>
+<tr>
+<td><code>stop()</code></td>
+<td>error</td>
+<td><strong>no, it halts</strong></td>
+<td><code>Error:</code></td>
+<td>you cannot produce a correct result, so you must not try</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The single question that picks the signal for you is: <strong>can the function still do its job correctly?</strong> Yes, no problem at all: a <code>message()</code>. Yes, but the caller should know: a <code>warning()</code>. No: a <code>stop()</code>. Severity is not about how you feel; it is about whether the work can honestly continue.</div></div>
+
+<p>For Priya's <code>late_fee()</code>: announcing the charge is a message, silently rounding a fractional day is a warning, and refusing a negative day is a stop. We will build each one now.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The quiet voice</div>
+<h2>message(): a note off to the side</h2>
+
+<p>A <code>message()</code> is a sticky note. It tells whoever is watching what your code is doing, the result is unaffected and the function rolls right on. Here is Priya's first version, which announces each calculation:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Priya's late-fee helper, with a progress note
+late_fee &lt;- function(days_late, rate = 0.25) {
+  message(&quot;Calculating fee for &quot;, days_late, &quot; days at $&quot;, rate, &quot;/day.&quot;)
+  days_late * rate
+}
+
+fee &lt;- late_fee(5)
+#&gt; Calculating fee for 5 days at $0.25/day.
+fee
+#&gt; [1] 1.25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Notice the note appeared, and then <code>fee</code> is still exactly <code>1.25</code>. That is the whole point: the message is information <em>about</em> the work, not part of the result.</p>
+
+<p>Two details that matter. First, <code>message()</code> glues its pieces together with no spaces between them, so you write the spaces you want inside the quotes (<code>&quot;... for &quot;</code>, <code>&quot; days at $&quot;</code>). Second, a message is printed to a separate channel called <em>standard error</em>, not mixed into your real output, and <code>message()</code> itself returns nothing. So a message never pollutes a value you are saving or piping onward.</p>
+
+<p>When you do not want the chatter, silence it at the call site with <code>suppressMessages()</code>. The work still happens; only the note is hidden:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">quiet_fee &lt;- suppressMessages(late_fee(5))
+quiet_fee
+#&gt; [1] 1.25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Reach for <code>message()</code>, not <code>print()</code> or <code>cat()</code>, for status updates. Because messages go to the side channel, a user can switch them off with <code>suppressMessages()</code> and they never contaminate the data your function returns. <code>print()</code> and <code>cat()</code> cannot be silenced that cleanly.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does a message do to your function?</h2>
+
+<p>Inside a function you call <code>message(&quot;halfway done&quot;)</code> and then keep computing. What happens to the function <em>after</em> that <code>message()</code> line runs?</p>
+<section class="exercise" data-exercise-id="Errors-Warnings-and-Messages-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It keeps running and returns its result as usual</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It stops immediately, the way an error does</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It pauses and waits for the user to type a response</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A message is purely informational: it prints a note to the side channel and execution continues, so the function still returns its normal value.</div><div class="lesson-qfb lesson-qfb-no"><code>message()</code> does not prompt or pause for input. It prints its note and the code moves straight on to the next line.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The caution voice</div>
+<h2>warning(): something looks off, but carry on</h2>
+
+<p>A <code>warning()</code> is the yellow caution light. Your code can still finish, but it wants the caller to know it made a judgement call. Priya sometimes gets a fractional day like <code>3.5</code> from the scanner. She decides that is recoverable: round to whole days, but flag it so nobody is surprised by the rounding.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">late_fee &lt;- function(days_late, rate = 0.25) {
+  if (days_late != round(days_late)) {
+    warning(&quot;days_late was &quot;, days_late, &quot;; rounding to &quot;, round(days_late), &quot; whole days.&quot;)
+    days_late &lt;- round(days_late)
+  }
+  message(&quot;Calculating fee for &quot;, days_late, &quot; days at $&quot;, rate, &quot;/day.&quot;)
+  days_late * rate
+}
+
+fee &lt;- late_fee(3.5)
+fee
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Run that and watch the <em>order</em> of what prints. The <code>warning()</code> line runs first in the code, yet its "Warning message:" appears <strong>after</strong> the "Calculating fee for 4 days" note. That is because, by default, R holds warnings until the function finishes and then reports them together. A warning is a deferred caution, not an interruption: the function ran to completion and returned <code>1</code> (four days at 25 cents).</p>
+
+<p>Because warnings are held to the end and printed in a muted style, they are genuinely easy to miss in a long run. When you want them gone on purpose, wrap the call in <code>suppressWarnings()</code>:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fee &lt;- suppressWarnings(late_fee(3.5))
+fee
+#&gt; [1] 1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">If a warning really should be treated as fatal, you can promote every warning to an error for a session with <code>options(warn = 2)</code>. That is a debugging trick for hunting down a warning's source, not something to leave on in normal code.</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The hard stop</div>
+<h2>stop(): refuse to continue</h2>
+
+<p>A <code>stop()</code> is a road barrier. When your function cannot produce a correct answer, the honest move is to halt rather than return nonsense. A book returned <em>before</em> it was due, <code>-3</code> days late, is meaningless input: there is no sensible fee. So Priya guards against it.</p>
+
+<p>When <code>stop()</code> runs, R raises an <strong>error</strong> condition, immediately abandons the rest of the function, and unwinds back to the top. Nothing after the <code>stop()</code> line executes. Because that halt cannot happen inside this in-browser session without ending the run, here is what it looks like in your own R console:</p>
+
+<pre><code class="language-r">late_fee(-3)
+#&gt; Error in late_fee(-3) : days_late must be 0 or more; you gave -3.
+# execution stops here. the lines below never run.</code></pre>
+
+<p>Now the runnable version. Defining the function is always safe, the guard only fires when someone actually passes bad input, so this block defines <code>late_fee()</code> with two guards and then calls it with a <em>valid</em> number:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">late_fee &lt;- function(days_late, rate = 0.25) {
+  if (!is.numeric(days_late)) {
+    stop(&quot;days_late must be a number; you gave &quot;, class(days_late), &quot;.&quot;)
+  }
+  if (days_late &lt; 0) {
+    stop(&quot;days_late must be 0 or more; you gave &quot;, days_late, &quot;.&quot;)
+  }
+  days_late * rate
+}
+
+late_fee(5)     # a valid call sails straight through the guards
+#&gt; [1] 1.25</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two guards sit at the very top, a habit worth keeping: check the inputs first, fail fast and loudly, and only then do the real work on data you trust.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><code>message()</code>, <code>warning()</code> and <code>stop()</code> are all <strong>conditions</strong>, the same underlying mechanism at three severities. That shared nature is the hinge of the next lesson: because an error is just a condition R signals, you can <em>catch</em> it with <code>tryCatch()</code> and recover instead of crashing.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The craft</div>
+<h2>Write an error message someone can act on</h2>
+
+<p><code>stop()</code> halts your code; a <em>good</em> <code>stop()</code> message tells the reader how to get going again. The difference between a message that wastes ten minutes and one that fixes the problem instantly is whether it answers three questions: <strong>what went wrong, what was expected versus what arrived, and what to do about it (including the offending value).</strong></p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Vague, unhelpful</th>
+<th>Actionable</th>
+<th>Why the second wins</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>stop(&quot;invalid input&quot;)</code></td>
+<td><code>stop(&quot;days_late must be 0 or more; you gave &quot;, days_late, &quot;.&quot;)</code></td>
+<td>names the argument, the rule, and the actual bad value</td>
+</tr>
+<tr>
+<td><code>stop(&quot;bad data&quot;)</code></td>
+<td><code>stop(&quot;scores must be numeric; column grade is character. Convert it with as.numeric().&quot;)</code></td>
+<td>says which column, what type it is, and the exact fix</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A reader hits your error with zero context. Give them the noun (which argument or column), the rule it broke (expected versus actual), and the value that broke it. Paste the real value into the message with extra arguments to <code>stop()</code>, exactly like <code>message()</code> and <code>warning()</code> do, so the reader sees <code>-3</code>, not a generic complaint.</div></div>
+
+<p>A small kindness with outsized payoff: the person reading "you gave -3" is very often you, six months from now, with no memory of how this function works.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Write the actionable message</h2>
+
+<p>Here is Priya's finished helper, with all three voices working together: a guard that <strong>stops</strong> on impossible input, a <strong>warning</strong> that rounds a fractional day, and a <strong>message</strong> that reports the charge. One piece is missing, the error message itself.</p>
+
+<p>Replace the <code>____</code> so the message is <em>actionable</em>: name the argument <code>days_late</code>, state the rule, and paste in the bad value (follow the pattern from the table). Then check your answer.</p>
+<section class="exercise" data-exercise-id="Errors-Warnings-and-Messages-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="stop.*days_late"><textarea class="lesson-tryit-input" spellcheck="false">late_fee &lt;- function(days_late, rate = 0.25) {
+  if (!is.numeric(days_late) || days_late &lt; 0) {
+    stop(&quot;____&quot;)                       # make this actionable
+  }
+  if (days_late != round(days_late)) {
+    warning(&quot;days_late was &quot;, days_late, &quot;; rounding to &quot;, round(days_late), &quot;.&quot;)
+    days_late &lt;- round(days_late)
+  }
+  message(&quot;Charging for &quot;, days_late, &quot; days at $&quot;, rate, &quot;/day.&quot;)
+  days_late * rate
+}
+late_fee(7)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Good. Naming days_late inside the stop() message tells the reader exactly which argument was wrong; pasting the value in with an extra argument makes it even clearer.</span><span class="lesson-tryit-fb lesson-tryit-no">Mention the argument by name inside stop(): start the message with days_late, for example name the argument, state the rule, then paste the value with a second argument.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">late_fee &lt;- function(days_late, rate = 0.25) {
+  if (!is.numeric(days_late) || days_late &lt; 0) {
+    stop(&quot;days_late must be a non-negative number; you gave &quot;, days_late, &quot;.&quot;)
+  }
+  if (days_late != round(days_late)) {
+    warning(&quot;days_late was &quot;, days_late, &quot;; rounding to &quot;, round(days_late), &quot;.&quot;)
+    days_late &lt;- round(days_late)
+  }
+  message(&quot;Charging for &quot;, days_late, &quot; days at $&quot;, rate, &quot;/day.&quot;)
+  days_late * rate
+}
+late_fee(7)
+#&gt; Charging for 7 days at $0.25/day.
+#&gt; [1] 1.75</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which voice fits?</h2>
+
+<p>Your function reads a configuration file that lists which reports to build. On this run the file is missing entirely, so the function has nothing at all to work with. Which signal should it use?</p>
+<section class="exercise" data-exercise-id="Errors-Warnings-and-Messages-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx"><code>message()</code>, because the file being missing is just useful information</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx"><code>warning()</code>, so the run continues and you notice the warning later</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx"><code>stop()</code>, because without the file there is no correct result to return</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The function genuinely cannot do its job, so halting now with a clear message is the honest choice, far better than returning a wrong or empty answer.</div><div class="lesson-qfb lesson-qfb-no">A warning lets broken code keep running on data it does not have. Warnings are also easy to miss, exactly the wrong outcome when the work cannot succeed.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative, free places to take this further:</p>
+
+<ul>
+
+<li><a href="https://adv-r.hadley.nz/conditions.html">Advanced R (2e): Conditions</a> - Hadley Wickham on R's condition system: how <code>message</code>, <code>warning</code> and <code>stop</code> signal conditions, and how handlers catch them.</li>
+
+<li><a href="https://style.tidyverse.org/error-messages.html">Tidyverse style guide: Error messages</a> - a practical checklist for writing error messages people can act on; the source of the "state the problem, then what to do" habit.</li>
+
+<li><a href="https://cran.r-project.org/doc/manuals/r-release/R-lang.html#Condition-handling">R Language Definition: Condition handling</a> - the official specification of how errors, warnings and conditions behave.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/stop.html">Base R help: stop, warning and message</a> - the canonical reference pages for the three functions you used here.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Lesson 1 complete</h2>
+
+<p>You now have all three of R's voices. You can drop a <code>message()</code> to report progress without touching the result, raise a <code>warning()</code> to flag a recoverable oddity (knowing it is deferred to the end and easy to miss), and <code>stop()</code> cleanly when the work cannot honestly continue, with an error message that names the argument, the rule and the offending value. The thread tying them together: all three are <em>conditions</em> R signals at different severities.</p>
+
+<p>Next, Lesson 2: tryCatch and Input Validation. So far you have learned to <em>raise</em> signals; now you will learn to <em>catch</em> them, recovering from an error instead of crashing, and to guard a function's inputs up front with <code>stopifnot()</code> so the guards you hand-wrote today become a single tidy line.</p>
+</section>
+
+{% endraw %}
