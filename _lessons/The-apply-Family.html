@@ -1,0 +1,392 @@
+---
+title: "R Foundations Lesson 2: The apply Family"
+description: "Run your own function over each element of a list or each row of a matrix, with no loop needed. Learn lapply, sapply, the type-safe vapply, and apply in R."
+keywords: "apply family in R, lapply, sapply, vapply, apply function, base R iteration, functionals in R, lapply vs sapply, apply over matrix rows, MARGIN argument"
+mathjax: true
+webr: true
+curriculum_id: "1.6.2"
+post_type: "LESSON"
+course_id: "nr-iteration"
+course_title: "R Foundations: Iteration"
+course_lesson: "2"
+course_total: "4"
+course_landing: "R-Foundations-Iteration-Course.html"
+course_next: "The-purrr-map-Family.html"
+course_prev: "Why-Vectorization-Beats-Loops.html"
+lesson_access: "free"
+catalog_blurb: "Run your own function over each piece of a list or matrix."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 2 of 4</div>
+<h2>The apply Family</h2>
+
+<p>In Lesson 1 you replaced hand-written loops with vectorized expressions: <code>prices * 1.08</code> raised every price at once. But that trick only works for R's built-in operations like <code>*</code> and <code>+</code>. What if you need to run <em>your own</em> function over each item, where each "item" is itself a whole vector (say a week of daily sales for one bakery product), or each row of a grid of numbers?</p>
+
+<p>That is the job of the <strong>apply family</strong>: <code>lapply</code>, <code>sapply</code>, the type-safe <code>vapply</code>, and <code>apply</code>. You hand R a function and a collection; R runs the function on each piece and collects the answers, with no loop in sight.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Run your own function over each element of a list with <code>lapply</code>, and know it always returns a list</li>
+
+<li>Use <code>sapply</code> for a quick simplified result, and recognise when its return type becomes unpredictable</li>
+
+<li>Reach for <code>vapply</code> when you want a guaranteed shape, and a clear error when you do not get it</li>
+
+<li>Summarise the rows or columns of a matrix with <code>apply</code> and its <code>MARGIN</code> argument</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> Lesson 1 (<a href="Why-Vectorization-Beats-Loops.html">vectorization</a>), and you can <a href="Writing-Functions-in-R.html">write a function</a> and build a <a href="Lists-and-Nested-Data.html">list</a>.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Take each piece","sub":"each element of a list, or each row of a matrix"},{"title":"Run your function","sub":"the same function you wrote, applied to that piece"},{"title":"Collect the results","sub":"gathered back into one object for you"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The shared idea</div>
+<h2>One pattern, run on every piece</h2>
+
+<p>Rosewood Bakery now tracks <strong>daily units sold</strong> for each item: a separate run of numbers per product. That shape, several vectors bundled under one name, is a <strong>list</strong>, not a flat vector. Build this week's list once now (run it):</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Rosewood Bakery: units sold Mon to Sat, one vector per item
+sales &lt;- list(
+  croissant = c(40, 45, 50, 50, 55, 60),
+  muffin    = c(20, 25, 30, 30, 35, 40),
+  bagel     = c(35, 38, 40, 40, 42, 45)
+)
+sales
+#&gt; $croissant
+#&gt; [1] 40 45 50 50 55 60
+#&gt; 
+#&gt; $muffin
+#&gt; [1] 20 25 30 30 35 40
+#&gt; 
+#&gt; $bagel
+#&gt; [1] 35 38 40 40 42 45</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Say you want the average daily sales for each item. You cannot write <code>mean(sales)</code>, that would try to average the whole tangle at once. You want <code>mean()</code> run <em>separately</em> on each element, and the three answers collected together. That "run a function on each piece, then collect" pattern is exactly what the apply family automates.</p>
+
+<p>Here is the idea precisely. If your collection is \(x = (x_1, x_2, \dots, x_n)\), a list with \(n\) elements (here \(n = 3\)), and \(f\) is the function you supply (here <code>mean</code>), then <code>lapply</code> computes</p>
+
+<p>\[ \text{lapply}(x, f) = \big(f(x_1),\, f(x_2),\, \dots,\, f(x_n)\big) \]</p>
+
+<p>and hands the \(n\) answers back. Programmers call this <em>mapping</em> a function over a collection: \(x_i\) is the i-th element and \(n\) is how many there are.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Every member of the apply family is the same sentence with a different ending: "run this function on each piece, and return the results as ___." The only thing that changes is the shape of what you get back.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The workhorse</div>
+<h2>lapply(): always hands back a list</h2>
+
+<p><code>lapply()</code> (think <em>list-apply</em>) is the most predictable member. Give it a list (or any vector) and a function, and it returns a <strong>list of the same length</strong>, with the function run on each element and the names carried over.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mean_list &lt;- lapply(sales, mean)   # run mean() on each item
+mean_list
+#&gt; $croissant
+#&gt; [1] 50
+#&gt; 
+#&gt; $muffin
+#&gt; [1] 30
+#&gt; 
+#&gt; $bagel
+#&gt; [1] 40
+
+class(mean_list)                   # what did we get back?
+#&gt; [1] &quot;list&quot;
+length(mean_list)                  # one entry per input element
+#&gt; [1] 3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>No counter, no <code>for</code>, no place to store results, just "run <code>mean</code> on each item." And the answer is <em>always</em> a list, every time, whatever the function returns. That total predictability is why <code>lapply</code> is the safe default when you will feed the result into more code.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What comes back?</h2>
+
+<p>You run <code>lapply(sales, mean)</code> on the three-item <code>sales</code> list. What is the shape of the result?</p>
+<section class="exercise" data-exercise-id="The-apply-Family-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A list of length 3, holding one mean per item</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A numeric vector of length 3</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A single number: the mean of all the sales at once</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. <code>lapply</code> always returns a list the same length as its input: one element per piece, names preserved, whatever the function gives back.</div><div class="lesson-qfb lesson-qfb-no"><code>mean</code> is run <em>per element</em>, not once over everything, so you get three means, not one. Running a function on each piece is the entire idea here.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The convenient one</div>
+<h2>sapply(): simplify when possible</h2>
+
+<p>Reading a list back every time is tedious when each answer is just one number. <code>sapply()</code> (<em>simplify-apply</em>) runs the same job as <code>lapply</code>, then tries to <strong>simplify</strong> the result to the simplest shape that fits.</p>
+
+<p>When every call returns a single number, you get a tidy named vector:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sapply(sales, mean)     # one number each, so it folds down to a vector
+#&gt; croissant    muffin     bagel 
+#&gt;        50        30        40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When every call returns the same count of values, you get a matrix, one column per item:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sapply(sales, range)    # range() gives 2 numbers each, so a 2-row matrix
+#&gt;      croissant muffin bagel
+#&gt; [1,]        40     20    35
+#&gt; [2,]        60     40    45</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Convenient. But notice the catch hiding in the word <em>tries</em>: the shape you get depends on what the function returns. Ask "which days sold more than 40?" and the items have different counts of such days (muffin had none, so its result is the empty <code>numeric(0)</code>), so <code>sapply</code> cannot line them up and silently falls back to a list:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">sapply(sales, function(x) x[x &gt; 40])
+#&gt; $croissant
+#&gt; [1] 45 50 50 55 60
+#&gt; 
+#&gt; $muffin
+#&gt; numeric(0)
+#&gt; 
+#&gt; $bagel
+#&gt; [1] 42 45</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body"><code>sapply</code> can return a vector, a matrix, <em>or</em> a list from the same line of code, depending on the data it happens to see that day. Great at the console; risky inside a script, where the next line assumes a fixed shape and breaks when the data shifts.</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The safe one</div>
+<h2>vapply(): state the shape up front</h2>
+
+<p><code>vapply()</code> (<em>verify-apply</em>) closes that trap. It works like <code>sapply</code>, but you add one argument that <strong>declares the shape every call must return</strong>. R checks each result against your template and refuses to continue if any result does not match.</p>
+
+<p>The template <code>numeric(1)</code> means "each call returns exactly one number":</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">vapply(sales, mean, numeric(1))   # promise: one number per item
+#&gt; croissant    muffin     bagel 
+#&gt;        50        30        40</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same clean vector as <code>sapply</code> gave here, but now it is <em>guaranteed</em>, not hoped for. And if a result ever breaks the promise, you get a loud, immediate error instead of a silently wrong object. Ask <code>range</code> (which returns two numbers) for a one-number template and R stops you cold:</p>
+
+<pre><code class="language-r">vapply(sales, range, numeric(1))
+#&gt; Error in vapply(sales, range, numeric(1)) : 
+#&gt;   values must be length 1, but FUN(X[[1]]) result is length 2</code></pre>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">At the console, <code>sapply</code> is fine. In a script or a package, prefer <code>vapply</code>: the extra template turns a shape mismatch from a silent bug into an error on the very line that caused it.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Get the peak day, safely</h2>
+
+<p>Rosewood wants the single best day's units for <strong>each</strong> item, returned as a named numeric vector, and it should error loudly if any item ever returns more than one value. Reach for the type-safe member of the family and fill in the function. (<code>max</code> returns the largest value of a vector.)</p>
+<section class="exercise" data-exercise-id="The-apply-Family-step7" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="vapply\s*\(\s*sales\s*,\s*max\s*,\s*numeric\s*\(\s*1\s*\)"><textarea class="lesson-tryit-input" spellcheck="false"># sales is already built above
+peak &lt;- vapply(sales, ____, numeric(1))
+peak</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Exactly. vapply runs max on each item and the numeric(1) template guarantees one number back per item, erroring at once if not.</span><span class="lesson-tryit-fb lesson-tryit-no">Use max as the function and keep the numeric(1) template: vapply(sales, max, numeric(1)).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">peak &lt;- vapply(sales, max, numeric(1))
+peak
+#&gt; croissant    muffin     bagel 
+#&gt;        60        40        45</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Over a grid</div>
+<h2>apply(): summarise a matrix by row or column</h2>
+
+<p>The first three work on lists. <code>apply()</code> is for a <strong>matrix</strong>: a rectangular grid of numbers, all the same type, with rows and columns. Stack the per-item vectors into one grid: <code>rbind</code> binds vectors together as rows, and <code>do.call</code> hands all three to it at once (items become rows, days become columns):</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># items in rows, days in columns
+weekly &lt;- do.call(rbind, sales)
+colnames(weekly) &lt;- c(&quot;Mon&quot;, &quot;Tue&quot;, &quot;Wed&quot;, &quot;Thu&quot;, &quot;Fri&quot;, &quot;Sat&quot;)
+weekly
+#&gt;           Mon Tue Wed Thu Fri Sat
+#&gt; croissant  40  45  50  50  55  60
+#&gt; muffin     20  25  30  30  35  40
+#&gt; bagel      35  38  40  40  42  45</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>apply()</code> takes a second argument, <code>MARGIN</code>, that says which way to slice: <code>1</code> runs your function on each <strong>row</strong>, <code>2</code> on each <strong>column</strong>. (Same order as <code>nrow</code> then <code>ncol</code>, and the same order you index with <code>weekly[row, column]</code>.)</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">apply(weekly, 1, sum)   # MARGIN = 1: total per item (one per row)
+#&gt; croissant    muffin     bagel 
+#&gt;       300       180       240 
+
+apply(weekly, 2, sum)   # MARGIN = 2: total per day (one per column)
+#&gt; Mon Tue Wed Thu Fri Sat 
+#&gt;  95 108 120 120 132 145</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Pick a margin","sub":"rows is MARGIN 1, columns is MARGIN 2"},{"title":"Run your function","sub":"apply runs it on each row, or each column"},{"title":"Collect","sub":"one result per slice, returned as a vector"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which way does it slice?</h2>
+
+<p><code>weekly</code> has items as its rows and days as its columns. You run <code>apply(weekly, 2, sum)</code>. What do you get back?</p>
+<section class="exercise" data-exercise-id="The-apply-Family-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">One total per day: the sum down each column</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">One total per item: the sum across each row</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A single grand total of every number in the matrix</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. <code>MARGIN = 2</code> means columns, so <code>sum</code> runs on each column and you get one total per day.</div><div class="lesson-qfb lesson-qfb-no">That is just <code>sum(weekly)</code>. <code>apply</code> with a <code>MARGIN</code> always gives one result <em>per slice</em>, never one overall.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Choosing well</div>
+<h2>Which one should you reach for?</h2>
+
+<p>They all share the pattern; they differ in what they return and how safe they are.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Function</th>
+<th>Works on</th>
+<th>Returns</th>
+<th>Reach for it when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>lapply</code></td>
+<td>list / vector</td>
+<td>always a list</td>
+<td>you want a predictable shape to pass onward</td>
+</tr>
+<tr>
+<td><code>sapply</code></td>
+<td>list / vector</td>
+<td>vector, matrix, or list</td>
+<td>a quick answer at the console</td>
+</tr>
+<tr>
+<td><code>vapply</code></td>
+<td>list / vector</td>
+<td>the shape you declare</td>
+<td>scripts and packages, where safety matters</td>
+</tr>
+<tr>
+<td><code>apply</code></td>
+<td>matrix / array</td>
+<td>a vector or matrix</td>
+<td>summarising rows or columns of a grid</td>
+</tr>
+</tbody>
+</table>
+
+<p>Two honest limits. First, <code>apply</code> is <em>not</em> the C-level vectorization from Lesson 1; it runs an R-level loop over the slices, so for plain numeric totals the purpose-built <code>rowSums()</code>, <code>colSums()</code>, <code>rowMeans()</code> and <code>colMeans()</code> are both clearer and faster. Second, the family's quirks (especially <code>sapply</code>'s shifting return type) are exactly what the <strong>purrr</strong> package was built to fix, with a consistent, type-stable set of <code>map</code> functions. That is Lesson 3.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Rule of thumb: at the console, <code>sapply</code> for speed of typing; in code you will keep, <code>lapply</code> or <code>vapply</code> for a shape you can rely on; for a matrix, <code>apply</code> (or the faster <code>rowSums</code>/<code>colSums</code> when you just need totals).</div></div>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative, free places to take this further:</p>
+
+<ul>
+
+<li><a href="https://adv-r.hadley.nz/functionals.html">Advanced R (2e): Functionals</a> - Hadley Wickham on apply and map as functionals, why they beat loops, and how the base and purrr families relate.</li>
+
+<li><a href="https://bookdown.org/rdpeng/rprogdatascience/loop-functions.html">R Programming for Data Science: Loop Functions</a> - Roger Peng's clear walkthrough of lapply, sapply, vapply, apply and mapply with worked examples.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/lapply.html">base R help: lapply, sapply and vapply</a> - the official documentation for the exact arguments, including vapply's FUN.VALUE template.</li>
+
+<li><a href="https://cran.r-project.org/doc/manuals/r-release/R-intro.html">An Introduction to R: vectorized operations and applying functions</a> - the official manual's treatment of working over vectors and arrays.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 2 complete</h2>
+
+<p>You can now push your own function over a whole collection without writing the loop yourself: <code>lapply</code> for a guaranteed list, <code>sapply</code> for a quick simplified answer (mindful that its shape can shift), <code>vapply</code> when you want that shape locked down and checked, and <code>apply</code> with <code>MARGIN</code> to total or summarise the rows or columns of a matrix. You also know the honest limits: <code>apply</code> is a loop in disguise, and <code>sapply</code>'s convenience can bite in a script.</p>
+
+<p>Next, Lesson 3: The purrr map Family. You will meet <code>map</code> and its type-stable cousins (<code>map_dbl</code>, <code>map_chr</code> and friends), <code>map2</code> and <code>pmap</code> for walking several inputs in step, and <code>walk</code> for side effects, the modern, consistent toolkit that smooths over exactly the rough edges you just saw.</p>
+</section>
+
+{% endraw %}

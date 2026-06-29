@@ -1,0 +1,235 @@
+---
+title: "R Foundations Lesson 2: Reproducibility with renv and git"
+description: "A portable project still breaks when package versions drift or an edit goes wrong. Pin exact package versions with renv and track every change with git."
+keywords: "renv, reproducibility in R, renv.lock, git for R, version control in R, pin package versions, renv snapshot, renv restore, reproducible environment, git commit"
+webr: true
+curriculum_id: "1.8.2"
+post_type: "LESSON"
+course_id: "nr-workflow"
+course_title: "R Foundations: Reproducible Workflow"
+course_lesson: "2"
+course_total: "4"
+course_landing: "R-Foundations-Workflow-Course.html"
+course_next: "The-Modern-R-Toolchain-2026.html"
+course_prev: "RStudio-Projects-and-here.html"
+lesson_access: "free"
+catalog_blurb: "Keep your project running the same months from now, and track every change."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 2 of 4</div>
+<h2>Reproducibility with renv and git</h2>
+
+<p>In Lesson 1, Maria fixed her <code>sales-analysis</code> project so the file paths work on any computer. The script is portable now: a teammate can open the project and the paths just resolve. Job done?</p>
+
+<p>Not quite. Eighteen months later a colleague clones the project onto a fresh laptop, runs it, and a chart comes out different. The code is identical. The data is identical. What changed is everything <em>underneath</em> the code: a newer version of a package, a newer version of R. And there is no record of how the project got to where it is, so when an edit breaks something, there is no clean way back.</p>
+
+<p>This lesson closes those two gaps for good. You will <strong>pin your package versions with renv</strong> so the analysis computes the same answer next year, and <strong>track every change with git</strong> so you always have a labeled snapshot to return to.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain why an analysis that ran last year can give a different result today, even with the same code and the same data</li>
+
+<li>Use renv to record your project's exact package versions and rebuild them on any machine</li>
+
+<li>Use git to save labeled snapshots of your project and see its history</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you have a <a href="RStudio-Projects-and-here.html">portable RStudio Project from Lesson 1</a>, you can <a href="Install-and-Load-Packages.html">install and load a package</a>, and you can <a href="R-Syntax-and-First-Objects.html">run R and call a function</a>. The journey below is the whole lesson.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Portable project","sub":"paths work on any machine (Lesson 1)"},{"title":"Pinned packages","sub":"renv records the exact versions, so results hold up later"},{"title":"Tracked history","sub":"git saves a labeled snapshot of every change"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>Same code is not the same result</h2>
+
+<p>We tend to think of an analysis as just its code and its data. But the answer also depends on the <strong>environment</strong>: the exact version of R you ran, and the exact version of every package you loaded. That environment is invisible, and it <strong>drifts</strong>: packages get updated, R gets updated, and a function that behaved one way last year can behave differently today.</p>
+
+<p>Here is a concrete, famous case. In April 2019, <strong>R 3.6.0</strong> changed the default method R uses to draw random numbers. After that release, the same two lines, <code>set.seed(1)</code> then <code>sample(1:6)</code>, return a <em>different</em> ordering than they did before. Nothing in the code changed. The version of R underneath it did, and any analysis that relied on that draw silently gave a new answer.</p>
+
+<p>Run this to see your current environment. Every number it prints is something your results can depend on:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(jsonlite)              # a real package your analysis depends on
+
+getRversion()                  # the exact version of R running right now
+#&gt; [1] '4.3.2'
+packageVersion(&quot;jsonlite&quot;)     # the exact version of that package
+#&gt; [1] '1.8.7'
+RNGkind()[3]                   # even base R is versioned: this sampler changed in R 3.6.0
+#&gt; [1] &quot;Rejection&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The exact version numbers you see are whatever this session happens to have, and that is precisely the point: they are facts about <em>one</em> environment.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">"It works on my machine" is usually a version story. The code is fine; the machine has different package versions than yours. To make an analysis reproducible you have to capture the environment, not just the code and data.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix, part one</div>
+<h2>renv records the exact versions in a lockfile</h2>
+
+<p>The <strong>renv</strong> package solves the version-drift problem in two moves. First, it gives each project its <strong>own private package library</strong>, so installing or upgrading a package in one project never disturbs another. Second, and this is the part that makes you reproducible, it writes a <strong>lockfile</strong> named <code>renv.lock</code> that records the exact version of R and of every package the project uses.</p>
+
+<p>A lockfile is not magic. It is a plain text file in JSON format, a list of records, one per package, each saying <em>which package, which exact version, and where it came from</em>. We can prove that by writing a tiny lockfile by hand and reading the versions back out of it:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(jsonlite)
+
+# A renv.lock is just JSON. Here is a miniature one with two packages pinned:
+lock_text &lt;- '{
+  &quot;R&quot;: { &quot;Version&quot;: &quot;4.3.2&quot; },
+  &quot;Packages&quot;: {
+    &quot;dplyr&quot;:   { &quot;Package&quot;: &quot;dplyr&quot;,   &quot;Version&quot;: &quot;1.1.4&quot;, &quot;Source&quot;: &quot;Repository&quot; },
+    &quot;ggplot2&quot;: { &quot;Package&quot;: &quot;ggplot2&quot;, &quot;Version&quot;: &quot;3.5.1&quot;, &quot;Source&quot;: &quot;Repository&quot; }
+  }
+}'
+
+lock &lt;- fromJSON(lock_text, simplifyVector = FALSE)
+lock$R$Version               # the exact R version this project was built with
+#&gt; [1] &quot;4.3.2&quot;
+lock$Packages$dplyr$Version  # the exact dplyr version, pinned
+#&gt; [1] &quot;1.1.4&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The lockfile turns an invisible, drifting environment into a written, version-controlled fact. "This project uses dplyr 1.1.4" stops being something you hope is still true and becomes something the project carries with it.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<div class="lesson-step-eyebrow">The fix, part one</div>
+<h2>The renv workflow: init, snapshot, restore</h2>
+
+<p>You drive renv with three commands, and the flow below is the whole loop. You <strong>init</strong> once to give the project its private library, <strong>snapshot</strong> whenever you want to record the current versions into <code>renv.lock</code>, and <strong>restore</strong> on any other machine to rebuild that exact set of versions.</p>
+
+<p>In Maria's project she runs these once, then commits the resulting <code>renv.lock</code>:</p>
+
+<pre><code class="language-r">library(renv)
+# Run these in the project. renv writes a project-local library plus renv.lock:
+renv::init()       # start renv for this project; it finds the packages you use
+renv::snapshot()   # record the exact version of every package into renv.lock
+renv::restore()    # on another machine: reinstall those exact versions from renv.lock</code></pre>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">renv pins your <strong>packages</strong> and records the R version, but it does not pin everything. It will tell a colleague they need R 4.3.2, but it will not install R itself, and it cannot capture the operating system or system libraries underneath. For bit-for-bit reproducibility you would add a container such as Docker. renv covers the layer that breaks most often, by far: the packages.</div></div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"init","sub":"give the project its own private package library"},{"title":"snapshot","sub":"write every package and its exact version into renv.lock"},{"title":"restore","sub":"on a new machine, reinstall those exact versions from renv.lock"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which command rebuilds the versions?</h2>
+
+<p>A colleague clones Maria's project onto a fresh laptop that already has the <em>newest</em> version of every package installed. Maria's <code>renv.lock</code> records the older versions her analysis was written against. Which command gives the colleague Maria's exact versions?</p>
+<section class="exercise" data-exercise-id="Reproducibility-with-renv-and-git-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx"><code>renv::restore()</code>, which reads renv.lock and reinstalls the recorded versions</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx"><code>renv::snapshot()</code>, which records the versions</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Nothing special; <code>install.packages()</code> always installs compatible versions</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. restore is the "rebuild from the lockfile" step: it reads renv.lock and installs the exact versions written there, overriding whatever newer ones happen to be on the machine.</div><div class="lesson-qfb lesson-qfb-no">Newer is not always compatible, that is the whole drift problem. install.packages grabs the latest, which may behave differently. restore pins you to the recorded versions.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Read a pinned version</h2>
+
+<p>Reading a version straight out of the lockfile is a handy habit (it answers "what was this project built with?" without guessing). The <code>lock</code> object from earlier is still loaded. It has the same shape as <code>lock$Packages$dplyr$Version</code> that you saw. Pull out the exact <strong>ggplot2</strong> version this project pinned.</p>
+<section class="exercise" data-exercise-id="Reproducibility-with-renv-and-git-step6" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="Version"><textarea class="lesson-tryit-input" spellcheck="false"># 'lock' is the parsed lockfile from earlier in the lesson.
+lock$Packages$ggplot2$____   # get the recorded ggplot2 version</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it: each package record carries a Version field, so the lockfile answers exactly which version the project used.</span><span class="lesson-tryit-fb lesson-tryit-no">Each package record has a Version field, like lock$Packages$dplyr$Version. Ask for ggplot2's Version the same way.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">lock$Packages$ggplot2$Version   # the exact ggplot2 version, read from the lockfile
+#&gt; [1] &quot;3.5.1&quot;</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="widget">
+<div class="lesson-step-eyebrow">The fix, part two</div>
+<h2>git saves labeled snapshots you can return to</h2>
+
+<p>renv handles the environment. The other gap is <strong>history</strong>: as Maria edits her analysis, there is no record of what she changed or when, and no safe way to undo a bad edit. <strong>git</strong> fixes that. It is a version-control tool that lets you save <strong>commits</strong>: a commit is a labeled snapshot of your whole project at a moment in time, with a message saying what changed.</p>
+
+<p>The loop has one wrinkle worth understanding. You do not commit straight from your edits. You first <strong>stage</strong> the changes you want to include (the staging area lets you choose <em>what</em> goes into the next snapshot), then <strong>commit</strong> them together with a message. After that, the history is a list of those snapshots, oldest to newest, each one a point you can return to.</p>
+
+<p>These are command-line steps (RStudio's Git pane runs the same commands behind buttons):</p>
+
+<pre><code>git init                                  # start tracking this project folder
+git add renv.lock analysis.R              # stage the files for the next snapshot
+git commit -m &quot;First working analysis&quot;    # save a labeled snapshot
+git log --oneline                         # see the history of snapshots</code></pre>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A commit is not a backup of your latest files; it is a permanent, labeled point in the project's timeline. Because every commit is kept, you can always compare two of them, or roll the project back to the exact state of a working one. git is built for code and small text files like <code>renv.lock</code>, not for large data files or the package library, so you keep those out of it.</div></div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Edit","sub":"change your scripts and files as you work"},{"title":"Stage","sub":"git add: choose what goes into the next snapshot"},{"title":"Commit","sub":"git commit: save a labeled snapshot you can return to"},{"title":"History","sub":"git log: every snapshot in order, each one undoable"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">Putting it together</div>
+<h2>Commit renv.lock so the versions travel</h2>
+
+<p>Here is where the two tools click together. git tracks your <em>files</em> as they change. renv writes one special file, <code>renv.lock</code>, that captures your <em>environment</em>. So if you commit <code>renv.lock</code> into git alongside your scripts, then every snapshot in your history carries the exact package versions that went with that version of the code. Roll the project back to last March's commit and <code>renv::restore()</code> rebuilds last March's environment.</p>
+
+<p>That is the full reproducibility story, and it is three legs holding up one stool:</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Portable paths get the project onto another machine. renv makes the packages match. git makes the history, including the lockfile, recoverable. Together they answer the question that started this lesson: yes, a colleague can reproduce your exact result, eighteen months later, on a fresh laptop.</div></div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Project","sub":"one folder, portable paths (Lesson 1)"},{"title":"renv.lock","sub":"the exact package versions, pinned"},{"title":"git history","sub":"commit renv.lock so the versions travel with every change"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What is the one more file to commit?</h2>
+
+<p>Maria has been committing her scripts to git as she works. To make the project fully reproducible for a teammate, the lesson says she should commit one more file. Which file, and why?</p>
+<section class="exercise" data-exercise-id="Reproducibility-with-renv-and-git-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx"><code>renv.lock</code>, so the exact package versions travel with the code history</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The installed packages folder (<code>renv/library</code>), so the package binaries travel</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Nothing else; once the scripts are in git, the versions are tracked automatically</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. renv.lock is small, text, and it is the record of every package version. Commit it and each point in the history carries the environment that built it, so restore can rebuild it.</div><div class="lesson-qfb lesson-qfb-no">git tracks changes to your <em>files</em>, not which package <em>versions</em> you had installed. Only renv.lock records those, so without it the history has no environment to restore.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative, free places to take this further:</p>
+
+<ul>
+
+<li><a href="https://rstudio.github.io/renv/articles/renv.html">Introduction to renv</a> - the official walk-through of the init / snapshot / restore workflow and what <code>renv.lock</code> contains.</li>
+
+<li><a href="https://rstudio.github.io/renv/">The renv package site</a> - the full reference, including how renv interacts with git and how it ignores the library folder.</li>
+
+<li><a href="https://happygitwithr.com/">Happy Git and GitHub for the useR</a> - Jenny Bryan's complete, R-focused guide to using git in real projects.</li>
+
+<li><a href="https://git-scm.com/book/en/v2">Pro Git (free book)</a> - the canonical reference for commits, the staging area, and history.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Lesson 2 complete</h2>
+
+<p>You closed the last two reproducibility gaps. <strong>renv</strong> captures the invisible part of an analysis, the exact R and package versions, into a small <code>renv.lock</code> file, and rebuilds them anywhere with <code>restore()</code>. <strong>git</strong> records your project's history as a series of labeled commits you can always return to. Commit <code>renv.lock</code> into git and the two combine: every point in your history carries the environment that produced it. With the portable project from Lesson 1, that is the full three-legged stool of a reproducible analysis.</p>
+
+<p>Next, Lesson 3: <strong>The Modern R Toolchain (2026).</strong> You have a reproducible project; now meet the tools that make working in it fast and pleasant, from the Positron editor to talking to a database with duckdb and even to an LLM from R.</p>
+</section>
+
+{% endraw %}

@@ -1,0 +1,404 @@
+---
+title: "Strings & Dates Lesson 2: Regular Expressions in R"
+description: "Learn regular expressions in R from scratch: build patterns with character classes, quantifiers and anchors, then detect, extract and replace messy text."
+keywords: "regular expressions in R, regex in R, character classes, quantifiers, anchors, grepl, gsub, regmatches, str_detect, str_extract, str_replace, pattern matching in R"
+webr: true
+curriculum_id: "1.5.2"
+post_type: "LESSON"
+course_id: "nr-strings"
+course_title: "Strings, Dates and Factors in R"
+course_lesson: "2"
+course_total: "4"
+course_landing: "R-Foundations-Strings-Course.html"
+course_next: "Dates-and-Times-in-R.html"
+course_prev: "Strings-with-stringr.html"
+lesson_access: "free"
+catalog_blurb: "Match the exact pieces of text you want, then extract or fix them."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 2 of 4</div>
+<h2>Regular Expressions in R</h2>
+
+<p>Back to our workshop. Five of the people who signed up in Lesson 1 also pasted a one-line confirmation when they registered, and each line is a jumble: a name, an email, the amount they paid, the date, and a ticket code, all crammed into a single string like <code>&quot;Aarti Nair  aarti.nair@site.org  paid 1500 on 2026-03-08  ticket A12&quot;</code>.</p>
+
+<p>In Lesson 1 you handed the stringr verbs a plain word like <code>&quot;Mumbai&quot;</code> and it matched that exact text. That only finds things you can spell out in advance. To pull the email, the date, or the ticket out of a line like the one above, you need to describe their <em>shape</em>, not their exact text. That description is a <strong>regular expression</strong>.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Build a pattern from the ground up with character classes, quantifiers and anchors</li>
+
+<li>See exactly which characters a pattern matches, live</li>
+
+<li>Find, extract and replace text with that pattern, in base R and with stringr</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and store a result with <code>&lt;-</code> (<a href="Atomic-Vectors-and-Data-Types.html">Atomic Vectors and Data Types</a>), and you have met the stringr verbs <code>str_detect</code>, <code>str_extract</code> and <code>str_replace</code> (<a href="Strings-with-stringr.html">Strings with stringr</a>). This lesson turns their "pattern" argument into a real tool.</p>
+
+<p>The widget below is the payoff. Tap each pattern and watch it light up the exact characters it catches. By the end you will write every one of these yourself.</p>
+<div class="lesson-widget" data-widget-type="regex-highlight" data-widget-config='{"text":"Aarti Nair  aarti.nair@site.org  paid 1500 on 2026-03-08  ticket A12","patterns":[{"src":"[0-9]+","label":"Digits"},{"src":"[0-9]{4}-[0-9]{2}-[0-9]{2}","label":"Date"},{"src":"[a-z._]+@[a-z.]+","label":"Email"},{"src":"[A-Z][0-9]+","label":"Ticket"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The core idea</div>
+<h2>A pattern matches a shape, not exact text</h2>
+
+<p>A plain word like <code>&quot;Mumbai&quot;</code> is the simplest possible pattern: it matches itself, those six letters in that order. A <strong>regular expression</strong> (regex) goes further. It is a tiny language for describing a <em>shape</em> of text, so one pattern can match many different strings that share a form: any digit, any email, any date.</p>
+
+<p>The first building block is the <strong>character class</strong>, written in square brackets: <code>[...]</code> means "match any <strong>one</strong> character from this set." The dash inside makes a <strong>range</strong>.</p>
+
+<p>A few characters are not taken literally inside a regex; they are <strong>metacharacters</strong> with a special job. The square brackets are the first you have met. Here is our sign-up data, and a class that finds a digit:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(stringr)
+
+# Five workshop confirmations. Each is ONE string: a name, an email, an amount,
+# a date and a ticket code, typed into one free-text box.
+signup &lt;- c(
+  &quot;Aarti Nair  aarti.nair@site.org  paid 1500 on 2026-03-08  ticket A12&quot;,
+  &quot;Ravi Kumar  ravi_k@mail.co.in  paid 1800 on 2026-03-09  ticket B7&quot;,
+  &quot;Meera S  meera@work.io  paid 1500 on 2026-03-11  ticket C24&quot;,
+  &quot;John Doe  john.doe@site.org  paid 2000 on 2026-03-12  ticket A3&quot;,
+  &quot;Priya Raman  priya@site.org  paid 1500 on 2026-03-15  ticket B19&quot;
+)
+
+# [0-9] is a character class: &quot;any ONE of the digits 0 through 9&quot;.
+# str_extract pulls the first match from each string (one result per element).
+str_extract(signup, &quot;[0-9]&quot;)
+#&gt; [1] &quot;1&quot; &quot;1&quot; &quot;1&quot; &quot;2&quot; &quot;1&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>It found a single digit in each line: the first <code>1</code> of <code>1500</code>, and the <code>2</code> of <code>2000</code>. Ranges and negation give you the rest:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">str_extract(signup, &quot;[A-Z]&quot;)    # a range: any capital letter A through Z (the first one)
+#&gt; [1] &quot;A&quot; &quot;R&quot; &quot;M&quot; &quot;J&quot; &quot;P&quot;
+str_detect(signup, &quot;[^0-9]&quot;)    # [^...] NEGATES the set: any character that is NOT a digit
+#&gt; [1] TRUE TRUE TRUE TRUE TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Three classes are so common they get shorthands: <code>\d</code> is any digit (the same as <code>[0-9]</code>), <code>\w</code> is a "word" character (letter, digit or underscore), and <code>\s</code> is any whitespace. One catch: <strong>in R you must double the backslash</strong>, writing <code>&quot;\\d&quot;</code>, not <code>&quot;\d&quot;</code>, because R strings treat a lone backslash specially. We will return to that in the gotchas at the end; for now, <code>[0-9]</code> and <code>\\d</code> mean the same thing.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does <code>[0-9]</code> match?</h2>
+
+<p>You write the pattern <code>[0-9]</code> (no quantifier after it). Run against the text <code>&quot;room 1500&quot;</code>, what does a single match find?</p>
+<section class="exercise" data-exercise-id="Regular-Expressions-in-R-step3" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The literal text <code>0-9</code></span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Any one digit: here, the <code>1</code> of <code>1500</code></span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The whole number <code>1500</code>, all four digits at once</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A character class <code>[...]</code> matches exactly ONE character from the set, and <code>0-9</code> is the range of all ten digits. It stops after the first one.</div><div class="lesson-qfb lesson-qfb-no">Not yet. A bare class matches a SINGLE character. To grab a run of digits you add a quantifier, <code>[0-9]+</code>, which is the next step.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">How many?</div>
+<h2>Quantifiers: how many to match</h2>
+
+<p>A class matches one character. A <strong>quantifier</strong> sits right after an item and says <strong>how many</strong> of it to match:</p>
+
+<ul>
+
+<li><code>+</code> one or more</li>
+
+<li><code>*</code> zero or more</li>
+
+<li><code>?</code> optional (zero or one)</li>
+
+<li><code>{n}</code> exactly n</li>
+
+<li><code>{n,m}</code> between n and m</li>
+
+</ul>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">str_extract(signup, &quot;[0-9]+&quot;)    # one or more digits: grabs the whole run
+#&gt; [1] &quot;1500&quot; &quot;1800&quot; &quot;1500&quot; &quot;2000&quot; &quot;1500&quot;
+str_extract(signup, &quot;[0-9]{2}&quot;)  # exactly two digits
+#&gt; [1] &quot;15&quot; &quot;18&quot; &quot;15&quot; &quot;20&quot; &quot;15&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>[0-9]+</code> is greedy: it takes as many digits as it can, so it returns the whole amount <code>1500</code>, not just the first <code>1</code>. The <code>?</code> quantifier is handy for optional letters, so one pattern can absorb two spellings:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">str_extract(c(&quot;color&quot;, &quot;colour&quot;, &quot;colossal&quot;), &quot;colou?r&quot;)  # the u is optional
+#&gt; [1] &quot;color&quot;  &quot;colour&quot; NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>&quot;colou?r&quot;</code> matched <code>color</code> (no u) and <code>colour</code> (with u), and returned <code>NA</code> for <code>colossal</code>, which has no match at all. Tap the patterns below and watch the same string yield fewer, longer matches as you tighten the quantifier.</p>
+<div class="lesson-widget" data-widget-type="regex-highlight" data-widget-config='{"text":"paid 1500 on 2026-03-08","patterns":[{"src":"[0-9]","label":"One digit"},{"src":"[0-9]+","label":"One or more"},{"src":"[0-9]{4}","label":"Exactly four"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Grab the whole amount</h2>
+
+<p>Each line has an amount like <code>1500</code> right after the word <code>paid</code>. The blank below should pull the <strong>whole run of digits</strong>, not just the first one, so you get <code>&quot;1500&quot;</code>, <code>&quot;1800&quot;</code>, and so on. Reach for a digit class plus the right quantifier.</p>
+<section class="exercise" data-exercise-id="Regular-Expressions-in-R-step5" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="0-9.*\+|\\d\+"><textarea class="lesson-tryit-input" spellcheck="false">str_extract(signup, &quot;____&quot;)   # the whole run of digits (the amount) from each line</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Yes. <code>[0-9]+</code> (or <code>\d+</code>) means one or more digits, so it grabs the whole run like 1500, not just the first digit.</span><span class="lesson-tryit-fb lesson-tryit-no">Add a quantifier after the digit class: <code>[0-9]+</code> matches one or more digits in a row, the whole amount.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">str_extract(signup, &quot;[0-9]+&quot;)
+#&gt; [1] &quot;1500&quot; &quot;1800&quot; &quot;1500&quot; &quot;2000&quot; &quot;1500&quot;</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Where, and putting it together</div>
+<h2>Anchors, and building a real pattern</h2>
+
+<p>Classes and quantifiers say <em>what</em> and <em>how many</em>. <strong>Anchors</strong> say <em>where</em>, and they match a position rather than a character:</p>
+
+<ul>
+
+<li><code>^</code> the start of the string</li>
+
+<li><code>$</code> the end of the string</li>
+
+<li><code>\b</code> a word boundary (the edge between a word character and a non-word character)</li>
+
+</ul>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">str_extract(signup, &quot;^[A-Za-z]+&quot;)        # a run of letters anchored to the START
+#&gt; [1] &quot;Aarti&quot; &quot;Ravi&quot;  &quot;Meera&quot; &quot;John&quot;  &quot;Priya&quot;
+grepl(&quot;ticket [A-Z][0-9]+$&quot;, signup)     # does the line END with a ticket code?
+#&gt; [1] TRUE TRUE TRUE TRUE TRUE
+str_detect(c(&quot;paid on time&quot;, &quot;salons open&quot;), &quot;\\bon\\b&quot;)  # the WORD &quot;on&quot;, not &quot;on&quot; inside &quot;salons&quot;
+#&gt; [1]  TRUE FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now combine all three ideas into the patterns from the cover. Each is just classes, quantifiers and (where useful) anchors stacked together:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">email  &lt;- &quot;[a-z._]+@[a-z.]+&quot;            # letters/dots/underscore, an @, then a domain
+date   &lt;- &quot;[0-9]{4}-[0-9]{2}-[0-9]{2}&quot;  # four digits - two digits - two digits
+ticket &lt;- &quot;[A-Z][0-9]+&quot;                 # one capital letter, then one or more digits
+
+str_extract(signup, email)
+#&gt; [1] &quot;aarti.nair@site.org&quot; &quot;ravi_k@mail.co.in&quot;   &quot;meera@work.io&quot;       &quot;john.doe@site.org&quot;   &quot;priya@site.org&quot;
+str_extract(signup, date)
+#&gt; [1] &quot;2026-03-08&quot; &quot;2026-03-09&quot; &quot;2026-03-11&quot; &quot;2026-03-12&quot; &quot;2026-03-15&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Every "complicated" regex is just three simple ideas stacked: a <strong>class</strong> for which characters, a <strong>quantifier</strong> for how many, and an <strong>anchor</strong> for where. Read any pattern by spotting those pieces, and write one by choosing them in turn.</div></div>
+<div class="lesson-widget" data-widget-type="regex-highlight" data-widget-config='{"text":"Ravi Kumar  ravi_k@mail.co.in  paid 1800 on 2026-03-09  ticket B7","patterns":[{"src":"[a-z._]+@[a-z.]+","label":"Email"},{"src":"[0-9]{4}-[0-9]{2}-[0-9]{2}","label":"Date"},{"src":"[A-Z][0-9]+","label":"Ticket"},{"src":"[0-9]+","label":"Any number"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Three jobs</div>
+<h2>Find, extract and replace in R</h2>
+
+<p>A pattern is only useful once you DO something with it. The three jobs are the same ones from Lesson 1, except the second argument is now a real pattern. Each has a base R verb and a stringr verb that do the same thing:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># DETECT: which lines contain an email?
+str_detect(signup, email)
+#&gt; [1] TRUE TRUE TRUE TRUE TRUE
+
+# EXTRACT every match, not just the first, with str_extract_all:
+str_extract_all(&quot;call 98765 or 43210&quot;, &quot;[0-9]+&quot;)
+#&gt; [[1]]
+#&gt; [1] &quot;98765&quot; &quot;43210&quot;
+
+# REPLACE: redact every email by swapping it for [hidden]
+str_replace_all(signup, email, &quot;[hidden]&quot;)
+#&gt; [1] &quot;Aarti Nair  [hidden]  paid 1500 on 2026-03-08  ticket A12&quot; ...</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The base R verbs need no package at all and read almost the same:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">grepl(date, signup)                        # detect: one TRUE/FALSE per line
+regmatches(signup, regexpr(date, signup))  # extract: the first match in each line
+#&gt; [1] &quot;2026-03-08&quot; &quot;2026-03-09&quot; &quot;2026-03-11&quot; &quot;2026-03-12&quot; &quot;2026-03-15&quot;
+gsub(email, &quot;[hidden]&quot;, signup)            # replace: every match, like str_replace_all</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Detect","sub":"is the pattern there? grepl or str_detect, returns TRUE/FALSE"},{"title":"Extract","sub":"pull the matches out: regmatches or str_extract"},{"title":"Replace","sub":"swap matches for new text: gsub or str_replace_all"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>First match, or every match?</h2>
+
+<p>You run <code>str_extract(x, &quot;[0-9]+&quot;)</code> on the single line <code>&quot;room 12, seat 9&quot;</code>. What comes back?</p>
+<section class="exercise" data-exercise-id="Regular-Expressions-in-R-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Just <code>&quot;12&quot;</code>, the first run of digits</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Both <code>&quot;12&quot;</code> and <code>&quot;9&quot;</code></span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx"><code>TRUE</code>, because the line contains a digit</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. <code>str_extract</code> (like base <code>regexpr</code>) returns only the FIRST match in each string. For every match you need <code>str_extract_all</code> (or <code>gregexpr</code>).</div><div class="lesson-qfb lesson-qfb-no">That is <code>str_detect</code>, which answers "is it there?". <code>str_extract</code> returns the matched text itself, here the first match.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Put it together</div>
+<h2>Redact every email</h2>
+
+<p>Privacy pass: replace every email in <code>signup</code> with the word <code>[hidden]</code>, leaving the rest of each line untouched. Fill in a pattern that matches an email: some letters, dots or an underscore, then an <code>@</code>, then a domain.</p>
+<section class="exercise" data-exercise-id="Regular-Expressions-in-R-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="@"><textarea class="lesson-tryit-input" spellcheck="false">str_replace_all(signup, &quot;____&quot;, &quot;[hidden]&quot;)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. An email pattern is built like any other: a class for the name part, an <code>@</code>, then a class for the domain, for example <code>[a-z._]+@[a-z.]+</code>.</span><span class="lesson-tryit-fb lesson-tryit-no">Your pattern needs an <code>@</code>, the one character every email has. Try <code>[a-z._]+@[a-z.]+</code>.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">str_replace_all(signup, &quot;[a-z._]+@[a-z.]+&quot;, &quot;[hidden]&quot;)
+#&gt; [1] &quot;Aarti Nair  [hidden]  paid 1500 on 2026-03-08  ticket A12&quot; ...</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Know the edges</div>
+<h2>Three traps, and where regex stops</h2>
+
+<p>Regex is powerful, but a few things bite everyone at least once. Here they are, with fixes:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># TRAP 1 - greedy matching. + and * grab as MUCH as possible by default.
+str_extract(&quot;&lt;b&gt;hi&lt;/b&gt;&quot;, &quot;&lt;.+&gt;&quot;)    # greedy: swallows up to the LAST &gt;
+#&gt; [1] &quot;&lt;b&gt;hi&lt;/b&gt;&quot;
+str_extract(&quot;&lt;b&gt;hi&lt;/b&gt;&quot;, &quot;&lt;.+?&gt;&quot;)   # lazy (+?): stops at the FIRST &gt;
+#&gt; [1] &quot;&lt;b&gt;&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># TRAP 2 - the doubled backslash. In R, a regex backslash must be written twice.
+grepl(&quot;\\d&quot;, &quot;room 7&quot;)              # &quot;\\d&quot; in R source is the single regex token \d
+#&gt; [1] TRUE
+
+# TRAP 3 - case. Matching is case-sensitive unless you say otherwise.
+grepl(&quot;aarti&quot;, signup, ignore.case = TRUE)  # match regardless of capitalisation
+#&gt; [1]  TRUE FALSE FALSE FALSE FALSE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Regex matches flat patterns, not nested structure. Do not try to parse real HTML, JSON, or deeply nested brackets with a regular expression: every clever pattern eventually breaks on a case it cannot see. For those, use a real parser (<code>xml2</code>, <code>jsonlite</code>, <code>rvest</code>). Regex is for shapes inside flat text; that is where it shines.</div></div>
+
+<p>Keep these in mind:</p>
+
+<ul>
+
+<li><code>.</code> means "any character"; to match a literal dot, escape it as <code>\\.</code>.</li>
+
+<li><code>+</code> and <code>*</code> are greedy; add <code>?</code> after them (<code>+?</code>, <code>*?</code>) to make them lazy.</li>
+
+<li>Always double the backslash in R strings: <code>\\d</code>, <code>\\.</code>, <code>\\b</code>.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Four trustworthy places to take this further, all free:</p>
+
+<ul>
+
+<li><a href="https://r4ds.hadley.nz/regexps">R for Data Science (2e): Regular expressions</a> - the canonical, example-led chapter that builds regex from scratch.</li>
+
+<li><a href="https://stringr.tidyverse.org/articles/regular-expressions.html">stringr: Regular expressions (vignette)</a> - the exact syntax the stringr verbs understand, with a clear cheat-table.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/regex.html">Base R regular expression reference (?regex)</a> - the authoritative help page behind <code>grepl</code>, <code>gsub</code>, <code>regmatches</code> and friends.</li>
+
+<li><a href="https://rstudio.github.io/cheatsheets/html/strings.html">Posit strings cheatsheet</a> - a one-page visual map of regex and stringr, worth keeping open while you work.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 2 complete</h2>
+
+<p>You can now describe a shape of text instead of spelling it out. You built patterns from <strong>character classes</strong> (<code>[0-9]</code>, <code>[A-Z]</code>, <code>[^...]</code>), <strong>quantifiers</strong> (<code>+</code>, <code>?</code>, <code>{n}</code>), and <strong>anchors</strong> (<code>^</code>, <code>$</code>, <code>\b</code>), assembled them into real email, date and ticket patterns, and used them to <strong>detect</strong> (<code>grepl</code>, <code>str_detect</code>), <strong>extract</strong> (<code>regmatches</code>, <code>str_extract_all</code>), and <strong>replace</strong> (<code>gsub</code>, <code>str_replace_all</code>). You also met the traps: greedy matching, the doubled backslash, and case.</p>
+
+<p>One of those patterns you wrote was a date: <code>[0-9]{4}-[0-9]{2}-[0-9]{2}</code>. That matches the <em>text</em> of a date, but it does not understand it: it cannot tell you the weekday, add seven days, or know that one line is earlier than another. Next, Lesson 3: Dates and Times in R. You will turn date text into real dates you can do arithmetic on, and handle the time zones that trip everyone up.</p>
+</section>
+
+{% endraw %}

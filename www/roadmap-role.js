@@ -215,9 +215,9 @@
       Object.keys(bySec).forEach(function(n){
         var det=document.getElementById('rm-s'+n); if(!det)return;
         var lsns=det.querySelector('.lsns');
-        if(role==='analyst'){
-          // hybrid: on this track the interactive lessons ARE the curriculum, so replace the
-          // flat concept list with one row per lesson plus the concepts it covers (no duplication).
+        if(role==='analyst'||role==='foundations'){
+          // hybrid: on these all-free tracks the interactive lessons ARE the curriculum, so replace
+          // the flat concept list with one row per lesson plus the concepts it covers (no duplication).
           var rows='',cnt=0;
           bySec[n].forEach(function(c){
             (c.lessons||[]).slice().sort(function(a,b){return (a.order||0)-(b.order||0);}).forEach(function(l){
@@ -247,7 +247,7 @@
         if(lsns)lsns.insertBefore(box,lsns.firstChild); else det.appendChild(box);
       });
       // align the hero "lessons" count with the interactive-lesson rows now shown
-      if(role==='analyst'&&grand){var rm=document.getElementById('roleMeta');
+      if((role==='analyst'||role==='foundations')&&grand){var rm=document.getElementById('roleMeta');
         if(rm)rm.innerHTML='<span><b>'+secs.length+'</b> sections</span><span><b>'+grand+'</b> lessons</span><span>Certificate: <b>'+esc(L.cert)+'</b></span>';}
     }).catch(function(){});
   })();

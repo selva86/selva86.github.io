@@ -76,3 +76,58 @@ Nine courses, one per roadmap section of the Data Analyst track. All free (the a
 1. Reproducible-Reports-with-Quarto - The anatomy of a Quarto / R Markdown document (YAML, prose, code chunks) and what it knits to, then parameterized reports that re-run for any input. widgets: doc-structure, process-flow
 2. Telling-a-Story-with-Data - Lead with the answer (the executive summary), then structure a short data story that a busy reader can act on. widgets: chart-plotter, doc-structure
 3. AI-Assisted-Analysis-in-R - Use an LLM to summarize and label data from R (ellmer), and a clear-eyed guide to when to trust, and when not to trust, an LLM in an analysis. widgets: agent-loop, process-flow
+
+
+# New to R (Foundations) track (level 1, all free)
+The shared base track; courses map to the New to R roadmap sections (one course per section), all free (level 1). Lessons consolidate related curriculum items so every item is taught from scratch without thin filler lessons (Option A, owner-approved 2026-06-29: ~35 lessons, full coverage). Ground each lesson in ONE concrete running example, <=12 steps. Foundations widgets: vector-coercion, dataframe-builder, control-flow, scope-chain, regex-highlight, nest-unnest (plus tree-diagram, process-flow, table-transform). Each section also gets a "Quiz" (hand-authored after its lessons, like the analyst quizzes).
+
+## nr-basics  (track: foundations; curriculum_id 1.1; landing R-Foundations-Basics-Course.html; access: free)
+1. R-Syntax-and-First-Objects - Your first R session: run code, assign with <-, call functions, read an error, and get help. widgets: process-flow
+2. Atomic-Vectors-and-Data-Types - The atomic vector and R's core types (logical, integer, double, character); typeof and length. widgets: vector-coercion
+3. Operators-Recycling-and-Coercion - Arithmetic and logical operators, vector recycling, and how mixing types coerces the whole vector. widgets: vector-coercion
+4. Missing-and-Special-Values - NA, NULL, NaN, and Inf: what each means and how it propagates through your code. widgets: dataframe-builder
+5. Install-and-Load-Packages - Install from CRAN with install.packages, load with library, and where packages live on your machine. widgets: process-flow
+
+## nr-structures  (track: foundations; curriculum_id 1.2; landing R-Foundations-Structures-Course.html; access: free)
+1. Lists-and-Nested-Data - Lists hold mixed types and nest inside each other; reach inside with [, [[ and $. widgets: tree-diagram
+2. Data-Frames-and-Tibbles - The data frame as equal-length typed columns, and what a tibble adds. widgets: dataframe-builder
+3. Inspecting-Data-Structure - See any object's shape with str, class, length, dim, names and attributes. widgets: dataframe-builder
+4. Matrices-and-Arrays - Rectangular all-one-type data: build it, index by row and column, and reduce it with apply. widgets: table-transform
+5. Type-Conversion-in-Practice - Convert on purpose with as.numeric, as.character and as.factor, and fix a column that imported as the wrong type. widgets: vector-coercion
+
+## nr-programming  (track: foundations; curriculum_id 1.3; landing R-Foundations-Programming-Course.html; access: free)
+1. Subsetting-and-Replacement - Pull out and overwrite elements with [, [[, $, logical and negative indices, including x[i] <- value. widgets: table-transform
+2. Control-Flow-in-R - if and else, for and while loops, and next and break, watched one iteration at a time. widgets: control-flow
+3. Writing-Functions-in-R - Wrap repeated work in a function: the arguments, the body, and the value it returns. widgets: process-flow
+4. Arguments-Defaults-and-the-Pipe - Default and named arguments, the dots, and chaining steps with the |> pipe. widgets: process-flow
+5. Environments-and-Scope - How R resolves a name: the function's own environment first, then outward to the global one. widgets: scope-chain
+
+## nr-import  (track: foundations; curriculum_id 1.4; landing R-Foundations-Import-Course.html; access: free)
+1. Reading-CSV-and-Delimited-Files - Read CSV and delimited files with readr, controlling column types and parsing problems. widgets: table-transform
+2. Reading-Excel-and-Other-Formats - Read Excel workbooks with readxl and SPSS, Stata and SAS files with haven. widgets: table-transform
+3. JSON-and-Web-Data - Pull JSON from an API with jsonlite and scrape an HTML table with rvest. widgets: tree-diagram
+4. Databases-and-Big-Files - Query a database with DBI and dbplyr, read Parquet with arrow, and handle encodings and very large files. widgets: process-flow
+5. Saving-and-Exporting-Data - Write results back out with write_csv, saveRDS and writexl, and choose the right format. widgets: process-flow
+
+## nr-strings  (track: foundations; curriculum_id 1.5; landing R-Foundations-Strings-Course.html; access: free)
+1. Strings-with-stringr - Detect, extract, replace and join text with the stringr verbs. widgets: table-transform
+2. Regular-Expressions-in-R - Build a pattern from scratch, see exactly what it matches, then find, extract and replace with it. widgets: regex-highlight
+3. Dates-and-Times-in-R - Parse and do arithmetic on dates with lubridate, and work correctly across time zones. widgets: process-flow
+4. Factors-with-forcats - Ordered categories: create, reorder and relabel factors with forcats. widgets: table-transform
+
+## nr-iteration  (track: foundations; curriculum_id 1.6; landing R-Foundations-Iteration-Course.html; access: free)
+1. Why-Vectorization-Beats-Loops - Operate on a whole vector at once instead of looping element by element, and why it is faster and clearer. widgets: control-flow
+2. The-apply-Family - apply, lapply and sapply, plus the type-safe vapply, over lists and matrices. widgets: process-flow
+3. The-purrr-map-Family - map and its typed variants, map2 and pmap for several inputs, and walk for side effects. widgets: process-flow
+4. Resilient-and-Nested-Iteration - Keep going past failures with safely and possibly, and work with list-columns using nest and unnest. widgets: nest-unnest
+
+## nr-debugging  (track: foundations; curriculum_id 1.7; landing R-Foundations-Debugging-Course.html; access: free)
+1. Errors-Warnings-and-Messages - Signal problems with stop, warning and message, and write error messages people can act on. widgets: process-flow
+2. tryCatch-and-Input-Validation - Recover from failures with tryCatch, and guard a function's inputs with stopifnot. widgets: control-flow
+3. Debugging-Tools-in-R - Locate a bug with traceback, step through it with browser, and use the IDE debugger. widgets: process-flow
+
+## nr-workflow  (track: foundations; curriculum_id 1.8; landing R-Foundations-Workflow-Course.html; access: free)
+1. RStudio-Projects-and-here - Keep work self-contained with RStudio Projects and stable paths with the here package. widgets: tree-diagram
+2. Reproducibility-with-renv-and-git - Pin package versions with renv and track your changes with git. widgets: process-flow
+3. The-Modern-R-Toolchain-2026 - A short tour of Positron, httr2, duckdb and arrow, and talking to an LLM from R with ellmer. widgets: process-flow
+4. Capstone-A-Reproducible-Analysis - Tie it together: a project that imports, tidies, analyzes and reports, reproducibly from start to finish. widgets: process-flow

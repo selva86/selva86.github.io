@@ -1,0 +1,401 @@
+---
+title: "R Foundations Lesson 4: Resilient and Nested Iteration"
+description: "Make iteration in R resilient: use safely and possibly so one failing element never stops a map, then run code group by group with list-columns, nest and unnest."
+keywords: "safely in R, possibly purrr, nest and unnest, list-columns R, resilient iteration, error handling map, tidyr nest, purrr adverbs, functional programming R, map errors"
+mathjax: true
+webr: true
+curriculum_id: "1.6.4"
+post_type: "LESSON"
+course_id: "nr-iteration"
+course_title: "R Foundations: Iteration"
+course_lesson: "4"
+course_total: "4"
+course_landing: "R-Foundations-Iteration-Course.html"
+course_next: ""
+course_prev: "The-purrr-map-Family.html"
+lesson_access: "free"
+catalog_blurb: "Keep going when some items fail, and work group by group."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 4 of 4</div>
+<h2>Resilient and Nested Iteration</h2>
+
+<p>In Lesson 3 you ran a function across each item with <code>map</code> and got back a tidy, predictable result every time. That works beautifully when the data is clean and every piece is a single value.</p>
+
+<p>Real data is rarely that polite. Picture six new Rosewood Bakery branches texting in their daily takings as hand-typed strings: a couple are mistyped, your parser chokes on them, and that one failure mid-<code>map</code> throws away every good result it computed before. Other times the natural unit is not a single value at all but a whole group, a table you want to run code on, group by group. This lesson gives you the two tools that handle exactly those cases: <strong>resilient</strong> iteration that survives failures (<code>safely</code>, <code>possibly</code>), and <strong>nested</strong> iteration over whole tables tucked inside a column (<code>nest</code>, <code>unnest</code>).</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain why one broken element aborts an entire <code>map</code>, and what that costs you</li>
+
+<li>Run a function over every element and capture each result-or-error with <code>safely</code>, never stopping</li>
+
+<li>Reach for <code>possibly</code> when you just want a sensible fallback value on failure</li>
+
+<li>Read a list-column (a column whose cells are whole tables) and move between flat and nested with <code>nest</code> and <code>unnest</code></li>
+
+<li>Run a real calculation on each group by mapping over a list-column, then tidy the result back</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> Lesson 3 (<a href="The-purrr-map-Family.html">the purrr map family</a>), how to <a href="Writing-Functions-in-R.html">write a function</a> and pass a <code>\(x) ...</code> lambda, and that a column of a <a href="Data-Frames-and-Tibbles.html">data frame or tibble</a> holds equal-length values.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Run over messy data","sub":"some pieces will fail, and one failure must not stop the rest"},{"title":"Stay resilient","sub":"safely and possibly let the map finish and mark the failures"},{"title":"Group into list-columns","sub":"nest folds each group into a single cell as a whole table"},{"title":"One result per group","sub":"map a calculation over each table, then unnest back to tidy rows"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>One broken element stops the whole run</h2>
+
+<p>Rosewood Bakery is opening six new branches, and head office texts in each branch's recent daily takings as a hand-typed string like <code>&quot;120,135,150&quot;</code>. You want each branch's <strong>mean daily takings</strong>. So you write a small parser, then <code>map</code> it over the branches. Build this week's batch once (run it), and notice that two branches were typed badly:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(purrr)
+
+# Daily takings ($) texted in from six new Rosewood branches.
+# Typed by hand, so a couple are malformed.
+takings &lt;- list(
+  downtown   = &quot;120,135,150&quot;,
+  harbour    = &quot;98,110,121&quot;,
+  airport    = &quot;two hundred&quot;,     # someone wrote words
+  university = &quot;75,eighty,80&quot;,     # a word slipped into the middle
+  suburb     = &quot;60,64,70&quot;,
+  market     = &quot;88,92,99&quot;
+)
+
+# Parse ONE branch's text into its mean daily takings.
+mean_takings &lt;- function(txt) {
+  nums &lt;- as.numeric(strsplit(txt, &quot;,&quot;)[[1]])   # &quot;120,135&quot; -&gt; c(120, 135)
+  if (anyNA(nums)) stop(&quot;non-numeric takings: &quot;, txt)
+  mean(nums)
+}
+
+mean_takings(takings$downtown)   # a good branch parses fine
+#&gt; [1] 135</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>One branch at a time is fine. But the moment you <code>map</code> over all six, the run hits <code>airport</code> (the third element), <code>mean_takings</code> calls <code>stop(...)</code>, and that error does not just skip that branch, it <strong>aborts the entire call</strong>. You get nothing back, not even the three good branches that came before it:</p>
+
+<pre><code class="language-r">map_dbl(takings, mean_takings)
+#&gt; Error in mean_takings(txt): non-numeric takings: two hundred</code></pre>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">This is the default in R: an error inside <code>map</code> (or any loop) propagates straight up and ends everything. Across six branches it is annoying; across six thousand files, an overnight job that dies on row 4,000 and discards the 3,999 results it already computed is a genuinely expensive failure.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix</div>
+<h2>safely(): catch every failure, keep going</h2>
+
+<p><code>safely()</code> is an <strong>adverb</strong>: hand it a function and it returns a <em>new</em> function that does the same job but can never throw. Instead of returning a bare value (or crashing), the wrapped function always returns a small two-slot list: <code>result</code> and <code>error</code>. Exactly one slot is filled.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>For an element that...</th>
+<th><code>result</code> slot</th>
+<th><code>error</code> slot</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>works</td>
+<td>the value your function returned</td>
+<td><code>NULL</code></td>
+</tr>
+<tr>
+<td>fails</td>
+<td><code>NULL</code></td>
+<td>the captured error</td>
+</tr>
+</tbody>
+</table>
+
+<p>Because the wrapped function never throws, <code>map</code> runs to the very end no matter how many elements break. Here is the precise idea. <code>safely</code> turns a function \(f\) into a new function \(f^{\star}\). For any input \(x\), \(f^{\star}(x)\) is the pair</p>
+
+<p>\[ f^{\star}(x) = \begin{cases} (\,\text{result}=f(x),\ \text{error}=\texttt{NULL}\,) & \text{if } f(x) \text{ succeeds} \\ (\,\text{result}=\texttt{NULL},\ \text{error}=e\,) & \text{if } f(x) \text{ raises error } e \end{cases} \]</p>
+
+<p>and crucially \(f^{\star}\) itself never raises. Wrap <code>mean_takings</code> and map the wrapped version over all six branches:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">safe_mean &lt;- safely(mean_takings)        # same job, but returns result + error
+
+results &lt;- map(takings, safe_mean)       # ALWAYS finishes - no element can abort it
+
+results$airport      # a branch that FAILED: result is NULL, error is filled
+#&gt; $result
+#&gt; NULL
+#&gt;
+#&gt; $error
+#&gt; &lt;simpleError in mean_takings(txt): non-numeric takings: two hundred&gt;
+
+results$downtown     # a branch that WORKED: result is filled, error is NULL
+#&gt; $result
+#&gt; [1] 135
+#&gt;
+#&gt; $error
+#&gt; NULL</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now nothing is lost. Every branch is accounted for, and you can pull out just the numbers you wanted, using <code>NA</code> for the ones that broke:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># pluck the &quot;result&quot; slot from each branch; missing ones become NA
+map_dbl(results, &quot;result&quot;, .default = NA)
+#&gt;   downtown    harbour    airport university     suburb     market
+#&gt;   135.0000   109.6667         NA         NA    64.6667    93.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><code>safely</code> trades a crash for a value you can inspect. The map always completes, and the failures are sitting right there in the <code>error</code> slots, ready to be reported or retried, instead of having taken down the whole job.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does safely hand back?</h2>
+
+<p>You wrap a parsing function with <code>safely()</code> and <code>map</code> it over 100 files, 3 of which are corrupt. What do you get back?</p>
+<section class="exercise" data-exercise-id="Resilient-and-Nested-Iteration-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">An error, because the 3 corrupt files still make the run fail</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A list of 100 elements; each is a <code>result</code>/<code>error</code> pair, and the 3 corrupt files have <code>result = NULL</code> with their error captured</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">A list of only the 97 files that worked</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. <code>safely</code> returns one two-slot list per element. The 97 good files carry their value in <code>result</code>; the 3 bad ones carry <code>NULL</code> in <code>result</code> and the captured error in <code>error</code>. Nothing is lost.</div><div class="lesson-qfb lesson-qfb-no"><code>safely</code> does not drop the failures, it captures them. You get all 100 elements; the failed ones have a <code>NULL</code> result and a filled <code>error</code>, which is what lets you find and report them.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The lighter tool</div>
+<h2>possibly(): just give me a fallback</h2>
+
+<p>The <code>result</code>/<code>error</code> pairs are perfect when you want to inspect <em>why</em> things failed. Often you do not care: you just want a plain answer per element, with a sensible stand-in where it broke. That is <code>possibly()</code>. You give it your function and an <code>otherwise</code> value to return on any failure, and it hands back the value directly, no wrapper to unpack.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># possibly: on failure, return the fallback instead of the result/error pair
+maybe_mean &lt;- possibly(mean_takings, otherwise = NA_real_)
+
+map_dbl(takings, maybe_mean)     # a clean numeric vector; failures are NA
+#&gt;   downtown    harbour    airport university     suburb     market
+#&gt;   135.0000   109.6667         NA         NA    64.6667    93.0000</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same answer as the <code>safely</code> version above, but in one step and ready for arithmetic. The rule of thumb:</p>
+
+<ul>
+
+<li>Want to <strong>diagnose</strong> failures (log them, retry them)? Use <code>safely</code> and read the <code>error</code> slots.</li>
+
+<li>Want a <strong>clean result</strong> with a fallback and do not care about the error detail? Use <code>possibly(otherwise = ...)</code>.</li>
+
+</ul>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">There is a third adverb, <code>quietly()</code>, for the other kind of noise: it captures a function's printed output, <strong>messages</strong> and <strong>warnings</strong> (rather than errors) alongside its result, so a chatty function does not flood your console. Same idea, different thing caught.</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Make it resilient, your way</h2>
+
+<p>Head office wants each branch's <strong>highest</strong> single day's takings as a plain numeric vector, with <code>NA</code> where a branch was typed badly, ready to drop into a report. You already have <code>takings</code> and this strict parser:</p>
+<section class="exercise" data-exercise-id="Resilient-and-Nested-Iteration-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="possibly\s*\(\s*max_takings\s*,\s*otherwise\s*="><textarea class="lesson-tryit-input" spellcheck="false">max_takings &lt;- function(txt) {
+  nums &lt;- as.numeric(strsplit(txt, &quot;,&quot;)[[1]])
+  if (anyNA(nums)) stop(&quot;non-numeric takings: &quot;, txt)
+  max(nums)
+}</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Exactly. possibly(max_takings, otherwise = NA_real_) returns the value directly with NA on failure, so map_dbl gives a clean numeric vector. safely would have forced you to unpack result/error pairs.</span><span class="lesson-tryit-fb lesson-tryit-no">You want a clean value with a fallback, not result/error pairs: possibly(max_takings, otherwise = NA_real_).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">safe_max &lt;- possibly(max_takings, otherwise = NA_real_)
+map_dbl(takings, safe_max)
+#&gt;   downtown    harbour    airport university     suburb     market
+#&gt;        150        121         NA         NA         70         99</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">A column of tables</div>
+<h2>List-columns: a whole table inside one cell</h2>
+
+<p>Now the second half. So far each element you iterated over was a single value or a string. But the natural unit is often a <strong>group</strong>: all of croissant's daily sales, all of muffin's, all of bagel's. R lets a single column hold a whole tibble in each cell, one per group. That is a <strong>list-column</strong>, and <code>nest()</code> builds it.</p>
+
+<p>Take Rosewood's six-day sales in long form (one row per item per day). <code>nest()</code> collapses it to <strong>one row per item</strong>, packing each item's days-and-units into its own mini-tibble in a list-column. <code>unnest()</code> reverses it, spreading the tables back out into ordinary rows. Toggle between the two views below, then press Run to do it for real:</p>
+
+<p>The nested cell does not say <code>40, 45, 50</code>; it says <code>tibble [3 x 2]</code>, a promise that a whole 3-row, 2-column table is folded up in there. The flat frame and the nested frame hold the <em>same data</em>, shaped for two different jobs: flat for filtering and joining, nested for "do something to each group as a unit".</p>
+<div class="lesson-widget" data-widget-type="nest-unnest" data-widget-config='{"cols":["item","day","units"],"rows":[["croissant","Mon",40],["croissant","Tue",45],["croissant","Wed",50],["muffin","Mon",20],["muffin","Tue",25],["muffin","Wed",30],["bagel","Mon",35],["bagel","Tue",38],["bagel","Wed",40]],"nestBy":"item","listCol":"sales"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The payoff</div>
+<h2>Map a calculation over each group</h2>
+
+<p>Here is why list-columns matter for iteration. Once each group is a single cell, you can <code>map</code> a function over that list-column and get <strong>one result per group</strong>, no loop, no copy-paste, no splitting the data into pieces by hand. The pattern is always the same three beats:</p>
+
+<p>Build the full six-day sales inline, nest by item, then map a few summaries over each item's table:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+library(tidyr)
+library(tibble)
+library(purrr)
+
+# Rosewood's six-day sales, long form: one row per item per day
+sales_long &lt;- tibble(
+  item  = rep(c(&quot;croissant&quot;, &quot;muffin&quot;, &quot;bagel&quot;), each = 6),
+  day   = rep(1:6, times = 3),
+  units = c(40, 45, 50, 50, 55, 60,
+            20, 25, 30, 30, 35, 40,
+            35, 38, 40, 40, 42, 45)
+)
+
+# nest packs each item's six rows into its own mini-table (the list-column &quot;sales&quot;),
+# then map runs a real calculation on each of those tables.
+by_item &lt;- sales_long |&gt;
+  nest(sales = c(day, units)) |&gt;
+  mutate(
+    days  = map_int(sales, nrow),                # rows in each mini-table
+    total = map_dbl(sales, \(d) sum(d$units)),   # units sold across the week
+    peak  = map_dbl(sales, \(d) max(d$units))    # best single day
+  )
+
+by_item |&gt; select(item, days, total, peak)
+#&gt; # A tibble: 3 x 4
+#&gt;   item       days total  peak
+#&gt;   &lt;chr&gt;     &lt;int&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 croissant     6   300    60
+#&gt; 2 muffin        6   180    40
+#&gt; 3 bagel         6   240    45</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each <code>map</code> call walked the three mini-tables and returned one number per group, lined up beside its item. When you want the per-row detail back, <code>unnest()</code> the list-column and the new summary columns ride along, repeated down each group's rows:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">by_item |&gt; unnest(sales)
+#&gt; # A tibble: 18 x 6
+#&gt;   item        day units  days total  peak
+#&gt;   &lt;chr&gt;     &lt;int&gt; &lt;dbl&gt; &lt;int&gt; &lt;dbl&gt; &lt;dbl&gt;
+#&gt; 1 croissant     1    40     6   300    60
+#&gt; 2 croissant     2    45     6   300    60
+#&gt; # i 16 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">The calculation can be anything that takes a table, including a model. Swap <code>sum(d$units)</code> for <code>lm(units ~ day, d)</code> and you get a separate fitted model per item, the classic "many models" use of list-columns. Wrap that map in <code>possibly()</code> and a group with too little data to fit just yields a fallback instead of sinking the whole pipeline, both halves of this lesson working together.</div></div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"nest","sub":"one row per group, each carrying its own mini-table in a list-column"},{"title":"map over the list-column","sub":"run any calculation on the table for each group; the answer becomes a new column"},{"title":"unnest","sub":"spread the tidy results back into ordinary rows when you need them flat"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What did nest produce?</h2>
+
+<p>You start with a 200-row sales table covering 8 products and run <code>nest(sales = c(day, units))</code> grouped by <code>product</code>. What does the result look like?</p>
+<section class="exercise" data-exercise-id="Resilient-and-Nested-Iteration-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Still 200 rows; <code>nest</code> only reorders them</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">200 rows, with a new column holding the numbers <code>day</code> and <code>units</code></span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">8 rows (one per product), with a list-column whose each cell is that product's own tibble</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. <code>nest</code> gives one row per group (8 products -> 8 rows) and a list-column where each cell is a whole tibble of that product's days and units, ready to map a calculation over.</div><div class="lesson-qfb lesson-qfb-no">The new column does not hold loose numbers; it holds a whole tibble per group, and the row count drops to one per group.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Capstone</div>
+<h2>One summary per group, the tidy way</h2>
+
+<p>Put it together. Using <code>sales_long</code> from above, nest each item's rows into a <code>sales</code> list-column, then add a column <code>avg</code> holding each item's <strong>mean daily units</strong> by mapping over that list-column. The result should have one row per item. Fill in the blank with the calculation that runs on each group's mini-table <code>d</code>.</p>
+<section class="exercise" data-exercise-id="Resilient-and-Nested-Iteration-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="mean\s*\(\s*d\$units\s*\)"><textarea class="lesson-tryit-input" spellcheck="false">avg_by_item &lt;- sales_long |&gt;
+  nest(sales = c(day, units)) |&gt;
+  mutate(avg = map_dbl(sales, \(d) ____ ))
+
+avg_by_item |&gt; select(item, avg)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Exactly. map_dbl walks each item's mini-table d and mean(d$units) returns one number per group, guaranteed numeric by the _dbl suffix and lined up beside its item.</span><span class="lesson-tryit-fb lesson-tryit-no">Each d is one item's table; you want the mean of its units column: mean(d$units).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">avg_by_item &lt;- sales_long |&gt;
+  nest(sales = c(day, units)) |&gt;
+  mutate(avg = map_dbl(sales, \(d) mean(d$units)))
+
+avg_by_item |&gt; select(item, avg)
+#&gt; # A tibble: 3 x 2
+#&gt;   item        avg
+#&gt;   &lt;chr&gt;     &lt;dbl&gt;
+#&gt; 1 croissant    50
+#&gt; 2 muffin       30
+#&gt; 3 bagel        40</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative, free places to take this further:</p>
+
+<ul>
+
+<li><a href="https://purrr.tidyverse.org/reference/safely.html">purrr: safely(), possibly(), quietly()</a> - the official reference for the three adverbs and exactly what each one captures.</li>
+
+<li><a href="https://tidyr.tidyverse.org/reference/nest.html">tidyr: nest() and unnest()</a> - how list-columns are built and spread back, with the current argument syntax.</li>
+
+<li><a href="https://r4ds.had.co.nz/many-models.html">R for Data Science (1e): Many models</a> - the canonical worked example of nest plus map plus list-columns, fitting one model per group.</li>
+
+<li><a href="https://r4ds.hadley.nz/iteration.html">R for Data Science (2e): Iteration</a> - the map family in context, the foundation everything here builds on.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 4 complete</h2>
+
+<p>You can now make iteration survive the real world. <code>safely</code> runs your function over every element and hands back a <code>result</code>/<code>error</code> pair so a single failure can never abort the run; <code>possibly</code> does the lighter job of returning a clean value with a fallback. And with <code>nest</code> you fold each group into a list-column of whole tables, <code>map</code> a calculation, even a model, over them, and <code>unnest</code> to tidy the answers back out.</p>
+
+<p>That is the end of <strong>R Foundations: Iteration</strong>. You started by replacing loops with vectorization, moved to the apply family and then purrr's typed <code>map</code>, and you finish able to iterate over messy, grouped, real data without it falling over. Next up, the Debugging course: when a function does misbehave, how to find out exactly why.</p>
+</section>
+
+{% endraw %}

@@ -1,0 +1,427 @@
+---
+title: "Importing Data Lesson 4: Databases and Big Files"
+description: "Work with data beyond a single CSV: query a database from R with DBI and dbplyr, read only the columns you need from huge files, and fix Parquet and text encodings."
+keywords: "R database, DBI, duckdb, dbplyr, SQL in R, dbGetQuery, collect, read Parquet in R, arrow, big data in R, col_select, file encoding in R, locale, readr"
+webr: true
+curriculum_id: "1.4.4"
+post_type: "LESSON"
+course_id: "nr-import"
+course_title: "Importing Data into R"
+course_lesson: "4"
+course_total: "5"
+course_landing: "R-Foundations-Import-Course.html"
+course_next: "Saving-and-Exporting-Data.html"
+course_prev: "JSON-and-Web-Data.html"
+lesson_access: "free"
+catalog_blurb: "Query data in a database, and read files too big to load."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 4 of 5</div>
+<h2>Databases and Big Files</h2>
+
+<p>In lessons 1 to 3 you opened files: a <code>.csv</code>, an Excel workbook, an SPSS file, even JSON straight off a web API. Every one of them shared a quiet assumption: the whole thing fits in R's memory, so you read it all in and work on it.</p>
+
+<p>Maria's corner bakery has grown into a small chain of shops. Two years of every till receipt no longer fit in one emailed spreadsheet: they live in a <strong>database</strong>. Her analytics provider drops a monthly <strong>Parquet</strong> file. And an old flour supplier still sends a giant text export whose accented names arrive scrambled. None of these wants to be read whole.</p>
+
+<p>This lesson teaches the one idea that handles all of them: <strong>bring your question to the data, instead of dragging all the data into R.</strong> By the end you will be able to:</p>
+
+<ul>
+
+<li>Connect to a <strong>database</strong> from R and load a table into it</li>
+
+<li>Send a question in <strong>SQL</strong> and get back only the small answer</li>
+
+<li>Query a database with the <strong>dplyr</strong> verbs you already know, and pull the result with <code>collect()</code></li>
+
+<li>Read only the columns you need from a file too big to open, and fix a garbled <strong>encoding</strong></li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> lessons 1 to 3 (you know a <strong>tibble</strong>, that columns have a <strong>type</strong>, <code>read_csv()</code>, and <code>library()</code>). No SQL is assumed; every term is defined as it appears. The map below is the whole lesson in one picture.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Point at the source","sub":"a database, or a file too big to load"},{"title":"Ask only what you need","sub":"a query, or just the columns that matter"},{"title":"The engine does the work","sub":"it filters and totals where the data lives"},{"title":"Pull only the answer","sub":"a small tibble comes back into R"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">Where big data lives</div>
+<h2>A database holds the data; you send it questions</h2>
+
+<p>A <strong>database</strong> is a program built to store tables and answer questions about them, even when those tables hold millions of rows. Think of it as the bakery's stockroom: you do not carry the whole stockroom to the front counter, you send back a note asking for "two trays of croissants" and only those come out.</p>
+
+<p>To talk to one from R you open a <strong>connection</strong>: a live link to the database that you send questions down and get answers back through. R uses one consistent toolkit for this called <strong>DBI</strong> (the DataBase Interface), so the same handful of functions work whether the database is SQLite, Postgres, or, here, <strong>duckdb</strong>, a fast database that needs no separate server and runs right inside your R session. That makes it perfect for learning, and genuinely useful for big local files.</p>
+
+<p>We will stand up a tiny sales table so every step is real. In a true project this table would already hold years of data; the few rows here behave exactly the same way.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(DBI)
+library(duckdb)
+
+sales &lt;- data.frame(
+  shop  = c(&quot;Old Town&quot;,&quot;Old Town&quot;,&quot;Old Town&quot;,&quot;Riverside&quot;,&quot;Riverside&quot;,&quot;Riverside&quot;),
+  item  = c(&quot;croissant&quot;,&quot;muffin&quot;,&quot;baguette&quot;,&quot;croissant&quot;,&quot;muffin&quot;,&quot;baguette&quot;),
+  qty   = c(14, 11, 6, 9, 13, 8),
+  price = c(2.50, 3.25, 4.00, 2.50, 3.25, 4.00),
+  stringsAsFactors = FALSE
+)
+
+con &lt;- dbConnect(duckdb())        # open a connection to an in-memory database
+dbWriteTable(con, &quot;sales&quot;, sales) # store the data frame as a table called &quot;sales&quot;
+dbListTables(con)                 # what tables does the database now hold?
+#&gt; [1] &quot;sales&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body"><code>dbConnect()</code> opens the link and <code>dbDisconnect(con, shutdown = TRUE)</code> closes it when you are done. Everything between is the same no matter which database sits on the other end: that is the whole point of DBI.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Asking a question</div>
+<h2>Ask in SQL, get back only the answer</h2>
+
+<p>The language databases speak is <strong>SQL</strong> (Structured Query Language). A <strong>query</strong> is one SQL sentence describing the answer you want; <code>dbGetQuery()</code> sends it down the connection and hands back the result as an ordinary data frame.</p>
+
+<p>Read this query like a sentence: <code>SELECT</code> the columns I want, <code>FROM</code> the table, <code>GROUP BY</code> item so each item is summed on its own, <code>ORDER BY</code> revenue from high to low. <code>SUM(qty)</code> adds the quantities and <code>AS units</code> names that new column.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">dbGetQuery(con, &quot;
+  SELECT item, SUM(qty) AS units, ROUND(SUM(qty * price), 2) AS revenue
+  FROM sales
+  GROUP BY item
+  ORDER BY revenue DESC
+&quot;)
+#&gt;        item units revenue
+#&gt; 1    muffin    24    78.0
+#&gt; 2 croissant    23    57.5
+#&gt; 3  baguette    14    56.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The sales table had six rows; the answer has three. That gap is the entire lesson in miniature.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The database did the adding-up, and only the small summary crossed back into R. Had the table held ten million rows, the totalling would still happen inside the database and you would still receive just these three rows. You bring the question to the data, not the data to the question.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Where does the work happen?</h2>
+
+<p>Maria's real <code>sales</code> table has two million rows. She runs <code>dbGetQuery(con, &quot;SELECT item, SUM(qty) AS units FROM sales GROUP BY item&quot;)</code>. Where does the adding-up happen, and what comes back to R?</p>
+<section class="exercise" data-exercise-id="Databases-and-Big-Files-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The database computes the totals and sends back only the small per-item result, a handful of rows</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">R first downloads all two million rows, then sums them itself</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Nothing comes back; dbGetQuery only writes to the database's log</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The GROUP BY runs inside the database, where the data lives, and only the summary crosses into R. That is why this scales to millions of rows.</div><div class="lesson-qfb lesson-qfb-no">dbGetQuery returns the result as a data frame you can assign and use, just like read_csv hands you a tibble.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The verbs you already know</div>
+<h2>Query with dplyr, not just SQL</h2>
+
+<p>You do not have to write SQL by hand. The <strong>dbplyr</strong> package lets you query a database using the <strong>dplyr</strong> verbs from earlier in your R journey: <code>filter()</code>, <code>group_by()</code>, <code>summarise()</code>, <code>arrange()</code>. You point <code>tbl()</code> at a table to get a <strong>lazy</strong> reference (a stand-in that has run nothing yet), pipe your verbs onto it, and dbplyr quietly translates the whole chain into SQL.</p>
+
+<p><code>show_query()</code> lets you see that translation:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+library(dbplyr)
+
+q &lt;- tbl(con, &quot;sales&quot;) |&gt;          # a lazy reference to the table, no data pulled yet
+  group_by(item) |&gt;
+  summarise(units = sum(qty), revenue = sum(qty * price)) |&gt;
+  arrange(desc(revenue))
+
+show_query(q)                      # the SQL dbplyr wrote for you
+#&gt; &lt;SQL&gt;
+#&gt; SELECT item, SUM(qty) AS units, SUM(qty * price) AS revenue
+#&gt; FROM sales
+#&gt; GROUP BY item
+#&gt; ORDER BY revenue DESC</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That is the very query you wrote by hand a moment ago, generated from dplyr. Nothing has actually run yet, though: <code>q</code> is still just a plan. To execute it in the database and pull the result into R as a real tibble, you call <code>collect()</code>.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">collect(q)
+#&gt; # A tibble: 3 x 3
+#&gt;   item      units revenue
+#&gt;   &lt;chr&gt;     &lt;dbl&gt;   &lt;dbl&gt;
+#&gt; 1 muffin       24      78
+#&gt; 2 croissant    23    57.5
+#&gt; 3 baguette     14      56</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">The chain stays <strong>lazy</strong> until <code>collect()</code>. You can stack as many verbs as you like, see the SQL, and refine it, all without moving a single row. <code>collect()</code> is the moment the question finally goes to the data and the answer comes back.</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Pull the answer into R</h2>
+
+<p>The connection <code>con</code> and its <code>sales</code> table are still open from the steps above. This pipeline counts croissants sold across all shops, but it stops at a lazy plan: it never runs. Add the one verb that executes it in the database and pulls the result back, then check it.</p>
+<section class="exercise" data-exercise-id="Databases-and-Big-Files-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="collect\s*[(]"><textarea class="lesson-tryit-input" spellcheck="false">library(dplyr)
+library(dbplyr)
+
+croissants &lt;- tbl(con, &quot;sales&quot;) |&gt;
+  filter(item == &quot;croissant&quot;) |&gt;
+  summarise(units = sum(qty)) |&gt;
+  ____
+croissants</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Exactly. collect() runs the query inside the database and returns the small result as a tibble: 23 croissants.</span><span class="lesson-tryit-fb lesson-tryit-no">The pipeline is still a lazy plan. Finish it with collect() to run it and fetch the answer.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">library(dplyr)
+library(dbplyr)
+
+croissants &lt;- tbl(con, &quot;sales&quot;) |&gt;
+  filter(item == &quot;croissant&quot;) |&gt;
+  summarise(units = sum(qty)) |&gt;
+  collect()
+croissants
+#&gt; # A tibble: 1 x 1
+#&gt;   units
+#&gt;   &lt;dbl&gt;
+#&gt; 1    23</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Files too big to open</div>
+<h2>Read only what you need</h2>
+
+<p>Not all big data lives in a database. Sometimes it is just an enormous flat file, more rows or columns than you want to pull into memory. The same principle rescues you: read only the part you need.</p>
+
+<p><code>read_csv()</code> takes a <code>col_select</code> argument that reads a chosen set of columns and skips the rest entirely. Maria's export has seven columns, but to total sales she needs only two. The widget shows the move: a wide table narrowed to just <code>item</code> and <code>qty</code>.</p>
+
+<p>Here it is for real. We write a small file, then read back only the two columns that matter:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(readr)
+
+rows &lt;- c(
+  &quot;date,shop,item,qty,price,cashier,note&quot;,
+  &quot;2026-03-09,Old Town,croissant,14,2.50,A,&quot;,
+  &quot;2026-03-09,Old Town,muffin,11,3.25,B,&quot;,
+  &quot;2026-03-10,Riverside,baguette,6,4.00,A,promo&quot;
+)
+writeLines(rows, &quot;big_sales.csv&quot;)
+
+read_csv(&quot;big_sales.csv&quot;, col_select = c(item, qty))
+#&gt; # A tibble: 3 x 2
+#&gt;   item        qty
+#&gt;   &lt;chr&gt;     &lt;dbl&gt;
+#&gt; 1 croissant    14
+#&gt; 2 muffin       11
+#&gt; 3 baguette      6</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When you just want to see a file's shape before committing to it, <code>n_max</code> reads only the first few rows:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">read_csv(&quot;big_sales.csv&quot;, n_max = 1)   # peek at the first row to learn the columns
+#&gt; # A tibble: 1 x 7
+#&gt;   date       shop     item        qty price cashier note
+#&gt;   &lt;date&gt;     &lt;chr&gt;    &lt;chr&gt;     &lt;dbl&gt; &lt;dbl&gt; &lt;chr&gt;   &lt;lgl&gt;
+#&gt; 1 2026-03-09 Old Town croissant    14   2.5 A       NA</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>For data that is genuinely huge, there is a file format built for exactly this: <strong>Parquet</strong>. A CSV stores data row by row, so reading two columns still means scanning every row. Parquet is <strong>columnar</strong>: each column is stored separately and compressed, so reading 2 columns out of 40 touches only those 2. The <strong>arrow</strong> package reads it, and can even query a folder of Parquet files on disk without loading it whole. (Parquet needs the arrow library, which runs on your own machine rather than here, so this block is for reference.)</p>
+
+<pre><code class="language-r">library(arrow)
+library(dplyr)
+
+# Read only the columns you need from a columnar Parquet file:
+trimmed &lt;- read_parquet(&quot;sales.parquet&quot;, col_select = c(&quot;item&quot;, &quot;qty&quot;))
+
+# Bigger than memory? Point at a folder of Parquet files and query it on disk,
+# pulling only the small summary back into R:
+open_dataset(&quot;sales/&quot;) |&gt;
+  group_by(shop) |&gt;
+  summarise(revenue = sum(qty * price)) |&gt;
+  collect()</code></pre>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"code":"read_csv(\"big_sales.csv\", col_select = c(item, qty))","caption":"A wide export has many columns. Name just the two you need and readr reads only those, skipping the rest of the file.","before":{"cols":["date","shop","item","qty","price","cashier","note"],"rows":[["2026-03-09","Old Town","croissant",14,2.5,"A",""],["2026-03-09","Old Town","muffin",11,3.25,"B",""],["2026-03-10","Riverside","baguette",6,4.0,"A","promo"]]},"after":{"cols":["item","qty"],"rows":[["croissant",14],["muffin",11],["baguette",6]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">When the text looks wrong</div>
+<h2>Fix a garbled encoding</h2>
+
+<p>One last way a file fights back: the text comes out scrambled. A computer stores text as <strong>bytes</strong>, and an <strong>encoding</strong> is the codebook that says which byte means which character. Modern files use <strong>UTF-8</strong>; older systems often used <strong>Latin-1</strong>, where each accented character is a single byte. Read a Latin-1 file as if it were UTF-8 and the accented bytes turn to nonsense.</p>
+
+<p>Maria's old supplier is named "Müller". Watch what happens when its Latin-1 bytes are read with the wrong codebook, then the right one:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(readr)
+
+# The name &quot;Müller&quot; saved as Latin-1 bytes (one byte per character), not UTF-8:
+writeBin(as.raw(c(0x4d, 0xfc, 0x6c, 0x6c, 0x65, 0x72)), &quot;supplier.txt&quot;)
+
+read_file(&quot;supplier.txt&quot;)                # read as UTF-8 (the default): garbled
+#&gt; [1] &quot;M\xfcller&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The <code>\xfc</code> is R showing you a raw byte it could not make sense of: <code>0xfc</code> is "u with an umlaut" in Latin-1, but it is not valid UTF-8, so the character is lost. Tell readr the file's real encoding with <code>locale()</code> and it decodes correctly:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">read_file(&quot;supplier.txt&quot;, locale = locale(encoding = &quot;latin1&quot;))
+#&gt; [1] &quot;Müller&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A wrong encoding rarely throws an error, it just quietly corrupts your text, and you may not notice until a name or a currency symbol looks strange in a report. When characters come back wrong, suspect the encoding and set <code>locale(encoding = ...)</code> to match the file.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Putting it together</div>
+<h2>Bring your question to the data</h2>
+
+<p>Every part of this lesson is the same instinct: do not haul everything into R, send your question to where the data already is and take back only the answer. Which tool you reach for depends on where the data lives and what is in your way.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Your situation</th>
+<th>The move</th>
+<th>Why it works</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Data already lives in a database</td>
+<td>Query it with DBI or dbplyr, <code>collect()</code> only the result</td>
+<td>The engine does the heavy work; little crosses into R</td>
+</tr>
+<tr>
+<td>One huge flat file, you need a few columns</td>
+<td><code>read_csv(col_select = ...)</code>, or a columnar Parquet file</td>
+<td>You read only the bytes you actually need</td>
+</tr>
+<tr>
+<td>File is bigger than memory</td>
+<td>Load it into duckdb, or <code>open_dataset()</code> the Parquet, and query on disk</td>
+<td>The whole thing is never held in R at once</td>
+</tr>
+<tr>
+<td>Text comes back garbled</td>
+<td>Set <code>locale(encoding = ...)</code> to the file's real encoding</td>
+<td>The bytes decode into the right characters</td>
+</tr>
+</tbody>
+</table>
+
+<p>The dataset changed from a friendly CSV to a database, a Parquet file, and a stubborn encoding, but the skill did not: read what you need, where it lives, in the right shape.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Pick the right plan</h2>
+
+<p>A colleague sends a 50-million-row sales file. You need total revenue per shop. The file also has 40 columns you do not need, and the shop names contain accented characters that arrived garbled. What is the soundest plan?</p>
+<section class="exercise" data-exercise-id="Databases-and-Big-Files-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Load it into a database (or read only the columns you need), let the engine total revenue per shop, and set the encoding so the names decode correctly</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Read all 50 million rows and all 40 columns into R with read_csv, summarise in R, and fix the names by hand afterwards</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Open the file in a spreadsheet, delete the columns and rows you do not want, then read what is left</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. You push the work to where the data is, read only what matters, and fix the encoding once with locale(). That scales to any size.</div><div class="lesson-qfb lesson-qfb-no">A 50-million-row file will not open in a spreadsheet, and the whole point is to never load the entire thing. Query it in place instead.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://r4ds.hadley.nz/databases">R for Data Science (2e), Databases</a> - the canonical free walkthrough of <code>DBI</code> and <code>dbplyr</code>, with <code>tbl()</code>, <code>collect()</code> and SQL translation.</li>
+
+<li><a href="https://dbi.r-dbi.org/">DBI package home (r-dbi)</a> - the universal database interface used here: <code>dbConnect</code>, <code>dbGetQuery</code>, <code>dbWriteTable</code> and friends.</li>
+
+<li><a href="https://dbplyr.tidyverse.org/">dbplyr (tidyverse)</a> - how dplyr verbs become SQL, what is lazy, and when to <code>collect()</code>.</li>
+
+<li><a href="https://arrow.apache.org/docs/r/">Arrow for R</a> - reading Parquet and querying bigger-than-memory datasets on disk with <code>read_parquet</code> and <code>open_dataset</code>.</li>
+
+<li><a href="https://readr.tidyverse.org/articles/locales.html">readr: locales and encodings</a> - how to set a file's encoding (and date, time and number formats) when the defaults are wrong.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 4 complete</h2>
+
+<p>You can now reach data that will not fit in a single <code>read_csv()</code>. You connected to a database with <code>DBI</code> and duckdb, asked questions in SQL with <code>dbGetQuery()</code>, and queried it with the same dplyr verbs you already knew, pulling results back with <code>collect()</code>. You read only the columns you needed from a wide file, met Parquet as the columnar format built for big data, and fixed a garbled name by setting its encoding.</p>
+
+<p>The thread through all of it: bring your question to the data, and take back only the answer.</p>
+
+<p>Next, Lesson 5: Saving and Exporting Data. Once you have the result you wanted, you need to write it back out, as a CSV, an R data file, or an Excel workbook, and choose the right format for who reads it next. That closes the loop on getting data in and out of R.</p>
+</section>
+
+{% endraw %}

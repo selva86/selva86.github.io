@@ -352,6 +352,70 @@
 })();
 
 ;
+/* control-flow.js */
+/* control-flow.js - foundations: watch a for-loop with an if/else execute one
+ * iteration at a time. Step through it; see the counter, which branch the
+ * condition takes, and the console output building up. Then run the real loop.
+ * cfg: { n: 5 }  (loops i in 1:n, printing "even"/"odd")
+ */
+(function () {
+  'use strict';
+  function mount(el, cfg) {
+    var u = window.LessonWidgets.u; if (!u) return;
+    cfg = cfg || {};
+    var n = cfg.n || 5, step = 0; // step 0 = nothing run yet; step k = i=k done
+
+    var CODE = 'for (i in 1:' + n + ') {\n  if (i %% 2 == 0) {\n    print("even")\n  } else {\n    print("odd")\n  }\n}';
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
+
+    function codePanel() {
+      var even = step > 0 && step % 2 === 0; // current branch highlight
+      var hiEven = even ? u.P.add : 'transparent', hiOdd = (step > 0 && !even) ? u.P.add : 'transparent';
+      return '<pre style="margin:0;font-family:IBM Plex Mono,monospace;font-size:13px;line-height:1.6;background:' + u.P.codeBg + ';color:' + u.P.codeFg + ';padding:12px 14px;border-radius:8px;overflow-x:auto">' +
+        '<span>for (i in 1:' + n + ') {</span>\n' +
+        '<span>  if (i %% 2 == 0) {</span>\n' +
+        '<span style="background:' + (hiEven === 'transparent' ? 'transparent' : 'rgba(123,201,159,.28)') + ';display:inline-block;width:100%">    print("even")</span>\n' +
+        '<span>  } else {</span>\n' +
+        '<span style="background:' + (hiOdd === 'transparent' ? 'transparent' : 'rgba(123,201,159,.28)') + ';display:inline-block;width:100%">    print("odd")</span>\n' +
+        '<span>  }</span>\n<span>}</span></pre>';
+    }
+    function statePanel() {
+      var out = [];
+      for (var k = 1; k <= step; k++) out.push('[1] "' + (k % 2 === 0 ? 'even' : 'odd') + '"');
+      var iNow = step === 0 ? '&ndash;' : step;
+      return '<div style="display:flex;gap:10px;flex-wrap:wrap;margin:0 0 10px">' +
+          '<span style="font-family:IBM Plex Mono,monospace;font-size:13px;background:' + u.P.line2 + ';color:' + u.P.ink + ';padding:5px 11px;border-radius:7px">i = ' + iNow + (step === 0 ? '' : (step % 2 === 0 ? '  (even)' : '  (odd)')) + '</span>' +
+          '<span style="font-size:12.5px;color:' + u.P.mut + ';align-self:center">' + (step >= n ? 'loop finished' : (step === 0 ? 'press Step to start' : 'press Step for i = ' + (step + 1))) + '</span>' +
+        '</div>' +
+        '<div style="font-size:11px;color:' + u.P.faint + ';font-family:IBM Plex Mono,monospace;text-transform:uppercase;letter-spacing:.04em;margin:0 0 4px">Console</div>' +
+        '<pre style="margin:0;min-height:46px;font-family:IBM Plex Mono,monospace;font-size:12.5px;line-height:1.5;background:#fff;border:1px solid ' + u.P.line + ';border-radius:7px;padding:9px 12px;color:' + u.P.ink + '">' + (out.join('\n') || '<span style="color:' + u.P.faint + '">(empty)</span>') + '</pre>';
+    }
+    function render() {
+      wrap.querySelector('.cf-code').innerHTML = codePanel();
+      wrap.querySelector('.cf-state').innerHTML = statePanel();
+      wrap.querySelector('.cf-step').disabled = step >= n;
+      wrap.querySelector('.cf-step').style.opacity = step >= n ? '.5' : '1';
+    }
+
+    wrap.innerHTML =
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">' +
+        '<div class="cf-code"></div><div class="cf-state"></div>' +
+      '</div>' +
+      '<div style="display:flex;gap:9px;margin:12px 0 0">' +
+        '<button type="button" class="cf-step" style="font:inherit;font-size:13px;font-weight:600;color:#fff;background:' + u.P.acc + ';border:0;border-radius:8px;padding:9px 16px;cursor:pointer">Step &rarr;</button>' +
+        '<button type="button" class="cf-reset" style="font:inherit;font-size:13px;font-weight:600;color:' + u.P.mut + ';background:none;border:1px solid ' + u.P.line + ';border-radius:8px;padding:9px 14px;cursor:pointer">Reset</button>' +
+      '</div>' +
+      '<div style="margin:13px 0 0">' + u.runnable(CODE, { label: 'Run the whole loop' }) + '</div>';
+
+    wrap.querySelector('.cf-step').addEventListener('click', function () { if (step < n) { step++; render(); } });
+    wrap.querySelector('.cf-reset').addEventListener('click', function () { step = 0; render(); });
+    el.innerHTML = ''; el.appendChild(wrap); render();
+  }
+  if (window.LessonWidgets) window.LessonWidgets.register('control-flow', mount);
+})();
+
+;
 /* correlation-heatmap.js */
 /* correlation-heatmap.js - a correlation matrix as a diverging color grid.
  * cfg: either { vars:[...], data:{var:[...]} }  (computes Pearson r), or a
@@ -424,6 +488,78 @@
     el.innerHTML = ''; el.appendChild(wrap);
   }
   if (window.LessonWidgets) window.LessonWidgets.register('dashboard-layout', mount);
+})();
+
+;
+/* dataframe-builder.js */
+/* dataframe-builder.js - foundations: a data frame is a set of equal-length
+ * columns, each its own type. Toggle columns on and off and watch the table,
+ * its dimensions, and each column's type update; then run the data.frame() call.
+ * cfg: { columns: [{name, type, values:[]}] }
+ */
+(function () {
+  'use strict';
+  function mount(el, cfg) {
+    var u = window.LessonWidgets.u; if (!u) return;
+    cfg = cfg || {};
+    var COLS = cfg.columns || [
+      { name: 'name', type: 'character', values: ['Ana', 'Ben', 'Cy', 'Devi'] },
+      { name: 'age', type: 'integer', values: [29, 41, 35, 23] },
+      { name: 'member', type: 'logical', values: ['TRUE', 'FALSE', 'TRUE', 'TRUE'] }
+    ];
+    var on = COLS.map(function () { return true; });
+
+    function active() { return COLS.filter(function (_, i) { return on[i]; }); }
+    function rLiteral() {
+      var a = active();
+      var lines = a.map(function (c) {
+        var vals = c.values.map(function (v) { return c.type === 'character' ? '"' + v + '"' : v; }).join(', ');
+        return '  ' + c.name + ' = c(' + vals + ')';
+      });
+      return 'df <- data.frame(\n' + lines.join(',\n') + '\n)';
+    }
+
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
+
+    function render() {
+      var a = active();
+      var toggles = COLS.map(function (c, i) {
+        return '<button type="button" class="dfb-col" data-i="' + i + '" style="font:inherit;font-size:12.5px;font-weight:600;border-radius:8px;padding:6px 12px;cursor:pointer;border:1px solid ' + u.P.line + ';background:' + (on[i] ? u.P.acc : '#fff') + ';color:' + (on[i] ? '#fff' : u.P.mut) + '">' + (on[i] ? '&#10003; ' : '') + u.esc(c.name) + '</button>';
+      }).join('');
+      var tableHtml, dimHtml, typesHtml;
+      if (!a.length) {
+        tableHtml = '<div style="font-size:13px;color:' + u.P.mut + ';padding:14px 0">Turn on at least one column to build a data frame.</div>';
+        dimHtml = ''; typesHtml = '';
+      } else {
+        var cols = a.map(function (c) { return c.name; });
+        var rows = a[0].values.map(function (_, ri) { return a.map(function (c) { return c.values[ri]; }); });
+        tableHtml = u.tbl(cols, rows);
+        dimHtml = '<span style="font-family:IBM Plex Mono,monospace">dim(df) #&gt; ' + rows.length + ' &times; ' + cols.length + '</span>';
+        typesHtml = a.map(function (c) { return '<span style="font-family:IBM Plex Mono,monospace;font-size:12px;background:' + u.P.line2 + ';color:' + u.P.ink + ';padding:2px 7px;border-radius:6px">' + u.esc(c.name) + ': ' + c.type + '</span>'; }).join(' ');
+      }
+      wrap.querySelector('.dfb-toggles').innerHTML = toggles;
+      wrap.querySelector('.dfb-table').innerHTML = tableHtml;
+      wrap.querySelector('.dfb-meta').innerHTML = (a.length ? '<div style="margin:0 0 7px;font-size:12.5px;color:' + u.P.mut + '">' + dimHtml + '</div>' + typesHtml : '');
+      wrap.querySelector('.dfb-run').innerHTML = a.length ? u.runnable(rLiteral() + '\n\ndf\nstr(df)', { label: 'Build it in R' }) : '';
+    }
+
+    wrap.innerHTML =
+      '<div style="border:1px solid ' + u.P.line + ';border-radius:12px;padding:14px 16px;background:#fff">' +
+        '<div style="font-size:12px;color:' + u.P.mut + ';margin:0 0 7px">Columns (each is one type; all the same length)</div>' +
+        '<div class="dfb-toggles" style="display:flex;gap:8px;flex-wrap:wrap"></div>' +
+        '<div class="dfb-table" style="overflow-x:auto;margin:14px 0 0"></div>' +
+        '<div class="dfb-meta" style="margin:12px 0 0;display:flex;gap:7px;flex-wrap:wrap;align-items:center"></div>' +
+      '</div>' +
+      '<div class="dfb-run" style="margin:12px 0 0"></div>';
+
+    wrap.addEventListener('click', function (e) {
+      var b = e.target.closest('.dfb-col'); if (!b) return;
+      var i = +b.getAttribute('data-i'); on[i] = !on[i]; render();
+    });
+    el.innerHTML = ''; el.appendChild(wrap); render();
+  }
+  if (window.LessonWidgets) window.LessonWidgets.register('dataframe-builder', mount);
 })();
 
 ;
@@ -1001,6 +1137,81 @@
 })();
 
 ;
+/* nest-unnest.js */
+/* nest-unnest.js - foundations/iteration: a list-column packs a whole table into a
+ * single cell. Toggle between the flat data frame and its nested form (one row per
+ * group, each carrying its own mini-table), then run nest() / unnest() for real.
+ * cfg: { cols:["region","month","sales"], rows:[["East","Jan",10],...], nestBy:"region", listCol:"data" }
+ */
+(function () {
+  'use strict';
+  function mount(el, cfg) {
+    var u = window.LessonWidgets.u; if (!u) return;
+    cfg = cfg || {};
+    var cols = cfg.cols || ['region', 'month', 'sales'];
+    var rows = cfg.rows || [['East', 'Jan', 10], ['East', 'Feb', 14], ['West', 'Jan', 8], ['West', 'Feb', 12]];
+    var nestBy = cfg.nestBy || cols[0];
+    var listCol = cfg.listCol || 'data';
+    var view = 'flat';
+    var dataCols = cols.filter(function (c) { return c !== nestBy; });
+    var bi = cols.indexOf(nestBy);
+
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
+
+    function groups() {
+      var order = [], by = {};
+      rows.forEach(function (r) { var k = r[bi]; if (!(k in by)) { by[k] = 0; order.push(k); } by[k]++; });
+      return order.map(function (k) { return { key: k, n: by[k] }; });
+    }
+
+    function nestedTable() {
+      var h = '<table style="border-collapse:collapse;font-family:IBM Plex Mono,monospace;font-size:12.5px;width:100%">';
+      h += '<thead><tr><th style="text-align:left;padding:6px 9px;border:1px solid ' + u.P.line + ';background:' + u.P.bg + ';color:' + u.P.ink + ';font-weight:700">' + u.esc(nestBy) + '</th>' +
+        '<th style="text-align:left;padding:6px 9px;border:1px solid ' + u.P.line + ';background:' + u.P.add + ';color:' + u.P.ink + ';font-weight:700">' + u.esc(listCol) + ' <span style="font-weight:400;color:' + u.P.mut + '">(list-column)</span></th></tr></thead><tbody>';
+      groups().forEach(function (g) {
+        h += '<tr><td style="padding:6px 9px;border:1px solid ' + u.P.line + ';background:#fff;color:' + u.P.ink + '">' + u.esc(g.key) + '</td>' +
+          '<td style="padding:6px 9px;border:1px solid ' + u.P.line + ';background:#fff">' +
+            '<span style="display:inline-block;font-size:11.5px;font-weight:600;color:' + u.P.acc + ';background:' + u.P.add + ';border:1px solid ' + u.P.acc + ';border-radius:6px;padding:3px 9px">tibble [' + g.n + ' x ' + dataCols.length + ']</span>' +
+          '</td></tr>';
+      });
+      return h + '</tbody></table>';
+    }
+
+    function rCode() {
+      var objs = rows.map(function (r) { var o = {}; cols.forEach(function (c, i) { o[c] = r[i]; }); return o; });
+      var rcols = cols.map(function (c) { return { name: c, key: c }; });
+      return 'library(dplyr)\nlibrary(tidyr)\n\n' +
+        u.rdf(objs, rcols, 'df') + '\n\n' +
+        'nested <- df |> nest(' + listCol + ' = c(' + dataCols.join(', ') + '))\n' +
+        'nested            # one row per ' + nestBy + ', ' + listCol + ' is a list of tibbles\n\n' +
+        'nested |> unnest(' + listCol + ')   # back to the flat frame';
+    }
+
+    function render() {
+      var isFlat = view === 'flat';
+      wrap.querySelector('.nu-table').innerHTML = isFlat ? u.tbl(cols, rows) : nestedTable();
+      wrap.querySelector('.nu-cap').innerHTML = isFlat
+        ? '<b>' + rows.length + ' rows</b>, one per observation. <code style="font-family:IBM Plex Mono,monospace">nest()</code> packs the ' + dataCols.join(' and ') + ' columns into a list-column.'
+        : '<b>' + groups().length + ' rows</b>, one per ' + nestBy + '. Each ' + listCol + ' cell holds a whole tibble. <code style="font-family:IBM Plex Mono,monospace">unnest()</code> spreads it back out.';
+      wrap.querySelector('.nu-run').innerHTML = u.runnable(rCode(), { label: 'Run nest() and unnest()' });
+    }
+
+    wrap.innerHTML =
+      '<div style="border:1px solid ' + u.P.line + ';border-radius:12px;padding:14px 16px;background:#fff">' +
+        '<div class="nu-seg">' + u.seg([{ v: 'flat', label: 'Flat frame' }, { v: 'nested', label: 'Nested' }], 'flat') + '</div>' +
+        '<div class="nu-table" style="margin:14px 0 0;overflow-x:auto"></div>' +
+        '<div class="nu-cap" style="margin:11px 0 0;font-size:12.5px;color:' + u.P.body + ';line-height:1.55"></div>' +
+      '</div>' +
+      '<div class="nu-run" style="margin:12px 0 0"></div>';
+
+    u.wireSeg(wrap.querySelector('.nu-seg'), function (v) { view = v; render(); });
+    el.innerHTML = ''; el.appendChild(wrap); render();
+  }
+  if (window.LessonWidgets) window.LessonWidgets.register('nest-unnest', mount);
+})();
+
+;
 /* null-distribution.js */
 /* null-distribution.js - the sampling distribution under H0 with the observed
  * statistic marked and its p-value tail(s) shaded. The p-value is computed from
@@ -1173,6 +1384,73 @@
 })();
 
 ;
+/* regex-highlight.js */
+/* regex-highlight.js - foundations/strings: see what a regular expression actually
+ * matches. Pick a pattern; every match lights up inside a sample string; the count
+ * and the real R call update. Then run it for real.
+ * cfg: { text: "...", patterns: [{src, label}] }  (src = JS/PCRE-style regex source)
+ */
+(function () {
+  'use strict';
+  function mount(el, cfg) {
+    var u = window.LessonWidgets.u; if (!u) return;
+    cfg = cfg || {};
+    var text = cfg.text || 'Order A12 shipped on 2026-03-08 to dev@site.org for $45.90';
+    var pats = cfg.patterns || [
+      { src: '\\d+', label: 'Digits' },
+      { src: '\\d{4}-\\d{2}-\\d{2}', label: 'Date' },
+      { src: '[\\w.]+@[\\w.]+', label: 'Email' },
+      { src: '\\$\\d+\\.\\d+', label: 'Price' }
+    ];
+    var cur = 0;
+
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
+
+    // highlight every match of src inside text; returns {html, n}
+    function highlight(src) {
+      var re; try { re = new RegExp(src, 'g'); } catch (e) { return { html: u.esc(text), n: 0 }; }
+      var out = '', last = 0, m, n = 0, guard = 0;
+      while ((m = re.exec(text)) !== null && guard++ < 2000) {
+        var mt = m[0];
+        if (mt === '') { re.lastIndex++; continue; }
+        out += u.esc(text.slice(last, m.index)) +
+          '<mark style="background:' + u.P.add + ';color:' + u.P.ink + ';border-bottom:2px solid ' + u.P.acc + ';border-radius:3px;padding:1px 2px">' + u.esc(mt) + '</mark>';
+        last = m.index + mt.length; n++;
+      }
+      out += u.esc(text.slice(last));
+      return { html: out, n: n };
+    }
+    // R string literal needs backslashes doubled: \d+  ->  "\\d+"
+    function rLit(src) { return src.replace(/\\/g, '\\\\'); }
+
+    function render() {
+      var p = pats[cur], h = highlight(p.src);
+      wrap.querySelector('.rx-str').innerHTML = h.html;
+      wrap.querySelector('.rx-meta').innerHTML =
+        'Pattern <code style="font-family:IBM Plex Mono,monospace;background:' + u.P.line2 + ';padding:2px 6px;border-radius:5px">' + u.esc(p.src) + '</code> matched <b>' + h.n + '</b> time' + (h.n === 1 ? '' : 's') + '.';
+      wrap.querySelector('.rx-run').innerHTML = u.runnable(
+        'x <- "' + text.replace(/"/g, '\\"') + '"\n' +
+        'regmatches(x, gregexpr("' + rLit(p.src) + '", x))',
+        { label: 'Run it in R' });
+    }
+
+    wrap.innerHTML =
+      '<div style="border:1px solid ' + u.P.line + ';border-radius:12px;padding:14px 16px;background:#fff">' +
+        '<div style="font-size:12px;color:' + u.P.mut + ';margin:0 0 8px">Try a pattern:</div>' +
+        '<div class="rx-seg">' + u.seg(pats.map(function (p, i) { return { v: i, label: p.label }; }), 0) + '</div>' +
+        '<div class="rx-str" style="margin:14px 0 0;font-family:IBM Plex Mono,monospace;font-size:13.5px;line-height:1.9;background:' + u.P.bg + ';border:1px solid ' + u.P.line + ';border-radius:8px;padding:11px 13px;word-break:break-word"></div>' +
+        '<div class="rx-meta" style="margin:10px 0 0;font-size:12.5px;color:' + u.P.body + '"></div>' +
+      '</div>' +
+      '<div class="rx-run" style="margin:12px 0 0"></div>';
+
+    u.wireSeg(wrap.querySelector('.rx-seg'), function (v) { cur = +v; render(); });
+    el.innerHTML = ''; el.appendChild(wrap); render();
+  }
+  if (window.LessonWidgets) window.LessonWidgets.register('regex-highlight', mount);
+})();
+
+;
 /* reshape-grid.js */
 /* reshape-grid.js - pivot_longer <-> pivot_wider on a small table.
  * cfg: { wide:{cols,rows}, idCols:["country"], namesTo:"year", valuesTo:"cases" }
@@ -1229,6 +1507,72 @@
     el.innerHTML = ''; el.appendChild(wrap);
   }
   if (window.LessonWidgets) window.LessonWidgets.register('reshape-grid', mount);
+})();
+
+;
+/* scope-chain.js */
+/* scope-chain.js - foundations: lexical scoping. Inside a function, a name is
+ * looked up in the function's own environment first, then outward to the global
+ * environment. Pick a name and watch the lookup walk the chain. Then run it.
+ * cfg: { global:{x:10,y:20}, local:{y:99} }
+ */
+(function () {
+  'use strict';
+  function mount(el, cfg) {
+    var u = window.LessonWidgets.u; if (!u) return;
+    cfg = cfg || {};
+    var G = cfg.global || { x: 10, y: 20 }, L = cfg.local || { y: 99 };
+    var names = Object.keys(G); // lookup choices = every name that exists somewhere
+    Object.keys(L).forEach(function (k) { if (names.indexOf(k) < 0) names.push(k); });
+
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
+
+    function envBox(title, vars, opts) {
+      opts = opts || {};
+      var rows = Object.keys(vars).map(function (k) {
+        var hit = opts.foundKey === k, dim = opts.dimKey === k;
+        var bg = hit ? u.P.add : '#fff';
+        return '<span style="font-family:IBM Plex Mono,monospace;font-size:13px;padding:4px 9px;border-radius:6px;border:1px solid ' + (hit ? u.P.acc : u.P.line) + ';background:' + bg + ';color:' + (dim ? u.P.faint : u.P.ink) + ';' + (dim ? 'text-decoration:line-through' : '') + '">' + u.esc(k) + ' = ' + u.esc(vars[k]) + (hit ? '  &#10003;' : '') + '</span>';
+      }).join(' ');
+      return '<div style="border:1px solid ' + (opts.active ? u.P.acc : u.P.line) + ';border-radius:10px;padding:11px 13px;background:' + (opts.active ? '#f7fbf9' : '#fff') + '">' +
+        '<div style="font-size:11px;font-weight:700;color:' + u.P.mut + ';text-transform:uppercase;letter-spacing:.04em;margin:0 0 7px">' + u.esc(title) + '</div>' +
+        '<div style="display:flex;gap:7px;flex-wrap:wrap">' + (rows || '<span style="font-size:12px;color:' + u.P.faint + '">(empty)</span>') + '</div>' +
+      '</div>';
+    }
+
+    function render(pick) {
+      var localHas = pick != null && Object.prototype.hasOwnProperty.call(L, pick);
+      var lo = {}, go = {}, msg = '';
+      if (pick != null) {
+        if (localHas) { lo = { active: true, foundKey: pick }; go = {}; msg = '<b>' + pick + '</b> is found in f()&rsquo;s own environment &rarr; <code style="font-family:IBM Plex Mono,monospace">' + L[pick] + '</code>. The local value shadows the global one.'; }
+        else { lo = { active: true, dimKey: undefined }; go = { foundKey: pick }; msg = '<b>' + pick + '</b> is not in f(), so R looks outward to the global environment &rarr; <code style="font-family:IBM Plex Mono,monospace">' + G[pick] + '</code>.'; }
+      }
+      wrap.querySelector('.sc-local').innerHTML = envBox('inside f()  (local)', L, lo);
+      wrap.querySelector('.sc-global').innerHTML = envBox('global environment', G, go);
+      wrap.querySelector('.sc-msg').innerHTML = pick == null ? '<span style="color:' + u.P.faint + '">Pick a name to resolve from inside f().</span>' : msg;
+    }
+
+    wrap.innerHTML =
+      '<div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin:0 0 12px">' +
+        '<span style="font-size:12.5px;color:' + u.P.mut + '">Inside f(), look up:</span>' +
+        names.map(function (nm) { return '<button type="button" class="sc-pick" data-n="' + u.esc(nm) + '" style="font:inherit;font-size:13px;font-weight:600;font-family:IBM Plex Mono,monospace;color:' + u.P.mut + ';background:#fff;border:1px solid ' + u.P.line + ';border-radius:8px;padding:6px 13px;cursor:pointer">' + u.esc(nm) + '</button>'; }).join('') +
+      '</div>' +
+      '<div class="sc-local" style="margin:0 0 8px"></div>' +
+      '<div style="text-align:center;color:' + u.P.faint + ';font-size:16px;margin:0 0 8px">&darr; if not found, look outward</div>' +
+      '<div class="sc-global"></div>' +
+      '<div class="sc-msg" style="margin:11px 0 0;font-size:13px;color:' + u.P.body + ';line-height:1.5"></div>' +
+      '<div style="margin:13px 0 0">' + u.runnable('x <- 10\ny <- 20\n\nf <- function() {\n  y <- 99\n  c(x = x, y = y)   # x from global, y from local\n}\n\nf()', { label: 'Run it in R' }) + '</div>';
+
+    wrap.addEventListener('click', function (e) {
+      var b = e.target.closest('.sc-pick'); if (!b) return;
+      Array.prototype.forEach.call(wrap.querySelectorAll('.sc-pick'), function (x) { x.style.background = '#fff'; x.style.color = u.P.mut; });
+      b.style.background = u.P.acc; b.style.color = '#fff';
+      render(b.getAttribute('data-n'));
+    });
+    el.innerHTML = ''; el.appendChild(wrap); render(null);
+  }
+  if (window.LessonWidgets) window.LessonWidgets.register('scope-chain', mount);
 })();
 
 ;
@@ -1468,4 +1812,82 @@
   }
 
   if (window.LessonWidgets) window.LessonWidgets.register('tree-diagram', mount);
+})();
+
+;
+/* vector-coercion.js */
+/* vector-coercion.js - foundations: an atomic vector holds ONE type, so mixing
+ * types coerces the whole vector up the hierarchy logical < integer < double <
+ * character. Add elements of different types and watch the vector's type change.
+ * cfg: { start: [{lit,type}] }  (type in logical|integer|double|character)
+ */
+(function () {
+  'use strict';
+  var RANK = { logical: 1, integer: 2, double: 3, character: 4 };
+  function mount(el, cfg) {
+    var u = window.LessonWidgets.u; if (!u) return;
+    cfg = cfg || {};
+    var start = cfg.start || [{ lit: 'TRUE', type: 'logical' }, { lit: '2L', type: 'integer' }];
+    var ADD = [
+      { lit: 'TRUE', type: 'logical', label: 'TRUE' },
+      { lit: '7L', type: 'integer', label: '7L (integer)' },
+      { lit: '3.5', type: 'double', label: '3.5 (double)' },
+      { lit: '"hi"', type: 'character', label: '"hi" (text)' }
+    ];
+    var items = start.slice();
+
+    function targetType() { var r = 1; items.forEach(function (it) { r = Math.max(r, RANK[it.type]); }); return Object.keys(RANK).filter(function (k) { return RANK[k] === r; })[0]; }
+    function coerce(it, t) {
+      if (t === 'character') { var s = it.lit.replace(/^"|"$/g, '').replace(/L$/, ''); return '"' + s + '"'; }
+      if (t === 'double' || t === 'integer') {
+        if (it.type === 'logical') return it.lit === 'TRUE' ? '1' : '0';
+        return it.lit.replace(/L$/, '');
+      }
+      return it.lit; // all-logical
+    }
+    function rLiteral() { return 'c(' + items.map(function (it) { return it.lit; }).join(', '); }
+
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'font-family:IBM Plex Sans,system-ui,sans-serif';
+
+    function render() {
+      var t = targetType();
+      var coerced = items.map(function (it) { return coerce(it, t); });
+      var pieces = items.map(function (it) {
+        var changed = coerce(it, t) !== it.lit;
+        return '<code style="font-family:IBM Plex Mono,monospace;font-size:13px;background:' + u.P.line2 + ';color:' + u.P.ink + ';padding:3px 7px;border-radius:6px">' + u.esc(it.lit) +
+          '<span style="color:' + u.P.faint + ';font-size:11px"> ' + it.type + '</span></code>';
+      }).join('<span style="color:' + u.P.faint + ';margin:0 2px">,</span> ');
+      var bg = { logical: '#eef3f9', integer: '#eef3f9', double: '#e7f3ec', character: '#fbeae5' }[t];
+      wrap.querySelector('.vc-in').innerHTML = 'c( ' + pieces + ' )';
+      wrap.querySelector('.vc-out').innerHTML =
+        '<div style="font-size:12.5px;color:' + u.P.mut + ';margin:0 0 6px">R stores them all as one type:</div>' +
+        '<code style="display:inline-block;font-family:IBM Plex Mono,monospace;font-size:14px;background:' + bg + ';color:' + u.P.ink + ';padding:8px 13px;border-radius:8px;font-weight:600">' +
+          '[1] ' + coerced.join(' ') + '</code>' +
+        '<div style="margin:8px 0 0;font-family:IBM Plex Mono,monospace;font-size:12.5px;color:' + u.P.acc + '">typeof(x)  #&gt; "' + t + '"</div>';
+      var run = wrap.querySelector('.vc-run');
+      run.innerHTML = u.runnable('x <- ' + rLiteral() + ')\nx\ntypeof(x)', { label: 'Run it in R' });
+    }
+
+    wrap.innerHTML =
+      '<div style="border:1px solid ' + u.P.line + ';border-radius:12px;padding:14px 16px;background:#fff">' +
+        '<div style="font-size:12px;color:' + u.P.mut + ';margin:0 0 6px">Your vector</div>' +
+        '<div class="vc-in" style="font-family:IBM Plex Mono,monospace;font-size:13px;line-height:2"></div>' +
+        '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:12px 0 0">' +
+          '<span style="font-size:12.5px;color:' + u.P.mut + '">Add an element:</span>' +
+          ADD.map(function (a, i) { return '<button type="button" class="vc-add" data-i="' + i + '" style="font:inherit;font-size:12.5px;font-weight:600;color:' + u.P.mut + ';background:#fff;border:1px solid ' + u.P.line + ';border-radius:8px;padding:6px 11px;cursor:pointer">+ ' + u.esc(a.label) + '</button>'; }).join('') +
+          '<button type="button" class="vc-reset" style="font:inherit;font-size:12.5px;font-weight:600;color:' + u.P.mut + ';background:none;border:1px solid ' + u.P.line + ';border-radius:8px;padding:6px 11px;cursor:pointer">Reset</button>' +
+        '</div>' +
+        '<div class="vc-out" style="margin:14px 0 0"></div>' +
+      '</div>' +
+      '<div class="vc-run" style="margin:12px 0 0"></div>';
+
+    wrap.addEventListener('click', function (e) {
+      var add = e.target.closest('.vc-add'), rs = e.target.closest('.vc-reset');
+      if (add) { items.push(ADD[+add.getAttribute('data-i')]); render(); }
+      else if (rs) { items = start.slice(); render(); }
+    });
+    el.innerHTML = ''; el.appendChild(wrap); render();
+  }
+  if (window.LessonWidgets) window.LessonWidgets.register('vector-coercion', mount);
 })();

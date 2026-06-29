@@ -1,0 +1,342 @@
+---
+title: "R Foundations Lesson 3: Debugging Tools in R"
+description: "When R crashes with a cryptic message, locate the broken call with traceback, freeze it and read the real values with browser, and drive the RStudio debugger."
+keywords: "debugging in R, traceback, browser in R, debug function, debugonce, RStudio debugger, breakpoints, recover, step through R code, R errors"
+webr: true
+curriculum_id: "1.7.3"
+post_type: "LESSON"
+course_id: "nr-debugging"
+course_title: "R Foundations: Debugging"
+course_lesson: "3"
+course_total: "3"
+course_landing: "R-Foundations-Debugging-Course.html"
+course_next: ""
+course_prev: "tryCatch-and-Input-Validation.html"
+lesson_access: "free"
+catalog_blurb: "Find where your code broke, inspect the real values, and fix it."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 3 of 3</div>
+<h2>Debugging Tools in R</h2>
+
+<p>In Lesson 2, Priya's lending library learned to <em>catch</em> failures it expected: a bad record became an <code>NA</code> instead of a crash, and <code>stopifnot()</code> turned away impossible input at the door. But tonight a different kind of trouble arrives. She runs her new nightly report and R stops dead with a message she has never seen, pointing at a line that looks perfectly fine. Nothing she validated against. She does not know <em>where</em> it broke, or <em>why</em>.</p>
+
+<p>That is what debugging tools are for: not handling failures you predicted, but hunting down the ones you did not. The job is always the same four moves, shown below.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Read a <code>traceback()</code> to find the exact call where an error occurred</li>
+
+<li>Freeze a running function with <code>browser()</code> and inspect its real values</li>
+
+<li>Arm the debugger without editing the source (<code>debug()</code>), and drive the RStudio / Positron debugger</li>
+
+<li>Pick the right tool for a crash versus a silent wrong answer</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can <a href="Writing-Functions-in-R.html">write a function</a> and use [<code>if</code> and <code>for</code>](Control-Flow-in-R.html), you met [<code>stop()</code>, <code>warning()</code> and <code>message()</code>](Errors-Warnings-and-Messages.html) in Lesson 1 and [<code>tryCatch()</code> and <code>stopifnot()</code>](tryCatch-and-Input-Validation.html) in Lesson 2, and you know a vector can be <a href="Atomic-Vectors-and-Data-Types.html">numeric or character</a>.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Reproduce","sub":"make the bug happen on demand, as small as you can"},{"title":"Locate","sub":"traceback shows which call actually broke"},{"title":"Inspect","sub":"browser pauses there so you see the real values"},{"title":"Fix","sub":"change the code and rerun to confirm it is gone"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>A crash that does not name the culprit</h2>
+
+<p>Priya's report is three small functions stacked on top of each other. <code>night_report()</code> walks the borrowers; for each one <code>borrower_balance()</code> adds up the fees; and the old friend <code>late_fee()</code> prices a single overdue book. Defined and run on a clean night, they work exactly as you would expect:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">late_fee &lt;- function(days_late, rate = 0.25) {
+  days_late * rate                          # cents per overdue day
+}
+borrower_balance &lt;- function(days_vec) {     # total one borrower owes tonight
+  total &lt;- 0
+  for (d in days_vec) total &lt;- total + late_fee(d)
+  total
+}
+night_report &lt;- function(returns) {          # one balance per borrower
+  out &lt;- numeric(length(returns))
+  for (i in seq_along(returns)) out[i] &lt;- borrower_balance(returns[[i]])
+  names(out) &lt;- names(returns)
+  out
+}
+
+clean &lt;- list(amir = c(5, 12), beth = c(0, 3, 7))   # a tidy night: all numbers
+night_report(clean)
+#&gt;  amir  beth
+#&gt;  4.25  2.50</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now the real night. One borrower's day counts came in from a spreadsheet column that imported as <em>text</em> rather than numbers. Watch what happens:</p>
+
+<pre><code class="language-r"># beth's days arrived as the strings &quot;0&quot;, &quot;3&quot;, &quot;7&quot;, not the numbers 0, 3, 7
+tonight &lt;- list(amir = c(5, 12), beth = c(&quot;0&quot;, &quot;3&quot;, &quot;7&quot;))
+night_report(tonight)
+#&gt; Error in days_late * rate : non-numeric argument to binary operator</code></pre>
+
+<p>The message is technically true but practically useless: it names an operation, not a <em>borrower</em>, and not which of the dozens of calls to <code>late_fee()</code> blew up. With one borrower you might guess. With four hundred you cannot. You need to find the exact call that broke.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Locate</div>
+<h2>traceback(): which call actually broke</h2>
+
+<p>The instant an error halts your code, R quietly records the chain of calls that led to it. Type <code>traceback()</code> immediately afterward and it prints that chain back to you:</p>
+
+<pre><code class="language-r">traceback()
+#&gt; 3: late_fee(d) at #4
+#&gt; 2: borrower_balance(returns[[i]]) at #3
+#&gt; 1: night_report(tonight)</code></pre>
+
+<p>Read it like a stack of plates. Each line is a function call, and each call <em>sits inside</em> the one below it: you called <code>night_report()</code> (line 1), which called <code>borrower_balance()</code> (line 2), which called <code>late_fee()</code> (line 3). The crash happened in the call printed at the <strong>top</strong>, the deepest one: <code>late_fee(d)</code>. That is your crime scene. The diagram below is the same chain, in the order the calls actually happened.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><code>traceback()</code> answers the single hardest question first: <em>where</em>. Base R lists the most recent call at the top, so the top line is the scene of the crash. (The RStudio Traceback pane shows the same calls; just check which end is flagged as the error, since the order can be drawn either way.)</div></div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"night_report(tonight)","sub":"the call you made at the console"},{"title":"borrower_balance for beth","sub":"loops over her books, calling late_fee on each"},{"title":"late_fee(d)","sub":"multiplies the day count by the rate, and crashes on text"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Read the traceback</h2>
+
+<p>A colleague's script crashes and they send you only this <code>traceback()</code>:</p>
+
+<pre><code>3: parse_date(x)
+2: clean_row(row)
+1: load_file(&quot;sales.csv&quot;)</code></pre>
+
+<p>Which function should you open first to find the bug?</p>
+<section class="exercise" data-exercise-id="Debugging-Tools-in-R-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx"><code>load_file()</code>, because it is line 1 and ran first</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx"><code>parse_date()</code>, the call at the top, where the error actually occurred</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx"><code>clean_row()</code>, because it sits in the middle</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Base R prints the most recent call at the top, so line 3, <code>parse_date()</code>, is the deepest call and the place the error was thrown. Start there.</div><div class="lesson-qfb lesson-qfb-no">The middle call is just a link in the chain. It passed the work down to <code>parse_date()</code>, which is where things actually broke.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">Inspect</div>
+<h2>browser(): freeze the code and look around</h2>
+
+<p><code>traceback()</code> told Priya the crash is <em>inside</em> <code>late_fee()</code>. Now she needs to know <em>why</em>: what value did <code>late_fee()</code> actually receive? The most powerful tool for that is <code>browser()</code>. Drop it into a function and R pauses there mid-run and hands you an interactive prompt, sitting inside that exact call, with every local variable alive and inspectable.</p>
+
+<pre><code class="language-r">late_fee &lt;- function(days_late, rate = 0.25) {
+  if (!is.numeric(days_late)) browser()   # pause only when the day count is not a number
+  days_late * rate
+}
+night_report(tonight)
+#&gt; Called from: late_fee(d)
+#&gt; Browse[1]&gt;               # R stops and hands you a prompt INSIDE late_fee</code></pre>
+
+<p>At that <code>Browse[1]&gt;</code> prompt you are standing inside the paused function. Type a variable name to see its value, and the mystery solves itself:</p>
+
+<pre><code class="language-r">Browse[1]&gt; days_late
+#&gt; [1] &quot;0&quot;
+Browse[1]&gt; class(days_late)     # the smoking gun: it is text, not a number
+#&gt; [1] &quot;character&quot;</code></pre>
+
+<p>There it is. <code>days_late</code> is the string <code>&quot;0&quot;</code>, and <code>&quot;0&quot; * 0.25</code> is meaningless, hence "non-numeric argument to binary operator". From the prompt you also <em>drive</em> execution one piece at a time:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>At the <code>Browse[1]&gt;</code> prompt</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>n</code></td>
+<td>run the <strong>n</strong>ext line, then pause again</td>
+</tr>
+<tr>
+<td><code>s</code></td>
+<td><strong>s</strong>tep <em>into</em> the function called on this line</td>
+</tr>
+<tr>
+<td><code>c</code></td>
+<td><strong>c</strong>ontinue running until the next pause or the end</td>
+</tr>
+<tr>
+<td><code>where</code></td>
+<td>print the call stack you are currently sitting in</td>
+</tr>
+<tr>
+<td><code>Q</code></td>
+<td><strong>Q</strong>uit the debugger and stop the call entirely</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body"><code>traceback()</code> is a photograph taken after the crash; <code>browser()</code> is standing in the room while it happens. One tells you <em>where</em>, the other lets you ask <em>what is every value right now</em>. Together they turn "it broke somewhere" into "it broke here, on this value."</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Fix the bug you found</h2>
+
+<p><code>browser()</code> revealed the cause: the import handed <code>late_fee()</code> text like <code>&quot;7&quot;</code> instead of the number <code>7</code>. The smallest honest fix is to coerce the day count to a number before doing arithmetic on it.</p>
+
+<p>Replace the <code>____</code> with the function that turns text into a number, then check your answer. If it is right, the whole report totals cleanly with no crash.</p>
+<section class="exercise" data-exercise-id="Debugging-Tools-in-R-step6" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="as\.numeric"><textarea class="lesson-tryit-input" spellcheck="false"># the import handed late_fee TEXT like &quot;7&quot;; turn it into a number first
+late_fee &lt;- function(days_late, rate = 0.25) {
+  days_late &lt;- ____(days_late)
+  days_late * rate
+}
+tonight &lt;- list(amir = c(5, 12), beth = c(&quot;0&quot;, &quot;3&quot;, &quot;7&quot;))
+night_report(tonight)        # should now total cleanly, no crash</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the fix: as.numeric() coerces "7" to 7 before the multiplication, so every book prices correctly and beth totals 2.50. In real code you would also guard the input up front with the stopifnot() from Lesson 2.</span><span class="lesson-tryit-fb lesson-tryit-no">Use as.numeric() to convert the text to a number, e.g. days_late <- as.numeric(days_late).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">late_fee &lt;- function(days_late, rate = 0.25) {
+  days_late &lt;- as.numeric(days_late)        # coerce the imported text to a number
+  days_late * rate
+}
+borrower_balance &lt;- function(days_vec) {
+  total &lt;- 0
+  for (d in days_vec) total &lt;- total + late_fee(d)
+  total
+}
+night_report &lt;- function(returns) {
+  out &lt;- numeric(length(returns))
+  for (i in seq_along(returns)) out[i] &lt;- borrower_balance(returns[[i]])
+  names(out) &lt;- names(returns)
+  out
+}
+
+tonight &lt;- list(amir = c(5, 12), beth = c(&quot;0&quot;, &quot;3&quot;, &quot;7&quot;))
+night_report(tonight)
+#&gt;  amir  beth
+#&gt;  4.25  2.50</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Inspect, without editing</div>
+<h2>debug() and the IDE debugger</h2>
+
+<p>Editing a function to insert <code>browser()</code> is fine for your own code, but you often want to inspect a function you should not (or cannot) edit, like one from a package. <code>debug()</code> solves that: it arms a function so the <em>next</em> call drops you into the browser, with no change to the source. <code>debugonce()</code> does the same for a single call and then disarms itself.</p>
+
+<pre><code class="language-r">debug(late_fee)        # arm it: every call now opens the browser
+night_report(tonight)  # pauses inside late_fee, exactly like an inserted browser()
+undebug(late_fee)      # disarm it again when you are done
+
+debugonce(late_fee)    # same, but auto-clears after one call
+
+options(error = recover)   # after ANY error, offer to step into any frame
+options(error = NULL)      # restore the default when finished</code></pre>
+
+<p>Every one of these is what the RStudio and Positron debuggers wrap in buttons. You set a breakpoint by clicking the margin instead of typing <code>browser()</code>, and a toolbar replaces the one-letter commands:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>In the console</th>
+<th>In RStudio / Positron</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>a <code>browser()</code> line or <code>debug(f)</code></td>
+<td>click the gutter to set a breakpoint (Shift+F9)</td>
+</tr>
+<tr>
+<td>the <code>Browse[1]&gt;</code> prompt</td>
+<td>the debug toolbar appears over your source</td>
+</tr>
+<tr>
+<td><code>n</code> (next) / <code>s</code> (step into) / <code>c</code> (continue)</td>
+<td>the Next / Step Into / Continue buttons</td>
+</tr>
+<tr>
+<td><code>Q</code> (quit)</td>
+<td>the Stop button</td>
+</tr>
+<tr>
+<td>typing a name / <code>ls()</code></td>
+<td>the Environment pane lists every live variable</td>
+</tr>
+<tr>
+<td><code>traceback()</code></td>
+<td>the Traceback pane, click a call to jump to it</td>
+</tr>
+</tbody>
+</table>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">After a crash, "Rerun with Debug" in the IDE reruns the failing call with the debugger already armed, so you land at the error with the whole call stack and every variable in front of you, without re-typing anything.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>No error, but a wrong answer</h2>
+
+<p>The report runs to the end with no error at all, but one borrower's balance comes back as <code>40.00</code> when it should be about <code>4.00</code>. Nothing crashed, so <code>traceback()</code> shows nothing useful. What is the right move?</p>
+<section class="exercise" data-exercise-id="Debugging-Tools-in-R-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Set <code>browser()</code> (or <code>debug()</code>) inside the function and inspect the values as it computes</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Call <code>traceback()</code> to see where the wrong number came from</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Add a <code>tryCatch()</code> around the call to recover from it</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A wrong-but-not-crashing result is a <em>logic</em> bug, not a thrown error, so there is no traceback to read. You have to watch the real values flow through, which is exactly what browser and debug let you do.</div><div class="lesson-qfb lesson-qfb-no"><code>tryCatch()</code> recovers from errors, but there is no error to catch. The code is running happily and producing the wrong number; you need to <em>inspect</em> it, not catch it.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Know the limits</div>
+<h2>When these tools do not help</h2>
+
+<p><code>browser()</code>, <code>debug()</code> and <code>recover()</code> all do one thing: pause and wait for <em>you</em> to type. That makes them powerful at the console and useless anywhere that cannot answer a prompt.</p>
+
+<ul>
+
+<li><strong>Interactive only.</strong> In a script run with <code>Rscript</code>, a scheduled job, a knitted report, or this in-browser session, there is no one to type <code>n</code> or <code>c</code>. A pause there just hangs.</li>
+
+<li>**Never ship a stray <code>browser()</code>.** Left in code that runs unattended, it silently freezes the whole job. Always remove it once the bug is found.</li>
+
+<li>**<code>traceback()</code> is error-only.** It reports the last crash and nothing else, so it cannot help with a wrong-but-silent result.</li>
+
+<li><strong>Reproduce first.</strong> Half of debugging is shrinking the input to the smallest case that still fails. A two-row example beats a million-row one every time.</li>
+
+</ul>
+
+<p>For the non-interactive cases, fall back to tools that leave a record instead of pausing: a few <code>print()</code> or <code>message()</code> lines to log values, <code>options(error = ...)</code> to dump diagnostics on failure, and unit tests (the <code>testthat</code> package) so a bug you fixed cannot quietly return.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">A <code>browser()</code> accidentally left in a function will hang any automated run, a CI build, a nightly cron job, a report render, because it sits forever waiting for input that never comes.</div></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative, free places to take this further:</p>
+
+<ul>
+
+<li><a href="https://adv-r.hadley.nz/debugging.html">Advanced R (2e): Debugging</a> - Hadley Wickham on the overall debugging workflow and how <code>traceback()</code>, <code>browser()</code> and the IDE tools fit together.</li>
+
+<li><a href="https://support.posit.co/hc/en-us/articles/205612627-Debugging-with-the-RStudio-IDE">Debugging with the RStudio IDE (Posit)</a> - the canonical guide to breakpoints, the debug toolbar, the Environment pane and "Rerun with Debug".</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/traceback.html">Base R help: traceback</a> - the official reference for the call-stack tool you used to locate the crash.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/base/html/browser.html">Base R help: browser</a> - the official reference for the pause-and-inspect prompt, including the one-letter step commands.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Lesson 3 complete</h2>
+
+<p>You can now chase down a bug you did not see coming. <code>traceback()</code> reads the call stack after a crash and points you at the exact call that broke, with the deepest call printed at the top. <code>browser()</code> freezes a running function so you can read its real variables and step through it line by line; <code>debug()</code> and <code>debugonce()</code> do the same without editing the source, and the RStudio / Positron debugger wraps all of it in breakpoints, a toolbar and an Environment pane. And you know the edges: these are interactive tools, never to be left in unattended code, and useless for a wrong answer that never raises an error, where logging and tests take over.</p>
+
+<p>That completes R Foundations: Debugging. You can now make your code speak clearly (Lesson 1), survive bad input (Lesson 2), and surrender its secrets when something still goes wrong (Lesson 3). The next section moves from fixing code to keeping a whole project reproducible, with projects, <code>renv</code> and the modern R toolchain.</p>
+</section>
+
+{% endraw %}

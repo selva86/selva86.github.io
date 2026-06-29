@@ -132,7 +132,7 @@ let n=1;
 ROLES.forEach(function(r){
   const canon=ORIGIN+'/roadmap/'+r.slug+'.html';
   const h=head({title:r.title+' · r-statistics.co',desc:r.desc,canon:canon,jsonld:jsonldRole(r),css:'roadmap-role.css'});
-  const html=h+'\n<body data-page="role" data-role="'+r.k+'">\n<div class="prog" id="prog"></div>\n'+ROLE_DEFS+'\n'+nav()+'\n'+ROLE_MAIN+'\n'+foot()+'\n'+dataScripts('roadmap-role.js?v=7')+'\n'+SHELL+'\n</body>\n</html>\n';
+  const html=h+'\n<body data-page="role" data-role="'+r.k+'">\n<div class="prog" id="prog"></div>\n'+ROLE_DEFS+'\n'+nav()+'\n'+ROLE_MAIN+'\n'+foot()+'\n'+dataScripts('roadmap-role.js?v=8')+'\n'+SHELL+'\n</body>\n</html>\n';
   F.writeFileSync(p.join(root,'roadmap',r.slug+'.html'),html);
   n++;
 });
