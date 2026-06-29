@@ -1,0 +1,388 @@
+---
+title: "Strings & Dates Lesson 3: Dates and Times in R"
+description: "Parse messy date text into real dates with lubridate, do date arithmetic, extract the weekday and month, and convert times correctly across time zones."
+keywords: "dates in R, lubridate, parse dates in R, ymd dmy mdy, date arithmetic in R, POSIXct, time zones in R, with_tz, wday, date components"
+webr: true
+curriculum_id: "1.5.3"
+post_type: "LESSON"
+course_id: "nr-strings"
+course_title: "Strings, Dates and Factors in R"
+course_lesson: "3"
+course_total: "4"
+course_landing: "R-Foundations-Strings-Course.html"
+course_next: "Factors-with-forcats.html"
+course_prev: "Regular-Expressions-in-R.html"
+lesson_access: "free"
+catalog_blurb: "Turn date text into real dates, calculate with them, and handle time zones."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 3 of 4</div>
+<h2>Dates and Times in R</h2>
+
+<p>You run a small online plant shop, <strong>Fern & Co.</strong> Six orders came in during March 2026, and your order log wrote each order's date the way logs do: as plain text, like <code>&quot;2026-03-02&quot;</code>. You want simple answers. How many days from the first order to the last? Which weekday do people actually shop on? When a customer in New York orders at 9:30 in the morning, what time is that on your clock in Bengaluru?</p>
+
+<p>You cannot answer any of those while the date is just text. The fix is to turn that text into a <strong>real date</strong>, and then R can count, compare and convert for you. That is what the <strong>lubridate</strong> package is for. By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Turn date text in any layout into a real date you can compute with</li>
+
+<li>Add, subtract and compare dates, and pull out the year, month or weekday</li>
+
+<li>Read a time correctly across time zones</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run a line of R and store a result with <code>&lt;-</code> (<a href="R-Syntax-and-First-Objects.html">Your First R Session</a>), and you know what a vector and the <strong>character</strong> type are (<a href="Atomic-Vectors-and-Data-Types.html">Atomic Vectors and Data Types</a>). You just finished matching text with regular expressions; a date is text too, so this is the natural next step. Press Run to see the whole payoff at once; the rest of the lesson builds it up one piece at a time.</p>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"caption":"Once the text is a real date, R can read its weekday and measure the days since the sale opened on 1 March.","code":"library(lubridate)\norder_date <- ymd(order_text)\nwday(order_date, label = TRUE)\norder_date - ymd(\"2026-03-01\")","before":{"cols":["order date (text)"],"rows":[["2026-03-02"],["2026-03-07"],["2026-03-08"],["2026-03-14"],["2026-03-15"],["2026-03-21"]]},"after":{"cols":["order date","weekday","days into sale"],"rows":[["2026-03-02","Mon","1"],["2026-03-07","Sat","6"],["2026-03-08","Sun","7"],["2026-03-14","Sat","13"],["2026-03-15","Sun","14"],["2026-03-21","Sat","20"]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The core idea</div>
+<h2>A date is a number, not text</h2>
+
+<p>Here is the thing that trips everyone up at the start. To you, <code>&quot;2026-03-02&quot;</code> clearly means the 2nd of March. To R, it is just six characters between quotes, the same <strong>character</strong> type you used for names and cities. You cannot do arithmetic on it any more than you can on <code>&quot;hello&quot;</code>.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(lubridate)
+
+# &quot;2026-03-02&quot; looks like a date, but to R it is plain text
+order_chr &lt;- &quot;2026-03-02&quot;
+class(order_chr)
+#&gt; [1] &quot;character&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A <strong>real date</strong> is different. When you parse that text into a <code>Date</code>, R stores it as a single number: <strong>the count of days since 1 January 1970</strong> (a fixed reference point called the epoch). That is the whole trick. Because a date is really a number underneath, R can subtract two of them, add seven to one, or sort them, just like ordinary numbers.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">order_day &lt;- ymd(&quot;2026-03-02&quot;)   # parse the text into a real Date
+class(order_day)
+#&gt; [1] &quot;Date&quot;
+as.numeric(order_day)            # the number underneath: days since 1970-01-01
+#&gt; [1] 20514</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>So <code>2026-03-02</code> is day number 20514. You will almost never look at that number, but knowing it is there explains everything that follows. Once a date is a real <code>Date</code>, there are four jobs you will do with it, and this lesson walks through them in order:</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Parse","sub":"turn date text into a real Date"},{"title":"Calculate","sub":"add, subtract and compare dates"},{"title":"Extract","sub":"pull out the year, month or weekday"},{"title":"Zones","sub":"read a time on the right clock"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Job 1</div>
+<h2>Parse: turn text into a real date</h2>
+
+<p>Parsing is where lubridate shines. Base R makes you spell out a format with cryptic codes like <code>%Y-%m-%d</code>. lubridate asks one easy question instead: <strong>what order are the parts in?</strong> You pick the function whose name is that order, <code>y</code>ear, <code>m</code>onth, <code>d</code>ay, and it figures out the separators (dashes, slashes, spaces, even month names) for you.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">ymd(&quot;2026-03-02&quot;)     # year, month, day
+#&gt; [1] &quot;2026-03-02&quot;
+dmy(&quot;02/03/2026&quot;)     # day, month, year
+#&gt; [1] &quot;2026-03-02&quot;
+mdy(&quot;March 2, 2026&quot;)  # month, day, year
+#&gt; [1] &quot;2026-03-02&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Three different-looking strings, one real date. Notice every result prints back in the same tidy <code>YYYY-MM-DD</code> form: that is just how a <code>Date</code> displays, regardless of how it came in. Now let's parse the real Fern & Co. log. The website recorded all six orders the same way, so one call to <code>ymd()</code> handles the whole vector at once:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># the March order log, six dates as text
+order_text &lt;- c(&quot;2026-03-02&quot;, &quot;2026-03-07&quot;, &quot;2026-03-08&quot;,
+                &quot;2026-03-14&quot;, &quot;2026-03-15&quot;, &quot;2026-03-21&quot;)
+order_date &lt;- ymd(order_text)
+order_date
+#&gt; [1] &quot;2026-03-02&quot; &quot;2026-03-07&quot; &quot;2026-03-08&quot; &quot;2026-03-14&quot; &quot;2026-03-15&quot; &quot;2026-03-21&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Choose the parser by the order the parts appear in the text, not by the separators. <code>dmy()</code> reads <code>&quot;02/03/2026&quot;</code>, <code>&quot;02-03-2026&quot;</code> and <code>&quot;2 March 2026&quot;</code> all the same way, because all three are day, then month, then year.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Read the order right</h2>
+
+<p>A European supplier emails you an order dated <code>04/03/2026</code>. You know from the email that it was placed on <strong>the 4th of March, 2026</strong>. Which call returns that exact date?</p>
+<section class="exercise" data-exercise-id="Dates-and-Times-in-R-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx"><code>dmy(&quot;04/03/2026&quot;)</code></span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx"><code>mdy(&quot;04/03/2026&quot;)</code></span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx"><code>ymd(&quot;04/03/2026&quot;)</code></span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. <code>dmy()</code> reads the parts as day, month, year, so <code>04/03/2026</code> becomes 4 March 2026. The order of the parts is what you declare, and it matches what the supplier meant.</div><div class="lesson-qfb lesson-qfb-no"><code>ymd()</code> expects the year first, but this text starts with the day. It cannot line the parts up, so it returns <code>NA</code> with a warning rather than the date you want.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">Job 2</div>
+<h2>Calculate: add, subtract and compare</h2>
+
+<p>This is the payoff for parsing. Because a <code>Date</code> is a number of days, arithmetic just works, and the answers come back in friendly date units. Adding a plain number adds that many <strong>days</strong>:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># a delivery promised 5 days after each order
+order_date + 5
+#&gt; [1] &quot;2026-03-07&quot; &quot;2026-03-12&quot; &quot;2026-03-13&quot; &quot;2026-03-19&quot; &quot;2026-03-20&quot; &quot;2026-03-26&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Subtracting one date from another tells you the gap between them. R returns a <strong>difftime</strong>, a labelled difference that says what the units are:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># how long from the first order to the last?
+order_date[6] - order_date[1]
+#&gt; Time difference of 19 days</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The same subtraction works against any reference date. Say the spring sale opened on 1 March; how many days into the sale was each order placed? Just subtract the start date:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># days between each order and the sale opening on 1 March
+order_date - ymd(&quot;2026-03-01&quot;)
+#&gt; Time differences in days
+#&gt; [1]  1  6  7 13 14 20</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>And when you need <em>now</em> rather than a fixed date, lubridate reads the computer clock for you:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># these change every time you run them, so no fixed output is shown
+today()   # the current date, as a Date
+now()     # the current date-time, in your own time zone</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>today()</code> is perfect for "how many days until this subscription renews?", measured from whatever day the code actually runs.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>When does the refund window close?</h2>
+
+<p>Fern & Co. gives every order a <strong>30-day</strong> refund window: it closes 30 days after the order date. The <code>order_date</code> vector is ready below. Replace the blank with a single expression that returns the closing date of each window. (Adding a plain number to a date adds that many days.)</p>
+<section class="exercise" data-exercise-id="Dates-and-Times-in-R-step6" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="order_date\s*[+]\s*30"><textarea class="lesson-tryit-input" spellcheck="false">order_date &lt;- ymd(c(&quot;2026-03-02&quot;,&quot;2026-03-07&quot;,&quot;2026-03-08&quot;,&quot;2026-03-14&quot;,&quot;2026-03-15&quot;,&quot;2026-03-21&quot;))
+____   # the date 30 days after each order</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Exactly. order_date + 30 adds 30 days to every date at once, and the month rollovers (March into April) are handled for you.</span><span class="lesson-tryit-fb lesson-tryit-no">Add the number of days straight to the date vector: order_date + 30.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">order_date &lt;- ymd(c(&quot;2026-03-02&quot;,&quot;2026-03-07&quot;,&quot;2026-03-08&quot;,&quot;2026-03-14&quot;,&quot;2026-03-15&quot;,&quot;2026-03-21&quot;))
+order_date + 30
+#&gt; [1] &quot;2026-04-01&quot; &quot;2026-04-06&quot; &quot;2026-04-07&quot; &quot;2026-04-13&quot; &quot;2026-04-14&quot; &quot;2026-04-20&quot;</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Job 3</div>
+<h2>Extract: pull out the parts</h2>
+
+<p>Often you do not want the whole date, just one piece of it: the year for a report, the month for a chart, the weekday to spot a pattern. lubridate has a small, predictable verb for each part. Give it a date vector and it pulls that part out of every entry:</p>
+
+<p>By default <code>month()</code> and <code>wday()</code> return a number (March is <code>3</code>, Sunday is <code>1</code>). Add <code>label = TRUE</code> and you get readable names instead, which is almost always what you want when reading or plotting:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">year(order_date)                      # the year of each order
+#&gt; [1] 2026 2026 2026 2026 2026 2026
+wday(order_date, label = TRUE)        # the weekday, as a name
+#&gt; [1] Mon Sat Sun Sat Sun Sat
+#&gt; Levels: Sun &lt; Mon &lt; Tue &lt; Wed &lt; Thu &lt; Fri &lt; Sat</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now answer the question we opened with: which weekday do people buy plants on? Count the weekdays with <code>table()</code>:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># how many orders land on each weekday?
+table(wday(order_date, label = TRUE))
+#&gt;
+#&gt; Sun Mon Tue Wed Thu Fri Sat
+#&gt;   2   1   0   0   0   0   3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Five of the six orders landed on a Saturday or Sunday. The weekend is when Fern & Co. should run its ads, and you could not see that until the dates were real and the weekday was pulled out.</p>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"caption":"Each verb reads one calendar part out of every real date.","code":"library(lubridate)\nyear(order_date)\nmonth(order_date, label = TRUE)\nwday(order_date, label = TRUE)","before":{"cols":["order_date"],"rows":[["2026-03-02"],["2026-03-07"],["2026-03-08"],["2026-03-14"],["2026-03-15"],["2026-03-21"]]},"after":{"cols":["order_date","year","month","weekday"],"rows":[["2026-03-02","2026","Mar","Mon"],["2026-03-07","2026","Mar","Sat"],["2026-03-08","2026","Mar","Sun"],["2026-03-14","2026","Mar","Sat"],["2026-03-15","2026","Mar","Sun"],["2026-03-21","2026","Mar","Sat"]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Name each order's weekday</h2>
+
+<p>Using the same <code>order_date</code> vector, return the <strong>weekday name</strong> of each order, so the result reads <code>Mon Sat Sun Sat Sun Sat</code> rather than a column of numbers. Reach for <code>wday()</code>, and remember the argument that switches numbers to names.</p>
+<section class="exercise" data-exercise-id="Dates-and-Times-in-R-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="wday\s*[(]\s*order_date[^)]*label\s*=\s*TRUE"><textarea class="lesson-tryit-input" spellcheck="false">order_date &lt;- ymd(c(&quot;2026-03-02&quot;,&quot;2026-03-07&quot;,&quot;2026-03-08&quot;,&quot;2026-03-14&quot;,&quot;2026-03-15&quot;,&quot;2026-03-21&quot;))
+____   # the weekday of each order, as a name like Mon or Sat</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it. wday(order_date, label = TRUE) returns the weekday as a readable name instead of a number from 1 to 7.</span><span class="lesson-tryit-fb lesson-tryit-no">Call wday on the vector and switch on the names with label = TRUE: wday(order_date, label = TRUE).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">order_date &lt;- ymd(c(&quot;2026-03-02&quot;,&quot;2026-03-07&quot;,&quot;2026-03-08&quot;,&quot;2026-03-14&quot;,&quot;2026-03-15&quot;,&quot;2026-03-21&quot;))
+wday(order_date, label = TRUE)
+#&gt; [1] Mon Sat Sun Sat Sun Sat
+#&gt; Levels: Sun &lt; Mon &lt; Tue &lt; Wed &lt; Thu &lt; Fri &lt; Sat</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Job 4</div>
+<h2>Time zones: the same instant, different clocks</h2>
+
+<p>So far every order has been a plain date. But a real timestamp carries a <strong>time of day</strong> and a <strong>time zone</strong>, and time zones are where dates quietly go wrong. A date-time is built with <code>ymd_hms()</code> (year-month-day, then hour-minute-second), and you tell it which zone the clock reading belongs to:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Maria, a customer in New York, ordered at 9:30 in the morning her time
+maria &lt;- ymd_hms(&quot;2026-03-15 09:30:00&quot;, tz = &quot;America/New_York&quot;)
+maria
+#&gt; [1] &quot;2026-03-15 09:30:00 EDT&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>That single instant exists everywhere at once; different places just read a different clock for it. <code>with_tz()</code> re-displays the <strong>same moment</strong> on another zone's clock. Maria's 9:30am in New York is the same instant as 7:00pm on your Bengaluru clock:</p>
+
+<p>There is a second, very different operation, and mixing them up is the classic time-zone bug. <code>force_tz()</code> does <strong>not</strong> convert the moment; it keeps the clock reading <code>09:30</code> exactly and just slaps a new zone label on it, which points at a completely different instant:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">maria &lt;- ymd_hms(&quot;2026-03-15 09:30:00&quot;, tz = &quot;America/New_York&quot;)
+with_tz(maria,  &quot;Asia/Kolkata&quot;)   # SAME instant, Bengaluru clock
+#&gt; [1] &quot;2026-03-15 19:00:00 IST&quot;
+force_tz(maria, &quot;Asia/Kolkata&quot;)   # SAME clock reading 09:30, now a DIFFERENT instant
+#&gt; [1] &quot;2026-03-15 09:30:00 IST&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">A simple rule of thumb: use <code>with_tz()</code> when you want to know what time it <em>was somewhere else</em> for a moment that already happened (almost always). Reach for <code>force_tz()</code> only to fix a timestamp that was recorded with the wrong zone label in the first place.</div></div>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"caption":"One instant, three clocks. with_tz keeps the moment fixed and only changes the clock it is shown on.","code":"library(lubridate)\nmaria <- ymd_hms(\"2026-03-15 09:30:00\", tz = \"America/New_York\")\nwith_tz(maria, \"Asia/Kolkata\")","before":{"cols":["the order from New York"],"rows":[["2026-03-15 09:30 EDT"]]},"after":{"cols":["New York","UTC","Bengaluru"],"rows":[["09:30 EDT","13:30 UTC","19:00 IST"]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>with_tz or force_tz?</h2>
+
+<p>Maria's order is stored as <code>2026-03-15 09:30:00 EDT</code> (New York time). You run <code>with_tz(maria, &quot;Asia/Kolkata&quot;)</code> to see it on your Bengaluru clock. What comes back?</p>
+<section class="exercise" data-exercise-id="Dates-and-Times-in-R-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx"><code>2026-03-15 19:00:00 IST</code>, the same instant shown on the Bengaluru clock</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx"><code>2026-03-15 09:30:00 IST</code>, the clock still reads 9:30, now labelled IST</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">An error, because a time zone cannot be changed after a time is recorded</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. <code>with_tz()</code> holds the exact moment fixed and only changes the clock it is displayed on. 9:30am in New York is 7:00pm the same day in Bengaluru, so the reading moves but the instant does not.</div><div class="lesson-qfb lesson-qfb-no">It can. <code>with_tz()</code> re-displays an existing instant in any zone you ask for; it is one of lubridate's most-used functions.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Four trustworthy, free places to take dates and times further:</p>
+
+<ul>
+
+<li><a href="https://lubridate.tidyverse.org/">lubridate (tidyverse) - official site</a> - the home page and full reference for every parser and accessor you used here.</li>
+
+<li><a href="https://r4ds.hadley.nz/datetimes">R for Data Science (2e): Dates and times</a> - the canonical, example-led chapter, including spans and periods we only touched on.</li>
+
+<li><a href="https://rstudio.github.io/cheatsheets/html/lubridate.html">Posit lubridate cheatsheet</a> - a one-page visual map of parsing, components and time-zone tools, worth keeping open.</li>
+
+<li><a href="https://lubridate.tidyverse.org/articles/lubridate.html">Do more with dates and times (vignette)</a> - the package authors' own tour, with the difference between durations, periods and intervals.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 3 complete</h2>
+
+<p>You took a log of plain-text order dates and made them genuinely useful. The key was the first move: a <code>Date</code> is a <strong>number of days since 1970</strong>, so once you <strong>parse</strong> text into one, everything else is ordinary arithmetic and lookup. You ran the four jobs: <strong>parse</strong> with <code>ymd()</code>, <code>dmy()</code> and <code>mdy()</code> (choose the function by the order of the parts), <strong>calculate</strong> by adding days and subtracting dates, <strong>extract</strong> the year, month and weekday with <code>year()</code>, <code>month()</code> and <code>wday()</code>, and handled <strong>time zones</strong> with <code>with_tz()</code> (same instant, new clock) versus <code>force_tz()</code> (same clock, new instant).</p>
+
+<p>That weekend finding, five of six orders on a Saturday or Sunday, came from turning a date into a weekday. It is a hint of what is next: the weekday is a <strong>category</strong>, one of a fixed set of values with a natural order. In Lesson 4: Factors with forcats, you will learn to store and reorder categories like these so your counts and charts come out in the order you want, not alphabetical.</p>
+</section>
+
+{% endraw %}
