@@ -133,7 +133,41 @@
       (free?'<span class="tag free">Free</span>':UNLOCK)+'<span class="cnt">'+s.items.length+'</span></summary>'+
       '<div class="lsns">'+s.items.map(function(t){return lessonRow(t,free);}).join('')+'</div></details>';
   }
-  document.getElementById('curric').innerHTML=secs.map(function(s,i){return secDetails(s,isFree(s),i===0);}).join('');
+
+  // Tier bands + the credential moment. Only tracks whose sections carry a `tier`
+  // (currently DS) get bands; the certified-milestone block is inserted after the
+  // last core section. DS shows the full Hired/Trusted/Sought ladder; other roles
+  // fall back to a one-line milestone (and only if they ever gain tiers).
+  var TIERBAND={core:['Core','the certified path'],adv:['Advanced','operate at scale'],spec:['Specializations','go deep in your domain'],ai:['AI and LLM systems','the 2026/27 pillar'],capstone:['Capstone','put it all together']};
+  function bandHead(t){var b=TIERBAND[t];return b?'<div class="tband"><span class="tbk">'+esc(b[0])+'</span><span class="tbs">'+esc(b[1])+'</span></div>':'';}
+  function certMile(){
+    if(role!=='ds') return '<div class="tcert"><span class="th"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Core complete &middot; certified '+esc(ROLE[role].toLowerCase())+'</span><span class="ts">everything below is how you go senior</span></div>';
+    return '<div class="vF">'+
+      '<div class="panel">'+
+        '<div class="seal"><svg viewBox="0 0 84 84" width="72" height="72" aria-hidden="true"><circle cx="42" cy="42" r="38" fill="none" stroke="#d8b24e" stroke-width="1" opacity=".4"/><g stroke="#d8b24e" stroke-width="1.4" opacity=".5"><line x1="42" y1="6.5" x2="42" y2="11"/><line x1="42" y1="73" x2="42" y2="77.5"/><line x1="6.5" y1="42" x2="11" y2="42"/><line x1="73" y1="42" x2="77.5" y2="42"/><line x1="17" y1="17" x2="20.2" y2="20.2"/><line x1="63.8" y1="63.8" x2="67" y2="67"/><line x1="67" y1="17" x2="63.8" y2="20.2"/><line x1="20.2" y1="63.8" x2="17" y2="67"/></g><circle cx="42" cy="42" r="30" fill="none" stroke="#b08720" stroke-width="1.7"/><path d="M31 43 L38.5 50.5 L54 33" fill="none" stroke="#d8b24e" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>'+
+        '<div>'+
+          '<div class="eyebrow">Milestone reached</div>'+
+          '<h2>You are a Certified Data Scientist in R.</h2>'+
+          '<p class="lede">Frame a problem, build and properly evaluate a model, handle imbalance, and ship it. Your verifiable credential is ready.</p>'+
+          '<div class="comps"><span>Build + evaluate models</span><span>Resampling + tuning</span><span>Ship to production</span><span>Interpret responsibly</span></div>'+
+        '</div>'+
+        '<div class="cta"><a class="btn-w" href="/pricing.html">Get your certificate &rarr;</a><div class="proof">Verifiable &middot; Add to LinkedIn &middot; Shareable PDF</div></div>'+
+      '</div>'+
+      '<div class="ladder">'+
+        '<div class="lhead">You\'re certified. <b>The path from hired to sought-after starts here.</b></div>'+
+        '<div class="rungs">'+
+          '<div class="rung done"><div class="rhead"><span class="badge b-hired">Hired</span><span class="rtier">Tier 1 &middot; earned</span></div><div class="rn">Data Scientist</div><div class="rs">Job-ready and certified: you build models that work, and you can prove it.</div><span class="tag">&#10003; Certified in R</span></div>'+
+          '<div class="rung next"><div class="rhead"><span class="badge b-trusted">Trusted</span><span class="rtier">Tier 2 &middot; next</span></div><div class="rn">Applied Scientist</div><div class="rs">Hired gets you in the room; trusted gets you the decisions that count. Own production, causal inference and calibrated uncertainty.</div><span class="tag">Go applied &rarr;</span></div>'+
+          '<div class="rung locked"><div class="rhead"><span class="badge b-sought">Sought</span><span class="rtier">Tier 3 &middot; frontier</span></div><div class="rn">Deep Learning and AI</div><div class="rs">The work everyone wants and few can do. Go deep on LLMs, deep learning and generative AI, and be the name on the shortlist.</div><span class="tag">Go deep</span></div>'+
+        '</div>'+
+      '</div>'+
+    '</div>';
+  }
+  (function(){var html='',prev=null;
+    secs.forEach(function(s,i){var t=s.tier||null;
+      if(t&&t!==prev){if(prev==='core')html+=certMile();html+=bandHead(t);prev=t;}
+      html+=secDetails(s,isFree(s),i===0);});
+    document.getElementById('curric').innerHTML=html;})();
 
   // deep-link from a lesson player: /roadmap/<role>.html#rm-s<n>. #curric is built
   // here in JS, so the browser's native hash scroll already fired against nothing.
