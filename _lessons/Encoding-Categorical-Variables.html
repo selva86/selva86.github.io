@@ -1,0 +1,331 @@
+---
+title: "Feature Engineering Lesson 1: Encoding Categorical Variables"
+description: "Encode categorical variables in R: one-hot and dummy coding for nominal data, ordinal coding for ordered levels, and how to handle high-cardinality columns."
+keywords: "encoding categorical variables, one-hot encoding, dummy variables, ordinal encoding, high cardinality, label encoding, model.matrix, feature engineering, R"
+mathjax: true
+webr: true
+curriculum_id: "6.60.1"
+post_type: "LESSON"
+course_id: "ds-feature-engineering"
+course_title: "Feature Engineering in R"
+course_lesson: "1"
+course_total: "7"
+course_landing: "R-Feature-Engineering-Course.html"
+course_next: "Target-Encoding-Without-Leakage.html"
+course_prev: ""
+lesson_access: "free"
+catalog_blurb: "Turn category columns into numbers a model can use, without inventing fake order."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 1 of 7</div>
+<h2>Encoding Categorical Variables</h2>
+
+<p>Maya runs a small used-car listing site. She wants to predict a car's resale price from its details, and her data describes each car with words: transmission is <code>manual</code> or <code>automatic</code>, the body is <code>sedan</code>, <code>hatchback</code>, or <code>SUV</code>, the condition runs <code>poor</code> to <code>excellent</code>, and the brand is one of dozens of makes. A model, though, only does arithmetic. It cannot multiply the word "automatic" by anything.</p>
+
+<p>Encoding is how we hand a model those words as numbers, and doing it carelessly quietly teaches the model things that are not true. By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain why numbering categories <code>1, 2, 3</code> can mislead a model</li>
+
+<li>One-hot, dummy, and ordinal encode variables in R, and read the result</li>
+
+<li>Pick an encoding for a column with hundreds of categories, and say what it costs</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and read its output, and you know what a model, a feature, and a train/test split are (from <a href="Train-Validation-Test-and-Data-Leakage.html">Train, Validation, Test, and Data Leakage</a>).</p>
+
+<p>There is no single right encoding, only the right one for the <em>kind</em> of category. Here is the whole map; we spend the lesson earning it.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Nominal: one-hot","sub":"no real order (manual vs automatic, sedan vs SUV) becomes one 0/1 column per category"},{"title":"Ordinal: ranked integers","sub":"a real order (poor up to excellent) becomes 1, 2, 3, 4"},{"title":"High-cardinality: lump or encode","sub":"hundreds of levels (every car brand) need a smaller, smarter code"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">Why encode at all</div>
+<h2>A model only multiplies numbers</h2>
+
+<p>Picture the simplest price model Maya could fit, a straight-line one. It predicts a car's price by multiplying each feature by a learned weight and adding them up:</p>
+
+<p>\[ \hat{y} \;=\; \beta_0 + \beta_1 x_1 + \beta_2 x_2 + \dots + \beta_p x_p. \]</p>
+
+<p>Here \(\hat{y}\) is the predicted price, each \(x_j\) is one feature (a number), and each \(\beta_j\) is the weight the model learns for it. The whole machine is multiplication and addition. So every \(x_j\) has to <em>be</em> a number. The word "automatic" has no value to multiply, and the same is true of every tree, boosting, or neural model underneath: somewhere they all reduce a row to numbers.</p>
+
+<p>Each lesson runs in a fresh R session, so let us build Maya's listings right here and look at what we are dealing with.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Maya's used-car listings (price in $1000s). Built inline so the page is self-contained.
+cars &lt;- data.frame(
+  body         = c(&quot;hatchback&quot;, &quot;sedan&quot;, &quot;SUV&quot;, &quot;sedan&quot;, &quot;SUV&quot;, &quot;hatchback&quot;, &quot;sedan&quot;, &quot;SUV&quot;),
+  transmission = c(&quot;manual&quot;, &quot;automatic&quot;, &quot;automatic&quot;, &quot;manual&quot;, &quot;automatic&quot;, &quot;manual&quot;, &quot;automatic&quot;, &quot;automatic&quot;),
+  condition    = c(&quot;good&quot;, &quot;excellent&quot;, &quot;fair&quot;, &quot;good&quot;, &quot;poor&quot;, &quot;excellent&quot;, &quot;good&quot;, &quot;fair&quot;),
+  brand        = c(&quot;Toyota&quot;, &quot;Ford&quot;, &quot;Toyota&quot;, &quot;Honda&quot;, &quot;Kia&quot;, &quot;Toyota&quot;, &quot;BMW&quot;, &quot;Ford&quot;),
+  price        = c(11.5, 16.0, 23.5, 12.0, 19.0, 13.5, 18.0, 21.0),
+  stringsAsFactors = FALSE
+)
+
+# Which columns are numbers, and which are words a model cannot read yet?
+sapply(cars, class)
+#&gt;          body  transmission     condition         brand         price
+#&gt;   &quot;character&quot;   &quot;character&quot;   &quot;character&quot;   &quot;character&quot;     &quot;numeric&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Four of the five columns are text. Encoding is the job of turning those four into numbers, and the next steps are about doing it without lying to the model.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The tempting shortcut</div>
+<h2>Numbering categories invents an order</h2>
+
+<p>The fastest fix looks obvious: just hand each category a number. Let <code>hatchback = 1</code>, <code>sedan = 2</code>, <code>SUV = 3</code>, and feed that one column to the model. This is called <strong>label</strong> or <strong>integer encoding</strong>, and for a column with no inherent order it is a trap.</p>
+
+<p>Look at what the model now believes. It will treat that column as an ordinary number, so it reads <code>SUV (3)</code> as three times <code>hatchback (1)</code>, and <code>sedan (2)</code> as sitting exactly halfway between them. You invented an order (hatchback before sedan before SUV) and an even spacing (each step worth the same) that the body styles never had. A body style is a name, not a rank.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Label-encoding a <em>nominal</em> (unordered) category feeds a fake ranking straight into the model. A linear model takes it literally; even tree models will only ever split it in that arbitrary numeric order. Reserve integer codes for categories that genuinely have an order, which is the next part of this lesson.</div></div>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"code":"cars$body_code <- match(cars$body, c(\"hatchback\", \"sedan\", \"SUV\"))","caption":"Numbering categories is fast, but it tells the model SUV is 3 times a hatchback and a sedan sits halfway between, an order and spacing the data never had.","before":{"cols":["body"],"rows":[["hatchback"],["sedan"],["SUV"],["hatchback"]]},"after":{"cols":["body","body_code"],"rows":[["hatchback",1],["sedan",2],["SUV",3],["hatchback",1]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What goes wrong here?</h2>
+
+<p>Maya encodes <code>brand</code> as <code>Toyota = 1, Ford = 2, Honda = 3, Kia = 4, BMW = 5</code> and puts that single column into a linear price model. Brand has no natural order. What has she accidentally told the model?</p>
+<section class="exercise" data-exercise-id="Encoding-Categorical-Variables-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Nothing wrong: the model just needs numbers, and any consistent numbering works</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">That BMW (5) is five times Toyota (1), and the brands sit in evenly spaced rank order</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">That the brands are unrelated to price, so the column will be ignored</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The model reads the codes as real quantities, so it assumes an ordering and equal spacing across brands that simply is not there. Nominal categories must not be integer-coded.</div><div class="lesson-qfb lesson-qfb-no">The opposite: the model will use the column eagerly, and trust the fake numeric order baked into it.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The honest fix for nominal data</div>
+<h2>One-hot and dummy encoding</h2>
+
+<p>If a category has no order, give the model no order. <strong>One-hot encoding</strong> replaces one categorical column with several 0/1 columns, one per category, each answering a yes/no question: "is this car a sedan?", "is it an SUV?". Formally, for a feature with levels \(c_1, c_2, \dots, c_k\), one-hot creates \(k\) indicator columns</p>
+
+<p>\[ x_j \;=\; \mathbf{1}[\,\text{level} = c_j\,], \qquad j = 1, \dots, k, \]</p>
+
+<p>where \(\mathbf{1}[\cdot]\) is 1 when the row is level \(c_j\) and 0 otherwise, and \(k\) is the number of categories. No category is larger than another; each just gets its own switch.</p>
+
+<p>There is one subtlety. The \(k\) indicator columns always sum to 1 for every row (a car is exactly one body style, so \(\sum_{j} x_j = 1\)). That makes the last column perfectly predictable from the others, which is redundant and, for a linear model with an intercept, breaks the fit (the columns are perfectly collinear). The cure is <strong>dummy encoding</strong>: keep only \(k-1\) columns and let the dropped category be the <strong>baseline</strong> (or reference). Every other column's weight is then read as a difference <em>from that baseline</em>. Leaving all \(k\) columns in is the classic mistake known as the <strong>dummy-variable trap</strong>.</p>
+<div class="lesson-widget" data-widget-type="table-transform" data-widget-config='{"code":"model.matrix(~ body - 1, data = cars)","caption":"One-hot: each body style becomes its own 0/1 column. No style is treated as bigger than another. Dummy encoding keeps one fewer column and calls the dropped style the baseline.","before":{"cols":["body"],"rows":[["hatchback"],["sedan"],["SUV"],["sedan"]]},"after":{"cols":["body","is_hatchback","is_sedan","is_SUV"],"rows":[["hatchback",1,0,0],["sedan",0,1,0],["SUV",0,0,1],["sedan",0,1,0]]}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">In R</div>
+<h2>Build the columns yourself</h2>
+
+<p>Good news: in R you rarely one-hot by hand, because <code>lm()</code>, <code>glm()</code>, and friends turn a <code>factor</code> into dummy columns automatically (they keep \(k-1\) and use the first level as the baseline). But it pays to see the columns explicitly with <code>model.matrix()</code>.</p>
+
+<p>The formula <code>~ body</code> gives you the <strong>dummy</strong> columns (R drops the baseline and adds an intercept). Adding <code>- 1</code> removes the intercept, which forces R to keep <strong>all</strong> the columns, the full <strong>one-hot</strong> set. Fill in the blank so this produces one column per body style.</p>
+<section class="exercise" data-exercise-id="Encoding-Categorical-Variables-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="-\s*1"><textarea class="lesson-tryit-input" spellcheck="false">cars$body &lt;- factor(cars$body, levels = c(&quot;hatchback&quot;, &quot;sedan&quot;, &quot;SUV&quot;))
+
+# Drop the intercept so every level gets its own 0/1 column (one-hot)
+onehot &lt;- model.matrix(~ body ____, data = cars)
+head(onehot)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is one-hot: bodyhatchback, bodysedan, bodySUV, one 0/1 column per level. Without the - 1, R drops one level as the baseline and gives you the k - 1 dummy columns instead.</span><span class="lesson-tryit-fb lesson-tryit-no">Subtract the intercept with - 1, so write ~ body - 1. That keeps all three level columns instead of dropping one as a baseline.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">cars$body &lt;- factor(cars$body, levels = c(&quot;hatchback&quot;, &quot;sedan&quot;, &quot;SUV&quot;))
+
+onehot &lt;- model.matrix(~ body - 1, data = cars)
+head(onehot)
+#&gt;   bodyhatchback bodysedan bodySUV
+#&gt; 1             1         0       0
+#&gt; 2             0         1       0
+#&gt; 3             0         0       1
+#&gt; 4             0         1       0
+#&gt; 5             0         0       1
+#&gt; 6             1         0       0</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">When order is real</div>
+<h2>Ordinal encoding: keep the ranking</h2>
+
+<p>Sometimes a category <em>does</em> have an order, and throwing it away would lose real information. Maya's <code>condition</code> runs <code>poor</code>, <code>fair</code>, <code>good</code>, <code>excellent</code>. An excellent car really is worth more than a poor one, in that order. One-hot encoding would scatter that ranking across four unrelated 0/1 columns and make the model relearn the obvious.</p>
+
+<p>For a genuinely ordered category, <strong>ordinal encoding</strong> is the honest move: map the levels to ranked integers in their true order. In R you say the order once with an <em>ordered</em> factor, then convert to integers.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># State the real order; &quot;ordered = TRUE&quot; records that poor &lt; fair &lt; good &lt; excellent
+cars$condition &lt;- factor(cars$condition,
+                         levels  = c(&quot;poor&quot;, &quot;fair&quot;, &quot;good&quot;, &quot;excellent&quot;),
+                         ordered = TRUE)
+
+cars$condition_rank &lt;- as.integer(cars$condition)
+head(data.frame(condition = cars$condition, rank = cars$condition_rank), 5)
+#&gt;   condition rank
+#&gt; 1      good    3
+#&gt; 2 excellent    4
+#&gt; 3      fair    2
+#&gt; 4      good    3
+#&gt; 5      poor    1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Integer codes carry one extra assumption: <strong>equal spacing</strong>. Writing <code>poor, fair, good, excellent</code> as <code>1, 2, 3, 4</code> tells the model the jump from poor to fair is worth exactly as much as the jump from good to excellent. If that is roughly true, ordinal encoding is compact and powerful. If the gaps are uneven, keep the order but let the model find the spacing (one-hot the levels, or use an ordered factor with a method that does not assume even steps).</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which column may be integer-coded?</h2>
+
+<p>Maya has two columns left to encode: <code>brand</code> (Toyota, Ford, Honda, ...) and a survey field <code>satisfaction</code> (<code>low</code>, <code>medium</code>, <code>high</code>). Which one is a fair candidate for ordinal (integer) encoding, and why?</p>
+<section class="exercise" data-exercise-id="Encoding-Categorical-Variables-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx"><code>brand</code>, because there are too many makes to one-hot, so ranking them is the only option</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx"><code>satisfaction</code>, because low, medium, high have a genuine order to preserve</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Both, since any column can be turned into numbers once you assign an order</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. <code>satisfaction</code> is ordinal: the levels rank naturally, so <code>1, 2, 3</code> keeps real information (as long as the steps are roughly even). <code>brand</code> is nominal and must not be integer-coded.</div><div class="lesson-qfb lesson-qfb-no">Assigning an order to an unordered category (<code>brand</code>) is exactly the label-encoding trap. Only genuinely ranked categories earn integer codes.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">When categories explode</div>
+<h2>High cardinality: too many levels</h2>
+
+<p>One-hot encoding is honest, but it has a cost: it adds one column per category. For <code>transmission</code> (2 levels) or <code>body</code> (3) that is nothing. For a real <code>brand</code> or <code>model</code> column with 200 distinct makes, one-hot creates 200 sparse columns, most of them almost always 0. That bloats the model, invites overfitting, and creates a nasty production bug: a brand that appears only in the test set (or in next month's data) has no column to land in, so the encoding breaks on data it has never seen.</p>
+
+<p>When a column is <strong>high-cardinality</strong>, you shrink it before encoding. Two simple, leak-safe options:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dplyr)
+library(forcats)
+
+cars$brand &lt;- factor(cars$brand)
+
+# 1. Lump the rare levels together: keep the most common, fold the tail into &quot;Other&quot;
+cars$brand_lumped &lt;- fct_lump_n(cars$brand, n = 2)   # keep the 2 most common brands
+table(cars$brand_lumped)
+#&gt;
+#&gt;   Ford Toyota  Other
+#&gt;      2      3      3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># 2. Frequency encoding: replace each brand with how often it appears (one numeric column)
+cars %&gt;%
+  add_count(brand, name = &quot;brand_freq&quot;) %&gt;%
+  select(brand, brand_freq) %&gt;%
+  head(4)
+#&gt;    brand brand_freq
+#&gt; 1 Toyota          3
+#&gt; 2   Ford          2
+#&gt; 3 Toyota          3
+#&gt; 4  Honda          1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Each choice buys something and costs something:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Strategy</th>
+<th>What it does</th>
+<th>The cost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>One-hot every level</td>
+<td>one 0/1 column per category</td>
+<td>hundreds of sparse columns; breaks on unseen levels</td>
+</tr>
+<tr>
+<td>Lump rare levels</td>
+<td>keep the top few, fold the rest into "Other"</td>
+<td>loses detail inside "Other"</td>
+</tr>
+<tr>
+<td>Frequency encoding</td>
+<td>replace level by how common it is</td>
+<td>two equally common brands collide on the same number</td>
+</tr>
+<tr>
+<td>Target encoding <em>(next lesson)</em></td>
+<td>replace level by its average outcome</td>
+<td>strongest, but leaks the answer if done carelessly</td>
+</tr>
+</tbody>
+</table>
+
+<p>The most powerful high-cardinality method, <strong>target encoding</strong>, replaces each category with the average price of cars in that category. It is also the easiest to get wrong, because it peeks at the answer. That leak, and how to encode out-of-fold so it cannot happen, is the whole of Lesson 2.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Match the column to its encoding</h2>
+
+<p>Maya is finalizing her pipeline. For three columns, which encoding fits each best: <code>transmission</code> (manual / automatic), <code>condition</code> (poor to excellent), and <code>model</code> (180 distinct values)?</p>
+<section class="exercise" data-exercise-id="Encoding-Categorical-Variables-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">One-hot all three, since one-hot is always the safe default</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Integer-code all three from 1 upward, to keep the pipeline simple</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">One-hot (or dummy) <code>transmission</code>, ordinal-encode <code>condition</code>, and lump or target-encode <code>model</code></span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Match the method to the kind of category: nominal and small to one-hot, genuinely ordered to integers, high-cardinality to lumping or a learned encoding.</div><div class="lesson-qfb lesson-qfb-no"><code>transmission</code> and <code>model</code> are nominal, so integer codes invent an order. Only <code>condition</code> is genuinely ordered.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>Authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="http://www.feat.engineering/">Kuhn and Johnson, Feature Engineering and Selection (free book)</a> - the definitive practitioner treatment of encoding categorical predictors and what each method costs.</li>
+
+<li><a href="https://www.tmwr.org/recipes">Kuhn and Silge, Tidy Modeling with R, recipes chapter</a> - how to encode inside a modeling pipeline so the recipe learns on train and applies to test.</li>
+
+<li><a href="https://recipes.tidymodels.org/reference/step_dummy.html">recipes: step_dummy() reference</a> - the tidymodels step that one-hot and dummy encodes a factor.</li>
+
+<li><a href="https://forcats.tidyverse.org/reference/fct_lump.html">forcats: fct_lump() reference</a> - collapsing rare levels of a high-cardinality factor into "Other".</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 1 complete</h2>
+
+<p>You can now read a column's <em>kind</em> and encode it honestly: one-hot or dummy encode nominal categories so the model invents no order, ordinal-encode genuinely ranked categories while remembering the equal-spacing assumption you buy, and shrink a high-cardinality column by lumping rare levels or frequency-encoding instead of exploding it into hundreds of sparse columns. Maya's word-columns are now numbers a model can actually use.</p>
+
+<p>Next, Lesson 2: Target Encoding Without Leakage. You will meet the most powerful way to encode a high-cardinality column, replacing each category with its average outcome, and the subtle leak that makes it dangerous. You will learn to do it out-of-fold, so the encoding never sees the rows it scores.</p>
+</section>
+
+{% endraw %}
