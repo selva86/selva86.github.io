@@ -1,0 +1,333 @@
+---
+title: "Gradient Boosting Lesson 6: Quantile Regression Forests and Prediction Intervals"
+description: "Go past a single prediction: use quantiles and a quantile regression forest to predict a low-to-high interval in R, and check that the interval actually holds."
+keywords: "quantile regression forest, prediction interval, quantile loss, pinball loss, quantregForest, ranger quantreg, confidence vs prediction interval, randomForest in R"
+mathjax: true
+webr: true
+curriculum_id: "6.40.6"
+post_type: "LESSON"
+course_id: "ds-boosting"
+course_title: "Gradient Boosting in R"
+course_lesson: "6"
+course_total: "6"
+course_landing: "R-Gradient-Boosting-Course.html"
+course_next: ""
+course_prev: "Monotonic-Constraints-for-Business-Rules.html"
+lesson_access: "free"
+catalog_blurb: "Predict a range of likely outcomes, not just one number."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 6 of 6</div>
+<h2>Quantile Regression Forests and Prediction Intervals</h2>
+
+<p>In Lesson 5 you fixed the DIRECTION of a model's prediction. This last lesson fixes something every model so far has quietly ignored: a single number hides how UNSURE the model is.</p>
+
+<p>Sam, who runs the bike-rental kiosks, asks his model how many bikes will go out tomorrow. It answers "210." Helpful, until Sam has to act on it. Stock exactly 210 and a busy day leaves customers turned away; stock 210 on a quiet day and dozens sit unused. What Sam actually needs is a range: "almost certainly between 175 and 245, most likely around 210." That low-to-high range is a <strong>prediction interval</strong>, and by the end of this lesson you will build one from a forest.</p>
+
+<p>By the end you will be able to:</p>
+
+<ul>
+
+<li>Say what a prediction interval is, and why one point prediction is not enough</li>
+
+<li>Read quantiles of past outcomes in R, and turn "a 90% interval" into the right cut points</li>
+
+<li>Build a prediction interval from a quantile regression forest, and check that it actually holds</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R, and you know what a random forest is (it averages many decision trees; the <a href="Random-Forest-Course.html">Random Forests course</a> covers it). Lesson 1, <a href="Gradient-Boosting-from-Scratch.html">Gradient Boosting from Scratch</a>, helps but is not required. The chart below is the shape of the answer Sam wants: a band, not a line. The orange band is a prediction interval.</p>
+<div class="lesson-widget" data-widget-type="regression-intervals" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The building block</div>
+<h2>A quantile is just a cut point in your outcomes</h2>
+
+<p>Before intervals, one idea everything rests on: a <strong>quantile</strong>. Line up a set of numbers from smallest to largest. The 0.9 quantile (the 90th percentile) is the value that 90% of them fall below; the 0.5 quantile is the middle value, the <strong>median</strong>; the 0.05 quantile is the value only 5% fall below. A quantile is nothing more than a cut point in a sorted list of outcomes.</p>
+
+<p>Here are Sam's rentals from his last 21 comparable days. Notice they do not pile up on one number, they spread out, and that spread is exactly what a single prediction throws away.</p>
+
+<p>In R, <code>quantile()</code> reads those cut points straight off the data. Run it:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">past &lt;- c(206, 162, 247, 190, 275, 184, 220, 150, 231, 204, 258,
+          178, 212, 195, 238, 170, 201, 225, 198, 216, 209)
+
+quantile(past, c(0.05, 0.50, 0.95))
+#&gt;    5%   50%   95%
+#&gt;   162   206   258</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read that as: on a day like these, the middle outcome is <strong>206</strong> bikes, 5% of days fell below <strong>162</strong>, and 5% rose above <strong>258</strong>. Those three numbers already sketch Sam's answer.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":206},{"x":162},{"x":247},{"x":190},{"x":275},{"x":184},{"x":220},{"x":150},{"x":231},{"x":204},{"x":258},{"x":178},{"x":212},{"x":195},{"x":238},{"x":170},{"x":201},{"x":225},{"x":198},{"x":216},{"x":209}],"geoms":["histogram"],"x":"rentals"}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Two ranges people confuse</div>
+<h2>Confidence interval vs prediction interval</h2>
+
+<p>Now a trap that catches even experienced analysts. There are two completely different "ranges," and using the wrong one quietly understates risk.</p>
+
+<ul>
+
+<li>A <strong>confidence interval</strong> answers: where is the AVERAGE outcome? Where does the true mean demand sit? Collect more days and you pin the average down tighter and tighter.</li>
+
+<li>A <strong>prediction interval</strong> answers: where will ONE NEW outcome land? How many bikes go out TOMORROW, a single noisy day?</li>
+
+</ul>
+
+<p>Sam needs the second. He is stocking for one specific day, not estimating a long-run average. Written with quantiles, an 80% prediction interval is just the pair</p>
+
+<p>\[ \left[\,q_{0.10},\; q_{0.90}\,\right], \]</p>
+
+<p>where \(q_{\tau}\) is the \(\tau\)-quantile of the outcomes (the cut point a fraction \(\tau\) fall below). The interval runs from the 10th percentile to the 90th, so 80% of outcomes land inside it. Widen to \([q_{0.05}, q_{0.95}]\) and you have a 90% interval.</p>
+
+<p>The widget below makes the difference physical. Drag the sample size. The green confidence band collapses onto the line as data piles up, but the orange prediction band barely moves.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">More data shrinks a confidence interval toward zero, because you are only locating a mean. A prediction interval never shrinks to zero: tomorrow is still a single noisy day, and that irreducible spread is the floor. Confusing the two makes you far more confident than you should be.</div></div>
+<div class="lesson-widget" data-widget-type="regression-intervals" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which range answers Sam's question?</h2>
+
+<p>Sam asks: "How many bikes will actually go out tomorrow?" He is stocking for that one day. Which interval answers him?</p>
+<section class="exercise" data-exercise-id="Quantile-Regression-Forests-and-Prediction-Intervals-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A confidence interval, because it pins down the demand he should plan around</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A prediction interval, because it covers where a single new day's rentals will land</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Neither; the point prediction of 210 already tells him enough</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. A prediction interval is built for one new outcome, noise and all, which is exactly the day Sam has to stock for.</div><div class="lesson-qfb lesson-qfb-no">210 is the middle guess with no sense of risk. Plan on exactly 210 and you are wrong-sided on roughly half your days.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">How you target one quantile</div>
+<h2>The quantile loss is lopsided on purpose</h2>
+
+<p>To predict the median you minimize squared error and out comes the mean-ish middle. But how do you aim a model at the 90th percentile instead of the middle? You change what counts as a mistake, using the <strong>quantile loss</strong> (also called the pinball loss).</p>
+
+<p>Pick a quantile level \(\tau\) (say \(\tau = 0.9\) for the 90th percentile). For an actual outcome \(y\) and a guess \(q\), the loss is</p>
+
+<p>\[ L_{\tau}(y, q) \;=\; \max\!\big(\tau\,(y - q),\; (\tau - 1)\,(y - q)\big), \]</p>
+
+<p>where \(y\) is the real number of rentals, \(q\) is the model's guess, and \(\tau\) is the quantile level between 0 and 1. The <code>max</code> just selects between two cases: when you UNDER-guess (\(q < y\)) the penalty grows at rate \(\tau\); when you OVER-guess (\(q > y\)) it grows at rate \(1 - \tau\). For \(\tau = 0.9\) that is a heavy 0.9 for under-guessing and a light 0.1 for over-guessing, so the cheapest place to sit is high up, right at the 90th percentile.</p>
+
+<p>The chart is that loss as a function of your guess: a lopsided V, steep on the left, shallow on the right, with its low point near the 0.9 quantile.</p>
+
+<p>Watch the loss prefer a high guess over the middle, on Sam's same 21 days:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">past &lt;- c(206, 162, 247, 190, 275, 184, 220, 150, 231, 204, 258,
+          178, 212, 195, 238, 170, 201, 225, 198, 216, 209)
+
+# Average quantile (pinball) loss of a single guess q against all outcomes y.
+pinball &lt;- function(q, y, tau) mean(ifelse(y &gt;= q, tau * (y - q), (1 - tau) * (q - y)))
+
+# Guess the median (206) vs a high value (247), scored at the 0.9 level.
+c(guess_206 = pinball(206, past, 0.9),
+  guess_247 = pinball(247, past, 0.9))
+#&gt; guess_206 guess_247
+#&gt;  12.70000  5.752381</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The high guess scores less than half the loss of the middle guess. Minimize this loss fully and the best guess is exactly <code>quantile(past, 0.9)</code> = 247. The lopsided penalty turns a prediction problem into a quantile.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":150,"y":52.2},{"x":170,"y":35.6},{"x":190,"y":21.3},{"x":210,"y":11.2},{"x":230,"y":6.9},{"x":250,"y":5.8},{"x":270,"y":6.4},{"x":290,"y":8.2}],"geoms":["line","point"],"x":"guess","y":"loss","code":{"line":"ggplot(loss_df, aes(guess, loss)) +\n  geom_line()","point":"ggplot(loss_df, aes(guess, loss)) +\n  geom_point()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Pick the cut points for a 90% interval</h2>
+
+<p>A prediction interval is a pair of quantiles. For a <strong>90% interval</strong> you want the middle 90% of outcomes, so you trim 5% off each end. Fill in the two quantile levels that give a 90% interval of Sam's past rentals.</p>
+<section class="exercise" data-exercise-id="Quantile-Regression-Forests-and-Prediction-Intervals-step6" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="c\(\s*0?\.05\s*,\s*0?\.95\s*\)"><textarea class="lesson-tryit-input" spellcheck="false">past &lt;- c(206, 162, 247, 190, 275, 184, 220, 150, 231, 204, 258,
+          178, 212, 195, 238, 170, 201, 225, 198, 216, 209)
+
+quantile(past, ____)   # the low and high cut points of a 90% interval</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. A 90% interval trims 5% off each tail, so it runs from the 0.05 quantile to the 0.95 quantile: c(0.05, 0.95) gives 162 to 258.</span><span class="lesson-tryit-fb lesson-tryit-no">For 90% in the middle you leave 5% in each tail, not 10%. Use the 0.05 and 0.95 quantiles: c(0.05, 0.95).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">quantile(past, c(0.05, 0.95))
+#&gt;   5%  95%
+#&gt;  162  258</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The forest already knows</div>
+<h2>Quantile regression forests: read the leaf, not the average</h2>
+
+<p>Here is the elegant part. You do not need a special model or a loss function to get every quantile. A plain regression forest already has what you need sitting in its leaves.</p>
+
+<p>Recall how a forest predicts: a new day drops down each tree to a leaf, and that leaf holds the training days that landed there too. An ordinary forest <strong>averages</strong> those leaf outcomes to get one number. Leo Breiman's student Nicolai Meinshausen noticed you can keep the whole pool instead and take any <strong>quantile</strong> of it. Same forest, same fit, but now it reports a full distribution of likely outcomes rather than a single mean. That is a <strong>quantile regression forest</strong>.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">One fit gives you every quantile at once. You never train a separate model per quantile; you just ask the same pooled outcomes a different question. The interval also adapts to the data: in a noisy region the leaf pool is wide, so the interval is wide; in a calm region it is tight.</div></div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Grow a forest","sub":"fit an ordinary regression forest; each leaf keeps the training outcomes that fall in it"},{"title":"Gather the leaf outcomes","sub":"for a new day, find its leaf in every tree and pool all of those outcomes"},{"title":"Read the quantiles","sub":"take the 5th, 50th and 95th percentile of the pool - that pair is your interval"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">In R</div>
+<h2>Build the interval from a forest</h2>
+
+<p>Let us do exactly that for Sam. We grow an ORDINARY <code>randomForest</code> (no quantile package), then ask each tree which leaf every day lands in. For tomorrow, we pool every training day that shared its leaf across all the trees and read the quantiles of that pool. Each lesson runs in a fresh R session, so we build Sam's season right here.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(randomForest)
+set.seed(1)
+
+# One season of Sam's kiosk: 400 days. Demand falls as price rises, climbs with
+# nicer weather, and is higher at weekends - plus ordinary day-to-day noise.
+n &lt;- 400
+season &lt;- data.frame(
+  price   = round(runif(n, 3, 9), 1),
+  temp    = round(runif(n, 5, 30), 1),
+  weekend = rbinom(n, 1, 2 / 7)
+)
+season$rentals &lt;- round(180 - 14 * season$price + 4 * season$temp +
+                        25 * season$weekend + rnorm(n, 0, 18))
+
+train &lt;- season[1:300, ]
+test  &lt;- season[301:400, ]
+
+# An ordinary regression forest - nothing special, no quantile setting.
+rf &lt;- randomForest(rentals ~ price + temp + weekend, data = train,
+                   ntree = 200, nodesize = 20)
+
+# For every training day, the leaf it lands in, in each of the 200 trees.
+train_leaf &lt;- attr(predict(rf, train, nodes = TRUE), &quot;nodes&quot;)   # 300 x 200
+
+# Tomorrow: a $6.50 price, 24 degrees, a weekend.
+tomorrow &lt;- data.frame(price = 6.5, temp = 24, weekend = 1)
+tmr_leaf &lt;- attr(predict(rf, tomorrow, nodes = TRUE), &quot;nodes&quot;)  # 1 x 200
+
+# Pool every training day's rentals that shared tomorrow's leaf, across all trees.
+neighbours &lt;- unlist(lapply(seq_len(ncol(train_leaf)),
+                     function(t) train$rentals[train_leaf[, t] == tmr_leaf[1, t]]))
+
+# The forest's full predictive distribution for tomorrow - read off any quantiles.
+quantile(neighbours, c(0.05, 0.50, 0.95))
+#&gt;      5%     50%     95%
+#&gt;  176.0   208.0   243.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>There it is: Sam should expect about <strong>208</strong> bikes tomorrow, almost surely between <strong>176 and 243</strong>. He stocks for the high end and staffs for the middle, with the risk made explicit instead of hidden inside a single "210."</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">The same trick works for a booster. Train a gradient-boosting model on this exact pinball loss (for example XGBoost's <code>reg:quantileerror</code>) and it predicts one chosen quantile per fit. The forest's advantage is that ONE fit hands you every quantile, because the leaf outcomes are already there to read.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Does it hold up?</div>
+<h2>Check the coverage, and know the edges</h2>
+
+<p>A prediction interval is only as good as its honesty. A 90% interval should contain the real outcome about 90% of the time, no more, no less. We can test that on the held-out days the forest never trained on: build each day's interval and count how often the actual rentals fall inside.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Reuse the forest and leaves from the previous block.
+test_leaf &lt;- attr(predict(rf, test, nodes = TRUE), &quot;nodes&quot;)   # 100 x 200
+
+covered &lt;- logical(nrow(test))
+for (i in seq_len(nrow(test))) {
+  pool &lt;- unlist(lapply(seq_len(ncol(train_leaf)),
+                 function(t) train$rentals[train_leaf[, t] == test_leaf[i, t]]))
+  band &lt;- quantile(pool, c(0.05, 0.95))      # a 90% prediction interval
+  covered[i] &lt;- test$rentals[i] &gt;= band[1] &amp; test$rentals[i] &lt;= band[2]
+}
+mean(covered)        # share of real outcomes inside the 90% interval
+#&gt; [1] 0.91</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>About 91% of held-out days landed inside their 90% interval, almost bang on target. That single number is how you earn trust in an interval: not by eye, but by checking it covers what it claims.</p>
+
+<p>In production you would not hand-pool leaves. The <code>quantregForest</code> and <code>ranger</code> packages do it for you (run this one in your own R session; these packages are not available in the interactive R here):</p>
+
+<pre><code class="language-r">library(ranger)
+
+# Fit once with quantreg = TRUE, then read any quantiles you like.
+qrf &lt;- ranger(rentals ~ price + temp + weekend, data = train,
+              quantreg = TRUE)
+
+predict(qrf, tomorrow, type = &quot;quantiles&quot;,
+        quantiles = c(0.05, 0.50, 0.95))$predictions
+# quantregForest::quantregForest(x, y) + predict(qrf, newdata, what = ...) is the original.</code></pre>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Two real limits. A forest cannot extrapolate: every quantile it reports is built from training outcomes it has actually seen, so for a day far outside the training range (a price or temperature it never saw) the interval is unreliable, not magically wide. And the pool needs enough neighbours: with tiny leaves the quantiles get jumpy, which is why we set <code>nodesize = 20</code> to keep a decent number of outcomes in each leaf.</div></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>How a quantile forest makes its interval</h2>
+
+<p>An ordinary random forest predicts tomorrow's rentals as a single 210. A quantile regression forest is the SAME forest. To produce the interval instead of that one number, it...</p>
+<section class="exercise" data-exercise-id="Quantile-Regression-Forests-and-Prediction-Intervals-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Keeps all the training outcomes sitting in each leaf and reads their 5th-to-95th percentiles, instead of averaging them</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Refits a separate forest for each quantile you want, one model for the 5th and another for the 95th</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Adds a fixed plus-or-minus band around 210, sized from the overall noise level</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The leaf outcomes are already there; averaging them gives the point prediction, taking their quantiles gives the interval. One fit, every quantile.</div><div class="lesson-qfb lesson-qfb-no">A constant-width band ignores that uncertainty varies by region. The forest's interval is wide where the leaf pool is spread out and tight where it is concentrated.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://www.jmlr.org/papers/v7/meinshausen06a.html">Meinshausen (2006), Quantile Regression Forests, JMLR 7</a> - the paper that introduced reading quantiles from a forest's leaves, exactly what you built here.</li>
+
+<li><a href="https://doi.org/10.2307/1913643">Koenker & Bassett (1978), Regression Quantiles, Econometrica 46(1)</a> - the origin of the quantile (pinball) loss that defines a quantile as a minimizer.</li>
+
+<li><a href="https://cran.r-project.org/package=quantregForest">quantregForest (CRAN package)</a> - Meinshausen's own R implementation; fit once, predict any quantile.</li>
+
+<li><a href="https://doi.org/10.18637/jss.v077.i01">Wright & Ziegler (2017), ranger: A Fast Implementation of Random Forests, JSS 77(1)</a> - the fast forest you would reach for in practice, with <code>quantreg = TRUE</code> built in.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Module complete</h2>
+
+<p>You can now predict a range, not just a point. You met the quantile as a cut point in your outcomes, separated a confidence interval (about the average) from a prediction interval (about one new day), saw how the lopsided quantile loss targets a quantile, and built a real prediction interval by reading the pooled leaf outcomes of an ordinary random forest. Then you did the thing most people skip: you checked that the 90% interval actually covered about 90% of held-out days.</p>
+
+<p>That completes Gradient Boosting in R. You went from boosting one tree onto another, through the knobs that matter, monotonic business rules, and now to predictions that carry their own uncertainty. A model that says "210, almost surely 176 to 243" is one a real decision can lean on.</p>
+</section>
+
+{% endraw %}
