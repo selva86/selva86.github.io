@@ -1,0 +1,415 @@
+---
+title: "tidymodels Lesson 2: Define models with parsnip"
+description: "Use parsnip to define models in R through one interface: build a spec, fit it, and switch from logistic regression to a random forest without rewriting code."
+keywords: "parsnip, tidymodels, R modeling, model specification, set_engine, set_mode, rand_forest, logistic regression in R, predict tibble, switch model engine"
+mathjax: true
+webr: true
+curriculum_id: "6.50.2"
+post_type: "LESSON"
+course_id: "ds-tidymodels"
+course_title: "Modeling with tidymodels"
+course_lesson: "2"
+course_total: "7"
+course_landing: "R-tidymodels-Course.html"
+course_next: "Bundle-Steps-with-workflows.html"
+course_prev: "Preprocess-with-recipes.html"
+lesson_access: "free"
+catalog_blurb: "One interface to fit and swap many models without rewriting your code."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 2 of 7</div>
+<h2>Define models with parsnip</h2>
+
+<p>In Lesson 1 you cleaned the lender's data with a recipe. Now you need the model that actually predicts who defaults. Here is the snag: R has dozens of modeling packages, and each one speaks its own dialect. The argument names differ, the way you hand over data differs, even the shape of the answer differs. parsnip gives you one calm way to describe any model, so you can fit a logistic regression today and a random forest tomorrow without rewriting a line of the code around it.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Tell a model (the mathematical form) apart from the engine (the package that fits it)</li>
+
+<li>Build a parsnip spec from three plain choices: model type, engine, and mode</li>
+
+<li>Fit it, read the tidy predictions, and swap in a completely different model without touching the rest of your code</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and use the <code>|&gt;</code> pipe, and you have built a <a href="Preprocess-with-recipes.html">recipe to prep and bake your data</a>.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"specify","sub":"pick a model type: logistic_reg, rand_forest"},{"title":"set_engine","sub":"which package fits it: glm, randomForest"},{"title":"set_mode","sub":"classification or regression"},{"title":"fit","sub":"run the spec on the training data"},{"title":"predict","sub":"a tidy tibble, the same shape every time"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>Every model speaks a different dialect</h2>
+
+<p>Each modeling package in base R was written by different people at different times, so each has its own way of being called. Suppose our lender wants to try three models on the same question, who defaults. Watch how little the three calls have in common.</p>
+
+<pre><code class="language-r"># Logistic regression
+glm(defaulted ~ ., data = train, family = binomial)
+
+# Random forest
+randomForest(defaulted ~ ., data = train, ntree = 500)
+
+# Penalized logistic (lasso)
+glmnet(x = model.matrix(defaulted ~ ., train)[, -1],
+       y = train$defaulted, family = &quot;binomial&quot;)</code></pre>
+
+<p>Three models, three different stories. The differences are not cosmetic; they reach all the way to how you read the result.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Model</th>
+<th>Function</th>
+<th>How the data goes in</th>
+<th>What <code>predict()</code> returns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Logistic regression</td>
+<td><code>glm()</code></td>
+<td>a formula plus a data frame</td>
+<td>log-odds numbers you convert yourself</td>
+</tr>
+<tr>
+<td>Random forest</td>
+<td><code>randomForest()</code></td>
+<td>a formula plus a data frame</td>
+<td>a factor of classes, or a votes matrix</td>
+</tr>
+<tr>
+<td>Lasso</td>
+<td><code>glmnet()</code></td>
+<td>a numeric <code>x</code> matrix plus a <code>y</code> vector</td>
+<td>a matrix, one column per penalty value</td>
+</tr>
+</tbody>
+</table>
+
+<p>To move from one model to the next you rewrite the call, reshape the data, and re-learn how to read the output. parsnip removes all three frictions at once.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">The core idea</div>
+<h2>A model, an engine, and a mode</h2>
+
+<p>parsnip asks you for three things, each in plain words.</p>
+
+<ol>
+
+<li><strong>The model type:</strong> the mathematical form of the model, such as a logistic regression or a random forest. <code>logistic_reg()</code> and <code>rand_forest()</code> are model types.</li>
+
+<li><strong>The engine:</strong> which package actually does the fitting. The same logistic regression can be estimated by <code>glm</code>, by <code>glmnet</code>, even by Stan. You pick one with <code>set_engine()</code>.</li>
+
+<li><strong>The mode:</strong> are you predicting a category (classification) or a number (regression)? You choose with <code>set_mode()</code>.</li>
+
+</ol>
+
+<p>The model-versus-engine split is the heart of parsnip, so let us make it precise. A logistic regression is a mathematical statement: the log-odds of the outcome are a straight-line combination of the predictors,</p>
+
+<p>\[ \log\frac{p}{1-p} = \beta_0 + \beta_1 x_1 + \cdots + \beta_k x_k \]</p>
+
+<p>where \(p\) is the probability the applicant defaults, \(x_1, \dots, x_k\) are the predictors (income, age, and so on), and \(\beta_0, \dots, \beta_k\) are the numbers the model learns. That equation is the <strong>model</strong>. How you actually find the best \(\beta\) values, by maximum likelihood in <code>glm</code>, by penalized likelihood in <code>glmnet</code>, by sampling in Stan, is the <strong>engine</strong>. Same model, different engine.</p>
+
+<p>In R, the spec reads like a sentence:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(parsnip)
+spec &lt;- logistic_reg() |&gt;
+  set_engine(&quot;glm&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+spec
+#&gt; Logistic Regression Model Specification (classification)
+#&gt;
+#&gt; Computational engine: glm</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A model type plus an engine plus a mode is a complete parsnip spec. Read it back and it says exactly what you intend: a logistic regression, fit by glm, used for classification.</div></div>
+
+<p>One honest catch lives in the word engine. The engine package has to be installed. <code>glm</code> rides along with R itself, but to use the <code>randomForest</code> engine in a moment, the randomForest package must be present, and parsnip will tell you plainly if it is missing.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">Blueprint, then fit</div>
+<h2>A spec is a plan until you fit it</h2>
+
+<p>Notice what just happened, or rather what did not. We described a model, yet no data has been touched and nothing has been learned. A spec is a blueprint, exactly as the recipe in Lesson 1 was a plan until <code>prep()</code> ran it. Learning happens only when you call <code>fit()</code> with training data.</p>
+
+<p>First, the lender's loan book, built right here so this page stands on its own:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">set.seed(7)
+n &lt;- 240
+loans &lt;- data.frame(
+  income   = round(runif(n, 22000, 98000)),   # annual income
+  age      = round(runif(n, 21, 60)),
+  employed = round(runif(n, 2, 160)),         # months at current job
+  home     = factor(sample(c(&quot;own&quot;, &quot;rent&quot;, &quot;mortgage&quot;), n, TRUE))
+)
+risk &lt;- with(loans, plogis(-1.1 + 1.4 * (income &lt; 45000) +
+              1.0 * (employed &lt; 20) + 0.6 * (home == &quot;rent&quot;)))
+loans$defaulted &lt;- factor(ifelse(runif(n) &lt; risk, &quot;yes&quot;, &quot;no&quot;))
+train &lt;- loans[1:180, ]     # 180 applicants to learn from
+test  &lt;- loans[181:240, ]   # 60 held back to predict on
+table(train$defaulted)
+#&gt;  no yes
+#&gt; 114  66</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now fit the spec to the training set. parsnip hands your formula and data to the engine, runs it, and keeps the real fitted model in a tidy wrapper. <code>extract_fit_engine()</code> hands that real model back, and here it is an ordinary <code>glm</code> object you could pass to any glm method:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">fit_glm &lt;- fit(spec, defaulted ~ income + age + employed + home, data = train)
+class(extract_fit_engine(fit_glm))   # the real model wrapped inside
+#&gt; [1] &quot;glm&quot; &quot;lm&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">fit() is the single moment any learning happens, and it happens on the training data alone. parsnip did not replace glm; it called glm for you and kept the genuine result in a consistent wrapper, while extract_fit_engine() returns that original model whenever you want it.</div></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Model or engine?</h2>
+
+<p>You have a spec that reads <code>logistic_reg() |&gt; set_engine(&quot;glm&quot;)</code>. You change it to <code>logistic_reg() |&gt; set_engine(&quot;glmnet&quot;)</code>. What did you change?</p>
+<section class="exercise" data-exercise-id="Define-Models-with-parsnip-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The model type: you are now fitting a different kind of model</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">The mode: you switched from classification to regression</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">The engine: the same logistic regression, now estimated by a different package</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. The model type (the equation) and the mode (the task) are unchanged. set_engine() only swaps how the coefficients are computed: glm's maximum likelihood for glmnet's penalized version.</div><div class="lesson-qfb lesson-qfb-no">The mode is untouched. set_mode() controls that, and you did not call it; glmnet here is still doing classification.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="widget">
+<div class="lesson-step-eyebrow">The payoff</div>
+<h2>Swap the model, keep your code</h2>
+
+<p>Here is what the unified interface buys you. To try a random forest instead of a logistic regression, you change the spec and nothing else. The <code>fit()</code> call and the <code>predict()</code> call stay exactly the same.</p>
+
+<p>A random forest is a completely different algorithm (hundreds of decision trees voting), yet the code around it does not flinch. We load the engine package so parsnip can reach it, then fit on the same training data:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(randomForest)
+rf_spec &lt;- rand_forest(trees = 300) |&gt;
+  set_engine(&quot;randomForest&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+set.seed(99)
+fit_rf &lt;- fit(rf_spec, defaulted ~ income + age + employed + home, data = train)
+predict(fit_rf, new_data = test) |&gt; head()
+#&gt; # A tibble: 6 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 no
+#&gt; 2 yes
+#&gt; 3 no
+#&gt; 4 no
+#&gt; 5 no
+#&gt; 6 no</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Same <code>fit()</code>, same <code>predict()</code>. Only the first line, the spec, changed. That is the whole promise: your modeling code stops caring which algorithm is underneath it.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"swap the spec","sub":"logistic_reg() becomes rand_forest()"},{"title":"fit","sub":"same call as before, same arguments"},{"title":"predict","sub":"same call, same tidy tibble back"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Tidy by design</div>
+<h2>Predictions you can always read</h2>
+
+<p>Look again at what <code>predict()</code> returned: a tibble with one tidy column, <code>.pred_class</code>. That is not a glm quirk or a random forest quirk. parsnip guarantees the same shape for every model. Ask for class probabilities instead and you always get one column per class, each named for its class:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(fit_glm, new_data = test, type = &quot;prob&quot;) |&gt; head()
+#&gt; # A tibble: 6 x 2
+#&gt;   .pred_no .pred_yes
+#&gt;      &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1    0.800     0.200
+#&gt; 2    0.446     0.554
+#&gt; 3    0.619     0.381
+#&gt; 4    0.755     0.245
+#&gt; 5    0.792     0.208
+#&gt; 6    0.641     0.359</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Compare that to base R, where every model answers <code>predict()</code> in its own format:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Model</th>
+<th>What base-R <code>predict()</code> hands back</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>glm()</code></td>
+<td>a numeric vector on the log-odds scale, unless you remember <code>type = &quot;response&quot;</code></td>
+</tr>
+<tr>
+<td><code>randomForest()</code></td>
+<td>a factor of classes, or a votes matrix with <code>type = &quot;prob&quot;</code></td>
+</tr>
+<tr>
+<td><code>glmnet()</code></td>
+<td>a matrix, one column per penalty value</td>
+</tr>
+</tbody>
+</table>
+
+<p>With parsnip the answer is always a tibble, with the same number of rows as your input and predictably named columns: <code>.pred_class</code> for the label, and <code>.pred_&lt;level&gt;</code> for each probability. You can pipe it straight into the next step without reshaping anything.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">Predictable column names are what make the rest of tidymodels click together. In Lesson 5 you will hand these <code>.pred_</code> columns straight to yardstick to score the model, with no glue code in between.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does predict() give you?</h2>
+
+<p>You fit two parsnip models, a logistic regression and a random forest, and call <code>predict(fit, new_data = test)</code> on each with no <code>type</code> argument. What comes back?</p>
+<section class="exercise" data-exercise-id="Define-Models-with-parsnip-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">A plain vector from each, in whatever format the underlying package happens to use</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">A tibble from each, with the same column (.pred_class) and one row per input row</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Nothing useful until you also pass the original training data</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Every parsnip model returns a tibble of the same shape, so the same downstream code reads both. Ask for type = "prob" and you get .pred_no and .pred_yes columns the same way.</div><div class="lesson-qfb lesson-qfb-no">predict() needs only the fitted model and the new_data; the training data is already baked into the fit.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Specify a decision tree</h2>
+
+<p>Your lender wants to try one more model: a single decision tree, fit by the <code>rpart</code> engine, for classification. The model type is <code>decision_tree()</code>. First load the engine package so parsnip can reach it:</p>
+<section class="exercise" data-exercise-id="Define-Models-with-parsnip-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="set_engine"><textarea class="lesson-tryit-input" spellcheck="false">library(parsnip)
+library(rpart)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is it: set_engine names the package that fits the tree, here rpart. Same three-part recipe, a brand new model.</span><span class="lesson-tryit-fb lesson-tryit-no">You need the verb that picks the fitting package: set_engine.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">tree_spec &lt;- decision_tree(tree_depth = 5) |&gt;
+  set_engine(&quot;rpart&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+tree_spec
+#&gt; Decision Tree Model Specification (classification)
+#&gt;
+#&gt; Main Arguments:
+#&gt;   tree_depth = 5
+#&gt;
+#&gt; Computational engine: rpart</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Going further</div>
+<h2>One interface, many more engines</h2>
+
+<p>parsnip ships with engines for the common models, and you can always ask what is on offer for a given model type:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(parsnip)
+show_engines(&quot;logistic_reg&quot;)
+#&gt; # A tibble: 8 x 2
+#&gt;   engine    mode
+#&gt;   &lt;chr&gt;     &lt;chr&gt;
+#&gt; 1 glm       classification
+#&gt; 2 glmnet    classification
+#&gt; 3 LiblineaR classification
+#&gt; 4 spark     classification
+#&gt; 5 keras     classification
+#&gt; 6 keras3    classification
+#&gt; 7 stan      classification
+#&gt; 8 brulee    classification</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>When you need a model parsnip does not cover out of the box, an add-on package registers new engines that plug into the same interface. The most useful one for tabular data is <strong>bonsai</strong>, which adds the modern boosted-tree engines, LightGBM and CatBoost, behind the familiar <code>boost_tree()</code> model type:</p>
+
+<pre><code class="language-r">library(bonsai)
+
+boost_spec &lt;- boost_tree(trees = 500, learn_rate = 0.05) |&gt;
+  set_engine(&quot;lightgbm&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+fit_boost &lt;- fit(boost_spec, defaulted ~ ., data = train)</code></pre>
+
+<p>That spec reads exactly like the others: a model type, an engine, a mode. (LightGBM relies on a compiled library, so run that block in a local R session rather than here in the browser.) The point holds either way: once you know the three-part pattern, every model in the tidymodels universe looks the same.</p>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://parsnip.tidymodels.org/">parsnip package documentation (tidymodels)</a> - the official reference for model types, set_engine(), set_mode(), and fit().</li>
+
+<li><a href="https://www.tmwr.org/models">Tidy Modeling with R, ch. 6: Fitting models with parsnip</a> - Kuhn and Silge's walk-through of the specify, fit, predict pattern.</li>
+
+<li><a href="https://www.tidymodels.org/find/parsnip/">Search parsnip models and engines</a> - a browsable list of every model type and the engines that fit it.</li>
+
+<li><a href="https://bonsai.tidymodels.org/">bonsai package documentation</a> - the add-on that registers LightGBM and CatBoost as parsnip engines.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 2 complete</h2>
+
+<p>You can now describe any model the tidymodels way: a model type, an engine, and a mode, fit with one call and read through predictably tidy predictions. That single interface is what lets you swap a logistic regression for a random forest, or a boosted tree, without rewriting the code around it.</p>
+
+<p>Next, Lesson 3: Bundle steps with workflows. You will tie the recipe from Lesson 1 and the model spec from this lesson into one object that preprocesses, fits, and predicts as a single unit, so your training and test data always flow through the exact same pipeline with no chance of a mismatch.</p>
+</section>
+
+{% endraw %}
