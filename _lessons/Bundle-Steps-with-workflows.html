@@ -1,0 +1,433 @@
+---
+title: "tidymodels Lesson 3: Bundle steps with workflows"
+description: "Tie a recipe and a model into one tidymodels workflow in R: fit preprocessing and model in a single call, predict with automatic baking, and swap parts safely."
+keywords: "tidymodels workflows, workflow in R, add_recipe, add_model, fit workflow, predict workflow, update_model, recipe and model pipeline, parsnip, prevent data leakage"
+mathjax: true
+webr: true
+curriculum_id: "6.50.3"
+post_type: "LESSON"
+course_id: "ds-tidymodels"
+course_title: "Modeling with tidymodels"
+course_lesson: "3"
+course_total: "7"
+course_landing: "R-tidymodels-Course.html"
+course_next: "Resample-with-rsample.html"
+course_prev: "Define-Models-with-parsnip.html"
+lesson_access: "free"
+catalog_blurb: "Combine preprocessing and a model so train and test follow the same path."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 3 of 7</div>
+<h2>Bundle steps with workflows</h2>
+
+<p>In Lesson 1 you built a recipe to clean the lender's data, and in Lesson 2 you built a model spec to predict who defaults. Right now those are two separate objects sitting on your desk. To actually score the test set you have to thread them together by hand: prep the recipe, bake the train data, fit the model, bake the test data the same way, then predict. Every place you re-type a step is a place train and test can quietly drift apart. A <code>workflow</code> bolts the recipe and the model into one object that does the whole thing in a single <code>fit()</code> and a single <code>predict()</code>.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Explain why a recipe and a model kept as two loose objects invite a train/test preprocessing mismatch</li>
+
+<li>Bundle them into one workflow and fit the whole pipeline with a single call</li>
+
+<li>Predict on raw new data and let the workflow re-apply the recipe for you, then swap the model with one line</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and use the <code>|&gt;</code> pipe, and you have built a <a href="Preprocess-with-recipes.html">recipe to prep and bake your data</a> and <a href="Define-Models-with-parsnip.html">a model spec you can fit and predict with</a>.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"recipe + model","sub":"two separate objects from Lessons 1 and 2"},{"title":"workflow()","sub":"bundle them into one container"},{"title":"fit","sub":"prep the recipe and fit the model in one call"},{"title":"predict","sub":"new data is baked, then predicted, automatically"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The problem</div>
+<h2>Two objects, threaded by hand</h2>
+
+<p>Here is the lender's loan book again, rebuilt right here so this page runs on its own, along with the recipe from Lesson 1 and the model spec from Lesson 2.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(recipes)
+library(parsnip)
+
+set.seed(7)
+n &lt;- 240
+loans &lt;- data.frame(
+  income   = round(runif(n, 22000, 98000)),   # annual income
+  age      = round(runif(n, 21, 60)),
+  employed = round(runif(n, 2, 160)),          # months at current job
+  home     = factor(sample(c(&quot;own&quot;, &quot;rent&quot;, &quot;mortgage&quot;), n, TRUE))
+)
+risk &lt;- with(loans, plogis(-1.1 + 1.4 * (income &lt; 45000) +
+             1.0 * (employed &lt; 20) + 0.6 * (home == &quot;rent&quot;)))
+loans$defaulted &lt;- factor(ifelse(runif(n) &lt; risk, &quot;yes&quot;, &quot;no&quot;))
+train &lt;- loans[1:180, ]      # 180 applicants to learn from
+test  &lt;- loans[181:240, ]    # 60 held back to predict on
+table(train$defaulted)
+#&gt;  no yes
+#&gt; 114  66</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Lesson 1's recipe: impute, scale, dummy-code (learned on train)
+rec &lt;- recipe(defaulted ~ income + age + employed + home, data = train) |&gt;
+  step_impute_median(all_numeric_predictors()) |&gt;
+  step_normalize(all_numeric_predictors()) |&gt;
+  step_dummy(all_nominal_predictors())
+
+# Lesson 2's model: a logistic regression, fit by glm
+spec &lt;- logistic_reg() |&gt;
+  set_engine(&quot;glm&quot;) |&gt;
+  set_mode(&quot;classification&quot;)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now score the test set the by-hand way. It takes five separate steps, and you have to keep them in step with each other every single time.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">prepped    &lt;- prep(rec, training = train)        # 1. learn medians/means/sds on TRAIN
+train_bake &lt;- bake(prepped, new_data = train)    # 2. apply them to train
+test_bake  &lt;- bake(prepped, new_data = test)     # 3. apply the SAME numbers to test
+fit_manual &lt;- fit(spec, defaulted ~ ., data = train_bake)   # 4. fit on baked train
+predict(fit_manual, new_data = test_bake) |&gt; head()         # 5. predict on baked test
+#&gt; # A tibble: 6 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 no
+#&gt; 2 yes
+#&gt; 3 no
+#&gt; 4 no
+#&gt; 5 no
+#&gt; 6 no</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>It works, but look at how much can go wrong. Forget step 3 and the model never sees the test set. Bake the test set with a recipe you accidentally re-prepped on <code>test</code>, and the leakage you closed in Lesson 1 comes right back. Add a model later and you must remember to bake its data too.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Every hand-typed step is a chance for the test data to travel a different path than the training data. A mismatch here does not throw an error; it silently inflates or wrecks your score. This bookkeeping is exactly what a workflow takes off your hands.</div></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Where the by-hand pipeline breaks</h2>
+
+<p>A teammate scores the model like this: prep the recipe on <code>train</code> and predict on train, then, for the test set, prep a <strong>brand-new</strong> recipe on <code>test</code> and bake <code>test</code> with it. The test accuracy looks great. What went wrong?</p>
+<section class="exercise" data-exercise-id="Bundle-Steps-with-workflows-step3" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">The second recipe re-learned its medians and scaling from the test rows, so test information leaked into preprocessing and the score is optimistic</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Nothing is wrong; each set should be prepped on its own data</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">bake() cannot be called twice, so the second call silently returned the training data</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. A recipe must be prepped on the training set alone, then the SAME frozen recipe applied to test with bake(). Prepping a fresh recipe on test relearns the numbers from test rows, exactly the leak Lesson 1 closed, and the by-hand pipeline makes that slip easy.</div><div class="lesson-qfb lesson-qfb-no">bake() can be applied as often as you like. The bug is statistical, not mechanical: the second recipe learned its statistics from the wrong rows.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix</div>
+<h2>A workflow is one container</h2>
+
+<p>A workflow is a single object that holds your preprocessor and your model together. You start an empty one with <code>workflow()</code>, then add the two pieces you already have.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(workflows)
+
+wf &lt;- workflow() |&gt;
+  add_recipe(rec) |&gt;
+  add_model(spec)
+wf
+#&gt; == Workflow ===================================
+#&gt; Preprocessor: Recipe
+#&gt; Model: logistic_reg()
+#&gt;
+#&gt; -- Preprocessor -------------------------------
+#&gt; 3 Recipe Steps
+#&gt;
+#&gt; * step_impute_median()
+#&gt; * step_normalize()
+#&gt; * step_dummy()
+#&gt;
+#&gt; -- Model --------------------------------------
+#&gt; Logistic Regression Model Specification (classification)
+#&gt;
+#&gt; Computational engine: glm</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read it back and the workflow tells you exactly what it will do: take raw data, run the three recipe steps, then fit a logistic regression. Notice that nothing has been fitted yet. Just like a recipe or a spec, a workflow is a blueprint until you fit it.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"workflow()","sub":"start an empty container"},{"title":"add_recipe(rec)","sub":"the preprocessor from Lesson 1"},{"title":"add_model(spec)","sub":"the model from Lesson 2"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">One call</div>
+<h2>One fit() does the whole pipeline</h2>
+
+<p>Calling <code>fit()</code> on the workflow does both jobs at once. It preps the recipe on the training data, bakes that data, and fits the model on the result, all inside a single call.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">wf_fit &lt;- fit(wf, data = train)
+class(extract_fit_engine(wf_fit))   # the genuine model fitted inside
+#&gt; [1] &quot;glm&quot; &quot;lm&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The workflow really did run glm for you. <code>extract_fit_engine()</code> hands back the same kind of <code>glm</code> object you met in Lesson 2, now fitted on data the recipe had already prepared.</p>
+
+<p>It helps to see a fitted workflow for what it is: a composition of two learned functions. To predict the outcome for a new applicant \(x\), the workflow computes</p>
+
+<p>\[ \hat{y} = m\big(b(x)\big) \]</p>
+
+<p>where \(b\) is the baking function the recipe learned on the training set (it carries the frozen medians, means and standard deviations from Lesson 1), and \(m\) is the model fitted in Lesson 2. Both \(b\) and \(m\) are learned once, on the training data, inside that one <code>fit()</code> call. At prediction time the workflow runs the same \(b\), then the same \(m\), on whatever \(x\) you hand it.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A single fit() learns both halves of the pipeline, the recipe's numbers and the model's coefficients, on the training data alone. There is no separate prep step to remember, and no way to fit the model on data the recipe has not prepared.</div></div>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Attach the model</h2>
+
+<p>Here is a workflow with the recipe already added. Add the model spec so the container holds both pieces, then print it.</p>
+<section class="exercise" data-exercise-id="Bundle-Steps-with-workflows-step6" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="add_model"><textarea class="lesson-tryit-input" spellcheck="false">wf2 &lt;- workflow() |&gt;
+  add_recipe(rec) |&gt;
+  ____(spec)        # attach the model spec
+wf2</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That completes the workflow: add_model() attaches the parsnip spec, so the container now holds the preprocessor AND the model.</span><span class="lesson-tryit-fb lesson-tryit-no">You need the verb that attaches a model spec to a workflow: add_model(spec).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">wf2 &lt;- workflow() |&gt;
+  add_recipe(rec) |&gt;
+  add_model(spec)
+wf2</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">The payoff</div>
+<h2>predict() bakes the new data for you</h2>
+
+<p>Now the moment it all pays off. To predict on the held-out applicants, you hand the fitted workflow the <strong>raw</strong> test set. You do not bake it first; the workflow bakes it for you, using the recipe it already learned on train.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(wf_fit, new_data = test) |&gt; head()
+#&gt; # A tibble: 6 x 1
+#&gt;   .pred_class
+#&gt;   &lt;fct&gt;
+#&gt; 1 no
+#&gt; 2 yes
+#&gt; 3 no
+#&gt; 4 no
+#&gt; 5 no
+#&gt; 6 no</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Ask for probabilities instead and you get the same tidy shape parsnip always returns, one column per class.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">predict(wf_fit, new_data = test, type = &quot;prob&quot;) |&gt; head()
+#&gt; # A tibble: 6 x 2
+#&gt;   .pred_no .pred_yes
+#&gt;      &lt;dbl&gt;     &lt;dbl&gt;
+#&gt; 1    0.800     0.200
+#&gt; 2    0.446     0.554
+#&gt; 3    0.619     0.381
+#&gt; 4    0.755     0.245
+#&gt; 5    0.792     0.208
+#&gt; 6    0.641     0.359</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Is the workflow really doing the same thing as the five hand-steps from before? Check it directly: pull the predicted class from each and compare.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">flow   &lt;- predict(wf_fit, new_data = test)$.pred_class
+manual &lt;- predict(fit_manual, new_data = test_bake)$.pred_class
+all(flow == manual)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Identical, row for row. The workflow is the by-hand pipeline, bundled into one object, with no chance of baking the test set differently from the training set.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">You passed raw test data to predict() and got predictions straight back. The workflow baked it with the training recipe automatically, so train and test always travel the exact same path. That single guarantee is the whole reason workflows exist.</div></div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does predict() do here?</h2>
+
+<p>Your fitted workflow contains a recipe (impute, normalize, dummy-code) and a model. You call <code>predict(wf_fit, new_data = raw_test)</code> on brand-new applicants whose columns have <strong>not</strong> been baked. What happens?</p>
+<section class="exercise" data-exercise-id="Bundle-Steps-with-workflows-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It errors, because you have to bake the test data yourself before predicting</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It re-learns the normalization from these new test rows, then predicts</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It applies the recipe it learned on train to the raw data, then feeds the baked rows to the model, returning a tidy tibble</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. predict() runs the frozen recipe, then the fitted model, so raw data in gives tidy predictions out, on the identical path the training data took.</div><div class="lesson-qfb lesson-qfb-no">It never relearns anything at predict time. The recipe was frozen when you called fit(); predict applies those train-learned numbers, which is what keeps it leak-free.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Swap a part</div>
+<h2>Swap the model, keep the rest</h2>
+
+<p>Because the workflow holds the model in one named slot, you can replace it without touching the recipe or any of the surrounding code. <code>update_model()</code> swaps the model spec; the recipe rides along unchanged.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(randomForest)
+rf_spec &lt;- rand_forest(trees = 300) |&gt;
+  set_engine(&quot;randomForest&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+wf_rf &lt;- wf |&gt; update_model(rf_spec)   # same recipe, brand-new model, one line
+
+set.seed(99)
+wf_rf_fit &lt;- fit(wf_rf, data = train)
+names(predict(wf_rf_fit, new_data = test))   # the answer arrives in the same tidy shape
+#&gt; [1] &quot;.pred_class&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A random forest is a completely different algorithm from a logistic regression, yet the recipe, the <code>fit()</code> call, and the <code>predict()</code> call did not change. And when you need a fitted piece on its own, the extractors hand it back.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">class(extract_fit_engine(wf_rf_fit))   # the genuine randomForest model, pulled back out
+#&gt; [1] &quot;randomForest&quot;</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">A workflow holds exactly one preprocessor and one model. That is deliberate: it is the single, unambiguous path your data takes. When you want to race several models or several recipes against each other at once, you reach for workflowsets, the subject of Lesson 7.</div></div>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"keep the recipe","sub":"the preprocessor does not change"},{"title":"update_model(rf_spec)","sub":"swap in a random forest, one line"},{"title":"fit + predict","sub":"the same calls, the same tidy output"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>A fresh workflow, end to end</h2>
+
+<p>Put it all together. The lender wants to try a single decision tree through the same recipe. The spec and the empty workflow are built for you. Complete the one call that preps the recipe <strong>and</strong> fits the tree in a single step.</p>
+<section class="exercise" data-exercise-id="Bundle-Steps-with-workflows-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="fit\s*\("><textarea class="lesson-tryit-input" spellcheck="false">library(rpart)
+tree_spec &lt;- decision_tree(tree_depth = 5) |&gt;
+  set_engine(&quot;rpart&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+tree_wf &lt;- workflow() |&gt;
+  add_recipe(rec) |&gt;
+  add_model(tree_spec)
+
+tree_fit &lt;- ____(tree_wf, data = train)   # one call: prep the recipe AND fit the tree
+tree_fit</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the whole point: one fit() preps the recipe on train and fits the tree together, and predict() will bake the test set the same way. You changed only the model.</span><span class="lesson-tryit-fb lesson-tryit-no">Use fit(): fit(tree_wf, data = train) runs the recipe and fits the model in one call.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">library(rpart)
+tree_spec &lt;- decision_tree(tree_depth = 5) |&gt;
+  set_engine(&quot;rpart&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+tree_wf &lt;- workflow() |&gt;
+  add_recipe(rec) |&gt;
+  add_model(tree_spec)
+
+tree_fit &lt;- fit(tree_wf, data = train)
+predict(tree_fit, new_data = test) |&gt; nrow()   # one tidy prediction per held-out applicant
+#&gt; [1] 60</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<ul>
+
+<li><a href="https://workflows.tidymodels.org/">workflows package documentation (tidymodels)</a> - the official reference for <code>workflow()</code>, <code>add_recipe()</code>, <code>add_model()</code>, and <code>fit()</code>.</li>
+
+<li><a href="https://www.tmwr.org/workflows">Tidy Modeling with R, ch. 7: A model workflow</a> - Kuhn and Silge on why bundling preprocessing and modeling is sound practice, not just convenience.</li>
+
+<li><a href="https://www.tidymodels.org/start/recipes/">Get Started: Preprocess your data with recipes</a> - the official walk-through that pairs a recipe with a model inside a workflow, end to end.</li>
+
+<li><a href="https://workflows.tidymodels.org/reference/index.html">workflows function reference</a> - every verb you can use, including <code>update_model()</code>, <code>update_recipe()</code>, and the <code>extract_*()</code> family.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 3 complete</h2>
+
+<p>You can now bundle a recipe and a model into a single workflow that fits the whole pipeline in one call and bakes new data for you at predict time, so train and test can never drift apart. Swapping the model is one line, and the rest of your code does not flinch.</p>
+
+<p>Next, Lesson 4: Resample with rsample. One honest train/test split still rests its whole verdict on a single slice of luck. You will run the entire workflow across many resampled folds, so your estimate of how good the model is becomes something you can actually trust.</p>
+</section>
+
+{% endraw %}
