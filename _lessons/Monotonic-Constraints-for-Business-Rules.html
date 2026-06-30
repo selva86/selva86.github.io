@@ -1,0 +1,289 @@
+---
+title: "Gradient Boosting Lesson 5: Monotonic Constraints for Business Rules"
+description: "Force a feature's effect one way with a monotonic constraint: why a pricing model needs it, how to do it in R, and the small accuracy-for-trust trade."
+keywords: "monotonic constraints, monotone_constraints, isotonic regression, isoreg, gradient boosting, xgboost, lightgbm, business rules, constrained model, monotonic constraint in R"
+mathjax: true
+webr: true
+curriculum_id: "6.40.5"
+post_type: "LESSON"
+course_id: "ds-boosting"
+course_title: "Gradient Boosting in R"
+course_lesson: "5"
+course_total: "6"
+course_landing: "R-Gradient-Boosting-Course.html"
+course_next: "Quantile-Regression-Forests-and-Prediction-Intervals.html"
+course_prev: "Early-Stopping-and-Learning-Curves.html"
+lesson_access: "free"
+catalog_blurb: "When and how to force a feature's effect to move only one direction."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 5 of 6</div>
+<h2>Monotonic Constraints for Business Rules</h2>
+
+<p>In Lesson 4 you learned to read a learning curve and stop a booster before it overfits. That was about getting the SIZE of the fit right. This lesson is about a different worry, one that accuracy alone will never catch: getting the DIRECTION right.</p>
+
+<p>Sam, who runs the bike-rental kiosks, now wants a pricing tool: type in tomorrow's rental price and it predicts how many bikes go out. Everyone at the kiosk knows one thing for certain: raise the price and you do not sell MORE bikes. Yet when Sam trains a booster on a season of noisy price experiments, the model does exactly that in a couple of spots. It predicts more rentals at $5.50 than at $5.00. The numbers fit the past, but no manager will trust a tool that says "charge more to sell more."</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Say what a monotonic constraint is, in plain words and as a formula</li>
+
+<li>Recognize when a business needs one, and when forcing it would be a mistake</li>
+
+<li>Force a feature's effect to go one way in R, and read the result</li>
+
+<li>Weigh the small accuracy-for-trust trade that a constraint buys</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> Lesson 1 (<a href="Gradient-Boosting-from-Scratch.html">Gradient Boosting from Scratch</a>: trees fit in sequence, the learning rate) and you can run R. The chart below is Sam's price experiment: each dot is one price he tested and the average bikes rented at it.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":3,"y":150},{"x":3.5,"y":142},{"x":4,"y":134},{"x":4.5,"y":120},{"x":5,"y":112},{"x":5.5,"y":124},{"x":6,"y":108},{"x":6.5,"y":100},{"x":7,"y":116},{"x":7.5,"y":94},{"x":8,"y":88},{"x":8.5,"y":82}],"geoms":["point","line"],"x":"price","y":"rentals","code":{"point":"ggplot(demo, aes(price, rentals)) +\n  geom_point()","line":"ggplot(demo, aes(price, rentals)) +\n  geom_line()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">Why it matters</div>
+<h2>When accuracy is not enough</h2>
+
+<p>A model can be accurate and still be unusable. Sam's pricing tool will be read by staff who set prices every morning, and it has to obey a rule they already know in their bones: higher price, never more demand. A model that breaks that rule, even once, even when it scores well, gets switched off, because nobody trusts a tool that contradicts common sense.</p>
+
+<p>This is not special to bikes. Across many fields there is a feature whose direction is fixed by domain knowledge or by law, and the model is expected to honor it:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Feature</th>
+<th>The rule the business needs</th>
+<th>Direction</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Applicant income</td>
+<td>a higher income must never lower the approved loan amount</td>
+<td>up</td>
+</tr>
+<tr>
+<td>Insurance risk score</td>
+<td>more risk must never lower the premium</td>
+<td>up</td>
+</tr>
+<tr>
+<td>Product price</td>
+<td>a higher price must never raise predicted demand</td>
+<td>down</td>
+</tr>
+<tr>
+<td>Years of experience</td>
+<td>more experience must never lower predicted pay</td>
+<td>up</td>
+</tr>
+</tbody>
+</table>
+
+<p>A <strong>monotonic constraint</strong> is how you tell a model to obey one of these rules. It forces the prediction to move in only one direction as a chosen feature increases, no matter what wobble the training data happens to show.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="widget">
+<div class="lesson-step-eyebrow">See the problem</div>
+<h2>The model can point the wrong way</h2>
+
+<p>A booster has no idea that price should only push demand down. It just fits the data, and Sam's data, like all real data, is noisy: by chance the kiosks rented a few extra bikes on some pricier days. A flexible model traces those bumps faithfully. Here is the line a high-capacity model draws through Sam's points. Follow it left to right and watch it climb in two places where it should only fall.</p>
+
+<p>Let us confirm it in R, not just by eye. We build Sam's twelve price experiments, fit an unconstrained regression tree (the kind of fully flexible learner a booster stacks up), and ask R where the fitted demand RISES as price rises. Each lesson runs in a fresh R session, so we build the data right here.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rpart)
+
+# Sam tested 12 daily rental prices and logged the average bikes rented at each.
+trials &lt;- data.frame(
+  price   = c(3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 8.5),
+  rentals = c(150, 142, 134, 120, 112, 124, 108, 100, 116,  94,  88,  82)
+)
+
+# An unconstrained model, free to fit every bump (a deep tree interpolates the points).
+tree &lt;- rpart(rentals ~ price, data = trials,
+              control = rpart.control(cp = 0, minsplit = 2, minbucket = 1, xval = 0))
+trials$fit_free &lt;- predict(tree, trials)
+
+# At which price steps does predicted demand RISE? (a pricing tool should never do this)
+which(diff(trials$fit_free) &gt; 0)
+#&gt; [1] 5 8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Steps 5 and 8 are the price moves $5.00 -> $5.50 and $6.50 -> $7.00. At both, the unconstrained model predicts MORE rentals for a HIGHER price. That is the bug a business cannot ship.</p>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":3,"y":150},{"x":3.5,"y":142},{"x":4,"y":134},{"x":4.5,"y":120},{"x":5,"y":112},{"x":5.5,"y":124},{"x":6,"y":108},{"x":6.5,"y":100},{"x":7,"y":116},{"x":7.5,"y":94},{"x":8,"y":88},{"x":8.5,"y":82}],"geoms":["line","point"],"x":"price","y":"rentals","code":{"line":"ggplot(demo, aes(price, rentals)) +\n  geom_line()","point":"ggplot(demo, aes(price, rentals)) +\n  geom_point()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="concept">
+<div class="lesson-step-eyebrow">The definition</div>
+<h2>What "monotonic" means, exactly</h2>
+
+<p>"Monotonic" just means moving in one direction only. A model is <strong>monotonically non-decreasing</strong> in a feature if increasing that feature never decreases the output, and <strong>monotonically non-increasing</strong> if increasing the feature never increases the output. The word to notice is "never": the prediction is allowed to stay flat, but it may not reverse.</p>
+
+<p>Write the model's prediction as \(f(x)\), where \(x\) is the feature we care about (the price) and every other feature is held fixed. A non-increasing constraint on price is the promise</p>
+
+<p>\[ x' \ge x \;\Rightarrow\; f(x') \le f(x). \]</p>
+
+<p>Read it in words: take any two prices and call the higher one \(x'\); then the predicted rentals at the higher price, \(f(x')\), are at most the rentals at the lower price, \(f(x)\). Flip the inequality to \(f(x') \ge f(x)\) and you have the non-decreasing version, the one income and experience need.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A constraint fixes the DIRECTION of a feature's effect, never its size. It does not say "demand falls fast" or "by this much"; it only forbids the effect from ever pointing the wrong way. The data still decides the magnitude.</div></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does the constraint promise?</h2>
+
+<p>Sam adds a monotonic constraint to the price feature in his rental model. Which statement is correct?</p>
+<section class="exercise" data-exercise-id="Monotonic-Constraints-for-Business-Rules-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Non-increasing on price: raising the price can never increase the predicted rentals, though they may stay flat</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Non-decreasing on price, so the tool predicts more rentals at higher prices and matches the revenue goal</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It does not matter which direction you pick, because the constraint just makes the model fit Sam's past data more closely</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The constraint forbids the prediction from rising as price rises; a plateau (equal) is allowed, only a reversal is banned. It fixes direction, not size.</div><div class="lesson-qfb lesson-qfb-no">Direction is the whole point, and a constraint does not improve the fit to past data. It usually fits slightly worse in-sample; what it buys is a trustworthy direction, not accuracy.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The fix</div>
+<h2>Force the direction with isotonic regression</h2>
+
+<p>To SEE a constraint work, reach for the simplest possible monotone fitter: <strong>isotonic regression</strong>. Give it the points and a required direction and it returns the closest staircase that never reverses, by pooling any run of points that violates the direction into one flat level. In base R that is <code>isoreg</code>. It fits a non-decreasing step function, so to make demand non-increasing in price we flip the sign of rentals, fit, then flip back.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Force the fit to be NON-INCREASING in price (pool any upward bump into a flat step).
+iso &lt;- isoreg(trials$price, -1 * trials$rentals)   # isoreg fits NON-DECREASING; -y reverses it
+trials$fit_mono &lt;- -iso$yf
+
+round(trials$fit_mono, 1)
+#&gt;  [1] 150 142 134 120 118 118 108 108 108  94  88  82
+
+# Does the constrained fit ever rise as price rises?
+all(diff(trials$fit_mono) &lt;= 0)
+#&gt; [1] TRUE</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The two bumps are gone. Where the raw data climbed (at $5.00 -> $5.50 and $6.50 -> $7.00), isotonic regression pooled the offending pair into a single flat level (118, then 108), so the curve only ever falls or holds. The line below is that constrained fit: same data, but it can no longer point the wrong way.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">A real booster does this more cleverly. Instead of fixing predictions after the fact, XGBoost and LightGBM bake the rule into training: at every split they reject any cut that would push the prediction the wrong way. Same guarantee, but enforced as the trees grow, which usually costs less accuracy than repairing the output afterward. Isotonic regression is just the quickest way to feel the idea and run it yourself.</div></div>
+<div class="lesson-widget" data-widget-type="chart-plotter" data-widget-config='{"data":[{"x":3,"y":150},{"x":3.5,"y":142},{"x":4,"y":134},{"x":4.5,"y":120},{"x":5,"y":118},{"x":5.5,"y":118},{"x":6,"y":108},{"x":6.5,"y":108},{"x":7,"y":108},{"x":7.5,"y":94},{"x":8,"y":88},{"x":8.5,"y":82}],"geoms":["line","point"],"x":"price","y":"fit","code":{"line":"ggplot(monofit, aes(price, fit)) +\n  geom_line()","point":"ggplot(monofit, aes(price, fit)) +\n  geom_point()"}}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Reverse the direction</h2>
+
+<p>The goal below is the same constrained fit, but the sign trick is missing. <code>isoreg</code> always fits a NON-DECREASING step. To force demand to be NON-INCREASING in price instead, what do you multiply rentals by before fitting? Fill in the blank.</p>
+<section class="exercise" data-exercise-id="Monotonic-Constraints-for-Business-Rules-step7" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="-\s*1"><textarea class="lesson-tryit-input" spellcheck="false"># Make the isotonic fit NON-INCREASING in price.
+iso &lt;- isoreg(trials$price, ____ * trials$rentals)
+trials$fit_mono &lt;- -iso$yf
+all(diff(trials$fit_mono) &lt;= 0)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right. Multiplying by -1 flips the data upside down, so isoreg's non-decreasing fit becomes a non-increasing fit once you negate it back. The check returns TRUE: the fit never rises with price.</span><span class="lesson-tryit-fb lesson-tryit-no">You need to flip the sign so a non-decreasing fitter produces a non-increasing curve. Multiply rentals by -1.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">iso &lt;- isoreg(trials$price, -1 * trials$rentals)
+trials$fit_mono &lt;- -iso$yf
+all(diff(trials$fit_mono) &lt;= 0)</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">The cost</div>
+<h2>The accuracy-for-trust trade</h2>
+
+<p>Forcing a direction is not free. The unconstrained model could bend to every point, including the noise; the constrained one gives up those two bumps, so it fits the training data a little less tightly. You can measure the gap exactly.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rmse &lt;- function(a, b) sqrt(mean((a - b)^2))
+
+c(unconstrained = rmse(trials$rentals, trials$fit_free),
+  monotone      = rmse(trials$rentals, trials$fit_mono))
+#&gt; unconstrained      monotone
+#&gt;      0.000000      4.082483</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The unconstrained model nails the training data (zero error) because it memorized every wobble. The monotone model is off by about 4 bikes a day in-sample. That 4 bikes is the visible cost of the guarantee.</p>
+
+<p>Here is why it is usually a bargain. Those two upward bumps were almost certainly noise (a higher price cannot truly create demand), so the unconstrained model's extra "accuracy" was just fitting randomness. On NEW days the monotone model often does as well or better, and it never embarrasses you. You traded a sliver of in-sample fit, most of it noise, for a rule you can defend in a meeting.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Only constrain a feature whose direction you actually know. Temperature is the trap: Sam's rentals climb as it warms toward a pleasant 22 degrees, then FALL in punishing heat, a hump, not a one-way street. Force temperature to be monotone and you would wreck a relationship that is genuinely two-directional. A constraint encodes domain knowledge; use it only where that knowledge is real.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">In practice</div>
+<h2>Doing it in a real booster</h2>
+
+<p>You will not hand-roll isotonic fits in production. Every modern booster takes a <code>monotone_constraints</code> setting: one entry per feature, where <code>1</code> means "may only increase the prediction," <code>-1</code> means "may only decrease it," and <code>0</code> means "no constraint." The library then enforces it at every split while the trees grow. Here is Sam's pricing model in XGBoost, with price pinned to decrease and the other features left free. (XGBoost is not available in this in-browser R, so run this one in your own R session.)</p>
+
+<pre><code class="language-r">library(xgboost)
+
+# Feature columns, in order: price, temp, weekend.
+# price may ONLY decrease the prediction; temp and weekend stay unconstrained.
+params &lt;- list(
+  objective = &quot;reg:squarederror&quot;,
+  eta = 0.05, max_depth = 4,
+  monotone_constraints = &quot;(-1,0,0)&quot;   # one entry per feature, in column order
+)
+
+fit &lt;- xgb.train(params, data = xgb.DMatrix(X, label = y), nrounds = 400)</code></pre>
+
+<p>LightGBM is the same idea with <code>monotone_constraints = c(-1, 0, 0)</code> passed in its <code>params</code>. The order of that vector follows your feature columns, so a misplaced entry silently constrains the wrong feature: always line it up against your column order and sanity-check the fitted effect afterward.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">A constraint is a promise you make on the business's behalf, not something the data asks for. Set it only for features with a known, defensible direction (price, income, risk, dose), leave everything else at 0, and you get a model that is both accurate and trusted.</div></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://xgboost.readthedocs.io/en/stable/tutorials/monotonic.html">XGBoost: Monotonic Constraints</a> - the official how-to for the <code>monotone_constraints</code> setting you met here, with worked pictures.</li>
+
+<li><a href="https://lightgbm.readthedocs.io/en/latest/Parameters.html">LightGBM: monotone_constraints parameter</a> - the same constraint in LightGBM, plus <code>monotone_constraints_method</code> for how strictly it is enforced.</li>
+
+<li><a href="https://stat.ethz.ch/R-manual/R-devel/library/stats/html/isoreg.html">R documentation: isoreg (isotonic regression)</a> - the base-R monotone fitter you ran, and the pool-adjacent-violators idea behind it.</li>
+
+<li><a href="https://jmlr.org/papers/v17/15-243.html">Gupta et al. (2016), Monotonic Calibrated Interpolated Look-Up Tables, JMLR 17</a> - the research case that monotonicity constraints improve trust and often generalization.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Lesson 5 complete</h2>
+
+<p>You learned to control the DIRECTION of a model, not just its accuracy. A monotonic constraint forces a feature's effect to move one way only. You saw an unconstrained booster point the wrong way on Sam's noisy price data, fixed it with isotonic regression in R, and read the small in-sample cost (about 4 bikes a day) that bought a rule the business can trust. In production you set it with <code>monotone_constraints</code>, one entry per feature, only for directions you actually know.</p>
+
+<p>Next, Lesson 6: Quantile Regression Forests and Prediction Intervals. Every model so far has handed back a single number. Next you will predict a RANGE instead, a low-to-high interval that says how sure the model is, which is often what a real decision needs.</p>
+</section>
+
+{% endraw %}
