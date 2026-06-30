@@ -1,0 +1,375 @@
+---
+title: "Classification Lesson 1: kNN and the Curse of Dimensionality"
+description: "Learn k-nearest neighbors from scratch in R: the majority vote, choosing k, why distance needs scaled features, and how the curse of dimensionality breaks it."
+keywords: "k-nearest neighbors, kNN, classification, curse of dimensionality, distance metric, euclidean distance, feature scaling, choosing k, machine learning, R"
+mathjax: true
+webr: true
+curriculum_id: "6.30.1"
+post_type: "LESSON"
+course_id: "ds-classification"
+course_title: "Classification in R"
+course_lesson: "1"
+course_total: "6"
+course_landing: "R-Classification-Course.html"
+course_next: "Naive-Bayes-for-Tabular-and-Text.html"
+course_prev: ""
+lesson_access: "free"
+catalog_blurb: "How nearest-neighbor classification works, and why too many features break it."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 1 of 6</div>
+<h2>kNN and the Curse of Dimensionality</h2>
+
+<p>You have spent the last courses predicting numbers with regression. Classification is the other half of supervised learning: instead of "how much?", it answers "which kind?". And the most intuitive classifier ever invented needs no equation at all. It just looks at who you sit next to.</p>
+
+<p>Picture a music app that has labeled thousands of past tracks as <strong>chill</strong> or <strong>workout</strong>. A brand-new song arrives with no label. To guess its vibe, the app finds the handful of past songs most similar to it and lets them vote. That is k-nearest neighbors, and it is what this lesson builds, then breaks.</p>
+
+<p>By the end you will be able to:</p>
+
+<ul>
+
+<li>Explain how kNN labels a new case by the majority vote of its nearest neighbors</li>
+
+<li>Measure "nearest" with a distance metric, choose <strong>k</strong>, and run the whole thing in R</li>
+
+<li>Say why you must scale your features, and why piling on more of them eventually backfires</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and read its output, and you know what a training set is and what a classifier does (the ML Workflow course).</p>
+<div class="lesson-widget" data-widget-type="knn-vote" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The idea</div>
+<h2>Known by the company it keeps</h2>
+
+<p>Here is the entire idea of kNN in one sentence: <strong>to label a new point, find the k training points closest to it and take the majority vote of their labels.</strong> No model is fit, no curve is drawn. The training data <em>is</em> the model.</p>
+
+<p>In the chart, each dot is a past song the app already labeled. The red dots (class A) are <strong>chill</strong> tracks, clustered at low tempo and low energy in the lower left. The blue dots (class B) are <strong>workout</strong> tracks, up at high tempo and high energy. The square is our new, unlabeled track.</p>
+
+<p>Click anywhere to move the new track around, and slide k. Watch the k closest dots light up, cast their votes, and color the square with whichever class wins. Drop it deep in the red cluster and it is confidently chill; drag it into the blue and it flips to workout; park it on the border and the vote gets interesting.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">kNN is called a <strong>lazy learner</strong>: it does no work at training time beyond memorizing the data. All the computation happens at prediction time, when it measures distances and counts votes.</div></div>
+<div class="lesson-widget" data-widget-type="knn-vote" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">How we measure "nearest"</div>
+<h2>Distance is just a ruler</h2>
+
+<p>"Closest" only means something once we put a number on it. With two features, tempo and energy, every song is a point on a plane, and the natural ruler between two points is the straight-line <strong>Euclidean distance</strong>, the length of the line you would draw between them.</p>
+
+<p>For a new track \(\mathbf{q}\) and a known song \(\mathbf{x}\), each described by \(p\) features, that distance is</p>
+
+<p>\[ d(\mathbf{x}, \mathbf{q}) = \sqrt{\sum_{j=1}^{p} (x_j - q_j)^2} \]</p>
+
+<p>where \(p\) is the number of features (here \(p = 2\)), \(x_j\) is the \(j\)-th feature of the known song, and \(q_j\) is the same feature of the new track. Subtract feature by feature, square each gap so positives and negatives both count, add them up, take the square root. With \(p = 2\) this is exactly the Pythagorean theorem.</p>
+
+<p>Each lesson runs in a fresh R session, so we build a small labeled playlist right here, then measure the distance from one new track to every song:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">songs &lt;- data.frame(
+  title  = c(&quot;Glass&quot;,&quot;Ember&quot;,&quot;Drift&quot;,&quot;Pulse&quot;,&quot;Coast&quot;,&quot;Mellow&quot;,
+             &quot;Surge&quot;,&quot;Vertex&quot;,&quot;Blaze&quot;,&quot;Crank&quot;,&quot;Riot&quot;,&quot;Torch&quot;),
+  tempo  = c( 88,  92,  96, 100, 104, 118,
+             124, 150, 156, 160, 168, 172),   # beats per minute
+  energy = c(0.28,0.33,0.26,0.38,0.42,0.31,
+             0.80,0.84,0.88,0.79,0.91,0.95),  # 0 = calm, 1 = intense
+  mood   = c(&quot;chill&quot;,&quot;chill&quot;,&quot;chill&quot;,&quot;chill&quot;,&quot;chill&quot;,&quot;chill&quot;,
+             &quot;workout&quot;,&quot;workout&quot;,&quot;workout&quot;,&quot;workout&quot;,&quot;workout&quot;,&quot;workout&quot;),
+  stringsAsFactors = FALSE
+)
+
+# A new, unlabeled track we just discovered: 100 BPM, energy 0.45.
+new_track &lt;- c(tempo = 100, energy = 0.45)
+
+# Straight-line (Euclidean) distance from the new track to every known song:
+songs$dist &lt;- sqrt((songs$tempo - new_track[&quot;tempo&quot;])^2 +
+                   (songs$energy - new_track[&quot;energy&quot;])^2)
+
+nn &lt;- songs[order(songs$dist), c(&quot;title&quot;, &quot;mood&quot;, &quot;dist&quot;)]
+nn$dist &lt;- round(nn$dist, 2)
+head(nn, 5)
+#&gt;   title  mood  dist
+#&gt; 4 Pulse chill  0.07
+#&gt; 5 Coast chill  4.00
+#&gt; 3 Drift chill  4.00
+#&gt; 2 Ember chill  8.00
+#&gt; 1 Glass chill 12.00</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The five closest songs are all <strong>chill</strong>. So this new track's neighborhood votes chill, unanimously.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>What does kNN actually do?</h2>
+
+<p>You hand a trained kNN classifier a brand-new track and ask for its label. What does it do at that moment?</p>
+<section class="exercise" data-exercise-id="kNN-and-the-Curse-of-Dimensionality-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="1"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It finds the k most similar tracks it already has labels for and takes their majority vote</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It plugs the track into an equation whose coefficients it solved during training</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It averages the tempo and energy of every track and compares the new one to that average</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. kNN stores the labeled data and, at prediction time, measures distance to find the nearest k, then lets them vote. Nothing is "solved" ahead of time.</div><div class="lesson-qfb lesson-qfb-no">kNN never collapses the data to a single average. It compares the new point to individual neighbors, which is what lets it follow a wiggly boundary.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Count the votes in R</h2>
+
+<p>The hard part, the distances, is already done and stored in <code>songs$dist</code>. Finishing kNN is just two moves: sort the songs from nearest to farthest, keep the first <strong>k</strong>, and tally their moods. Fill in the blank so it takes the <strong>k</strong> nearest.</p>
+<section class="exercise" data-exercise-id="kNN-and-the-Curse-of-Dimensionality-step5" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="1:\s*k"><textarea class="lesson-tryit-input" spellcheck="false">k &lt;- 5
+ordered &lt;- order(songs$dist)            # row indices, nearest first
+nearest &lt;- songs$mood[ordered[____]]    # take the k nearest, then tally
+table(nearest)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the whole algorithm: sort, take the k nearest, count. The tally is 5 chill to 0, so kNN predicts chill.</span><span class="lesson-tryit-fb lesson-tryit-no">You want the first k positions of the sorted list: ordered[1:k]. The slice 1:k gives positions 1 through k, the k nearest songs.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">k &lt;- 5
+ordered &lt;- order(songs$dist)            # row indices, nearest first
+nearest &lt;- songs$mood[ordered[1:k]]     # the moods of the k nearest songs
+table(nearest)                          # tally the votes
+names(which.max(table(nearest)))        # the winning class
+#&gt; nearest
+#&gt; chill 
+#&gt;     5 
+#&gt; [1] &quot;chill&quot;</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The one knob</div>
+<h2>Choosing k: jagged versus smooth</h2>
+
+<p>kNN has essentially one dial: <strong>k</strong>, how many neighbors get a vote. It matters more than it looks.</p>
+
+<ul>
+
+<li><strong>Small k (k = 1)</strong> trusts the single closest song. The boundary between classes becomes jagged and twitchy, because one mislabeled or oddball track in a region flips every prediction near it. Highly flexible, easily fooled by noise.</li>
+
+<li><strong>Large k</strong> averages over many neighbors. The boundary smooths out and steadies, but push k too high and you start dragging in songs from the <em>other</em> cluster, blurring real distinctions and dulling local detail.</li>
+
+</ul>
+
+<p>This is the same bias-variance tradeoff that runs through all of machine learning: tiny k is low bias and high variance (it overfits the noise), big k is high bias and low variance (it oversmooths). The sweet spot is in between and is usually found by trying several values and checking which generalizes best, the subject of cross-validation later in this track.</p>
+
+<p>Slide k in the widget below. At k = 1 the prediction snaps to the nearest single dot; crank k up and the vote becomes a steadier consensus of the whole neighborhood.</p>
+
+<div class="callout callout-tip"><div class="callout-label">Tip</div><div class="callout-body">A common default is to start near \(k \approx \sqrt{n}\) (the square root of your number of training points) and tune from there. With an even number of classes, pick an odd k so a vote cannot tie.</div></div>
+<div class="lesson-widget" data-widget-type="knn-vote" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why not always k = 1?</h2>
+
+<p>A teammate argues: "The single closest song is the most similar one, so k = 1 must be the most accurate choice." Where does that reasoning go wrong?</p>
+<section class="exercise" data-exercise-id="kNN-and-the-Curse-of-Dimensionality-step7" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It does not go wrong; k = 1 is the most accurate setting for kNN</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">k = 1 copies a single neighbor, so one mislabeled or unusual song flips the prediction; it has high variance and a jagged boundary</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">k = 1 makes the boundary too smooth and ignores local detail</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Leaning on one neighbor makes the model hypersensitive to noise. Averaging a few neighbors trades a little flexibility for a lot of stability.</div><div class="lesson-qfb lesson-qfb-no">That is the failure mode of a very LARGE k, which over-averages. k = 1 is the opposite: too jagged and too sensitive to single points.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="concept">
+<div class="lesson-step-eyebrow">A hidden trap</div>
+<h2>Distance has units: scale your features</h2>
+
+<p>Euclidean distance adds up feature gaps, but our two features live on wildly different scales. Tempo ranges across dozens of BPM; energy ranges from 0 to 1. In the raw sum, a 30 BPM gap contributes \(30^2 = 900\) while a huge 0.5 energy gap contributes only \(0.5^2 = 0.25\). Tempo drowns energy out completely, so kNN is secretly classifying on tempo alone.</p>
+
+<p>Watch it bite. Here is a different new track at 120 BPM but high energy 0.85, a track that clearly <em>feels</em> like a workout:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">q2 &lt;- c(tempo = 120, energy = 0.85)
+
+# RAW distance, straight from the numbers as they are:
+raw &lt;- sqrt((songs$tempo - q2[&quot;tempo&quot;])^2 + (songs$energy - q2[&quot;energy&quot;])^2)
+
+rr &lt;- data.frame(title = songs$title, mood = songs$mood, raw = round(raw, 2))
+head(rr[order(rr$raw), ], 5)
+#&gt;    title    mood   raw
+#&gt; 6 Mellow   chill  2.07
+#&gt; 7  Surge workout  4.00
+#&gt; 5  Coast   chill 16.01
+#&gt; 4  Pulse   chill 20.01
+#&gt; 3  Drift   chill 24.01
+table(songs$mood[order(raw)][1:5])
+#&gt;   chill workout 
+#&gt;       4       1 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Raw kNN calls this high-energy track <strong>chill</strong> (4 votes to 1), purely because its tempo of 120 happens to sit near a few mid-tempo chill songs. The energy reading, the very thing that screams "workout", barely moved the distance. Now put both features on equal footing by standardizing them (subtract the mean, divide by the standard deviation, turning each into a z-score) and recompute:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">mu  &lt;- c(tempo = mean(songs$tempo), energy = mean(songs$energy))
+sds &lt;- c(tempo = sd(songs$tempo),   energy = sd(songs$energy))
+
+zt  &lt;- (songs$tempo  - mu[&quot;tempo&quot;])  / sds[&quot;tempo&quot;]    # scaled tempo of each song
+ze  &lt;- (songs$energy - mu[&quot;energy&quot;]) / sds[&quot;energy&quot;]   # scaled energy of each song
+zqt &lt;- (q2[&quot;tempo&quot;]  - mu[&quot;tempo&quot;])  / sds[&quot;tempo&quot;]    # scaled query tempo
+zqe &lt;- (q2[&quot;energy&quot;] - mu[&quot;energy&quot;]) / sds[&quot;energy&quot;]   # scaled query energy
+
+scaled &lt;- sqrt((zt - zqt)^2 + (ze - zqe)^2)
+ss &lt;- data.frame(title = songs$title, mood = songs$mood, scaled = round(scaled, 2))
+head(ss[order(ss$scaled), ], 5)
+#&gt;     title    mood scaled
+#&gt; 7   Surge workout   0.22
+#&gt; 8  Vertex workout   0.94
+#&gt; 9   Blaze workout   1.13
+#&gt; 10  Crank workout   1.27
+#&gt; 11   Riot workout   1.52
+table(songs$mood[order(scaled)][1:5])
+#&gt; workout 
+#&gt;       5 </div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>After scaling, the five nearest songs are all <strong>workout</strong>, and the prediction flips to the right answer. Same data, same k, same query: the only change was giving energy a fair say.</p>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">Distance-based methods like kNN are scale-sensitive. Always standardize (or normalize) your features before measuring distance, or whichever feature has the biggest numbers will quietly run the whole model.</div></div>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">Where kNN breaks</div>
+<h2>The curse of dimensionality</h2>
+
+<p>So far so good in two dimensions. Surely adding more features can only help kNN see finer similarities? This is where intuition fails, and the failure has a name: the <strong>curse of dimensionality</strong>.</p>
+
+<p>The trouble is geometric. As you add features, the space inflates so fast that your training points spread thin, and a strange thing happens to distance itself: in high dimensions, the nearest point and the farthest point end up almost the same distance away. Formally, the ratio of the smallest distance to the largest distance creeps toward 1,</p>
+
+<p>\[ \frac{d_{\min}}{d_{\max}} \longrightarrow 1 \quad \text{as } p \to \infty \]</p>
+
+<p>and once that ratio is near 1, "nearest neighbor" no longer picks out anything special: everything is roughly equidistant, so the vote is barely better than guessing. We can watch it happen. The code below scatters random points in spaces of growing dimension and measures, on average, how the nearest point compares with the farthest:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+set.seed(1)
+
+# Average ratio of nearest distance to farthest distance, as features pile up:
+near_over_far &lt;- function(p, n = 300, reps = 12) {
+  mean(replicate(reps, {
+    pts   &lt;- matrix(runif(n * p), n, p)   # n random points in a p-dimensional cube
+    query &lt;- runif(p)                     # one query point
+    d &lt;- sqrt(colSums((t(pts) - query)^2))
+    min(d) / max(d)        # 0 = nearest stands out; near 1 = everything equally far
+  }))
+}
+
+dims &lt;- c(1, 2, 5, 10, 25, 50, 100, 250, 500)
+df   &lt;- data.frame(features = dims, near_over_far = round(sapply(dims, near_over_far), 2))
+df
+#&gt;   features near_over_far
+#&gt; 1        1          0.00
+#&gt; 2        2          0.03
+#&gt; 3        5          0.17
+#&gt; 4       10          0.33
+#&gt; 5       25          0.53
+#&gt; 6       50          0.63
+#&gt; 7      100          0.74
+#&gt; 8      250          0.81
+#&gt; 9      500          0.87
+
+ggplot(df, aes(features, near_over_far)) +
+  geom_line(color = &quot;#2f6fb0&quot;, linewidth = 1) +
+  geom_point(size = 2.4) +
+  scale_x_log10() +
+  labs(title = &quot;In high dimensions, the nearest point is barely nearer than the farthest&quot;,
+       x = &quot;number of features (log scale)&quot;,
+       y = &quot;nearest distance / farthest distance&quot;) +
+  theme_minimal(base_size = 13)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>At 2 features the nearest point is much closer than the farthest (ratio 0.03), exactly the contrast kNN relies on. By 500 features the nearest is 87% as far as the farthest: the neighborhood has dissolved. This is why kNN, so natural in low dimensions, struggles on raw high-dimensional data. Three practical responses:</p>
+
+<ul>
+
+<li><strong>Use fewer, better features.</strong> Drop noise; keep the handful that actually separate the classes. Quality beats quantity for kNN.</li>
+
+<li><strong>Reduce dimensions first.</strong> Project the data into a few informative directions with something like PCA before measuring distance.</li>
+
+<li><strong>Get more data, or change tools.</strong> Denser data slows the curse; and in genuinely high-dimensional problems, models that ignore irrelevant features (trees, regularized linear models) often beat kNN outright.</li>
+
+</ul>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">Adding features to a kNN model is not free. Each irrelevant feature adds noise to every distance, and enough of them will make even good neighbors indistinguishable from bad ones.</div></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Diagnose the drop</h2>
+
+<p>Your kNN model works well on tempo and energy. You add 200 more audio features, most of them noise, and accuracy gets <em>worse</em>. A teammate says, "Just standardize all the features and it will be fine." Are they right?</p>
+<section class="exercise" data-exercise-id="kNN-and-the-Curse-of-Dimensionality-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Yes, scaling all the features is the fix; a kNN accuracy drop always means features on different units</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">No: scaling helps when units differ, but the real problem here is the curse of dimensionality, distances concentrate when you pile on noise features, so the fix is FEWER, better features (or PCA), not just scaling</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">No: kNN simply cannot use more than a handful of features under any circumstances</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Scaling and dimensionality are two different issues. Here the neighborhoods have dissolved, so you must cut the feature count or reduce dimensions, not merely rescale.</div><div class="lesson-qfb lesson-qfb-no">kNN can use many features when they are informative and the data is dense. It is irrelevant, noisy features in sparse high-dimensional space that break it, not feature count alone.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://doi.org/10.1109/TIT.1967.1053964">Cover and Hart (1967), "Nearest Neighbor Pattern Classification" (IEEE)</a> - the original paper that put kNN on a formal footing.</li>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 2 and 4 (free PDF)</a> - the gentlest treatment of kNN, k, and the bias-variance picture, with R labs.</li>
+
+<li><a href="https://doi.org/10.1007/3-540-49257-7_15">Beyer et al. (1999), "When Is Nearest Neighbor Meaningful?"</a> - the paper that proved distances concentrate in high dimensions.</li>
+
+<li><a href="https://hastie.su.domains/ElemStatLearn/">The Elements of Statistical Learning, ch. 13 (free PDF)</a> - prototype and nearest-neighbor methods, with the full math.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 1 complete</h2>
+
+<p>You can now classify a new case by the majority vote of its nearest neighbors, measure "nearest" with a scaled distance, choose k with the bias-variance tradeoff in mind, and explain why heaping on features eventually makes "nearest" meaningless.</p>
+
+<p>Next, Lesson 2: Naive Bayes for tabular and text. Instead of measuring distance, it reasons with probabilities, asking which class makes the evidence most likely, and it shrugs off the high-dimensional data that just sank kNN.</p>
+</section>
+
+{% endraw %}
