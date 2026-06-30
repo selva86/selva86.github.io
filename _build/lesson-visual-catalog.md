@@ -98,7 +98,14 @@ For the Data Scientist track (track `ds` / `scientist`, sections 1-5+). Each ren
 | `roc-curve` | threshold -> ROC operating point + confusion matrix + AUC | §3 reading a classifier; §5 yardstick |
 | `gradient-boosting` | rounds slider -> trees stack, residuals shrink | §4 gradient boosting |
 | `learning-curve` | early-stop marker -> train vs validation over rounds | §4 hyperparameters, early stopping |
-| `cv-folds` | fold stepper + k -> rotating holdout; CV mean | §5 rsample / resampling |
+| `cv-folds` | fold stepper + k -> rotating holdout; CV mean | §5 rsample / resampling; §7 CV strategies, nested CV |
+| `calibration-curve` | confidence slider -> reliability curve bows off the diagonal | §8 calibrating probabilities; why AUC is not enough |
+| `pca-projection` | PC1/PC2 scatter by group + variance-explained bars | §9 PCA, factor analysis, t-SNE/UMAP |
+| `kmeans-cluster` | step button -> assign / move centroids; within-SS drops | §9 k-means, hierarchical, GMM |
+| `shap-bars` | baseline + signed per-feature bars that sum to the prediction | §11 SHAP, global vs local explanations |
+| `pdp-curve` | ICE lines + their average (the PDP) over a feature sweep | §11 partial dependence / ICE / ALE |
+
+Reuse for `ds` (sections 6-12): `table-transform` + `data-split` (§6 feature engineering, encoding, imputation, leakage), `importance-bars` (§6 feature selection; §11 permutation importance), `learning-curve` + `oob-tuner` (§7 tuning), `null-distribution` (§7 model comparison; §10 A/B testing, reading an experiment), `roc-curve` + `logistic-curve` + `decision-region` (§8 imbalance, thresholds, curves), `tree-diagram` (§9 hierarchical clustering; §10 DAGs), `process-flow` (§10 causal frames; §12 pipelines/serving/monitoring), `doc-structure` (§11 model cards; §12 system-design checklist).
 
 Reuse for `ds`: `tree-diagram`+`gini-split` (§3 + §4 decision trees), `decision-region` (§3 LDA/QDA, decision boundaries, and Naive Bayes), `correlation-heatmap` (§2 multicollinearity), `process-flow` (§1 CRISP-DM; §5 recipes/parsnip/workflows), and the RF set `forest-averaging`/`decorrelation`/`oob-tuner`/`bootstrap-sample`/`importance-bars` for §4 (the existing `random-forest` course owns trees-as-ensemble).
 

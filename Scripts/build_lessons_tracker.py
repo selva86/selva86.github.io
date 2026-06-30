@@ -41,6 +41,13 @@ COURSE_ROADMAP = {
     'ds-classification': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 3, 'sectionLabel': 'Classification fundamentals'},
     'ds-boosting': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 4, 'sectionLabel': 'Trees and gradient boosting'},
     'ds-tidymodels': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 5, 'sectionLabel': 'The tidymodels workflow'},
+    'ds-feature-engineering': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 6, 'sectionLabel': 'Feature engineering and selection'},
+    'ds-evaluation-tuning': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 7, 'sectionLabel': 'Model evaluation, resampling and tuning'},
+    'ds-imbalanced-classification': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 8, 'sectionLabel': 'Imbalanced, cost-sensitive and calibrated classification'},
+    'ds-unsupervised': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 9, 'sectionLabel': 'Unsupervised - clustering and dimensionality reduction'},
+    'ds-causal': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 10, 'sectionLabel': 'Experiment and causal basics'},
+    'ds-interpretability': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 11, 'sectionLabel': 'Interpretability and responsible AI (essentials)'},
+    'ds-production': {'track': 'ds', 'trackLabel': 'Data Scientist', 'section': 12, 'sectionLabel': 'Shipping your first model (production essentials)'},
     # Data Analyst track (level 2, all free) - one course per roadmap section.
     'nr-basics': {'track': 'foundations', 'trackLabel': 'New to R', 'section': 1, 'sectionLabel': 'Syntax, types and vectors'},
     'nr-structures': {'track': 'foundations', 'trackLabel': 'New to R', 'section': 2, 'sectionLabel': 'Lists, data frames and tibbles'},

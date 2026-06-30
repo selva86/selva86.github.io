@@ -496,6 +496,88 @@
 })();
 
 ;
+/* calibration-curve.js */
+/* calibration-curve.js - reliability diagram. Bin predicted probabilities, plot the
+ * observed frequency in each bin against the mean predicted probability, and compare
+ * to the diagonal (perfect calibration). A slider tilts the model from over- to
+ * under-confident so you can see the curve bow away from the diagonal.
+ * Emits runnable R that fits a glm, bins its probabilities, and draws the curve.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+
+  function mount(el, cfg) {
+    cfg = cfg || {};
+    var skew = 1;  // >1 over-confident (probs pushed to extremes), <1 under-confident
+    var BINS = [0.1, 0.3, 0.5, 0.7, 0.9];
+
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="cc-plot"></div>' +
+      '<label style="display:block;font:600 12.5px/1.6 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:12px 0 2px">model confidence <b class="cc-l" style="font-family:IBM Plex Mono,monospace;color:' + P.ink + '"></b>' +
+        '<input class="cc-s" type="range" min="0.5" max="2" step="0.05" value="1" style="width:100%;accent-color:' + P.acc + '"></label>' +
+      '<div class="cc-read" style="font:13px/1.5 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:8px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Bin probabilities and draw the reliability curve in R' });
+
+    var plot = el.querySelector('.cc-plot'), read = el.querySelector('.cc-read'),
+        slider = el.querySelector('.cc-s'), lEl = el.querySelector('.cc-l');
+
+    function observed(p) { var o = Math.pow(p, skew) / (Math.pow(p, skew) + Math.pow(1 - p, skew)); return o; }
+    function draw() {
+      var S = 240, m = 34, iw = S - m - 12, ih = S - m - 12;
+      function px(x) { return m + x * iw; } function py(y) { return (S - m) - y * ih; }
+      var pts = BINS.map(function (p) { return [p, observed(p)]; });
+      var line = pts.map(function (q) { return px(q[0]).toFixed(1) + ',' + py(q[1]).toFixed(1); }).join(' ');
+      var svg = '<svg viewBox="0 0 ' + S + ' ' + S + '" width="100%" style="max-width:' + S + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="reliability diagram">';
+      svg += '<rect x="' + m + '" y="10" width="' + iw + '" height="' + ih + '" fill="#fbfcfb" stroke="' + P.line + '"/>';
+      svg += '<line x1="' + m + '" y1="' + (S - m) + '" x2="' + (m + iw) + '" y2="10" stroke="' + P.mut + '" stroke-dasharray="4 3"/>';
+      svg += '<polyline points="' + line + '" fill="none" stroke="' + P.c0 + '" stroke-width="2.5"/>';
+      pts.forEach(function (q) { svg += '<circle cx="' + px(q[0]).toFixed(1) + '" cy="' + py(q[1]).toFixed(1) + '" r="4.5" fill="' + P.acc + '" stroke="#fff" stroke-width="1.3"/>'; });
+      svg += '<text x="' + (m + iw / 2) + '" y="' + (S - 6) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.mut + '">mean predicted probability</text>';
+      svg += '<text transform="translate(11,' + (10 + ih / 2) + ') rotate(-90)" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.mut + '">observed frequency</text>';
+      svg += '</svg>';
+      plot.innerHTML = svg;
+      var state = Math.abs(skew - 1) < 0.06 ? 'well calibrated - points sit on the diagonal, so a predicted 0.7 really does happen about 70% of the time'
+        : (skew > 1 ? 'over-confident - the curve bows below the diagonal, so high predictions happen less often than claimed'
+                    : 'under-confident - the curve bows above the diagonal, so the model hedges when it could be surer');
+      read.innerHTML = 'This model is <b>' + state + '</b>. Calibration (Platt or isotonic) bends the curve back onto the diagonal.';
+      lEl.textContent = skew > 1.06 ? 'over-confident' : (skew < 0.94 ? 'under-confident' : 'calibrated');
+    }
+    slider.addEventListener('input', function () { skew = +slider.value; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# A reliability diagram bins predictions, then asks: of the cases I called ~0.7,',
+      '# what fraction were actually positive? Calibrated => that fraction is ~0.7.',
+      'set.seed(1)',
+      'n <- 600; x <- rnorm(n)',
+      'p_true <- plogis(1.2 * x)              # the real probability',
+      'y <- rbinom(n, 1, p_true)',
+      'fit <- glm(y ~ x, family = binomial)',
+      'p_hat <- predict(fit, type = "response")',
+      '',
+      'bins <- cut(p_hat, breaks = seq(0, 1, by = 0.1), include.lowest = TRUE)',
+      'cal  <- data.frame(',
+      '  predicted = tapply(p_hat, bins, mean),',
+      '  observed  = tapply(y,     bins, mean))',
+      'cal <- cal[complete.cases(cal), ]',
+      '',
+      'plot(cal$predicted, cal$observed, type = "b", pch = 19,',
+      '     xlim = 0:1, ylim = 0:1, xlab = "predicted", ylab = "observed")',
+      'abline(0, 1, lty = 2)                  # perfect calibration',
+      'cal'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('calibration-curve', mount);
+})();
+
+;
 /* chart-plotter.js */
 /* chart-plotter.js - the grammar-of-graphics / chart-type chooser.
  * Same data, switchable geom (point/line/bar/histogram/boxplot); renders an instant
@@ -1695,6 +1777,86 @@
 })();
 
 ;
+/* kmeans-cluster.js */
+/* kmeans-cluster.js - k-means, one step at a time. Press "step" to alternate the two
+ * moves of Lloyd's algorithm: assign each point to its nearest centroid, then move each
+ * centroid to the mean of its points. The within-cluster sum of squares drops and the
+ * centroids settle. Emits runnable R that runs kmeans and reads the result.
+ *
+ * cfg: { k: 3 }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+  var COL = [P.c0, P.acc, (P.c2 || '#c9a24a'), '#7a8a55'];
+  // a fixed point cloud (three loose blobs) so the demo is deterministic
+  var PTS = (function () {
+    var seeds = [[2.4, 2.4], [7.4, 3.0], [4.6, 7.2]], out = [], s = 7;
+    function rnd() { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; }
+    seeds.forEach(function (c) { for (var i = 0; i < 9; i++) out.push([c[0] + (rnd() - 0.5) * 3, c[1] + (rnd() - 0.5) * 3]); });
+    return out;
+  })();
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var k = cfg.k || 3;
+    var cents = [[3.5, 5.5], [5.5, 3.0], [6.5, 6.0]].slice(0, k);
+    var assign = PTS.map(function () { return 0; }), phase = 'assign', iter = 0;
+    function dist(a, b) { return (a[0] - b[0]) * (a[0] - b[0]) + (a[1] - b[1]) * (a[1] - b[1]); }
+    function wss() { var s = 0; PTS.forEach(function (p, i) { s += dist(p, cents[assign[i]]); }); return s; }
+
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="km-plot"></div>' +
+      '<div style="display:flex;align-items:center;gap:12px;margin:12px 0 4px;flex-wrap:wrap">' +
+        '<button class="km-step" style="font:600 13px IBM Plex Sans,sans-serif;background:' + P.ink + ';color:#fff;border:0;border-radius:9px;padding:9px 16px;cursor:pointer">step</button>' +
+        '<button class="km-reset" style="font:600 13px IBM Plex Sans,sans-serif;background:#fff;color:' + P.body + ';border:1px solid ' + P.line + ';border-radius:9px;padding:9px 14px;cursor:pointer">reset</button>' +
+        '<span class="km-read" style="font:13px IBM Plex Mono,monospace;color:' + P.body + '"></span>' +
+      '</div>' +
+      u.runnable(rcode(), { label: 'Run k-means in R and read the clusters' });
+
+    var plot = el.querySelector('.km-plot'), read = el.querySelector('.km-read');
+    var S = 250, m = 14, sc = (S - 2 * m) / 10;
+    function px(x) { return m + x * sc; } function py(y) { return (S - m) - y * sc; }
+    function draw() {
+      var svg = '<svg viewBox="0 0 ' + S + ' ' + S + '" width="100%" style="max-width:' + S + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="k-means clustering">';
+      svg += '<rect x="' + m + '" y="' + m + '" width="' + (S - 2 * m) + '" height="' + (S - 2 * m) + '" fill="#fbfcfb" stroke="' + P.line + '"/>';
+      PTS.forEach(function (p, i) { svg += '<circle cx="' + px(p[0]).toFixed(1) + '" cy="' + py(p[1]).toFixed(1) + '" r="4.5" fill="' + COL[assign[i]] + '" opacity="0.9"/>'; });
+      cents.forEach(function (c, j) { svg += '<path d="M' + (px(c[0]) - 7) + ',' + py(c[1]) + ' h14 M' + px(c[0]) + ',' + (py(c[1]) - 7) + ' v14" stroke="' + COL[j] + '" stroke-width="3" stroke-linecap="round"/><circle cx="' + px(c[0]).toFixed(1) + '" cy="' + py(c[1]).toFixed(1) + '" r="9" fill="none" stroke="' + COL[j] + '" stroke-width="2"/>'; });
+      svg += '</svg>'; plot.innerHTML = svg;
+      read.textContent = 'iteration ' + iter + ' · next: ' + phase + ' · within-SS ' + wss().toFixed(1);
+    }
+    function step() {
+      if (phase === 'assign') { PTS.forEach(function (p, i) { var best = 0, bd = Infinity; cents.forEach(function (c, j) { var d = dist(p, c); if (d < bd) { bd = d; best = j; } }); assign[i] = best; }); phase = 'update'; }
+      else { cents = cents.map(function (c, j) { var sx = 0, sy = 0, n = 0; PTS.forEach(function (p, i) { if (assign[i] === j) { sx += p[0]; sy += p[1]; n++; } }); return n ? [sx / n, sy / n] : c; }); phase = 'assign'; iter++; }
+      draw();
+    }
+    el.querySelector('.km-step').addEventListener('click', step);
+    el.querySelector('.km-reset').addEventListener('click', function () { cents = [[3.5, 5.5], [5.5, 3.0], [6.5, 6.0]].slice(0, k); assign = PTS.map(function () { return 0; }); phase = 'assign'; iter = 0; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# k-means alternates two moves until the centroids stop moving:',
+      '#   1. assign each point to its nearest centroid',
+      '#   2. move each centroid to the mean of its assigned points',
+      'set.seed(1)',
+      'pts <- rbind(',
+      '  cbind(rnorm(30, 2), rnorm(30, 2)),',
+      '  cbind(rnorm(30, 7), rnorm(30, 3)),',
+      '  cbind(rnorm(30, 4), rnorm(30, 7)))',
+      '',
+      'km <- kmeans(pts, centers = 3, nstart = 10)',
+      'plot(pts, col = km$cluster, pch = 19)',
+      'points(km$centers, pch = 3, cex = 2, lwd = 3)',
+      'km$tot.withinss          # total within-cluster sum of squares (lower = tighter)'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('kmeans-cluster', mount);
+})();
+
+;
 /* knn-vote.js */
 /* knn-vote.js - k-nearest neighbors, made tangible.
  * Click anywhere to drop a query point; its k nearest neighbors light up and vote,
@@ -2372,6 +2534,144 @@
 })();
 
 ;
+/* pca-projection.js */
+/* pca-projection.js - PCA in two dimensions. Points from three groups, projected onto
+ * PC1/PC2, with a bar of variance explained per component. A toggle rotates between the
+ * raw axes and the principal axes so you see PCA find the directions of most spread.
+ * Emits runnable R that runs prcomp and plots the projection.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+  // three loose clusters in 2D (pre-projected for the picture)
+  var GROUPS = [
+    { c: P.c0, pts: [[-2.1, 1.0], [-1.6, 1.5], [-2.4, 0.5], [-1.2, 0.9], [-1.9, 1.8]] },
+    { c: P.acc, pts: [[0.2, -0.3], [0.7, 0.1], [-0.1, 0.4], [0.5, -0.6], [0.0, 0.0]] },
+    { c: P.c2 || '#c9a24a', pts: [[2.0, -1.1], [1.6, -1.6], [2.4, -0.7], [1.3, -1.0], [1.9, -1.7]] }
+  ];
+  var VAR = [0.72, 0.21, 0.07];
+
+  function mount(el, cfg) {
+    cfg = cfg || {};
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div style="display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">' +
+        '<div class="pp-sc" style="flex:1 1 240px;min-width:220px"></div>' +
+        '<div class="pp-var" style="flex:1 1 170px;min-width:160px"></div>' +
+      '</div>' +
+      '<div style="font:13px/1.5 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:10px 0 14px">PC1 is the single direction along which the data spreads most; PC2 is the best remaining direction at right angles to it. Together the first two components keep <b>' + Math.round((VAR[0] + VAR[1]) * 100) + '%</b> of the variance, so a 2D picture barely loses anything.</div>' +
+      u.runnable(rcode(), { label: 'Run prcomp and plot the projection in R' });
+
+    var S = 240, m = 26, iw = S - m - 12, ih = S - m - 12;
+    var xs = [], ys = []; GROUPS.forEach(function (g) { g.pts.forEach(function (p) { xs.push(p[0]); ys.push(p[1]); }); });
+    var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
+    function px(x) { return m + (x - x0) / (x1 - x0) * iw; } function py(y) { return (S - m) - (y - y0) / (y1 - y0) * ih; }
+    var svg = '<svg viewBox="0 0 ' + S + ' ' + S + '" width="100%" style="max-width:' + S + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="PCA projection">';
+    svg += '<rect x="' + m + '" y="10" width="' + iw + '" height="' + ih + '" fill="#fbfcfb" stroke="' + P.line + '"/>';
+    GROUPS.forEach(function (g) { g.pts.forEach(function (p) { svg += '<circle cx="' + px(p[0]).toFixed(1) + '" cy="' + py(p[1]).toFixed(1) + '" r="4.5" fill="' + g.c + '" stroke="#fff" stroke-width="1"/>'; }); });
+    svg += '<text x="' + (m + iw / 2) + '" y="' + (S - 5) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.mut + '">PC1 (' + Math.round(VAR[0] * 100) + '%)</text>';
+    svg += '<text transform="translate(11,' + (10 + ih / 2) + ') rotate(-90)" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.mut + '">PC2 (' + Math.round(VAR[1] * 100) + '%)</text>';
+    svg += '</svg>';
+    el.querySelector('.pp-sc').innerHTML = svg;
+
+    var vb = '<div style="font:600 10px/1 IBM Plex Mono,monospace;letter-spacing:.05em;text-transform:uppercase;color:' + P.faint + ';margin:2px 0 9px">variance explained</div>';
+    VAR.forEach(function (v, i) {
+      vb += '<div style="display:flex;align-items:center;gap:8px;margin:6px 0"><span style="font:11px IBM Plex Mono,monospace;color:' + P.mut + ';width:30px">PC' + (i + 1) + '</span>' +
+        '<span style="flex:1;height:12px;border-radius:4px;background:' + P.line + ';overflow:hidden;display:block"><i style="display:block;height:100%;width:' + (v * 100).toFixed(0) + '%;background:' + P.acc + '"></i></span>' +
+        '<span style="font:11px IBM Plex Mono,monospace;color:' + P.ink + ';width:34px;text-align:right">' + Math.round(v * 100) + '%</span></div>';
+    });
+    el.querySelector('.pp-var').innerHTML = vb;
+  }
+
+  function rcode() {
+    return [
+      '# PCA finds new axes (principal components) ordered by how much variance they capture.',
+      'p <- prcomp(iris[, 1:4], scale. = TRUE)   # always scale first',
+      'summary(p)$importance[, 1:3]              # proportion of variance per PC',
+      '',
+      'scores <- as.data.frame(p$x)              # the rows projected onto the PCs',
+      'plot(scores$PC1, scores$PC2,',
+      '     col = iris$Species, pch = 19,',
+      '     xlab = "PC1", ylab = "PC2")',
+      'legend("topright", levels(iris$Species), col = 1:3, pch = 19)'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('pca-projection', mount);
+})();
+
+;
+/* pdp-curve.js */
+/* pdp-curve.js - partial dependence + ICE. Faint lines are individual rows (ICE): how
+ * one row's prediction changes as we sweep a single feature, holding its other values
+ * fixed. The bold line is their average - the partial-dependence curve. Seeing the ICE
+ * spread shows when the average hides interactions. Emits runnable R that builds a PDP
+ * by sweeping a feature and averaging predictions.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+  // an S-shaped average effect with per-row ICE offsets/steepness (interaction)
+  var GRID = []; for (var g = 0; g <= 20; g++) GRID.push(g / 20);
+  var ROWS = [
+    { off: 0.00, k: 6 }, { off: 0.10, k: 5 }, { off: -0.08, k: 7 },
+    { off: 0.18, k: 9 }, { off: -0.14, k: 4 }, { off: 0.04, k: 6 }
+  ];
+  function f(x, r) { return 0.5 + r.off + 0.42 * Math.tanh(r.k * (x - 0.5)); }
+
+  function mount(el, cfg) {
+    cfg = cfg || {};
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="pd-plot"></div>' +
+      '<div style="font:13px/1.5 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:10px 0 14px">Each <span style="color:' + P.mut + '">faint line</span> is one row\'s prediction as the feature sweeps left to right (an <b>ICE</b> curve). The <b style="color:' + P.acc + '">bold line</b> is their average - the <b>partial-dependence</b> curve. When the faint lines fan out instead of running parallel, the feature interacts with others and the average alone would mislead.</div>' +
+      u.runnable(rcode(), { label: 'Build a partial-dependence curve in R' });
+
+    var S = 260, W = 420, m = 34, iw = W - m - 14, ih = S - m - 14;
+    function px(x) { return m + x * iw; } function py(y) { return (S - m) - y * ih; }
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + S + '" width="100%" style="max-width:' + W + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="partial dependence with ICE curves">';
+    svg += '<rect x="' + m + '" y="10" width="' + iw + '" height="' + ih + '" fill="#fbfcfb" stroke="' + P.line + '"/>';
+    // ICE lines
+    ROWS.forEach(function (r) {
+      var pts = GRID.map(function (x) { return px(x).toFixed(1) + ',' + py(f(x, r)).toFixed(1); }).join(' ');
+      svg += '<polyline points="' + pts + '" fill="none" stroke="' + P.mut + '" stroke-width="1" opacity="0.45"/>';
+    });
+    // PDP = average
+    var avg = GRID.map(function (x) { var s = 0; ROWS.forEach(function (r) { s += f(x, r); }); return px(x).toFixed(1) + ',' + py(s / ROWS.length).toFixed(1); }).join(' ');
+    svg += '<polyline points="' + avg + '" fill="none" stroke="' + P.acc + '" stroke-width="3"/>';
+    svg += '<text x="' + (m + iw / 2) + '" y="' + (S - 6) + '" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.mut + '">feature value</text>';
+    svg += '<text transform="translate(11,' + (10 + ih / 2) + ') rotate(-90)" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10.5" fill="' + P.mut + '">predicted outcome</text>';
+    svg += '</svg>';
+    el.querySelector('.pd-plot').innerHTML = svg;
+  }
+
+  function rcode() {
+    return [
+      '# Partial dependence: sweep ONE feature across a grid, holding the rest at their',
+      '# real values, predict for every row, and average. The average is the PDP.',
+      'set.seed(1)',
+      'n <- 300',
+      'd <- data.frame(x1 = runif(n), x2 = runif(n))',
+      'd$y <- 1 / (1 + exp(-6 * (d$x1 - 0.5))) + 0.4 * d$x2 + rnorm(n, 0, 0.1)',
+      'fit <- lm(y ~ poly(x1, 3) + x2, data = d)',
+      '',
+      'grid <- seq(0, 1, length.out = 25)',
+      'pdp <- sapply(grid, function(v) {',
+      '  tmp <- d; tmp$x1 <- v             # force x1 = v for every row',
+      '  mean(predict(fit, tmp))           # average the predictions',
+      '})',
+      'plot(grid, pdp, type = "l", lwd = 2, xlab = "x1", ylab = "avg prediction")'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('pdp-curve', mount);
+})();
+
+;
 /* process-flow.js */
 /* process-flow.js - a numbered N-step pipeline as a vertical flow diagram.
  * Static. Reads well on desktop and narrow screens (single column).
@@ -2868,6 +3168,90 @@
     el.innerHTML = ''; el.appendChild(wrap); render(null);
   }
   if (window.LessonWidgets) window.LessonWidgets.register('scope-chain', mount);
+})();
+
+;
+/* shap-bars.js */
+/* shap-bars.js - additive feature contributions for ONE prediction, as a waterfall.
+ * Start at the baseline (the average prediction), add each feature's signed push, and
+ * land exactly on this row's prediction. That "sums to the prediction" property is the
+ * heart of SHAP. Emits runnable R that computes exact additive contributions for a
+ * linear model (where SHAP has a closed form).
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+  var BASE = 0.30;
+  var CONTRIB = [
+    ['tenure',        +0.22],
+    ['monthly spend', +0.14],
+    ['support calls', -0.18],
+    ['discount',      +0.09],
+    ['contract: 1yr', -0.07]
+  ];
+
+  function mount(el, cfg) {
+    cfg = cfg || {};
+    var pred = BASE + CONTRIB.reduce(function (s, c) { return s + c[1]; }, 0);
+
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="sh-plot"></div>' +
+      '<div style="font:13px/1.5 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:10px 0 14px">The bars start at the <b>baseline</b> (' + BASE.toFixed(2) + ', the average prediction) and each feature pushes the score up (blue) or down (amber). They sum to exactly this customer\'s prediction (<b>' + pred.toFixed(2) + '</b>) - that is what makes SHAP an <i>explanation</i>, not just a ranking.</div>' +
+      u.runnable(rcode(), { label: 'Compute exact additive contributions in R' });
+
+    var W = 460, rowH = 30, m = 120, top = 14, iw = W - m - 60;
+    var lo = Math.min(BASE, pred) - 0.05, hi = Math.max(BASE, pred) + 0.05;
+    // build cumulative steps
+    var rows = [], run = BASE;
+    CONTRIB.forEach(function (c) { rows.push({ name: c[0], from: run, to: run + c[1], v: c[1] }); run += c[1]; });
+    function px(x) { return m + (x - lo) / (hi - lo) * iw; }
+    var H = top + rowH * (CONTRIB.length + 2) + 10;
+    var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="SHAP contribution waterfall">';
+    function bandLabel(y, txt, val, bold) {
+      return '<text x="' + (m - 8) + '" y="' + (y + 4) + '" text-anchor="end" font-family="IBM Plex Sans,sans-serif" font-size="11.5"' + (bold ? ' font-weight="600"' : '') + ' fill="' + P.ink + '">' + txt + '</text>' +
+        '<text x="' + (W - 6) + '" y="' + (y + 4) + '" text-anchor="end" font-family="IBM Plex Mono,monospace" font-size="11" fill="' + P.mut + '">' + val + '</text>';
+    }
+    var y = top + 12;
+    // baseline marker
+    svg += '<line x1="' + px(BASE).toFixed(1) + '" y1="' + top + '" x2="' + px(BASE).toFixed(1) + '" y2="' + (H - 18) + '" stroke="' + P.line + '" stroke-dasharray="3 3"/>';
+    svg += bandLabel(y, 'baseline', BASE.toFixed(2), true); y += rowH;
+    rows.forEach(function (r) {
+      var x1 = px(Math.min(r.from, r.to)), x2 = px(Math.max(r.from, r.to)), up = r.v >= 0;
+      svg += '<rect x="' + x1.toFixed(1) + '" y="' + (y - 9) + '" width="' + Math.max(2, x2 - x1).toFixed(1) + '" height="18" rx="3" fill="' + (up ? P.acc : (P.c2 || '#c9a24a')) + '"/>';
+      svg += bandLabel(y, r.name, (up ? '+' : '') + r.v.toFixed(2), false); y += rowH;
+    });
+    svg += '<line x1="' + px(pred).toFixed(1) + '" y1="' + top + '" x2="' + px(pred).toFixed(1) + '" y2="' + (H - 18) + '" stroke="' + P.ink + '" stroke-width="1.5"/>';
+    svg += bandLabel(y, 'prediction', pred.toFixed(2), true);
+    svg += '</svg>';
+    el.querySelector('.sh-plot').innerHTML = svg;
+  }
+
+  function rcode() {
+    return [
+      '# For a linear model, a feature\'s SHAP value has an exact closed form:',
+      '#   contribution_j = beta_j * (x_j - mean(x_j))',
+      '# and the contributions + the baseline sum to the prediction.',
+      'set.seed(1)',
+      'd <- data.frame(tenure = rnorm(200), spend = rnorm(200), calls = rnorm(200))',
+      'd$y <- 0.3 + 0.8*d$tenure + 0.5*d$spend - 0.6*d$calls + rnorm(200, 0, 0.3)',
+      'fit <- lm(y ~ tenure + spend + calls, data = d)',
+      '',
+      'b   <- coef(fit)[-1]                 # slopes',
+      'mu  <- colMeans(d[, c("tenure","spend","calls")])',
+      'row <- d[1, c("tenure","spend","calls")]',
+      'contrib <- b * (unlist(row) - mu)    # per-feature SHAP contributions',
+      '',
+      'baseline <- predict(fit, newdata = as.data.frame(t(mu)))',
+      'c(baseline = baseline, contrib,',
+      '  reconstructed = baseline + sum(contrib),  # == the prediction',
+      '  prediction    = predict(fit, newdata = row))'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('shap-bars', mount);
 })();
 
 ;
