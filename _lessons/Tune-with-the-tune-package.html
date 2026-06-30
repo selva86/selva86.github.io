@@ -1,0 +1,374 @@
+---
+title: "tidymodels Lesson 6: Tune with the tune package"
+description: "Search hyperparameters the honest way with the tune package: build a grid, score every candidate across resampling folds, pick the winner, and finalize your R workflow."
+keywords: "tune package R, hyperparameter tuning in R, tune_grid, grid search, tidymodels, cross-validation tuning, decision tree cost_complexity tree_depth, select_best, finalize_workflow, last_fit"
+mathjax: true
+webr: true
+curriculum_id: "6.50.6"
+post_type: "LESSON"
+course_id: "ds-tidymodels"
+course_title: "Modeling with tidymodels"
+course_lesson: "6"
+course_total: "7"
+course_landing: "R-tidymodels-Course.html"
+course_next: "Compare-Many-Models-with-workflowsets.html"
+course_prev: "Measure-with-yardstick.html"
+lesson_access: "free"
+catalog_blurb: "How to find the model settings that work best, without fooling yourself."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 6 of 7</div>
+<h2>Tune with the tune package</h2>
+
+<p>In Lesson 5 you built a fair yardstick for the lender's loan-default model: precision, recall, ROC AUC, read across your resampling folds. A trustworthy scorer is exactly what you have been missing to do the one thing this course has carefully avoided so far, which is to <strong>choose</strong> between models.</p>
+
+<p>Here is the catch that makes choosing hard. Every model has a complexity dial. Turn it too low and the model is too simple to see the real pattern (it underfits). Turn it too high and the model memorizes the noise in your training data (it overfits). Somewhere in between is a sweet spot, and you cannot see it by eye. Drag the slider below and watch the test error trace its tell-tale U.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Tell a <strong>parameter</strong> (learned from the data) from a <strong>hyperparameter</strong> (a dial you set before fitting), and name a decision tree's two dials</li>
+
+<li>Build a grid of candidate settings and score every one of them across resampling folds with <code>tune_grid</code></li>
+
+<li>Read the results, pick the winner, and finalize your workflow, then confirm it once on a test set you never touched</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> you can run R and use the <code>|&gt;</code> pipe, and from earlier lessons you can <a href="Bundle-Steps-with-workflows.html">bundle a model into a workflow</a> (Lesson 3), <a href="Resample-with-rsample.html">score it across cross-validation folds</a> (Lesson 4), and [measure it with <code>roc_auc</code>](Measure-with-yardstick.html) (Lesson 5). We reuse that exact loan book here.</p>
+<div class="lesson-widget" data-widget-type="bias-variance" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The thing you actually set</div>
+<h2>A model with dials to turn</h2>
+
+<p>Until now the loan model has been a logistic regression, and there was nothing to tune. Its coefficients are <strong>parameters</strong>: numbers the fitting routine <em>learns</em> straight from the data. You never pick them by hand.</p>
+
+<p>A <strong>hyperparameter</strong> is different. It is a setting you choose <em>before</em> fitting, one that shapes how the model learns. The fitting routine cannot learn it for you, because changing it changes what "best fit" even means. Think of baking: the oven temperature is a hyperparameter you dial in beforehand, and the cake that comes out is the parameter the oven "fits" at that temperature. Set the temperature wrong and no amount of baking saves the cake.</p>
+
+<p>To see tuning actually bite, we need a model with real dials. A <strong>decision tree</strong> has two. Same loan data, new model.</p>
+
+<ul>
+
+<li>**<code>tree_depth</code>** \((d)\): how many questions deep any path through the tree may go. A depth-1 tree asks one question; a depth-8 tree can ask eight in a row and carve the data into tiny pockets.</li>
+
+<li>**<code>cost_complexity</code>** \((\alpha)\): how reluctant the tree is to add another split. A tree is scored by \(R_\alpha(T) = R(T) + \alpha\,|T|\), where \(R(T)\) is its error on the training rows, \(|T|\) is its number of leaves, and \(\alpha\) is a price charged per leaf. A large \(\alpha\) makes extra leaves expensive, so the tree stays small; a tiny \(\alpha\) lets it grow freely.</li>
+
+</ul>
+
+<p>Both dials control the same thing the slider above did: model complexity. In tidymodels, you mark a dial as "to be decided" by setting it to <code>tune()</code>, a placeholder that leaves the value blank for now.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(parsnip)
+library(rpart)
+library(workflows)
+
+set.seed(7)
+n &lt;- 240
+loans &lt;- data.frame(
+  income   = round(runif(n, 22000, 98000)),   # annual income, dollars
+  age      = round(runif(n, 21, 60)),
+  employed = round(runif(n, 2, 160)),          # months at current job
+  home     = factor(sample(c(&quot;own&quot;, &quot;rent&quot;, &quot;mortgage&quot;), n, TRUE))
+)
+risk &lt;- with(loans, plogis(-1.1 + 1.4 * (income &lt; 45000) +
+             1.0 * (employed &lt; 20) + 0.6 * (home == &quot;rent&quot;)))
+loans$defaulted &lt;- factor(ifelse(runif(n) &lt; risk, &quot;yes&quot;, &quot;no&quot;))
+loans$defaulted &lt;- relevel(loans$defaulted, ref = &quot;yes&quot;)   # &quot;yes&quot; is the event we predict
+table(loans$defaulted)
+#&gt;
+#&gt; yes  no
+#&gt;  89 151
+
+tree_spec &lt;- decision_tree(
+  cost_complexity = tune(),     # alpha: the price per leaf, left blank to tune
+  tree_depth      = tune()      # d: the maximum depth, left blank to tune
+) |&gt;
+  set_engine(&quot;rpart&quot;) |&gt;
+  set_mode(&quot;classification&quot;)
+
+tree_wf &lt;- workflow() |&gt;
+  add_formula(defaulted ~ .) |&gt;
+  add_model(tree_spec)
+tree_spec
+#&gt; Decision Tree Model Specification (classification)
+#&gt;
+#&gt; Main Arguments:
+#&gt;   cost_complexity = tune()
+#&gt;   tree_depth = tune()
+#&gt;
+#&gt; Computational engine: rpart</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>A tree splits on raw values, so it needs no scaling or dummy variables; we hand the workflow the formula directly instead of a recipe. The spec now has two holes in it. Tuning is the business of filling them.</p>
+<div class="lesson-widget" data-widget-type="tree-diagram" data-widget-config='{"root":"income under $45k?","l":"employed under 20 mo?","r":"home is rent?","leaves":["defaults","pays","defaults","pays"]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">Set up an honest scorer</div>
+<h2>Score every candidate the honest way</h2>
+
+<p>You have a model with two blanks. The obvious move, fit a few trees and keep whichever looks best, hides a trap you already met in Lesson 4: a single number from a single split is a roll of the dice, and the deepest tree always wins on the data it trained on. So you score each candidate setting the way you learned to score any model honestly, by <strong>cross-validation</strong>.</p>
+
+<p>First carve off a final test set and lock it away. Then make the folds out of the <strong>training</strong> part only. Every candidate will be judged by its average score across these folds; the locked test set is not allowed to vote.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rsample)
+
+set.seed(1)
+split &lt;- initial_split(loans, prop = 0.75, strata = defaulted)
+train &lt;- training(split)   # 179 rows to tune on
+test  &lt;- testing(split)    # 61 rows locked away for the final check
+
+folds &lt;- vfold_cv(train, v = 5, strata = defaulted)
+folds
+#&gt;  5-fold cross-validation using stratification
+#&gt; # A tibble: 5 x 2
+#&gt;   splits           id
+#&gt;   &lt;list&gt;           &lt;chr&gt;
+#&gt; 1 &lt;split [142/37]&gt; Fold1
+#&gt; 2 &lt;split [143/36]&gt; Fold2
+#&gt; 3 &lt;split [143/36]&gt; Fold3
+#&gt; 4 &lt;split [144/35]&gt; Fold4
+#&gt; 5 &lt;split [144/35]&gt; Fold5</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">The test set is sacred. The moment you use it to <em>choose</em> settings, it stops being an honest estimate of new-data performance, because the choice has now seen it. Tuning happens entirely inside the training folds; the test set is touched exactly once, at the very end, to confirm the model you already picked.</div></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>How do you pick the best settings?</h2>
+
+<p>You will end up with nine candidate trees, each with different <code>tree_depth</code> and <code>cost_complexity</code>. How should you decide which settings are best?</p>
+<section class="exercise" data-exercise-id="Tune-with-the-tune-package-step4" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Fit each one on the full training data and keep the tree with the highest training accuracy</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Score each candidate by cross-validation on the training folds and keep the best average, leaving the test set untouched</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Fit each on the training data, score all nine on the test set, and keep the test-set winner</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. The cross-validated score is an honest estimate of how each setting performs on data it has not seen, and that is the only fair basis for choosing. The test set stays sealed for the final check.</div><div class="lesson-qfb lesson-qfb-no">That spends the test set nine times. Once you pick the candidate that scored best on the test rows, the choice has seen them, so its test score is no longer an honest read on new data. You have leaked the test set into the decision.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">The menu of candidates</div>
+<h2>A grid of settings to try</h2>
+
+<p>A <strong>grid</strong> is just the list of hyperparameter combinations you want to try. For each dial you pick a few values, then take every pairing. With \(L\) values per dial and \(p\) dials, a regular grid has \(L^p\) points. Two dials at three values each gives \(3^2 = 9\) candidate trees.</p>
+
+<p><code>grid_regular</code> from the <code>dials</code> package builds that menu for you. It knows sensible ranges for each hyperparameter, so you only say how many levels you want.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(dials)
+library(tune)
+
+tree_grid &lt;- grid_regular(
+  cost_complexity(),
+  tree_depth(range = c(1L, 8L)),
+  levels = 3
+)
+nrow(tree_grid)
+#&gt; [1] 9
+tree_grid
+#&gt; # A tibble: 9 x 2
+#&gt;   cost_complexity tree_depth
+#&gt;             &lt;dbl&gt;      &lt;int&gt;
+#&gt; 1    0.0000000001          1
+#&gt; 2    0.0000031600          1
+#&gt; 3    0.1000000000          1
+#&gt; 4    0.0000000001          4
+#&gt; 5    0.0000031600          4
+#&gt; 6    0.1000000000          4
+#&gt; 7    0.0000000001          8
+#&gt; 8    0.0000031600          8
+#&gt; 9    0.1000000000          8</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the two extremes and you can already predict the U-curve. The trees with <code>cost_complexity = 0.1</code> are so heavily penalized they barely split (near the underfit end); the deep, barely-penalized trees (<code>tree_depth = 8</code>, tiny <code>cost_complexity</code>) split until they memorize (the overfit end). The honest winner should sit somewhere in the middle.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">Run the search</div>
+<h2>Fit every candidate on every fold</h2>
+
+<p>This is the whole machine, in one picture. <code>tune_grid</code> walks the grid, and for each of the nine candidates it runs your workflow across all five folds, records the metrics, and moves on. Nine candidates times five folds is 45 little fits, and <code>tune_grid</code> does the bookkeeping.</p>
+
+<p>You hand <code>tune_grid</code> the same three things <code>fit_resamples</code> took in Lesson 4, plus one more: the grid of candidates to try.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(yardstick)
+
+set.seed(123)
+tree_res &lt;- tune_grid(
+  tree_wf,                                       # the workflow with two blanks
+  resamples = folds,                             # the folds to score on
+  grid      = tree_grid,                         # the nine candidates
+  metrics   = metric_set(roc_auc, accuracy)      # how to score each one
+)
+collect_metrics(tree_res)
+#&gt; # A tibble: 18 x 8
+#&gt;   cost_complexity tree_depth .metric  .estimator  mean     n std_err .config
+#&gt;             &lt;dbl&gt;      &lt;int&gt; &lt;chr&gt;    &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1    0.0000000001          1 accuracy binary     0.626     5 0.00556 pre0_mod1_post0
+#&gt; 2    0.0000000001          1 roc_auc  binary     0.567     5 0.0299  pre0_mod1_post0
+#&gt; 3    0.0000000001          4 accuracy binary     0.654     5 0.0252  pre0_mod4_post0
+#&gt; 4    0.0000000001          4 roc_auc  binary     0.655     5 0.0301  pre0_mod4_post0
+#&gt; # i 14 more rows</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p><code>collect_metrics</code> gives one row per candidate per metric: its mean across the five folds and the standard error of that mean. Eighteen rows because nine candidates times two metrics. That table is the entire search, laid out for you to read.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Set the grid","sub":"list the hyperparameter combinations to try"},{"title":"Resample","sub":"split the training data into cross-validation folds"},{"title":"Fit and score","sub":"train every candidate on every fold, score on its holdout"},{"title":"Collect","sub":"average each candidate score across the folds"},{"title":"Select and finalize","sub":"keep the best settings, lock them into the workflow"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Read the results, pick a winner</div>
+<h2>Which settings actually won?</h2>
+
+<p>You rarely want to eyeball eighteen rows. <code>show_best</code> sorts by a metric and hands you the top few, and <code>select_best</code> returns just the single winning row, ready to plug back into the model.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(ggplot2)
+
+show_best(tree_res, metric = &quot;roc_auc&quot;, n = 5)
+#&gt; # A tibble: 5 x 8
+#&gt;   cost_complexity tree_depth .metric .estimator  mean     n std_err .config
+#&gt;             &lt;dbl&gt;      &lt;int&gt; &lt;chr&gt;   &lt;chr&gt;      &lt;dbl&gt; &lt;int&gt;   &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1    0.0000000001          4 roc_auc binary     0.655     5  0.0301 pre0_mod4_post0
+#&gt; 2    0.0000031600          4 roc_auc binary     0.655     5  0.0301 pre0_mod5_post0
+#&gt; 3    0.0000000001          8 roc_auc binary     0.631     5  0.0288 pre0_mod7_post0
+#&gt; 4    0.0000031600          8 roc_auc binary     0.631     5  0.0288 pre0_mod8_post0
+#&gt; 5    0.1000000000          1 roc_auc binary     0.500     5  0.0000 pre0_mod3_post0
+
+best_tree &lt;- select_best(tree_res, metric = &quot;roc_auc&quot;)
+best_tree
+#&gt; # A tibble: 1 x 3
+#&gt;   cost_complexity tree_depth .config
+#&gt;             &lt;dbl&gt;      &lt;int&gt; &lt;chr&gt;
+#&gt; 1    0.0000000001          4 pre0_mod4_post0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The honest winner is a <strong>moderately shallow</strong> tree, not the deepest one. The depth-8 trees fit the training rows harder but score lower across the folds, and the heavily-penalized stump (<code>cost_complexity = 0.1</code>) collapses to an AUC of 0.5, no better than a coin flip. That is the cover's U-curve, made of real numbers. <code>autoplot</code> draws it straight from the results: ROC AUC against tree depth, one line per cost_complexity.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">autoplot(tree_res)</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Deepest fit versus best score</h2>
+
+<p>In your results, the deepest tree (<code>tree_depth = 8</code>) fits the training rows harder, but a shallower tree (<code>tree_depth = 4</code>) has the higher cross-validated ROC AUC. Which settings do you finalize?</p>
+<section class="exercise" data-exercise-id="Tune-with-the-tune-package-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Depth 8, because it fits the training data best, so it must be the stronger model</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Depth 4, because the best cross-validated score is the honest estimate of new-data performance, and that is what you are choosing on</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Neither; average the two depths and use a depth-6 tree to split the difference</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. You are choosing the settings that generalize best, and the cross-validated score is your only fair read on that. The deeper tree's training advantage does not survive contact with held-out data.</div><div class="lesson-qfb lesson-qfb-no">You cannot average tree depths into a model, and there is no reason to want to. The cross-validated scores already tell you depth 4 generalizes better, so you pick it outright.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Finalize and confirm</h2>
+
+<p>You have the winning settings in <code>best_tree</code>. The last two moves: <code>finalize_workflow</code> plugs those settings into the workflow's two blanks, and <code>last_fit</code> does the honest finish, it trains the finalized tree on the <strong>full</strong> training set and scores it once on the test set you locked away in step 3. Fill in the settings to plug in.</p>
+<section class="exercise" data-exercise-id="Tune-with-the-tune-package-step9" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-tryit" data-check-regex="best_tree"><textarea class="lesson-tryit-input" spellcheck="false">final_wf  &lt;- finalize_workflow(tree_wf, ____)   # plug the winning settings into the workflow
+final_fit &lt;- last_fit(final_wf, split, metrics = metric_set(roc_auc, accuracy))
+collect_metrics(final_fit)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">That is the finish: finalize_workflow fills the two blanks with best_tree, and last_fit gives you the first and only test-set score. If it lands near your cross-validated number, your tuning was honest.</span><span class="lesson-tryit-fb lesson-tryit-no">Plug in the winning settings you selected: finalize_workflow(tree_wf, best_tree).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">final_wf  &lt;- finalize_workflow(tree_wf, best_tree)
+final_fit &lt;- last_fit(final_wf, split, metrics = metric_set(roc_auc, accuracy))
+collect_metrics(final_fit)
+#&gt; # A tibble: 2 x 4
+#&gt;   .metric  .estimator .estimate .config
+#&gt;   &lt;chr&gt;    &lt;chr&gt;          &lt;dbl&gt; &lt;chr&gt;
+#&gt; 1 roc_auc  binary         0.641 pre0_mod0_post0
+#&gt; 2 accuracy binary         0.656 pre0_mod0_post0</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://tune.tidymodels.org/">tune package documentation (tidymodels)</a> - the reference for <code>tune()</code>, <code>tune_grid()</code>, <code>show_best()</code>, <code>select_best()</code>, <code>finalize_workflow()</code>, and <code>last_fit()</code>.</li>
+
+<li><a href="https://www.tmwr.org/grid-search">Tidy Modeling with R, ch. 13: Grid search</a> - Kuhn and Silge on regular versus space-filling grids and how to read tuning results.</li>
+
+<li><a href="https://www.tidymodels.org/start/tuning/">Get Started: Tune model parameters (tidymodels)</a> - the official end-to-end walk-through that tunes a decision tree, the same model you tuned here.</li>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 8 (free PDF)</a> - decision trees, cost-complexity pruning, and the bias-variance reason tuning matters at all.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Lesson 6 complete</h2>
+
+<p>You can now tune a model honestly. You told a learned parameter from a hyperparameter you set, marked a tree's dials with <code>tune()</code>, built a grid of candidates, scored every one of them across resampling folds with <code>tune_grid</code>, read the results with <code>collect_metrics</code> and <code>show_best</code>, picked the winner with <code>select_best</code>, and closed the loop with <code>finalize_workflow</code> and a single <code>last_fit</code> on the test set you had kept sealed all along. That sealed-test-set discipline is the difference between a model you tuned and a model you fooled yourself into liking.</p>
+
+<p>Next, Lesson 7: Compare many models with workflowsets. You tuned one model here. In real projects you have several candidates, a tree, a penalized regression, a boosted ensemble, and you want to tune and compare them all on the same footing, then crown a winner. <code>workflowsets</code> runs that whole bake-off for you.</p>
+</section>
+
+{% endraw %}
