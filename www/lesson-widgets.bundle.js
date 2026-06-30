@@ -243,6 +243,80 @@
 })();
 
 ;
+/* assoc-rules.js */
+/* assoc-rules.js - market-basket rules. A handful of baskets; pick a rule "if X then Y"
+ * and read its three numbers: support (how often X and Y appear together), confidence
+ * (of baskets with X, how many also have Y), and lift (how much more than chance). Lift
+ * above 1 is a real association. Emits runnable R that computes the three by hand.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+  var BASKETS = [
+    ['bread', 'butter', 'milk'], ['bread', 'butter'], ['bread', 'milk'],
+    ['beer', 'chips'], ['bread', 'butter', 'jam'], ['beer', 'chips', 'salsa'],
+    ['bread', 'butter'], ['milk', 'cereal'], ['beer', 'chips'], ['bread', 'jam']
+  ];
+  var RULES = [['bread', 'butter'], ['beer', 'chips'], ['bread', 'milk'], ['butter', 'jam']];
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var ri = 0;
+    function metrics(x, y) {
+      var n = BASKETS.length, X = 0, XY = 0, Y = 0;
+      BASKETS.forEach(function (b) { var hx = b.indexOf(x) >= 0, hy = b.indexOf(y) >= 0; if (hx) X++; if (hy) Y++; if (hx && hy) XY++; });
+      var supp = XY / n, conf = X ? XY / X : 0, lift = (Y / n) ? conf / (Y / n) : 0;
+      return { supp: supp, conf: conf, lift: lift };
+    }
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div style="font:600 10px/1 IBM Plex Mono,monospace;letter-spacing:.06em;text-transform:uppercase;color:' + P.faint + ';margin:0 0 8px">pick a rule</div>' +
+      '<div class="ar-seg" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px"></div>' +
+      '<div class="ar-bars"></div>' +
+      '<div class="ar-read" style="font:13px/1.5 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:10px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Compute support, confidence and lift in R' });
+
+    var seg = el.querySelector('.ar-seg'), bars = el.querySelector('.ar-bars'), read = el.querySelector('.ar-read');
+    RULES.forEach(function (r, i) {
+      var b = document.createElement('button'); b.innerHTML = r[0] + ' &rarr; ' + r[1];
+      b.style.cssText = 'font:600 12px IBM Plex Sans,sans-serif;border:1px solid ' + P.line + ';border-radius:8px;padding:6px 11px;cursor:pointer';
+      b.addEventListener('click', function () { ri = i; draw(); });
+      seg.appendChild(b);
+    });
+    function bar(lab, v, max, fmt) {
+      return '<div style="display:flex;align-items:center;gap:9px;margin:7px 0"><span style="font:11px IBM Plex Mono,monospace;color:' + P.mut + ';width:78px">' + lab + '</span>' +
+        '<span style="flex:1;height:13px;border-radius:4px;background:' + P.line + ';overflow:hidden;display:block"><i style="display:block;height:100%;width:' + Math.min(100, v / max * 100).toFixed(0) + '%;background:' + (lab === 'lift' && v >= 1 ? P.acc : (lab === 'lift' ? (P.c2 || '#c9a24a') : P.c0)) + '"></i></span>' +
+        '<span style="font:11px IBM Plex Mono,monospace;color:' + P.ink + ';width:40px;text-align:right">' + fmt + '</span></div>';
+    }
+    function draw() {
+      seg.querySelectorAll('button').forEach(function (x, i) { var on = i === ri; x.style.background = on ? P.ink : '#fff'; x.style.color = on ? '#fff' : P.body; });
+      var r = RULES[ri], m = metrics(r[0], r[1]);
+      bars.innerHTML = bar('support', m.supp, 1, (m.supp * 100).toFixed(0) + '%') + bar('confidence', m.conf, 1, (m.conf * 100).toFixed(0) + '%') + bar('lift', m.lift, 3, m.lift.toFixed(2));
+      read.innerHTML = 'Buyers of <b>' + r[0] + '</b> take <b>' + r[1] + '</b> ' + (m.conf * 100).toFixed(0) + '% of the time, and lift <b>' + m.lift.toFixed(2) + '</b> means that is <b>' + (m.lift >= 1 ? (m.lift.toFixed(1) + 'x more likely than chance - a real association worth acting on') : 'no more likely than chance - not a useful rule') + '</b>.';
+    }
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Association rules score "if X then Y" with three numbers.',
+      'baskets <- list(c("bread","butter","milk"), c("bread","butter"), c("bread","milk"),',
+      '                c("beer","chips"), c("bread","butter","jam"), c("beer","chips"))',
+      'has <- function(it) sapply(baskets, function(b) it %in% b)',
+      'n <- length(baskets)',
+      '',
+      'support    <- mean(has("bread") & has("butter"))       # X and Y together',
+      'confidence <- sum(has("bread") & has("butter")) / sum(has("bread"))',
+      'lift       <- confidence / mean(has("butter"))         # > 1 = real association',
+      'c(support = support, confidence = confidence, lift = lift)'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('assoc-rules', mount);
+})();
+
+;
 /* bias-variance-target.js */
 /* bias-variance-target.js - the dartboard view of bias and variance.
  * Shots at a bullseye. Bias offsets the cluster's CENTER from the target;
@@ -578,6 +652,71 @@
 })();
 
 ;
+/* causal-dag.js */
+/* causal-dag.js - read a causal graph. Three nodes (X treatment, Y outcome, Z other) and
+ * arrows you switch between confounder, collider and mediator. Each pattern tells you a
+ * different thing about whether to control for Z: adjust for a confounder, never for a
+ * collider, and think twice for a mediator. Emits runnable R that shows a confounder
+ * flipping a regression coefficient.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+  var SCEN = {
+    confounder: { arrows: [['Z', 'X'], ['Z', 'Y'], ['X', 'Y']], say: 'Z is a <b>confounder</b> (it causes both X and Y). Leaving it out makes the X-&gt;Y link look stronger or weaker than it is. <b>Control for Z.</b>' },
+    collider: { arrows: [['X', 'Z'], ['Y', 'Z'], ['X', 'Y']], say: 'Z is a <b>collider</b> (both X and Y point into it). Controlling for it OPENS a fake path and invents a correlation. <b>Do not control for Z.</b>' },
+    mediator: { arrows: [['X', 'Z'], ['Z', 'Y']], say: 'Z is a <b>mediator</b> (X acts through Z). Control for it and you remove the very effect you wanted to measure. <b>Usually leave it free.</b>' }
+  };
+  var POS = { X: [70, 150], Y: [330, 150], Z: [200, 50] };
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var mode = 'confounder';
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="cd-seg" style="display:flex;gap:6px;margin-bottom:12px"></div>' +
+      '<div class="cd-plot"></div>' +
+      '<div class="cd-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Watch a confounder flip a coefficient in R' });
+
+    var seg = el.querySelector('.cd-seg'), plot = el.querySelector('.cd-plot'), read = el.querySelector('.cd-read');
+    [['confounder', 'confounder'], ['collider', 'collider'], ['mediator', 'mediator']].forEach(function (o) {
+      var b = document.createElement('button'); b.textContent = o[1];
+      b.style.cssText = 'font:600 12px IBM Plex Sans,sans-serif;border:1px solid ' + P.line + ';border-radius:8px;padding:6px 12px;cursor:pointer';
+      b.addEventListener('click', function () { mode = o[0]; draw(); });
+      seg.appendChild(b);
+    });
+    function node(n, lab) { var p = POS[n]; var hi = (mode === 'confounder' && n === 'Z') || (mode === 'collider' && n === 'Z'); return '<circle cx="' + p[0] + '" cy="' + p[1] + '" r="26" fill="' + (n === 'Z' ? (hi ? P.acc : '#eef1f7') : '#1c2c4f') + '" stroke="' + P.line + '"/><text x="' + p[0] + '" y="' + (p[1] + 5) + '" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="14" font-weight="600" fill="' + (n === 'Z' && !hi ? P.ink : '#fff') + '">' + lab + '</text>'; }
+    function arrow(a, b) { var pa = POS[a], pb = POS[b], dx = pb[0] - pa[0], dy = pb[1] - pa[1], L = Math.sqrt(dx * dx + dy * dy), ux = dx / L, uy = dy / L; var x1 = pa[0] + ux * 27, y1 = pa[1] + uy * 27, x2 = pb[0] - ux * 30, y2 = pb[1] - uy * 30; var ang = Math.atan2(uy, ux); return '<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) + '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) + '" stroke="' + P.mut + '" stroke-width="2"/>' + '<path d="M' + x2.toFixed(1) + ',' + y2.toFixed(1) + ' L' + (x2 - 8 * Math.cos(ang - 0.4)).toFixed(1) + ',' + (y2 - 8 * Math.sin(ang - 0.4)).toFixed(1) + ' L' + (x2 - 8 * Math.cos(ang + 0.4)).toFixed(1) + ',' + (y2 - 8 * Math.sin(ang + 0.4)).toFixed(1) + ' Z" fill="' + P.mut + '"/>'; }
+    function draw() {
+      seg.querySelectorAll('button').forEach(function (x, i) { var on = ['confounder', 'collider', 'mediator'][i] === mode; x.style.background = on ? P.ink : '#fff'; x.style.color = on ? '#fff' : P.body; });
+      var sc = SCEN[mode], svg = '<svg viewBox="0 0 400 195" width="100%" style="max-width:400px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="causal DAG">';
+      sc.arrows.forEach(function (a) { svg += arrow(a[0], a[1]); });
+      svg += node('X', 'X') + node('Y', 'Y') + node('Z', 'Z');
+      svg += '<text x="70" y="190" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.faint + '">treatment</text><text x="330" y="190" text-anchor="middle" font-family="IBM Plex Sans,sans-serif" font-size="10" fill="' + P.faint + '">outcome</text>';
+      svg += '</svg>'; plot.innerHTML = svg; read.innerHTML = sc.say;
+    }
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# A confounder Z drives both X and Y. Ignore it and the X->Y coefficient lies.',
+      'set.seed(1); n <- 500',
+      'Z <- rnorm(n)',
+      'X <- 0.8 * Z + rnorm(n)            # Z causes X',
+      'Y <- 1.0 * Z + rnorm(n)            # Z causes Y; X has NO real effect on Y',
+      '',
+      'coef(lm(Y ~ X))["X"]              # biased: looks like X affects Y',
+      'coef(lm(Y ~ X + Z))["X"]          # adjust for Z: the effect collapses to ~0'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('causal-dag', mount);
+})();
+
+;
 /* chart-plotter.js */
 /* chart-plotter.js - the grammar-of-graphics / chart-type chooser.
  * Same data, switchable geom (point/line/bar/histogram/boxplot); renders an instant
@@ -637,6 +776,74 @@
     el.innerHTML = ''; el.appendChild(wrap);
   }
   if (window.LessonWidgets) window.LessonWidgets.register('chart-plotter', mount);
+})();
+
+;
+/* cluster-validate.js */
+/* cluster-validate.js - choosing k. The elbow plot shows total within-cluster spread
+ * dropping as k rises; it bends sharply at the "right" k and flattens after. The
+ * silhouette bars score how well-separated each k is. Move the k marker and read both.
+ * Emits runnable R that computes the within-SS elbow over a range of k.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+  var WSS = [null, 520, 250, 120, 96, 82, 73, 66, 60];   // index = k (k=1..8); sharp bend at k=3
+  var SIL = [null, 0, 0.42, 0.61, 0.55, 0.47, 0.40, 0.34, 0.29];
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var k = 3, view = 'elbow';
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="cvd-seg" style="display:flex;gap:6px;margin-bottom:12px"></div>' +
+      '<div class="cvd-plot"></div>' +
+      '<label style="display:block;font:600 12.5px/1.6 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:12px 0 2px">number of clusters k = <b class="cvd-k" style="font-family:IBM Plex Mono,monospace;color:' + P.ink + '"></b>' +
+        '<input class="cvd-s" type="range" min="2" max="8" step="1" value="3" style="width:100%;accent-color:' + P.acc + '"></label>' +
+      '<div class="cvd-read" style="font:13px/1.5 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:8px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Compute the within-SS elbow in R' });
+
+    var seg = el.querySelector('.cvd-seg'), plot = el.querySelector('.cvd-plot'), read = el.querySelector('.cvd-read'), slider = el.querySelector('.cvd-s'), kEl = el.querySelector('.cvd-k');
+    [['elbow', 'elbow (within-SS)'], ['sil', 'silhouette']].forEach(function (o) {
+      var b = document.createElement('button'); b.textContent = o[1];
+      b.style.cssText = 'font:600 12px IBM Plex Sans,sans-serif;border:1px solid ' + P.line + ';border-radius:8px;padding:6px 12px;cursor:pointer';
+      b.addEventListener('click', function () { view = o[0]; draw(); });
+      seg.appendChild(b);
+    });
+    function draw() {
+      seg.querySelectorAll('button').forEach(function (x, i) { var on = ['elbow', 'sil'][i] === view; x.style.background = on ? P.ink : '#fff'; x.style.color = on ? '#fff' : P.body; });
+      var W = 420, H = 170, m = 32, iw = W - m - 14, ih = H - m - 8;
+      function px(kk) { return m + (kk - 2) / 6 * iw; } function pyE(v) { return (H - m) - (v - 55) / (520 - 55) * ih; } function pyS(v) { return (H - m) - v / 0.7 * ih; }
+      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="cluster validation">';
+      svg += '<rect x="' + m + '" y="6" width="' + iw + '" height="' + ih + '" fill="#fbfcfb" stroke="' + P.line + '"/>';
+      if (view === 'elbow') {
+        var line = []; for (var kk = 2; kk <= 8; kk++) line.push(px(kk).toFixed(1) + ',' + pyE(WSS[kk]).toFixed(1));
+        svg += '<polyline points="' + line.join(' ') + '" fill="none" stroke="' + P.c0 + '" stroke-width="2.5"/>';
+        for (var kk2 = 2; kk2 <= 8; kk2++) svg += '<circle cx="' + px(kk2).toFixed(1) + '" cy="' + pyE(WSS[kk2]).toFixed(1) + '" r="3.5" fill="' + (kk2 === k ? P.acc : P.mut) + '"/>';
+      } else {
+        for (var kk3 = 2; kk3 <= 8; kk3++) { var h = SIL[kk3] / 0.7 * ih; svg += '<rect x="' + (px(kk3) - 10).toFixed(1) + '" y="' + (H - m - h).toFixed(1) + '" width="20" height="' + h.toFixed(1) + '" rx="2" fill="' + (kk3 === k ? P.acc : P.line) + '"/>'; }
+      }
+      for (var t = 2; t <= 8; t++) svg += '<text x="' + px(t).toFixed(1) + '" y="' + (H - 12) + '" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9.5" fill="' + P.mut + '">' + t + '</text>';
+      svg += '</svg>'; plot.innerHTML = svg;
+      read.innerHTML = 'At k=<b>' + k + '</b>: within-SS <b>' + WSS[k] + '</b>, silhouette <b>' + SIL[k].toFixed(2) + '</b>. The elbow bends and the silhouette peaks around <b>k=3</b> - the natural number of groups here.';
+      kEl.textContent = k;
+    }
+    slider.addEventListener('input', function () { k = +slider.value; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# The "elbow": total within-cluster spread falls fast, then flattens. The bend = good k.',
+      'x <- scale(iris[, 1:4])',
+      'wss <- sapply(1:8, function(k) kmeans(x, centers = k, nstart = 10)$tot.withinss)',
+      'plot(1:8, wss, type = "b", xlab = "k", ylab = "within-cluster SS")',
+      'wss                                  # the sharp drop ends around k = 3'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('cluster-validate', mount);
 })();
 
 ;
@@ -1218,6 +1425,90 @@
 })();
 
 ;
+/* dendrogram.js */
+/* dendrogram.js - hierarchical clustering as a merge tree. Leaves join into bigger and
+ * bigger groups going up; the height of each join is how dissimilar the two groups were.
+ * Drag the cut line down and the tree splits into more clusters - that is how you turn a
+ * dendrogram into k groups. Emits runnable R that runs hclust and cuts the tree.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+  var COL = [P.c0, P.acc, (P.c2 || '#c9a24a'), '#7a8a55', '#9a6a9a'];
+  // 8 leaves; merges as [left, right, height] building a binary tree (precomputed, plausible)
+  var LEAVES = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  var MERGES = [
+    { l: { leaf: 0 }, r: { leaf: 1 }, h: 0.8 },
+    { l: { leaf: 2 }, r: { leaf: 3 }, h: 1.0 },
+    { l: { leaf: 5 }, r: { leaf: 6 }, h: 0.9 },
+    { l: { leaf: 4 }, r: { m: 2 }, h: 1.6 },
+    { l: { m: 0 }, r: { m: 1 }, h: 2.4 },
+    { l: { m: 3 }, r: { leaf: 7 }, h: 2.9 },
+    { l: { m: 4 }, r: { m: 5 }, h: 4.2 }
+  ];
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var cut = 3.4, HMAX = 4.6;
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="dn-plot"></div>' +
+      '<label style="display:block;font:600 12.5px/1.6 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:12px 0 2px">cut height <b class="dn-h" style="font-family:IBM Plex Mono,monospace;color:' + P.ink + '"></b>' +
+        '<input class="dn-s" type="range" min="0.4" max="4.4" step="0.05" value="3.4" style="width:100%;accent-color:' + P.acc + '"></label>' +
+      '<div class="dn-read" style="font:13px/1.5 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:8px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Run hclust and cut the tree in R' });
+
+    var plot = el.querySelector('.dn-plot'), read = el.querySelector('.dn-read'), slider = el.querySelector('.dn-s'), hEl = el.querySelector('.dn-h');
+    var W = 420, H = 220, m = 24, leafX = {}, lw = (W - 2 * m) / (LEAVES.length - 1);
+    LEAVES.forEach(function (_, i) { leafX[i] = m + i * lw; });
+    function px(node) { return node.leaf != null ? leafX[node.leaf] : (px(MERGES[node.m].l) + px(MERGES[node.m].r)) / 2; }
+    function py(h) { return (H - 22) - h / HMAX * (H - 40); }
+    // cluster id below the cut: assign colours
+    function clustersBelow() {
+      var id = LEAVES.map(function (_, i) { return i; }), next = LEAVES.length;
+      MERGES.forEach(function (mg, mi) { if (mg.h <= cut) { /* merge clusters of l and r */ var li = repId(mg.l), ri = repId(mg.r); var a = id[li], b = id[ri]; for (var k = 0; k < id.length; k++) if (id[k] === b) id[k] = a; mg._cl = a; } });
+      function repId(node) { return node.leaf != null ? node.leaf : firstLeaf(MERGES[node.m]); }
+      function firstLeaf(mg2) { return mg2.l.leaf != null ? mg2.l.leaf : firstLeaf(MERGES[mg2.l.m]); }
+      // relabel to 0..k-1
+      var uniq = {}, c = 0, out = id.map(function (v) { if (uniq[v] == null) uniq[v] = c++; return uniq[v]; });
+      return { id: out, k: c };
+    }
+    function leafColor(i, cl) { return COL[cl.id[i] % COL.length]; }
+    function draw() {
+      var cl = clustersBelow();
+      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="dendrogram">';
+      MERGES.forEach(function (mg) {
+        var xl = px(mg.l), xr = px(mg.r), y = py(mg.h), yl = py(mg.l.leaf != null ? 0 : MERGES[mg.l.m].h), yr = py(mg.r.leaf != null ? 0 : MERGES[mg.r.m].h);
+        var col = mg.h <= cut ? COL[(mg._cl || 0) % COL.length] : P.mut;
+        svg += '<path d="M' + xl + ',' + yl + ' V' + y + ' H' + xr + ' V' + yr + '" fill="none" stroke="' + col + '" stroke-width="2"/>';
+      });
+      LEAVES.forEach(function (lab, i) { svg += '<circle cx="' + leafX[i] + '" cy="' + py(0) + '" r="4" fill="' + leafColor(i, cl) + '"/><text x="' + leafX[i] + '" y="' + (H - 6) + '" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="10" fill="' + P.mut + '">' + lab + '</text>'; });
+      svg += '<line x1="' + m + '" y1="' + py(cut).toFixed(1) + '" x2="' + (W - m) + '" y2="' + py(cut).toFixed(1) + '" stroke="' + P.ink + '" stroke-dasharray="5 3"/>';
+      svg += '</svg>'; plot.innerHTML = svg;
+      read.innerHTML = 'Cutting at height <b style="font-family:IBM Plex Mono,monospace;color:' + P.ink + '">' + cut.toFixed(1) + '</b> gives <b>' + cl.k + '</b> cluster' + (cl.k === 1 ? '' : 's') + '. Lower the cut for more, finer clusters; raise it to merge them.';
+      hEl.textContent = cut.toFixed(1);
+    }
+    slider.addEventListener('input', function () { cut = +slider.value; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Hierarchical clustering builds a tree of merges; cut it at a height to get k groups.',
+      'd <- dist(scale(iris[, 1:4]))         # pairwise distances',
+      'hc <- hclust(d, method = "ward.D2")',
+      'plot(hc, labels = FALSE)              # the dendrogram',
+      '',
+      'groups <- cutree(hc, k = 3)           # cut into 3 clusters',
+      'table(groups, iris$Species)           # do the cuts match the species?'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('dendrogram', mount);
+})();
+
+;
 /* doc-structure.js */
 /* doc-structure.js - the anatomy of an R Markdown / Quarto doc: YAML + prose +
  * code chunks, and what it knits to. Toggle source <-> rendered. cfg:
@@ -1266,6 +1557,68 @@
     el.innerHTML = ''; el.appendChild(wrap);
   }
   if (window.LessonWidgets) window.LessonWidgets.register('doc-structure', mount);
+})();
+
+;
+/* drift-monitor.js */
+/* drift-monitor.js - watching a feature after launch. The reference distribution (what the
+ * model trained on) stays put; slide "weeks since launch" and the live distribution drifts
+ * away. A population-stability index (PSI) climbs, and once it crosses the alert line the
+ * model is seeing inputs it was never trained on - time to retrain. Emits runnable R that
+ * computes PSI between a reference and a current sample.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+  var BINS = 10, REF = [];
+  (function () { var s = 6; function r() { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; } var a = new Array(BINS).fill(0); for (var i = 0; i < 1000; i++) { var v = (r() + r() + r()) / 3; a[Math.min(BINS - 1, Math.floor(v * BINS))]++; } REF = a.map(function (c) { return c / 1000; }); })();
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var shift = 0;  // weeks -> mean shift
+    function current() { var a = new Array(BINS).fill(0); var s = 6; function r() { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; } for (var i = 0; i < 1000; i++) { var v = (r() + r() + r()) / 3 + shift * 0.04; v = Math.max(0, Math.min(0.999, v)); a[Math.floor(v * BINS)]++; } return a.map(function (c) { return c / 1000; }); }
+    function psi(ref, cur) { var s = 0; for (var i = 0; i < BINS; i++) { var e = Math.max(ref[i], 0.001), o = Math.max(cur[i], 0.001); s += (o - e) * Math.log(o / e); } return s; }
+
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="dm-plot"></div>' +
+      '<label style="display:block;font:600 12.5px/1.6 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:12px 0 2px">weeks since launch <b class="dm-w" style="font-family:IBM Plex Mono,monospace;color:' + P.ink + '"></b>' +
+        '<input class="dm-s" type="range" min="0" max="8" step="0.5" value="0" style="width:100%;accent-color:' + P.acc + '"></label>' +
+      '<div class="dm-read" style="font:13px/1.5 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:8px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Compute the population-stability index in R' });
+
+    var plot = el.querySelector('.dm-plot'), read = el.querySelector('.dm-read'), slider = el.querySelector('.dm-s'), wEl = el.querySelector('.dm-w');
+    function draw() {
+      var cur = current(), W = 420, H = 150, bw = W / BINS, mx = 0.32;
+      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="distribution drift">';
+      REF.forEach(function (c, i) { var h = c / mx * (H - 16); svg += '<rect x="' + (i * bw + 2).toFixed(1) + '" y="' + (H - h).toFixed(1) + '" width="' + (bw - 4).toFixed(1) + '" height="' + h.toFixed(1) + '" fill="none" stroke="' + P.mut + '" stroke-dasharray="3 2" rx="1"/>'; });
+      cur.forEach(function (c, i) { var h = c / mx * (H - 16); svg += '<rect x="' + (i * bw + 2).toFixed(1) + '" y="' + (H - h).toFixed(1) + '" width="' + (bw - 4).toFixed(1) + '" height="' + h.toFixed(1) + '" fill="' + P.acc + '" opacity="0.85" rx="1"/>'; });
+      svg += '</svg>'; plot.innerHTML = svg;
+      var ps = psi(REF, cur), alert = ps >= 0.2;
+      read.innerHTML = '<b style="font-family:IBM Plex Mono,monospace;color:' + (alert ? P.del : P.ink) + '">PSI ' + ps.toFixed(2) + '</b> &middot; dashed = training reference, solid = live traffic. ' +
+        (alert ? '<b style="color:' + P.del + '">Drift alert (PSI &ge; 0.2)</b> - the live inputs no longer match training. Retrain.' : ps >= 0.1 ? 'Minor drift - keep watching.' : 'Stable - inputs still look like the training data.');
+      wEl.textContent = shift.toFixed(1);
+    }
+    slider.addEventListener('input', function () { shift = +slider.value; draw(); });
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# PSI compares a live sample to the training reference, bin by bin. >= 0.2 = real drift.',
+      'set.seed(1)',
+      'ref <- rnorm(1000, 0, 1)                 # training distribution',
+      'live <- rnorm(1000, 0.6, 1)              # months later: shifted',
+      'br <- quantile(ref, probs = seq(0, 1, 0.1))',
+      'e <- table(cut(ref,  br)) / length(ref)',
+      'o <- table(cut(live, br)) / length(live)',
+      'psi <- sum((o - e) * log(pmax(o, 1e-4) / pmax(e, 1e-4)))',
+      'psi                                       # compare to 0.1 (watch) and 0.2 (alert)'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('drift-monitor', mount);
 })();
 
 ;
@@ -1318,6 +1671,74 @@
     el.innerHTML = ''; el.appendChild(wrap);
   }
   if (window.LessonWidgets) window.LessonWidgets.register('facet-grid', mount);
+})();
+
+;
+/* fairness-metrics.js */
+/* fairness-metrics.js - the same model, two groups. Bars compare group A and group B on
+ * selection rate, true-positive rate and false-positive rate. Switch the fairness
+ * definition and watch which one the model satisfies and which it violates - the
+ * impossibility result is that you usually cannot satisfy all of them at once. Emits
+ * runnable R that computes per-group rates from predictions.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+  // per-group rates (group A advantaged); selection / TPR / FPR
+  var G = { A: { sel: 0.46, tpr: 0.82, fpr: 0.20 }, B: { sel: 0.28, tpr: 0.66, fpr: 0.19 } };
+  var DEFS = {
+    parity: { keys: ['sel'], labels: ['selection rate'], say: 'Demographic parity asks for equal <b>selection rates</b>. Here A is picked 46% vs B 28% - a clear gap.' },
+    opportunity: { keys: ['tpr'], labels: ['true-positive rate'], say: 'Equal opportunity asks for equal <b>true-positive rates</b> among the truly qualified. A 0.82 vs B 0.66 - the model finds qualified A\'s more often.' },
+    odds: { keys: ['tpr', 'fpr'], labels: ['true-positive rate', 'false-positive rate'], say: 'Equalised odds needs BOTH rates equal. FPRs match (~0.20) but TPRs do not - so this fails too.' }
+  };
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var def = 'parity';
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="fm-seg" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px"></div>' +
+      '<div class="fm-bars"></div>' +
+      '<div class="fm-read" style="font:13px/1.55 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:10px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Compute per-group rates in R' });
+
+    var seg = el.querySelector('.fm-seg'), barsEl = el.querySelector('.fm-bars'), read = el.querySelector('.fm-read');
+    [['parity', 'demographic parity'], ['opportunity', 'equal opportunity'], ['odds', 'equalised odds']].forEach(function (o) {
+      var b = document.createElement('button'); b.textContent = o[1];
+      b.style.cssText = 'font:600 12px IBM Plex Sans,sans-serif;border:1px solid ' + P.line + ';border-radius:8px;padding:6px 11px;cursor:pointer';
+      b.addEventListener('click', function () { def = o[0]; draw(); });
+      seg.appendChild(b);
+    });
+    function group(metricKey, lab) {
+      var a = G.A[metricKey], b = G.B[metricKey], gap = Math.abs(a - b);
+      function row(name, v, col) { return '<div style="display:flex;align-items:center;gap:9px;margin:4px 0"><span style="font:11px IBM Plex Mono,monospace;color:' + P.mut + ';width:62px">' + name + '</span><span style="flex:1;height:14px;border-radius:4px;background:' + P.line + ';overflow:hidden;display:block"><i style="display:block;height:100%;width:' + (v * 100).toFixed(0) + '%;background:' + col + '"></i></span><span style="font:11px IBM Plex Mono,monospace;color:' + P.ink + ';width:38px;text-align:right">' + v.toFixed(2) + '</span></div>'; }
+      return '<div style="margin:0 0 12px"><div style="font:600 11px IBM Plex Sans,sans-serif;color:' + P.ink + ';margin:0 0 3px">' + lab + (gap > 0.05 ? ' <span style="color:' + (P.c2 || '#c9a24a') + '">gap ' + gap.toFixed(2) + '</span>' : ' <span style="color:' + P.add + '">matched</span>') + '</div>' + row('group A', a, P.c0) + row('group B', b, P.acc) + '</div>';
+    }
+    function draw() {
+      seg.querySelectorAll('button').forEach(function (x, i) { var on = ['parity', 'opportunity', 'odds'][i] === def; x.style.background = on ? P.ink : '#fff'; x.style.color = on ? '#fff' : P.body; });
+      var d = DEFS[def]; barsEl.innerHTML = d.keys.map(function (k, i) { return group(k, d.labels[i]); }).join(''); read.innerHTML = d.say;
+    }
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Fairness compares the SAME model across groups. Compute the rates per group.',
+      'set.seed(1); n <- 400',
+      'grp  <- sample(c("A","B"), n, replace = TRUE)',
+      'true <- rbinom(n, 1, ifelse(grp == "A", 0.5, 0.4))',
+      'pred <- rbinom(n, 1, ifelse(grp == "A", 0.46, 0.28))   # model selects A more',
+      '',
+      'rate <- function(g) c(',
+      '  selection = mean(pred[grp == g]),',
+      '  TPR = mean(pred[grp == g & true == 1]),',
+      '  FPR = mean(pred[grp == g & true == 0]))',
+      'rbind(A = rate("A"), B = rate("B"))     # compare the rows'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('fairness-metrics', mount);
 })();
 
 ;
@@ -1462,6 +1883,73 @@
       svg + '</div>';
   }
   if (window.LessonWidgets) window.LessonWidgets.register('gini-split', mount);
+})();
+
+;
+/* gmm-clusters.js */
+/* gmm-clusters.js - soft clustering. Unlike k-means (every point fully in one cluster), a
+ * Gaussian mixture gives each point a PROBABILITY of belonging to each component. Toggle
+ * hard vs soft: in soft mode the boundary points turn an in-between colour, showing the
+ * model's honest uncertainty. Emits runnable R that computes mixture responsibilities by
+ * hand for two components.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+  var A = [3.3, 4.2], B = [6.4, 5.6], SD = 1.25;
+  var PTS = (function () { var s = 4, out = []; function r() { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; } function g() { return (r() + r() + r() - 1.5) * 1.3; } for (var i = 0; i < 22; i++) out.push([A[0] + g(), A[1] + g()]); for (var j = 0; j < 22; j++) out.push([B[0] + g(), B[1] + g()]); return out; })();
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var soft = true;
+    function resp(p) { var da = Math.exp(-((p[0] - A[0]) * (p[0] - A[0]) + (p[1] - A[1]) * (p[1] - A[1])) / (2 * SD * SD)); var db = Math.exp(-((p[0] - B[0]) * (p[0] - B[0]) + (p[1] - B[1]) * (p[1] - B[1])) / (2 * SD * SD)); return da / (da + db); }
+    function mix(t) { var c0 = [32, 86, 210], c1 = [201, 162, 74]; return 'rgb(' + Math.round(c0[0] * t + c1[0] * (1 - t)) + ',' + Math.round(c0[1] * t + c1[1] * (1 - t)) + ',' + Math.round(c0[2] * t + c1[2] * (1 - t)) + ')'; }
+
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="gm-seg" style="display:flex;gap:6px;margin-bottom:12px"></div>' +
+      '<div class="gm-plot"></div>' +
+      '<div class="gm-read" style="font:13px/1.5 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Compute mixture responsibilities in R' });
+
+    var seg = el.querySelector('.gm-seg'), plot = el.querySelector('.gm-plot'), read = el.querySelector('.gm-read');
+    [['true', 'soft (GMM)'], ['false', 'hard (k-means)']].forEach(function (o) {
+      var b = document.createElement('button'); b.textContent = o[1];
+      b.style.cssText = 'font:600 12px IBM Plex Sans,sans-serif;border:1px solid ' + P.line + ';border-radius:8px;padding:6px 12px;cursor:pointer';
+      b.addEventListener('click', function () { soft = o[0] === 'true'; draw(); });
+      seg.appendChild(b);
+    });
+    function draw() {
+      seg.querySelectorAll('button').forEach(function (x, i) { var on = ['true', 'false'][i] === String(soft); x.style.background = on ? P.ink : '#fff'; x.style.color = on ? '#fff' : P.body; });
+      var S = 240, m = 10, sc = (S - 2 * m) / 10;
+      function px(x) { return m + x * sc; } function py(y) { return (S - m) - y * sc; }
+      var svg = '<svg viewBox="0 0 ' + S + ' ' + S + '" width="100%" style="max-width:' + S + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="gaussian mixture clustering">';
+      svg += '<rect x="' + m + '" y="' + m + '" width="' + (S - 2 * m) + '" height="' + (S - 2 * m) + '" fill="#fbfcfb" stroke="' + P.line + '"/>';
+      [A, B].forEach(function (c) { svg += '<ellipse cx="' + px(c[0]).toFixed(1) + '" cy="' + py(c[1]).toFixed(1) + '" rx="' + (SD * 2 * sc).toFixed(1) + '" ry="' + (SD * 2 * sc).toFixed(1) + '" fill="none" stroke="' + P.line + '" stroke-dasharray="3 3"/>'; });
+      PTS.forEach(function (p) { var t = resp(p); var col = soft ? mix(t) : (t >= 0.5 ? P.acc : (P.c2 || '#c9a24a')); svg += '<circle cx="' + px(p[0]).toFixed(1) + '" cy="' + py(p[1]).toFixed(1) + '" r="4" fill="' + col + '" opacity="0.92"/>'; });
+      svg += '</svg>'; plot.innerHTML = svg;
+      read.innerHTML = soft
+        ? 'Soft: points near the overlap take an in-between colour - the model reports, say, 60% / 40% rather than forcing a side. That honesty is the point of a mixture model.'
+        : 'Hard: every point is forced fully into one cluster, even the ambiguous ones in the overlap. k-means cannot express "maybe".';
+    }
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# A 2-component mixture gives each point a PROBABILITY per cluster (a responsibility),',
+      '# not a hard label. Here it is by hand; the mclust package fits it for real.',
+      'set.seed(1)',
+      'x <- c(rnorm(40, -2), rnorm(40, 2))',
+      'mu <- c(-2, 2); sg <- c(1, 1)                 # two components',
+      'la <- dnorm(x, mu[1], sg[1]); lb <- dnorm(x, mu[2], sg[2])',
+      'resp <- la / (la + lb)                        # P(component 1 | x)',
+      'head(round(resp, 2), 10)                      # values near 0.5 = uncertain'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('gmm-clusters', mount);
 })();
 
 ;
@@ -1661,6 +2149,82 @@
   }
 
   window.LessonWidgets.register('gradient-descent', mount);
+})();
+
+;
+/* imbalance-resample.js */
+/* imbalance-resample.js - fixing class imbalance. A scatter with many majority points and
+ * a few minority points. Toggle: original / oversample (duplicate minority) / SMOTE
+ * (synthesize new minority points between neighbours). The class counts rebalance and the
+ * minority region fills in. Emits runnable R that counts classes and upsamples.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+  function rng(seed) { var s = seed; return function () { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; }; }
+  var r = rng(5);
+  var MAJ = [], MIN = [];
+  for (var i = 0; i < 60; i++) MAJ.push([2 + r() * 5, 2 + r() * 5]);
+  for (var j = 0; j < 8; j++) MIN.push([5.5 + r() * 2.5, 5.5 + r() * 2.5]);
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var mode = 'orig';
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="ir-seg" style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap"></div>' +
+      '<div class="ir-plot"></div>' +
+      '<div class="ir-read" style="font:13px/1.5 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Count classes and upsample the minority in R' });
+
+    var seg = el.querySelector('.ir-seg'), plot = el.querySelector('.ir-plot'), read = el.querySelector('.ir-read');
+    [['orig', 'original'], ['over', 'oversample'], ['smote', 'SMOTE']].forEach(function (o) {
+      var b = document.createElement('button'); b.textContent = o[1];
+      b.style.cssText = 'font:600 12px IBM Plex Sans,sans-serif;border:1px solid ' + P.line + ';border-radius:8px;padding:6px 12px;cursor:pointer';
+      b.addEventListener('click', function () { mode = o[0]; draw(); });
+      seg.appendChild(b);
+    });
+    function minoritySet() {
+      if (mode === 'orig') return { pts: MIN, synth: [] };
+      if (mode === 'over') { var d = []; for (var k = 0; k < 52; k++) d.push(MIN[k % MIN.length]); return { pts: MIN, synth: d }; }
+      var sy = [], rr = rng(3); for (var k = 0; k < 52; k++) { var a = MIN[Math.floor(rr() * MIN.length)], b = MIN[Math.floor(rr() * MIN.length)], t = rr(); sy.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]); } return { pts: MIN, synth: sy };
+    }
+    function draw() {
+      seg.querySelectorAll('button').forEach(function (x, i) { var on = ['orig', 'over', 'smote'][i] === mode; x.style.background = on ? P.ink : '#fff'; x.style.color = on ? '#fff' : P.body; });
+      var S = 240, m = 10, sc = (S - 2 * m) / 10;
+      function px(x) { return m + x * sc; } function py(y) { return (S - m) - y * sc; }
+      var svg = '<svg viewBox="0 0 ' + S + ' ' + S + '" width="100%" style="max-width:' + S + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="class imbalance resampling">';
+      svg += '<rect x="' + m + '" y="' + m + '" width="' + (S - 2 * m) + '" height="' + (S - 2 * m) + '" fill="#fbfcfb" stroke="' + P.line + '"/>';
+      MAJ.forEach(function (p) { svg += '<circle cx="' + px(p[0]).toFixed(1) + '" cy="' + py(p[1]).toFixed(1) + '" r="3.4" fill="' + P.c0 + '" opacity="0.65"/>'; });
+      var ms = minoritySet();
+      ms.synth.forEach(function (p) { svg += '<circle cx="' + px(p[0]).toFixed(1) + '" cy="' + py(p[1]).toFixed(1) + '" r="3.2" fill="' + P.acc + '" opacity="0.35"/>'; });
+      ms.pts.forEach(function (p) { svg += '<circle cx="' + px(p[0]).toFixed(1) + '" cy="' + py(p[1]).toFixed(1) + '" r="4" fill="' + P.acc + '" stroke="#fff" stroke-width="1"/>'; });
+      svg += '</svg>'; plot.innerHTML = svg;
+      var minN = MIN.length + ms.synth.length;
+      read.innerHTML = 'Majority <b>' + MAJ.length + '</b> &middot; minority <b>' + minN + '</b>. ' +
+        (mode === 'orig' ? 'A model trained here just predicts the majority and ignores the rare class.'
+         : mode === 'over' ? 'Oversampling duplicates minority rows - balanced counts, but the duplicates add no new information and can overfit.'
+         : 'SMOTE synthesises new minority points between real neighbours - balanced AND more varied, but never let it touch the test fold.');
+    }
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Imbalance: the model can score 95% accuracy by always predicting the majority.',
+      'set.seed(1)',
+      'y <- factor(c(rep("no", 950), rep("yes", 50)))   # 95% / 5%',
+      'table(y)',
+      '',
+      '# simplest fix: upsample the minority to match the majority',
+      'idx_min <- which(y == "yes")',
+      'up <- sample(idx_min, sum(y == "no"), replace = TRUE)',
+      'table(y[c(which(y == "no"), up)])     # now balanced (SMOTE via the themis package goes further)'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('imbalance-resample', mount);
 })();
 
 ;
@@ -3442,6 +4006,71 @@
 })();
 
 ;
+/* transform-shaper.js */
+/* transform-shaper.js - tame a skewed feature. A right-skewed histogram (a long right
+ * tail) reshapes as you toggle the transform: none / log / sqrt / Box-Cox. The skew
+ * statistic updates so you see the tail pulled toward symmetry. Emits runnable R that
+ * transforms a skewed variable and compares the shapes.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+  // a fixed right-skewed sample (exponential-ish), deterministic
+  var RAW = (function () { var s = 11, out = []; function r() { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; } for (var i = 0; i < 240; i++) out.push(-Math.log(1 - r()) * 2 + 0.05); return out; })();
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var mode = 'none';
+    function tx(v) { return mode === 'log' ? Math.log(v) : mode === 'sqrt' ? Math.sqrt(v) : mode === 'box' ? (Math.pow(v, 0.25) - 1) / 0.25 : v; }
+    function skew(a) { var n = a.length, m = a.reduce(function (s, x) { return s + x; }, 0) / n, sd = Math.sqrt(a.reduce(function (s, x) { return s + (x - m) * (x - m); }, 0) / n); return a.reduce(function (s, x) { return s + Math.pow((x - m) / sd, 3); }, 0) / n; }
+
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="ts-seg" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px"></div>' +
+      '<div class="ts-plot"></div>' +
+      '<div class="ts-read" style="font:13px/1.5 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Transform a skewed variable in R and compare' });
+
+    var seg = el.querySelector('.ts-seg'), plot = el.querySelector('.ts-plot'), read = el.querySelector('.ts-read');
+    [['none', 'raw'], ['log', 'log'], ['sqrt', 'sqrt'], ['box', 'Box-Cox']].forEach(function (o) {
+      var b = document.createElement('button'); b.textContent = o[1];
+      b.style.cssText = 'font:600 12px IBM Plex Sans,sans-serif;border:1px solid ' + P.line + ';border-radius:8px;padding:6px 12px;cursor:pointer;background:' + (o[0] === mode ? P.ink : '#fff') + ';color:' + (o[0] === mode ? '#fff' : P.body);
+      b.addEventListener('click', function () { mode = o[0]; draw(); seg.querySelectorAll('button').forEach(function (x, i) { var on = [['none'], ['log'], ['sqrt'], ['box']][i][0] === mode; x.style.background = on ? P.ink : '#fff'; x.style.color = on ? '#fff' : P.body; }); });
+      seg.appendChild(b);
+    });
+
+    function draw() {
+      var vals = RAW.map(tx), lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals), nb = 16, bins = new Array(nb).fill(0);
+      vals.forEach(function (v) { var i = Math.min(nb - 1, Math.floor((v - lo) / (hi - lo) * nb)); bins[i]++; });
+      var mx = Math.max.apply(null, bins), W = 420, H = 150, bw = W / nb;
+      var svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="100%" style="max-width:' + W + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="histogram">';
+      bins.forEach(function (c, i) { var h = c / mx * (H - 20); svg += '<rect x="' + (i * bw + 2).toFixed(1) + '" y="' + (H - h).toFixed(1) + '" width="' + (bw - 3).toFixed(1) + '" height="' + h.toFixed(1) + '" fill="' + P.acc + '" rx="2"/>'; });
+      svg += '</svg>'; plot.innerHTML = svg;
+      var sk = skew(vals);
+      read.innerHTML = 'Skewness <b style="font-family:IBM Plex Mono,monospace;color:' + P.ink + '">' + sk.toFixed(2) + '</b> (0 = symmetric). ' +
+        (Math.abs(sk) < 0.4 ? 'The transform has pulled the long tail in - now a linear model and distance metrics behave.' : 'Still skewed: the long right tail makes means and distances misleading. Try a transform.');
+    }
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# A right-skewed feature (a long tail) distorts linear models and distances.',
+      '# A log or Box-Cox transform pulls the tail in toward symmetry.',
+      'set.seed(1)',
+      'x <- rexp(500, rate = 0.5)            # heavily right-skewed',
+      'g <- function(v) mean(((v - mean(v)) / sd(v))^3)   # skewness',
+      '',
+      'c(raw = g(x), log = g(log(x)), sqrt = g(sqrt(x)))  # closer to 0 = more symmetric',
+      'par(mfrow = c(1, 2)); hist(x, main = "raw"); hist(log(x), main = "log")'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('transform-shaper', mount);
+})();
+
+;
 /* tree-diagram.js */
 /* tree-diagram.js - a clean static decision-tree SVG. Used as a cover hero so a
  * lesson opens with a visual, not plain text. Non-interactive by design (it sets
@@ -3491,6 +4120,78 @@
   }
 
   if (window.LessonWidgets) window.LessonWidgets.register('tree-diagram', mount);
+})();
+
+;
+/* tuning-search.js */
+/* tuning-search.js - searching a 2-hyperparameter loss surface. The shaded grid is the
+ * validation loss for each (param1, param2). Toggle grid vs random search and watch where
+ * each spends its budget: grid wastes points on a coarse lattice; random covers each axis
+ * better for the same count. The best point found is ringed. Emits runnable R that scores
+ * a grid and picks the best combination.
+ *
+ * cfg: { }
+ */
+(function () {
+  'use strict';
+  var u = window.LessonWidgets.u, P = u.P;
+  function loss(a, b) { return 0.2 + 0.8 * (Math.pow(a - 0.62, 2) + Math.pow(b - 0.38, 2)) + 0.05 * Math.sin(6 * a) * Math.cos(5 * b); }
+
+  function mount(el, cfg) {
+    cfg = cfg || {}; var mode = 'grid', N = 16;
+    el.style.cssText = 'border:1px solid ' + P.line + ';border-radius:12px;background:#fff;padding:16px 17px';
+    el.innerHTML =
+      '<div class="tg-seg" style="display:flex;gap:6px;margin-bottom:12px"></div>' +
+      '<div class="tg-plot"></div>' +
+      '<div class="tg-read" style="font:13px/1.5 IBM Plex Sans,sans-serif;color:' + P.body + ';margin:9px 0 14px"></div>' +
+      u.runnable(rcode(), { label: 'Grid-search two hyperparameters in R' });
+
+    var seg = el.querySelector('.tg-seg'), plot = el.querySelector('.tg-plot'), read = el.querySelector('.tg-read');
+    [['grid', 'grid search'], ['random', 'random search']].forEach(function (o) {
+      var b = document.createElement('button'); b.textContent = o[1];
+      b.style.cssText = 'font:600 12px IBM Plex Sans,sans-serif;border:1px solid ' + P.line + ';border-radius:8px;padding:6px 12px;cursor:pointer';
+      b.addEventListener('click', function () { mode = o[0]; draw(); });
+      seg.appendChild(b);
+    });
+    function pts() {
+      var out = [];
+      if (mode === 'grid') { var k = Math.round(Math.sqrt(N)); for (var i = 0; i < k; i++) for (var j = 0; j < k; j++) out.push([(i + 0.5) / k, (j + 0.5) / k]); }
+      else { var s = 9; function r() { s = (s * 1103515245 + 12345) & 0x7fffffff; return s / 0x7fffffff; } for (var t = 0; t < N; t++) out.push([r(), r()]); }
+      return out;
+    }
+    function draw() {
+      seg.querySelectorAll('button').forEach(function (x, i) { var on = ['grid', 'random'][i] === mode; x.style.background = on ? P.ink : '#fff'; x.style.color = on ? '#fff' : P.body; });
+      var S = 240, m = 6, iw = S - 2 * m, res = 24;
+      var svg = '<svg viewBox="0 0 ' + S + ' ' + S + '" width="100%" style="max-width:' + S + 'px;display:block" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="hyperparameter loss surface">';
+      for (var i = 0; i < res; i++) for (var j = 0; j < res; j++) { var lv = loss((i + 0.5) / res, (j + 0.5) / res); var t = Math.max(0, Math.min(1, (lv - 0.2) / 0.9)); var c = Math.round(255 - t * 150); svg += '<rect x="' + (m + i / res * iw).toFixed(1) + '" y="' + (m + (1 - (j + 1) / res) * iw).toFixed(1) + '" width="' + (iw / res + 0.6).toFixed(1) + '" height="' + (iw / res + 0.6).toFixed(1) + '" fill="rgb(' + c + ',' + (c + 6) + ',' + (c - 20) + ')"/>'; }
+      var P2 = pts(), best = null;
+      P2.forEach(function (p) { var lv = loss(p[0], p[1]); if (!best || lv < best.l) best = { x: p[0], y: p[1], l: lv }; var cx = m + p[0] * iw, cy = m + (1 - p[1]) * iw; svg += '<circle cx="' + cx.toFixed(1) + '" cy="' + cy.toFixed(1) + '" r="3" fill="' + P.ink + '" opacity="0.8"/>'; });
+      svg += '<circle cx="' + (m + best.x * iw).toFixed(1) + '" cy="' + (m + (1 - best.y) * iw).toFixed(1) + '" r="7" fill="none" stroke="' + P.acc + '" stroke-width="2.5"/>';
+      svg += '</svg>'; plot.innerHTML = svg;
+      read.innerHTML = mode === 'grid'
+        ? 'A grid spends its ' + N + ' evaluations on a regular lattice - so it only ever tries ' + Math.round(Math.sqrt(N)) + ' distinct values of each parameter.'
+        : 'Random search spends the same ' + N + ' evaluations on ' + N + ' distinct values per axis, so it usually finds a better spot when one parameter barely matters.';
+    }
+    draw();
+  }
+
+  function rcode() {
+    return [
+      '# Score every combination on a validation set, then keep the best.',
+      'val_loss <- function(a, b) 0.2 + (a - 0.62)^2 + (b - 0.38)^2   # stand-in for CV error',
+      'grid <- expand.grid(param1 = seq(0, 1, length.out = 5),',
+      '                    param2 = seq(0, 1, length.out = 5))',
+      'grid$loss <- mapply(val_loss, grid$param1, grid$param2)',
+      'grid[which.min(grid$loss), ]            # the best combination',
+      '',
+      '# random search: same budget, different values per axis',
+      'set.seed(1); rs <- data.frame(param1 = runif(25), param2 = runif(25))',
+      'rs$loss <- mapply(val_loss, rs$param1, rs$param2)',
+      'rs[which.min(rs$loss), ]'
+    ].join('\n');
+  }
+
+  window.LessonWidgets.register('tuning-search', mount);
 })();
 
 ;

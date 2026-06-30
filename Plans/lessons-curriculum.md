@@ -69,7 +69,7 @@ Format per course:
 ## ds-feature-engineering  (track: scientist; curriculum_id 6.60; landing R-Feature-Engineering-Course.html; access: free)  [roadmap §6]
 1. Encoding-Categorical-Variables - one-hot / dummy, ordinal, and high-cardinality handling; when each is right and what each costs a model. widgets: table-transform
 2. Target-Encoding-Without-Leakage - impact / target encoding done out-of-fold so the encoding never sees the rows it scores; the leak it prevents. widgets: data-split, table-transform
-3. Scaling-and-Transformations - center / scale, log, Box-Cox and Yeo-Johnson, and which models care about scale and which do not. widgets: chart-plotter, table-transform
+3. Scaling-and-Transformations - center / scale, log, Box-Cox and Yeo-Johnson, and which models care about scale and which do not. widgets: NEW:transform-shaper, table-transform
 4. Interaction-and-Spline-Features - products, polynomials and splines that let a linear model bend without overfitting. widgets: chart-plotter, ols-fit
 5. Features-from-Dates-Text-and-Geo - pulling signal out of timestamps, strings and coordinates into model-ready columns. widgets: table-transform
 6. Imputing-Missing-Values-in-Features - mean / median / kNN / model-based imputation done inside the pipeline so it stays leak-free. widgets: table-transform, data-split
@@ -79,14 +79,14 @@ Format per course:
 1. Cross-Validation-Strategies - k-fold, repeated and LOOCV, and the bias-variance of the estimate itself. widgets: cv-folds
 2. Grouped-Blocked-and-Time-Aware-CV - leakage-safe resampling when rows are grouped or ordered in time. widgets: cv-folds, data-split
 3. Nested-Cross-Validation - tune on the inside, evaluate on the outside, so the reported score is not optimistic. widgets: cv-folds
-4. Hyperparameter-Tuning-Strategies - grid, random and Bayesian search, and how to spend the search budget well. widgets: learning-curve, oob-tuner
+4. Hyperparameter-Tuning-Strategies - grid, random and Bayesian search, and how to spend the search budget well. widgets: NEW:tuning-search, learning-curve
 5. Scoring-Rules-and-Regression-Metrics - proper scoring rules, log-loss, RMSE / MAE / MAPE and what each one rewards. widgets: chart-plotter, roc-curve
 6. Comparing-Models-Statistically - resampled differences with uncertainty, not single-split luck. widgets: null-distribution
 7. From-Metrics-to-Money - turning a metric gain into the business decision it should drive. widgets: roc-curve, process-flow
 
 ## ds-imbalanced-classification  (track: scientist; curriculum_id 6.80; landing R-Imbalanced-Classification-Course.html; access: free)  [roadmap §8]
 1. Beyond-Binary-Multiclass-Classification - one-vs-rest and one-vs-one, and how the metrics change with more than two classes. widgets: roc-curve, decision-region
-2. Class-Imbalance-and-Resampling - under / oversampling and SMOTE with themis, applied without leaking into evaluation. widgets: decision-region, data-split
+2. Class-Imbalance-and-Resampling - under / oversampling and SMOTE with themis, applied without leaking into evaluation. widgets: NEW:imbalance-resample, decision-region
 3. Thresholds-Under-Asymmetric-Costs - moving the cutoff when a false negative costs far more than a false positive. widgets: logistic-curve, roc-curve
 4. ROC-PR-Lift-and-Gains-Curves - the curve family, and why precision-recall beats ROC on rare positives. widgets: roc-curve
 5. Calibrating-Predicted-Probabilities - reliability diagrams and Platt / isotonic calibration so a 0.7 means 0.7. widgets: NEW:calibration-curve
@@ -95,16 +95,16 @@ Format per course:
 ## ds-unsupervised  (track: scientist; curriculum_id 6.90; landing R-Unsupervised-Learning-Course.html; access: free)  [roadmap §9]
 1. PCA-in-R - principal components, variance explained, and reading a biplot. widgets: NEW:pca-projection
 2. Factor-Analysis - latent factors behind observed variables, and how it differs from PCA. widgets: NEW:pca-projection, importance-bars
-3. k-Means-and-Choosing-k - Lloyd's algorithm step by step, and the elbow / silhouette for picking k. widgets: NEW:kmeans-cluster
-4. Hierarchical-and-Density-Clustering - hclust dendrograms and DBSCAN for shapes k-means cannot find. widgets: NEW:kmeans-cluster, tree-diagram
-5. Gaussian-Mixture-Models - soft, probabilistic clusters with mclust. widgets: NEW:kmeans-cluster
-6. Cluster-Validation-and-Stability - silhouette, the gap statistic, and asking whether the clusters are even real. widgets: chart-plotter
+3. k-Means-and-Choosing-k - Lloyd's algorithm step by step, and the elbow / silhouette for picking k. widgets: NEW:kmeans-cluster, NEW:cluster-validate
+4. Hierarchical-and-Density-Clustering - hclust dendrograms and DBSCAN for shapes k-means cannot find. widgets: NEW:dendrogram, tree-diagram
+5. Gaussian-Mixture-Models - soft, probabilistic clusters with mclust. widgets: NEW:gmm-clusters
+6. Cluster-Validation-and-Stability - silhouette, the gap statistic, and asking whether the clusters are even real. widgets: NEW:cluster-validate, chart-plotter
 7. t-SNE-and-UMAP - nonlinear embeddings for seeing structure, and the traps in reading them. widgets: NEW:pca-projection
-8. Association-Rules-and-Market-Basket - support, confidence and lift with arules. widgets: table-transform
+8. Association-Rules-and-Market-Basket - support, confidence and lift with arules. widgets: NEW:assoc-rules, table-transform
 
 ## ds-causal  (track: scientist; curriculum_id 6.100; landing R-Causal-Inference-Course.html; access: free)  [roadmap §10]
 1. Correlation-Causation-and-Potential-Outcomes - the counterfactual frame and why a correlation is never enough. widgets: null-distribution, process-flow
-2. Causal-Diagrams-with-DAGs - drawing your assumptions, then reading confounders and colliders off the graph. widgets: tree-diagram, process-flow
+2. Causal-Diagrams-with-DAGs - drawing your assumptions, then reading confounders and colliders off the graph. widgets: NEW:causal-dag, process-flow
 3. AB-Testing-and-Experiment-Design - randomization, power and the sample size you actually need. widgets: null-distribution, data-split
 4. Reading-an-Experiment - effect sizes, intervals, and what a result does and does not let you claim. widgets: null-distribution
 5. When-You-Cannot-Randomize - matching and difference-in-differences, and the assumptions they ask you to buy. widgets: process-flow, ols-fit
@@ -114,7 +114,7 @@ Format per course:
 2. Permutation-and-Drop-Column-Importance - model-agnostic importance done honestly, and how it can mislead. widgets: importance-bars
 3. SHAP-Values - additive, per-feature contributions that sum exactly to the prediction. widgets: NEW:shap-bars
 4. Partial-Dependence-ICE-and-ALE - the shape of a feature's effect, averaged and per-row. widgets: NEW:pdp-curve
-5. Fairness-Basics - group metrics, the impossibility results, and what you can actually do about them. widgets: styled-table, importance-bars
+5. Fairness-Basics - group metrics, the impossibility results, and what you can actually do about them. widgets: NEW:fairness-metrics, styled-table
 6. Model-Cards-and-Documenting-a-Model - writing down intended use, training data and known limits. widgets: doc-structure
 
 ## ds-production  (track: scientist; curriculum_id 6.120; landing R-ML-Production-Course.html; access: free)  [roadmap §12]
@@ -122,7 +122,7 @@ Format per course:
 2. Versioning-Models-with-vetiver-and-pins - register, version and retrieve a model the way you do code. widgets: process-flow
 3. Serving-a-Model-with-plumber - wrap a fitted model in a small REST API. widgets: process-flow
 4. Batch-vs-Real-Time-Inference - matching the serving pattern to the decision being made. widgets: process-flow
-5. Monitoring-and-Drift - watching inputs and performance after launch, and knowing when to retrain. widgets: chart-plotter, learning-curve
+5. Monitoring-and-Drift - watching inputs and performance after launch, and knowing when to retrain. widgets: NEW:drift-monitor, learning-curve
 6. An-ML-System-Design-Checklist - the questions to answer before a model ships. widgets: doc-structure, process-flow
 
 NEW widgets for sections 6-12 (built before the batch; runnable interactive-R required like every widget): **calibration-curve**, **pca-projection**, **kmeans-cluster**, **shap-bars**, **pdp-curve**. Everything else reuses the existing library.

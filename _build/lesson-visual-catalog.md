@@ -104,6 +104,16 @@ For the Data Scientist track (track `ds` / `scientist`, sections 1-5+). Each ren
 | `kmeans-cluster` | step button -> assign / move centroids; within-SS drops | §9 k-means, hierarchical, GMM |
 | `shap-bars` | baseline + signed per-feature bars that sum to the prediction | §11 SHAP, global vs local explanations |
 | `pdp-curve` | ICE lines + their average (the PDP) over a feature sweep | §11 partial dependence / ICE / ALE |
+| `transform-shaper` | transform toggle (log / sqrt / Box-Cox) -> skewed histogram becomes symmetric; skew stat | §6 scaling and transformations |
+| `tuning-search` | grid vs random toggle over a 2D loss surface; best point ringed | §7 hyperparameter tuning |
+| `imbalance-resample` | original / oversample / SMOTE -> minority region fills in; class counts | §8 class imbalance and resampling |
+| `dendrogram` | cut-height slider -> the merge tree splits into k coloured clusters | §9 hierarchical and density clustering |
+| `gmm-clusters` | soft vs hard toggle -> boundary points take an in-between colour (responsibilities) | §9 Gaussian mixture models |
+| `cluster-validate` | k marker on the elbow (within-SS) + silhouette bars | §9 choosing k, cluster validation/stability |
+| `assoc-rules` | pick a rule -> support / confidence / lift bars | §9 association rules / market basket |
+| `causal-dag` | confounder / collider / mediator toggle -> what to control for | §10 causal diagrams (DAGs) |
+| `fairness-metrics` | fairness-definition toggle -> per-group selection / TPR / FPR bars + the gap | §11 fairness basics |
+| `drift-monitor` | weeks-since-launch slider -> live histogram drifts; PSI climbs to an alert | §12 monitoring and drift |
 
 Reuse for `ds` (sections 6-12): `table-transform` + `data-split` (§6 feature engineering, encoding, imputation, leakage), `importance-bars` (§6 feature selection; §11 permutation importance), `learning-curve` + `oob-tuner` (§7 tuning), `null-distribution` (§7 model comparison; §10 A/B testing, reading an experiment), `roc-curve` + `logistic-curve` + `decision-region` (§8 imbalance, thresholds, curves), `tree-diagram` (§9 hierarchical clustering; §10 DAGs), `process-flow` (§10 causal frames; §12 pipelines/serving/monitoring), `doc-structure` (§11 model cards; §12 system-design checklist).
 
