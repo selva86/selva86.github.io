@@ -1,0 +1,371 @@
+---
+title: "Gradient Boosting Lesson 4: Early Stopping and Learning Curves"
+description: "Read a gradient boosting learning curve, diagnose overfitting from its shape, and use early stopping with a patience window to set the number of trees in R."
+keywords: "early stopping, learning curve, gradient boosting, validation error, overfitting, best iteration, early stopping rounds, patience, XGBoost, LightGBM, number of trees, R"
+mathjax: true
+webr: true
+curriculum_id: "6.40.4"
+post_type: "LESSON"
+course_id: "ds-boosting"
+course_title: "Gradient Boosting in R"
+course_lesson: "4"
+course_total: "6"
+course_landing: "R-Gradient-Boosting-Course.html"
+course_next: "Monotonic-Constraints-for-Business-Rules.html"
+course_prev: "The-Hyperparameters-That-Matter.html"
+lesson_access: "free"
+catalog_blurb: "Read train and validation curves to stop training right before it overfits."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 4 of 6</div>
+<h2>Early Stopping and Learning Curves</h2>
+
+<p>In Lesson 3 you saw the validation error of a booster make a U: too few trees and it underfits, too many and it overfits. That U is the single most useful picture in boosting, and this lesson is about reading it.</p>
+
+<p>Sam runs a chain of bike-rental kiosks and wants to predict each day's rentals from the daily high temperature. A booster keeps stacking small trees, fitting the training days a little better with every round, forever. So the real question is not "is more trees better." It is <strong>when do you stop?</strong> Set the number of trees too high by hand and you overfit; too low and you leave demand unlearned.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Read a learning curve and say what the training curve and the validation curve each tell you</li>
+
+<li>Diagnose overfitting, underfitting, or a healthy fit from the curve's shape, and pick the fix</li>
+
+<li>State the early-stopping rule (the validation minimum, plus a patience window) and why patience beats stopping at the first uptick</li>
+
+<li>Use early stopping in R to set the number of trees for free, with no grid search</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> Lesson 1 (<a href="Gradient-Boosting-from-Scratch.html">Gradient Boosting from Scratch</a>: residuals, the learning rate, shallow trees in sequence) and Lesson 3 (<a href="The-Hyperparameters-That-Matter.html">The Hyperparameters That Matter</a>: the four knobs and the validation U). You can run R and you know what a training/validation split is and what RMSE measures.</p>
+<div class="lesson-widget" data-widget-type="gradient-boosting" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The picture</div>
+<h2>The learning curve, read properly</h2>
+
+<p>A <strong>learning curve</strong> plots two numbers against the boosting round: the error on the training days (the days the model fits) and the error on a held-out <strong>validation</strong> set (days it never trains on). We measure error with RMSE, the root-mean-square of the prediction misses, in the same units as rentals.</p>
+
+<p>Here is the asymmetry that makes the curve so useful. Every new tree is fit to correct what the current model still gets wrong on the <em>training</em> days, so the training curve falls a little more every single round and never turns back up. The validation curve has no such guarantee: it falls while the trees are still learning real, repeatable demand, bottoms out, then <strong>climbs</strong> once later trees start fitting the random noise in the training days. The lowest point of the validation curve is the model you want.</p>
+
+<p>Write the booster as the additive model from Lesson 3,</p>
+
+<p>\[ F_M(x) = F_0(x) + \nu \sum_{m=1}^{M} h_m(x), \]</p>
+
+<p>where \(F_0(x)\) is the starting guess (the mean rentals), \(h_m\) is the \(m\)-th tree, \(\nu\) is the learning rate, and \(M\) is the number of trees. Reading the curve picks \(M\): the best number of trees is the round where validation error is smallest,</p>
+
+<p>\[ M^\star = \arg\min_{m}\; \mathcal{L}_{\text{val}}(m), \]</p>
+
+<p>where \(\mathcal{L}_{\text{val}}(m)\) is the validation RMSE after \(m\) rounds and \(\arg\min\) means "the round \(m\) that makes it smallest."</p>
+
+<p>Drag the slider below to choose where to stop. Watch the orange training curve slide down without end while the validation curve makes its U, and read the verdict: stopped too early, stopped too late, or right at the sweet spot. That slider, done automatically, is early stopping.</p>
+<div class="lesson-widget" data-widget-type="learning-curve" data-widget-config='{"rounds":40}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="concept">
+<div class="lesson-step-eyebrow">In R</div>
+<h2>Build the curve on Sam's data</h2>
+
+<p>Let us produce that exact picture for real. Each lesson runs in a fresh R session, so we rebuild Sam's data here: one kiosk's daily rentals against temperature (demand humps near a pleasant 22 degrees), then a small booster that records BOTH errors after every round. Run this setup once.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rpart)
+set.seed(1)
+n &lt;- 240
+temp    &lt;- runif(n, -2, 36)                                          # daily high temperature, deg C
+rentals &lt;- 120 + 180 * exp(-((temp - 22)^2) / 120) + rnorm(n, 0, 22) # demand peaks near 22 C
+day &lt;- data.frame(temp = temp, rentals = rentals)
+tr  &lt;- 1:170; va &lt;- 171:n            # training rows / held-out validation rows
+
+# Boost `rounds` shallow trees, recording train + validation RMSE AFTER each round,
+# so we can watch the learning curve form. Each tree fits the current residuals.
+boost_curve &lt;- function(rounds = 120, depth = 2, lr = 0.1) {
+  pred &lt;- rep(mean(day$rentals[tr]), nrow(day))                  # start every prediction at the mean
+  out  &lt;- data.frame(round = 1:rounds, train = NA_real_, valid = NA_real_)
+  for (m in 1:rounds) {
+    res   &lt;- data.frame(temp = day$temp[tr], r = day$rentals[tr] - pred[tr])
+    stump &lt;- rpart(r ~ temp, data = res,
+                   control = rpart.control(maxdepth = depth, minsplit = 2, cp = 0))
+    pred  &lt;- pred + lr * predict(stump, day)                     # add a shrunken correction
+    out$train[m] &lt;- sqrt(mean((day$rentals[tr] - pred[tr])^2))  # training RMSE so far
+    out$valid[m] &lt;- sqrt(mean((day$rentals[va] - pred[va])^2))  # validation RMSE so far
+  }
+  out
+}
+nrow(day)
+#&gt; [1] 240</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now boost 120 rounds and look at the first few. Both errors start high and fall together while the model is still learning the temperature-to-demand shape.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">lc &lt;- boost_curve(rounds = 120)
+round(head(lc), 1)
+#&gt;   round train valid
+#&gt; 1     1  59.0  58.5
+#&gt; 2     2  54.3  54.3
+#&gt; 3     3  50.2  50.6
+#&gt; 4     4  46.7  47.4
+#&gt; 5     5  43.5  44.7
+#&gt; 6     6  40.6  42.2</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The interesting part is where they part ways. Ask R for the round with the lowest validation error, then compare a few rounds across the whole run.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">best &lt;- which.min(lc$valid)   # the round where validation error is smallest
+best
+#&gt; [1] 64
+round(lc[c(1, 30, best, 120), ], 1)
+#&gt;     round train valid
+#&gt; 1       1  59.0  58.5
+#&gt; 30     30  20.1  23.8
+#&gt; 64     64  18.2  22.8
+#&gt; 120   120  16.1  23.3</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Validation bottoms out at round 64 (RMSE 22.8), then creeps back up to 23.3 by round 120, even as training error keeps dropping to 16.1. Those last 56 trees made the model look better on the training days and worse on new days. That widening gap is overfitting, caught in the act.</p>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Which model do you ship?</h2>
+
+<p>You boost Sam's kiosk for 120 rounds. Training RMSE keeps falling every round and is lowest at round 120. Validation RMSE fell to 22.8 at round 64, then drifted up to 23.3 by round 120. Which model would you put into production?</p>
+<section class="exercise" data-exercise-id="Early-Stopping-and-Learning-Curves-step4" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Round 120: training error is lowest there, so that is the best-fit model</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Round 64: it has the lowest validation error, the best estimate of how the model does on new days</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Neither: keep adding trees past 120 until validation error comes back down</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Validation error is measured on days the model never trained on, so its minimum marks the most signal with the least overfit. The rise after 64 is memorized noise.</div><div class="lesson-qfb lesson-qfb-no">It will not come back down. Once validation turns up it keeps climbing as later trees fit more noise. The minimum you already passed, round 64, is the stopping point.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="concept">
+<div class="lesson-step-eyebrow">Three shapes</div>
+<h2>What the curve's shape is telling you</h2>
+
+<p>The same plot diagnoses three different problems by its shape. Read the gap between the two curves and where the validation curve is heading.</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Shape you see</th>
+<th>Diagnosis</th>
+<th>What to do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Validation makes a clear U; small gap at the bottom</td>
+<td>Healthy. The minimum is your number of trees.</td>
+<td>Stop at the validation minimum.</td>
+</tr>
+<tr>
+<td>Training error near zero, validation far above it and rising</td>
+<td>Overfitting. The model memorizes training days.</td>
+<td>Stop earlier; shallower trees; lower learning rate; more regularization.</td>
+</tr>
+<tr>
+<td>Both errors high and still falling (or flat and high) together</td>
+<td>Underfitting. The model has not learned the signal yet.</td>
+<td>More rounds; a touch more depth; a higher learning rate.</td>
+</tr>
+</tbody>
+</table>
+
+<p>See all three on Sam's data. The same booster, three settings, reporting the final training and validation RMSE for each.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r"># Final train + validation RMSE under three settings, on the same data.
+final_tv &lt;- function(...) unlist(tail(boost_curve(...)[c(&quot;train&quot;, &quot;valid&quot;)], 1))
+regimes &lt;- rbind(
+  healthy  = final_tv(rounds = 64,  depth = 2, lr = 0.10),   # stop at the validation minimum
+  overfit  = final_tv(rounds = 250, depth = 8, lr = 0.30),   # deep trees, big steps, far too many rounds
+  underfit = final_tv(rounds = 8,   depth = 1, lr = 0.05)    # too few, too-cautious rounds
+)
+round(regimes, 1)
+#&gt;          train valid
+#&gt; healthy   18.2  22.8
+#&gt; overfit    0.0  29.0
+#&gt; underfit  52.8  53.0</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Read the gaps. The healthy row has a small, honest gap (18.2 vs 22.8). The overfit row drives training error to literally zero but validation is the worst of the three (29.0): a giant gap is the signature of memorizing. The underfit row has almost no gap, but both numbers are terrible (about 53): it never learned the temperature-to-demand curve at all. A tiny gap is only good news when both errors are also low.</p>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="concept">
+<div class="lesson-step-eyebrow">The automation</div>
+<h2>Early stopping, in one function</h2>
+
+<p>Reading <code>which.min</code> off a finished curve works, but it wastes effort: you had to boost a fixed 120 rounds and guess that 120 was enough. <strong>Early stopping</strong> flips it around. You set the number of trees deliberately high, then let the booster watch validation error as it goes and stop itself once that error has not improved for a while.</p>
+
+<p>"For a while," not "at all," is the important part. A validation curve is a little jagged, so it can tick up for one unlucky round and then fall to a new low. The <strong>patience</strong> (libraries call it <code>early_stopping_rounds</code>) is how many non-improving rounds you tolerate before giving up. Each time validation hits a new best, the counter resets; when it runs out, you stop and keep the best round, not the last one.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">early_stop &lt;- function(rounds = 300, depth = 2, lr = 0.1, patience = 10) {
+  pred &lt;- rep(mean(day$rentals[tr]), nrow(day))
+  best_val &lt;- Inf; best_round &lt;- 0; wait &lt;- 0; m &lt;- 0
+  for (m in 1:rounds) {
+    res   &lt;- data.frame(temp = day$temp[tr], r = day$rentals[tr] - pred[tr])
+    stump &lt;- rpart(r ~ temp, data = res,
+                   control = rpart.control(maxdepth = depth, minsplit = 2, cp = 0))
+    pred  &lt;- pred + lr * predict(stump, day)
+    v &lt;- sqrt(mean((day$rentals[va] - pred[va])^2))
+    if (v &lt; best_val) {                 # new best: remember this round, reset the clock
+      best_val &lt;- v; best_round &lt;- m; wait &lt;- 0
+    } else {
+      wait &lt;- wait + 1                  # no improvement this round
+      if (wait &gt;= patience) break       # patience used up: stop
+    }
+  }
+  list(stopped_at = m, best_round = best_round, best_valid = round(best_val, 2))
+}
+early_stop(rounds = 300, patience = 10)
+#&gt; $stopped_at
+#&gt; [1] 74
+#&gt;
+#&gt; $best_round
+#&gt; [1] 64
+#&gt;
+#&gt; $best_valid
+#&gt; [1] 22.84</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>You asked for up to 300 trees. Early stopping ran to round 74, after watching validation fail to beat its round-64 low for 10 straight rounds, then handed back round 64 as the answer. You never had to know in advance that 64 was right. That is the whole trick: early stopping tunes the number of trees for you, in a single fit, with no grid search.</p>
+
+<div class="callout callout-warning"><div class="callout-label">Warning</div><div class="callout-body">You chose the number of trees by looking at the validation set, so its error at the best round (22.84) is now slightly optimistic: you have peeked at it. For an honest estimate of how the model does on genuinely new days, keep a separate <strong>test</strong> set that early stopping never touches, and report on that.</div></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Find the stopping round</h2>
+
+<p><code>lc</code> holds the per-round curve you built earlier with <code>boost_curve(rounds = 120)</code>. Find the round with the LOWEST validation error: that is where early stopping would stop. Fill in the blank with the right function.</p>
+<section class="exercise" data-exercise-id="Early-Stopping-and-Learning-Curves-step7" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="which\.min"><textarea class="lesson-tryit-input" spellcheck="false"># Which round has the smallest validation error?
+best_round &lt;- which.____(lc$valid)
+best_round</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Right: which.min returns the position of the smallest value, so which.min(lc$valid) is the round with the lowest validation error, the stopping point.</span><span class="lesson-tryit-fb lesson-tryit-no">You want the SMALLEST validation error, not the largest. Use which.min(lc$valid) (min, not max).</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">best_round &lt;- which.min(lc$valid)
+best_round
+#&gt; [1] 64</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Why patience?</h2>
+
+<p>You are running early stopping with <code>patience = 10</code>. Watching validation error, you see it tick UP slightly at round 41, then fall to a brand-new low at round 58. What does the booster do at round 41?</p>
+<section class="exercise" data-exercise-id="Early-Stopping-and-Learning-Curves-step8" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">It stops at round 41, because validation error got worse</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">It keeps going: one bad round is well inside the patience window, and the new low at 58 resets the counter</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">It lowers the learning rate automatically to recover</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. Patience tolerates a run of non-improving rounds. Because round 58 sets a new best, the wait counter resets to zero and the round-58 model is kept, not lost.</div><div class="lesson-qfb lesson-qfb-no">Early stopping never changes the learning rate. It only decides when to stop and which round's model to keep.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="concept">
+<div class="lesson-step-eyebrow">In practice</div>
+<h2>How real boosters do it</h2>
+
+<p>You will rarely hand-write the loop above. Every production booster has early stopping built in: you pass a validation set to watch and an <code>early_stopping_rounds</code> (the patience), set <code>nrounds</code> deliberately high, and the library finds the best round for you. Here is the XGBoost idiom in R. (It needs the <code>xgboost</code> package, which does not run in this in-browser R, so run this one in your own R session.)</p>
+
+<pre><code class="language-r">library(xgboost)
+
+# Wrap the training and validation matrices XGBoost expects.
+dtrain &lt;- xgb.DMatrix(x_train, label = y_train)
+dvalid &lt;- xgb.DMatrix(x_valid, label = y_valid)
+
+fit &lt;- xgb.train(
+  params  = list(objective = &quot;reg:squarederror&quot;, eta = 0.05, max_depth = 4),
+  data    = dtrain,
+  nrounds = 5000,                          # set this deliberately HIGH
+  watchlist = list(train = dtrain, valid = dvalid),
+  early_stopping_rounds = 50,              # stop after 50 rounds with no validation gain
+  eval_metric = &quot;rmse&quot;
+)
+
+fit$best_iteration   # the number of trees early stopping chose for you</code></pre>
+
+<p>LightGBM is the same idea with <code>valids</code> and <code>early_stopping_round</code>; the model remembers its <code>best_iteration</code> and uses it when you predict. The recipe from Lesson 3 now closes cleanly: fix a low learning rate, set the trees high, and let early stopping pick the exact number, so the one knob you never have to tune by hand is the number of trees.</p>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://hastie.su.domains/ElemStatLearn/">The Elements of Statistical Learning, ch. 10 (free PDF)</a> - boosting, the shrinkage and number-of-trees parameters, and why the test curve turns back up.</li>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 8 (free PDF)</a> - the gentler companion on choosing the number of trees for a boosted model.</li>
+
+<li><a href="https://xgboost.readthedocs.io/en/stable/tutorials/param_tuning.html">XGBoost docs: Notes on Parameter Tuning</a> - controlling overfitting and the number of rounds, with early stopping in practice.</li>
+
+<li><a href="https://lightgbm.readthedocs.io/en/latest/Parameters.html">LightGBM docs: early_stopping_round</a> - the same patience parameter, and how best_iteration is used at predict time.</li>
+
+<li><a href="https://doi.org/10.1007/3-540-49430-8_3">Prechelt (1998), Early Stopping, But When?</a> - the classic treatment of when to stop and why a patience window beats the first uptick.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="complete">
+<h2>Lesson 4 complete</h2>
+
+<p>You can now read a boosting learning curve, the most useful diagnostic the method gives you. Training error always falls, so it never tells you when to stop; validation error makes a U whose minimum is the right number of trees. The curve's shape names the problem: a small gap at a low minimum is healthy, a wide and growing gap is overfitting, two high curves are underfitting. And early stopping automates the read: set the trees high, watch validation, wait out a patience window of non-improving rounds, and keep the best one, no grid search required.</p>
+
+<p>Next, Lesson 5: Monotonic Constraints for Business Rules. Sometimes accuracy is not enough and the business needs a guarantee, for example that predicted demand never falls as temperature moves toward the ideal. You will force a feature's effect to go one way on purpose, and weigh the small accuracy cost against the trust it buys.</p>
+</section>
+
+{% endraw %}
