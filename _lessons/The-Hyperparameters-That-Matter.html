@@ -1,0 +1,424 @@
+---
+title: "Gradient Boosting Lesson 3: The Hyperparameters That Matter"
+description: "The handful of gradient boosting hyperparameters that actually matter: number of trees, learning rate, tree depth and regularization, how they trade off, and how to tune them."
+keywords: "gradient boosting hyperparameters, learning rate, number of trees, max_depth, num_leaves, regularization, XGBoost tuning, LightGBM tuning, shrinkage, boosting overfitting, n_estimators"
+mathjax: true
+webr: true
+curriculum_id: "6.40.3"
+post_type: "LESSON"
+course_id: "ds-boosting"
+course_title: "Gradient Boosting in R"
+course_lesson: "3"
+course_total: "6"
+course_landing: "R-Gradient-Boosting-Course.html"
+course_next: "Early-Stopping-and-Learning-Curves.html"
+course_prev: "LightGBM-and-CatBoost-in-R.html"
+lesson_access: "free"
+catalog_blurb: "The few boosting settings that actually change results, and how to set them."
+---
+{% raw %}
+<!-- md2lesson:generated -->
+
+<section class="lesson-step" data-step="1" data-step-type="cover">
+<div class="lesson-step-eyebrow">Lesson 3 of 6</div>
+<h2>The Hyperparameters That Matter</h2>
+
+<p>In Lesson 2 you handed Sam's bike-kiosk chain to LightGBM and CatBoost and met a fistful of settings in passing: <code>num_leaves</code>, <code>learning_rate</code>, <code>max_bin</code>, <code>nrounds</code>. A real booster exposes dozens more. Stare at that wall of options and tuning feels like turning random dials.</p>
+
+<p>It is not. A handful of knobs do almost all the work, they trade off against each other in predictable ways, and once you see the picture you can set them on purpose instead of by luck.</p>
+
+<p>By the end of this lesson you will be able to:</p>
+
+<ul>
+
+<li>Name the four hyperparameters that actually move a booster, and say what each controls</li>
+
+<li>Explain the learning-rate and number-of-trees trade-off, and set the two together</li>
+
+<li>Explain why boosting wants shallow trees when a random forest wants deep ones</li>
+
+<li>Use regularization to shrink the gap between training and validation error</li>
+
+<li>Follow a sensible tuning ORDER instead of guessing knobs at random</li>
+
+</ul>
+
+<p><strong>Prerequisites:</strong> Lesson 1 (<a href="Gradient-Boosting-from-Scratch.html">Gradient Boosting from Scratch</a>: residuals, the learning rate, shallow trees in sequence) and Lesson 2 (<a href="LightGBM-and-CatBoost-in-R.html">LightGBM and CatBoost in R</a>). You can run R and you know what a training and validation split is, and what RMSE measures.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"Number of trees","sub":"how many boosting rounds: the total model capacity"},{"title":"Learning rate","sub":"how much of each tree to keep: the step size"},{"title":"Tree depth","sub":"how complex each tree is: weak vs strong learners"},{"title":"Regularization","sub":"the brakes that stop it memorizing the training data"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="2" data-step-type="concept">
+<div class="lesson-step-eyebrow">The short list</div>
+<h2>Most settings do not matter, these four do</h2>
+
+<p>A trained booster is an <em>additive model</em>: it starts from one flat guess and stacks many small trees on top, each one nudging the prediction toward what the last batch still got wrong. Write that as</p>
+
+<p>\[ F_M(x) = F_0(x) + \nu \sum_{m=1}^{M} h_m(x) \]</p>
+
+<p>where \(F_0(x)\) is the initial guess (the mean of the target), \(h_m(x)\) is the \(m\)-th tree, \(M\) is the number of trees, and \(\nu\) (the Greek letter "nu") is the <strong>learning rate</strong> (some libraries call it the <em>shrinkage</em>), a small multiplier between 0 and 1 applied to every tree. Read straight off that one formula, the knobs that change the answer are: how many trees \(M\), how big a slice of each you keep \(\nu\), how complex each tree \(h_m\) is allowed to be, and how hard you penalize complexity to stop overfitting. Everything else is a refinement.</p>
+
+<p>Those four ideas wear different names in every library. Here is the same knob across the three boosters you met in Lesson 2:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>What it controls</th>
+<th>XGBoost</th>
+<th>LightGBM</th>
+<th>CatBoost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Number of trees</td>
+<td><code>nrounds</code> / <code>n_estimators</code></td>
+<td><code>num_iterations</code></td>
+<td><code>iterations</code></td>
+</tr>
+<tr>
+<td>Learning rate (shrinkage)</td>
+<td><code>eta</code></td>
+<td><code>learning_rate</code></td>
+<td><code>learning_rate</code></td>
+</tr>
+<tr>
+<td>Tree complexity</td>
+<td><code>max_depth</code></td>
+<td><code>num_leaves</code></td>
+<td><code>depth</code></td>
+</tr>
+<tr>
+<td>Min data per leaf</td>
+<td><code>min_child_weight</code></td>
+<td><code>min_data_in_leaf</code></td>
+<td><code>min_data_in_leaf</code></td>
+</tr>
+<tr>
+<td>Row / column sampling</td>
+<td><code>subsample</code> / <code>colsample_bytree</code></td>
+<td><code>bagging_fraction</code> / <code>feature_fraction</code></td>
+<td><code>subsample</code> / <code>rsm</code></td>
+</tr>
+<tr>
+<td>L1 / L2 penalty</td>
+<td><code>alpha</code> / <code>lambda</code></td>
+<td><code>lambda_l1</code> / <code>lambda_l2</code></td>
+<td><code>l2_leaf_reg</code></td>
+</tr>
+</tbody>
+</table>
+
+<p>In code, a booster's settings are just a named list. A LightGBM run on Sam's chain might start like this:</p>
+
+<pre><code class="language-r"># The four knobs (plus their regularization helpers), named the LightGBM way:
+params &lt;- list(
+  num_iterations   = 500,   # number of trees M
+  learning_rate    = 0.05,  # nu: how much of each tree to keep
+  num_leaves       = 31,    # tree complexity (XGBoost calls it max_depth)
+  min_data_in_leaf = 20,    # regularization: smallest leaf allowed
+  bagging_fraction = 0.8,   # regularization: sample 80% of rows each tree
+  feature_fraction = 0.8,   # regularization: sample 80% of columns each tree
+  lambda_l2        = 1.0    # regularization: L2 penalty on leaf scores
+)</code></pre>
+
+<p>The rest of this lesson takes those four knobs one at a time, on a small slice of Sam's data you can boost right here in the browser.</p>
+</section>
+
+<section class="lesson-step" data-step="3" data-step-type="widget">
+<div class="lesson-step-eyebrow">Knob 1</div>
+<h2>Number of trees</h2>
+
+<p>Each boosting round adds one more tree that corrects the leftover error, so more trees means more capacity to fit. The catch: a booster fits the <em>training</em> data a little better with every single tree, forever. Training error only ever falls. Validation error, the error on rentals the model never saw, falls at first while the trees are still learning real demand, bottoms out, then climbs as later trees start memorizing the noise in the training days.</p>
+
+<p>Drag the slider below. The orange training curve slides down without end, the validation curve makes a U, and the dashed line marks the round where validation is lowest, the best number of trees.</p>
+
+<p>Let us see that U for real on Sam's data. First we build one kiosk's daily rentals against temperature (demand humps near a pleasant 22 degrees), and a tiny booster we will reuse to test every knob. Each lesson runs in a fresh R session, so run this setup block once.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">library(rpart)
+set.seed(1)
+n &lt;- 240
+temp    &lt;- runif(n, -2, 36)                                          # daily high temperature, deg C
+rentals &lt;- 120 + 180 * exp(-((temp - 22)^2) / 120) + rnorm(n, 0, 22) # demand peaks near 22 C
+day &lt;- data.frame(temp = temp, rentals = rentals)
+tr  &lt;- 1:170; te &lt;- 171:n                                            # training rows / validation rows
+
+# A tiny gradient booster we will reuse to test each knob. It stacks `rounds`
+# shallow trees (each fit to the current residuals) and returns the training
+# and validation RMSE, so we can watch both move as we turn the dials.
+boost_tv &lt;- function(depth, lr, rounds, minbucket = 1) {
+  pred &lt;- rep(mean(day$rentals[tr]), nrow(day))                # start at the mean
+  for (m in 1:rounds) {
+    res  &lt;- data.frame(temp = day$temp[tr], r = day$rentals[tr] - pred[tr])
+    tree &lt;- rpart(r ~ temp, data = res,
+                  control = rpart.control(maxdepth = depth, minsplit = 2,
+                                          minbucket = minbucket, cp = 0))
+    pred &lt;- pred + lr * predict(tree, day)                     # add a shrunken correction
+  }
+  c(train = sqrt(mean((day$rentals[tr] - pred[tr])^2)),
+    val   = sqrt(mean((day$rentals[te] - pred[te])^2)))
+}
+nrow(day)
+#&gt; [1] 240</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>Now sweep the number of trees at a fixed learning rate and watch validation RMSE turn the corner.</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">rounds &lt;- c(10, 40, 120, 300)
+val    &lt;- sapply(rounds, function(R) unname(boost_tv(depth = 2, lr = 0.1, rounds = R)[&quot;val&quot;]))
+data.frame(rounds, val_rmse = round(val, 1))
+#&gt;   rounds val_rmse
+#&gt; 1     10     34.8
+#&gt; 2     40     23.2
+#&gt; 3    120     23.3
+#&gt; 4    300     24.4</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<div class="callout callout-insight"><div class="callout-label">Key Insight</div><div class="callout-body">More trees is not "more is better." It is a dial with a sweet spot: too few and the model has not finished learning the signal (underfit), too many and it starts fitting noise (overfit). Lesson 4 shows how <em>early stopping</em> finds that sweet spot for you automatically.</div></div>
+<div class="lesson-widget" data-widget-type="learning-curve" data-widget-config='{"rounds":40}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="4" data-step-type="widget">
+<div class="lesson-step-eyebrow">Knob 2</div>
+<h2>Learning rate</h2>
+
+<p>The learning rate \(\nu\) decides how much of each new tree you actually add. After round \(m\) the model updates by</p>
+
+<p>\[ F_m(x) = F_{m-1}(x) + \nu\, h_m(x) \]</p>
+
+<p>so \(\nu = 1\) adds each tree in full, while \(\nu = 0.05\) adds only a twentieth of it. A small \(\nu\) means each tree barely moves the prediction, so the booster takes small, cautious steps toward the answer. That is exactly gradient descent, and the picture below is its simplest form: a ball rolling down a loss bowl by steps of size \(\nu\). Slide the learning rate. Too small and it crawls, just right and it walks smoothly to the bottom, too large and it overshoots and bounces, or flies out of the bowl entirely.</p>
+
+<p>A booster behaves the same way. Small steps are safer and generalize better, but you need more of them to arrive, so the learning rate and the number of trees are two ends of one trade-off. Roughly, what matters is the total signal added, \(\nu \times M\): halve the learning rate and you need about twice as many trees to fit the same amount. See it on Sam's data, same trees, three settings:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(rbind(
+  &quot;big steps, few trees&quot;    = boost_tv(depth = 2, lr = 0.30, rounds = 40),
+  &quot;small steps, few trees&quot;  = boost_tv(depth = 2, lr = 0.03, rounds = 40),
+  &quot;small steps, many trees&quot; = boost_tv(depth = 2, lr = 0.03, rounds = 300)
+), 1)
+#&gt;                         train  val
+#&gt; big steps, few trees     15.8 23.2
+#&gt; small steps, few trees   29.8 32.7
+#&gt; small steps, many trees  17.1 23.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The middle row, a small learning rate with too few trees, has barely started: it underfits. Give the same small rate enough trees (the third row) and it catches the aggressive setting and tends to generalize a touch better. This is why practitioners pick a low learning rate and then add trees, rather than cranking the rate to finish faster.</p>
+
+<div class="callout callout-note"><div class="callout-label">Note</div><div class="callout-body">A high learning rate is the single fastest way to overfit a booster: each big step can blow past the best fit, and a few trees are enough to start carving the training noise. When in doubt, lower \(\nu\) and add trees.</div></div>
+<div class="lesson-widget" data-widget-type="gradient-descent" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="5" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Learning rate and trees together</h2>
+
+<p>Your booster does well with <code>learning_rate = 0.1</code> and 500 trees. You decide to halve the learning rate to <code>0.05</code> for a smoother, steadier fit. To keep roughly the same quality of fit, what should you do with the number of trees?</p>
+<section class="exercise" data-exercise-id="The-Hyperparameters-That-Matter-step5" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="2"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Halve the trees too, to about 250, so the two cuts cancel out</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Roughly double the trees, to about 1000, since the smaller steps each add less</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Leave the trees at 500, the learning rate has nothing to do with how many you need</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Right. What fits the data is roughly the total signal added, \(\nu \times M\). Halve \(\nu\) and you must roughly double \(M\) to keep that product, and you get a smoother, usually better-generalizing fit for the extra compute.</div><div class="lesson-qfb lesson-qfb-no">They are coupled. With half the step size and the same number of trees, the model has only travelled half as far toward the fit, so it underfits.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="6" data-step-type="widget">
+<div class="lesson-step-eyebrow">Knob 3</div>
+<h2>Tree depth</h2>
+
+<p>How complex should each individual tree be? Tree depth (or, equivalently, the leaf count <code>num_leaves</code>) sets that. A depth-1 tree (a "stump") asks one question. A depth-10 tree asks a long chain of them and can carve the data into hundreds of tiny regions. Depth also sets the <em>interaction order</em>: a depth-\(d\) tree can combine up to \(d\) features in a single rule, so depth 1 captures one feature at a time while depth 4 can learn "cold AND weekend AND downtown."</p>
+
+<p>The bias-variance picture below is the same U you saw for trees, now driven by complexity. Slide it: too simple underfits (high bias), too complex overfits (high variance), and the sweet spot sits in between.</p>
+
+<p>Here is the twist that trips people up. A <strong>random forest wants deep trees</strong>, because it averages many independent deep trees and the averaging cancels their variance. <strong>Boosting wants shallow trees</strong>, because the trees are added in sequence and each one already corrects the last, so a deep tree per round overshoots and the ensemble overfits fast. Depth 3 to 8 is the usual home for a booster. Watch stumps beat deep trees on Sam's data:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(rbind(
+  &quot;depth-1 stumps&quot; = boost_tv(depth = 1,  lr = 0.1, rounds = 80),
+  &quot;depth-10 trees&quot; = boost_tv(depth = 10, lr = 0.1, rounds = 80)
+), 1)
+#&gt;                train val
+#&gt; depth-1 stumps  21.7  25
+#&gt; depth-10 trees   0.1  29</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The deep-tree row drives training RMSE lower (it can memorize) but validation RMSE is worse: each over-eager tree has chased noise. Shallow trees, added patiently, win.</p>
+<div class="lesson-widget" data-widget-type="bias-variance" data-widget-config='{}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="7" data-step-type="concept">
+<div class="lesson-step-eyebrow">Knob 4</div>
+<h2>Regularization: the brakes</h2>
+
+<p>The first three knobs decide how much a booster <em>can</em> fit. Regularization decides how much you <em>let</em> it, by penalizing or restricting complexity so the model spends its capacity on signal, not noise. The everyday symptom regularization fixes is a big gap between a low training error and a high validation error: the model has memorized the training days.</p>
+
+<p>The main brakes, all of which you turn toward "more conservative" when you see overfitting:</p>
+
+<table class="table table-striped">
+<thead>
+<tr>
+<th>Knob</th>
+<th>What it does</th>
+<th>Turn it...</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Min data per leaf</td>
+<td>refuse leaves built on a few rows</td>
+<td>UP to fight overfit</td>
+</tr>
+<tr>
+<td>Subsample (rows)</td>
+<td>fit each tree on a random fraction of rows</td>
+<td>DOWN (e.g. 0.8) to fight overfit</td>
+</tr>
+<tr>
+<td>Column sample</td>
+<td>offer each tree a random subset of features</td>
+<td>DOWN (e.g. 0.8) to decorrelate trees</td>
+</tr>
+<tr>
+<td>L2 penalty \(\lambda\)</td>
+<td>shrink large leaf scores toward zero</td>
+<td>UP for a smoother model</td>
+</tr>
+<tr>
+<td>Min split gain \(\gamma\)</td>
+<td>refuse splits that barely help</td>
+<td>UP to prune weak splits</td>
+</tr>
+</tbody>
+</table>
+
+<p>The math behind the last two is one extra term added to what the booster minimizes. Alongside the prediction loss, each tree \(h\) pays a complexity price</p>
+
+<p>\[ \Omega(h) = \gamma\, T + \tfrac{1}{2}\,\lambda \sum_{j=1}^{T} w_j^2 \]</p>
+
+<p>where \(T\) is the number of leaves in the tree, \(w_j\) is the score (the value) on leaf \(j\), \(\gamma\) charges a flat fee per leaf (so the tree only grows leaves that earn their keep), and \(\lambda\) is the L2 penalty that pulls every leaf score toward zero (so no single leaf can shout). Bigger \(\gamma\) and \(\lambda\) mean simpler, calmer trees. The L1 penalty in the table (XGBoost's <code>alpha</code>) does the same job with absolute values and can push some leaf scores to exactly zero; L2 is the usual default.</p>
+
+<p>You can feel the simplest brake right now. Take the over-eager depth-10 booster from the last step and just forbid tiny leaves, demand at least 25 rows in every leaf:</p>
+
+<div class="webr-container">
+  <div class="webr-code-block">
+    <div class="webr-header"><div class="webr-header-left"><span class="webr-header-badge">R</span><span class="webr-header-label">Interactive R</span></div><div class="webr-header-right"><button type="button" class="webr-copy-btn" aria-label="Copy code" title="Copy code"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button><button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run <span class="webr-run-shortcut">Ctrl+Enter</span></button></div></div>
+    <div class="webr-editor" data-language="r">round(rbind(
+  &quot;unregularized (min leaf 1)&quot;  = boost_tv(depth = 10, lr = 0.1, rounds = 120, minbucket = 1),
+  &quot;regularized   (min leaf 25)&quot; = boost_tv(depth = 10, lr = 0.1, rounds = 120, minbucket = 25)
+), 1)
+#&gt;                             train  val
+#&gt; unregularized (min leaf 1)    0.0 29.0
+#&gt; regularized   (min leaf 25)  20.8 27.1</div>
+    <div class="webr-buttons">
+      <button class="btn btn-sm btn-primary webr-run-btn" onclick="runWebR(this)">&#9654; Run</button>
+      <button class="btn btn-sm btn-default webr-reset-btn" onclick="resetWebR(this)">&#8634; Reset</button>
+    </div>
+    <pre class="webr-output"></pre>
+  </div>
+  <div class="webr-plot-output"></div>
+</div>
+
+<p>The unregularized row has the lower training RMSE but the wider gap to validation, the signature of overfitting. One brake closes most of that gap. The trade is real, though: lean too hard on the brakes and you swing the other way into underfitting, so regularization is a dial to balance, not a switch to slam.</p>
+</section>
+
+<section class="lesson-step" data-step="8" data-step-type="tryit" data-gate="1">
+<div class="lesson-step-eyebrow">Your turn</div>
+<h2>Set a safe learning rate</h2>
+
+<p>You have seen the rule: small, cautious steps generalize better, as long as you give the booster enough trees to arrive. Set a <strong>low</strong> learning rate (a value below 0.1) on Sam's data and let it run for 300 trees. Fill in the blank with a small learning rate.</p>
+<section class="exercise" data-exercise-id="The-Hyperparameters-That-Matter-step8" data-grade-mode="self-check" data-difficulty="beginner">
+<div class="lesson-tryit" data-check-regex="lr\s*=\s*0\.0\d"><textarea class="lesson-tryit-input" spellcheck="false">boost_tv(depth = 3, lr = ____, rounds = 300)</textarea><div class="lesson-tryit-actions"><button type="button" class="lesson-tryit-check">Check</button><span class="lesson-tryit-fb lesson-tryit-ok">Nicely cautious. A learning rate of 0.0x takes small steps; with 300 trees it has room to reach a smooth, well-generalizing fit.</span><span class="lesson-tryit-fb lesson-tryit-no">You want a SMALL learning rate, something like lr = 0.05 (a value of the form 0.0x, below 0.1). Small steps plus enough trees is the safe recipe.</span></div><details class="lesson-tryit-sol"><summary>Show answer</summary><pre><code class="language-r">round(boost_tv(depth = 3, lr = 0.05, rounds = 300), 1)
+#&gt; train   val 
+#&gt;  10.7  23.5</code></pre></details></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="9" data-step-type="widget">
+<div class="lesson-step-eyebrow">Putting it together</div>
+<h2>The tuning recipe</h2>
+
+<p>The four knobs interact, so the order you set them in matters. Tuning all of them at once is a hopeless search; tuning them in this sequence is a short, reliable one. This is the workflow seasoned practitioners reach for, and the order most automated tuners follow too.</p>
+
+<p>Notice the learning rate appears twice: you fix a sensible value early so the rest of the search is stable, then lower it at the very end (adding trees to compensate) to wring out the last bit of accuracy. The number of trees is the one knob you almost never tune by hand, because validation error picks it for free. That is the whole subject of Lesson 4.</p>
+<div class="lesson-widget" data-widget-type="process-flow" data-widget-config='{"steps":[{"title":"1. Fix a low learning rate","sub":"start around 0.05 to 0.1: small, safe steps"},{"title":"2. Pick the number of trees","sub":"let validation error choose it (early stopping, Lesson 4)"},{"title":"3. Tune tree complexity","sub":"search depth / num_leaves and min data per leaf"},{"title":"4. Add regularization","sub":"row and column sampling, plus L1 / L2, to taste"},{"title":"5. Final squeeze","sub":"lower the learning rate, raise the trees, refit"}]}'><noscript><p class="lesson-widget-fallback">Interactive widget. Enable JavaScript to explore it.</p></noscript></div>
+</section>
+
+<section class="lesson-step" data-step="10" data-step-type="quiz" data-gate="1">
+<div class="lesson-step-eyebrow">Check yourself</div>
+<h2>Your model is overfitting</h2>
+
+<p>You train a booster on Sam's full chain and see a training RMSE of 14 but a validation RMSE of 41: a wide gap. The model has memorized the training days. Which set of moves is most likely to close the gap?</p>
+<section class="exercise" data-exercise-id="The-Hyperparameters-That-Matter-step10" data-grade-mode="self-check" data-difficulty="intermediate">
+<div class="lesson-quiz" data-correct="3"><button type="button" class="lesson-opt" data-i="1"><span class="lesson-opt-mk">A</span><span class="lesson-opt-tx">Add more trees and raise the learning rate, to push training error even lower</span></button>
+<button type="button" class="lesson-opt" data-i="2"><span class="lesson-opt-mk">B</span><span class="lesson-opt-tx">Nothing, a low training error means the model is excellent, validation error always lags</span></button>
+<button type="button" class="lesson-opt" data-i="3"><span class="lesson-opt-mk">C</span><span class="lesson-opt-tx">Lower the tree depth, raise the minimum leaf size, add row and column sampling, and lower the learning rate with more trees</span></button>
+<div class="lesson-qfb lesson-qfb-ok">Exactly. Every one of those is a brake: shallower and larger-leaf trees fit less aggressively, sampling decorrelates them, and a smaller learning rate takes safer steps. Together they trade a little training error for a lot of validation error, closing the gap.</div><div class="lesson-qfb lesson-qfb-no">A large gap is the definition of overfitting, not a feature. The honest measure of the model is the validation error, and right now it is poor.</div></div>
+</section>
+</section>
+
+<section class="lesson-step" data-step="11" data-step-type="concept">
+<div class="lesson-step-eyebrow">Go deeper</div>
+<h2>References</h2>
+
+<p>A few authoritative places to take this further:</p>
+
+<ul>
+
+<li><a href="https://hastie.su.domains/ElemStatLearn/">The Elements of Statistical Learning, ch. 10 (free PDF)</a> - boosting, the shrinkage (learning-rate) and tree-size parameters, with the full theory.</li>
+
+<li><a href="https://www.statlearning.com/">An Introduction to Statistical Learning, ch. 8 (free PDF)</a> - the gentler companion on tree boosting and its three tuning parameters.</li>
+
+<li><a href="https://arxiv.org/abs/1603.02754">Chen and Guestrin (2016), XGBoost: A Scalable Tree Boosting System</a> - the regularized objective (the \(\gamma\) and \(\lambda\) penalty) you saw, straight from the source.</li>
+
+<li><a href="https://xgboost.readthedocs.io/en/stable/tutorials/param_tuning.html">XGBoost docs: Notes on Parameter Tuning</a> - practical advice on trees, depth, learning rate and the bias-variance trade-off.</li>
+
+<li><a href="https://doi.org/10.1016/S0167-9473%2801%2900065-2">Friedman (2002), Stochastic Gradient Boosting</a> - why fitting each tree on a random subsample of rows improves accuracy.</li>
+
+</ul>
+</section>
+
+<section class="lesson-step" data-step="12" data-step-type="complete">
+<h2>Lesson 3 complete</h2>
+
+<p>You now know the four knobs that actually move a booster: the number of trees \(M\) (capacity, with a sweet spot), the learning rate \(\nu\) (the step size, traded off against the number of trees through \(\nu \times M\)), the tree depth (keep it shallow, the opposite of a random forest), and regularization (the brakes that shrink the gap between training and validation error). And you have a recipe: fix a low learning rate, let validation error choose the trees, then tune complexity and regularization.</p>
+
+<p>Next, Lesson 4: Early Stopping and Learning Curves. You met the learning curve here and saw that validation error makes a U. Next you will read that curve properly and let it stop training at the bottom automatically, so you never have to guess the number of trees again.</p>
+</section>
+
+{% endraw %}
